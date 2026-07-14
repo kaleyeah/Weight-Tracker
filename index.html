@@ -215,7 +215,7 @@ input[type=date]{font-family:var(--sans);color-scheme:dark;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.10";
+var APP_BUILD="2026-07-14.11";
 function pad(n){return String(n).padStart(2,"0");}
 function toISO(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());}
 function todayISO(){return toISO(new Date());}
@@ -252,7 +252,7 @@ var KEY="wl_v1";
 var DEFAULT_SETTINGS={units:"lbs",startingWeight:"",startDate:todayISO(),goalWeight:"",
   targetType:"lbs_per_week",targetValue:"1",targetCalories:"",targetProtein:"",targetCarbs:"",targetFat:""};
 var DEFAULT_PRESETS=["Lifting Day 1","Lifting Day 2","Peloton 30 min","GLP1","Rest Day"];
-var state={settings:Object.assign({},DEFAULT_SETTINGS),weights:[],food:{},workouts:{},steps:{},presets:DEFAULT_PRESETS.slice(),
+var state={settings:Object.assign({},DEFAULT_SETTINGS),weights:[],food:{},workouts:{},steps:{},notes:{},presets:DEFAULT_PRESETS.slice(),
   view:"overview",calY:new Date().getFullYear(),calM:new Date().getMonth(),weekOffset:0,
   selDate:todayISO(),foodDate:todayISO(),alertDismissed:false,confirmReset:false};
 
@@ -260,11 +260,11 @@ function load(){
   try{var raw=localStorage.getItem(KEY);if(raw){var d=JSON.parse(raw);
     state.settings=Object.assign({},DEFAULT_SETTINGS,d.settings||{});
     state.weights=Array.isArray(d.weights)?d.weights:[];
-    state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};
+    state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};
     state.presets=(Array.isArray(d.presets)&&d.presets.length)?d.presets:DEFAULT_PRESETS.slice();
   }}catch(e){}
 }
-function payload(){return {settings:state.settings,weights:state.weights,food:state.food,workouts:state.workouts,steps:state.steps,presets:state.presets};}
+function payload(){return {settings:state.settings,weights:state.weights,food:state.food,workouts:state.workouts,steps:state.steps,notes:state.notes,presets:state.presets};}
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(payload()));}catch(e){toast("Couldn't save — storage full or blocked");}}
 function save(){saveLocal();scheduleCloudPush();}
 
@@ -305,7 +305,7 @@ function cloudGet(cb){var c=syncCfg();if(!syncOn()){cb&&cb(null,"not configured"
 function applyCloud(d){if(!d)return;
   state.settings=Object.assign({},DEFAULT_SETTINGS,d.settings||{});
   state.weights=Array.isArray(d.weights)?d.weights:[];
-  state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};
+  state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};
   state.presets=(Array.isArray(d.presets)&&d.presets.length)?d.presets:DEFAULT_PRESETS.slice();
   saveLocal();markDirty(false);}
 function cloudPull(manual,done){setSync("syncing");cloudGet(function(d,err){
@@ -472,26 +472,6 @@ function view_weight(){
   return h+'</div></div>';
 }
 function stat(l,v,u){return '<div class="wl-stat"><div class="wl-stat-label">'+l+'</div><div class="wl-stat-val">'+v+'<span>'+(v!=="—"?" "+u:"")+'</span></div></div>';}
-function view_food(){
-  var u=state.settings.units;var date=state.foodDate;var e=state.food[date]||{};
-  var t={calories:num(state.settings.targetCalories),protein:num(state.settings.targetProtein),carbs:num(state.settings.targetCarbs),fat:num(state.settings.targetFat)};
-  var hasT=Object.keys(t).some(function(k){return t[k]!=null;});
-  var miss=missingDays();var isMiss=miss.indexOf(date)>=0;
-  var fields=[["calories","Calories","cal"],["protein","Protein","g"],["carbs","Carbs","g"],["fat","Fat","g"]];
-  var h='<div class="wl-stack"><div class="wl-card"><div class="wl-card-head"><span>Daily log</span>'+(isMiss&&date!==todayISO()?'<span class="wl-badge warn">missed</span>':'')+'</div><label class="wl-field wl-field-full"><span>Date</span><input type="date" id="wl-fdate" data-act="food:date" max="'+todayISO()+'" value="'+date+'"></label><div class="wl-macrogrid">';
-  fields.forEach(function(f){var val=e[f[0]]!=null?e[f[0]]:"";
-    h+='<label class="wl-field"><span>'+f[1]+' <em>'+f[2]+'</em></span><input class="wl-food-input" data-food="'+f[0]+'" type="number" inputmode="decimal" placeholder="0" value="'+val+'">';
-    if(hasT&&t[f[0]]!=null)h+='<div class="wl-tbar" id="bar-'+f[0]+'">'+barInner(num(val),t[f[0]])+'</div>';
-    h+='</label>';});
-  h+='</div>'+
-    '<label class="wl-field wl-field-full" style="margin-top:2px"><span>Steps</span><input class="wl-steps-input" data-steps="1" type="number" inputmode="numeric" placeholder="0" value="'+(state.steps[date]!=null?state.steps[date]:"")+'"></label>'+
-    '<div class="wl-hint" style="margin-top:12px">Entries save automatically as you type.</div>'+
-    ((num(e.calories)!=null||num(e.protein)!=null||num(e.carbs)!=null||num(e.fat)!=null||num(state.steps[date])!=null)?'<button class="wl-btn wl-btn-danger wl-full" style="margin-top:10px" data-act="food:del" data-date="'+date+'">'+I.trash.replace("<svg","<svg width=16 height=16")+'Clear this day</button>':'')+'</div>';
-  h+='<div class="wl-card"><div class="wl-card-head"><span>Recent days</span></div><div class="wl-list">';
-  for(var i=0;i<14;i++){var iso=toISO(new Date(Date.now()-i*DAY));var fe=state.food[iso];var has=fe&&(num(fe.calories)!=null||num(fe.protein)!=null);
-    h+='<button class="wl-list-row wl-list-tap" data-act="food:pick" data-date="'+iso+'"><span class="wl-dot '+(has?"good":"bad")+'"></span><span class="wl-list-date">'+fmtLong(parseISO(iso))+(iso===todayISO()?" · Today":"")+'</span><span class="wl-list-val">'+(has?(fe.calories||"—")+" cal":"Not logged")+'</span></button>';}
-  return h+'</div></div></div>';
-}
 function barInner(val,target){if(val==null||!target)return '<div class="wl-tbar-fill" style="width:0%"></div><span class="wl-tbar-text">— of '+target+'</span>';
   var pct=Math.min(1.15,val/target);var over=val>target*1.05;
   return '<div class="wl-tbar-fill'+(over?" over":"")+'" style="width:'+Math.min(100,pct*100)+'%"></div><span class="wl-tbar-text">'+Math.round(val/target*100)+'% of '+target+'</span>';}
@@ -510,16 +490,17 @@ function view_calendar(){
   var t={calories:num(state.settings.targetCalories),protein:num(state.settings.targetProtein),carbs:num(state.settings.targetCarbs),fat:num(state.settings.targetFat)};
   var hasT=Object.keys(t).some(function(k){return t[k]!=null;});
   h+='<div class="wl-card"><div class="wl-card-head"><span>'+fmtLong(parseISO(sel))+(sel===todayISO()?" · Today":"")+'</span></div>';
-  h+='<div class="wl-row"><label class="wl-field"><span>Weight <em>'+u+'</em></span><input class="wl-daywt-input" type="number" inputmode="decimal" step="0.1" placeholder="—" value="'+(wmap[sel]!=null?wmap[sel]:"")+'"></label><label class="wl-field"><span>Steps</span><input class="wl-steps-input" type="number" inputmode="numeric" placeholder="—" value="'+(state.steps[sel]!=null?state.steps[sel]:"")+'"></label></div>';
+  h+='<div class="wl-row"><label class="wl-field"><span>Weight <em>'+u+'</em></span><input class="wl-daywt-input wl-num" type="text" inputmode="decimal" placeholder="—" value="'+(wmap[sel]!=null?wmap[sel]:"")+'"></label><label class="wl-field"><span>Steps</span><input class="wl-steps-input wl-num" data-int="1" type="text" inputmode="numeric" placeholder="—" value="'+(state.steps[sel]!=null?state.steps[sel]:"")+'"></label></div>';
   h+='<div class="wl-macrogrid" style="margin-top:12px">';
   [["calories","Calories","cal"],["protein","Protein","g"],["carbs","Carbs","g"],["fat","Fat","g"]].forEach(function(f){var val=e[f[0]]!=null?e[f[0]]:"";
-    h+='<label class="wl-field"><span>'+f[1]+' <em>'+f[2]+'</em></span><input class="wl-food-input" data-food="'+f[0]+'" type="number" inputmode="decimal" placeholder="0" value="'+val+'">';
+    h+='<label class="wl-field"><span>'+f[1]+' <em>'+f[2]+'</em></span><input class="wl-food-input wl-num" data-food="'+f[0]+'" type="text" inputmode="decimal" placeholder="0" value="'+val+'">';
     if(hasT&&t[f[0]]!=null)h+='<div class="wl-tbar" id="bar-'+f[0]+'">'+barInner(num(val),t[f[0]])+'</div>';
     h+='</label>';});
   h+='</div>';
   h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:6px 0 8px">Activities</div><div class="wl-preset-list">';
   state.presets.forEach(function(p,idx){var on=selList.indexOf(p)>=0;h+='<button class="wl-preset'+(on?" on":"")+'" data-act="cal:toggle" data-idx="'+idx+'">'+(on?I.check:I.plus)+esc(p)+'</button>';});
   h+='</div>'+(selList.length?'<div class="wl-selected-note">Logged: '+esc(selList.join(", "))+'</div>':'')+'<button class="wl-link" style="margin-top:12px" data-act="go" data-view="settings">Edit activity list in Settings →</button>';
+  h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:14px 0 8px">Note</div><textarea class="wl-note-input" placeholder="Anything you want to remember about this day…" style="width:100%;min-height:70px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:14px;padding:11px 12px;box-sizing:border-box;outline:none;resize:vertical">'+esc(state.notes[sel]||"")+'</textarea>';
   if(num(e.calories)!=null||num(e.protein)!=null||num(e.carbs)!=null||num(e.fat)!=null||num(state.steps[sel])!=null)h+='<button class="wl-btn wl-btn-danger wl-full" style="margin-top:12px" data-act="food:del" data-date="'+sel+'">'+I.trash.replace("<svg","<svg width=16 height=16")+'Clear calories & steps</button>';
   h+='<div class="wl-hint" style="margin-top:10px">Everything here saves automatically. Tap a date above to edit another day; empty a field to clear it.</div></div></div>';
   return h;
@@ -528,7 +509,7 @@ function weekStartFor(offset){var d=new Date();d.setHours(0,0,0,0);d.setDate(d.g
 function weekDays(offset){var s=weekStartFor(offset),arr=[];for(var i=0;i<7;i++){var dd=new Date(s);dd.setDate(s.getDate()+i);arr.push(dd);}return arr;}
 function dayRow(d){var iso=toISO(d);var w=null;for(var i=0;i<state.weights.length;i++){if(state.weights[i].date===iso){w=state.weights[i].weight;break;}}
   var f=state.food[iso]||{};return {date:iso,dow:d.toLocaleDateString(undefined,{weekday:"long"}),d:d,weight:w,steps:num(state.steps[iso]),
-    calories:num(f.calories),protein:num(f.protein),fat:num(f.fat),carbs:num(f.carbs),activities:state.workouts[iso]||[]};}
+    calories:num(f.calories),protein:num(f.protein),fat:num(f.fat),carbs:num(f.carbs),activities:state.workouts[iso]||[],note:state.notes[iso]||""};}
 function sumStat(label,v,unit){
   if(label==="")return '<div class="wl-stat" style="visibility:hidden"></div>';
   var disp=v==null?"—":(Math.abs(v)>=1000?Math.round(v).toLocaleString():(v%1===0?String(v):String(r1(v))));
@@ -557,8 +538,8 @@ function view_summary(){
   return h+'</div>';}
 function csvCell(v){v=(v==null?"":String(v));return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
 function mdyy(iso){var d=parseISO(iso);return (d.getMonth()+1)+"/"+d.getDate()+"/"+String(d.getFullYear()).slice(-2);}
-function csvFor(days){var rows=[["Day","Date","Weight","Steps","Calories","Protein","Fat","Carbs","Activities"]];
-  days.forEach(function(r){rows.push([r.dow,mdyy(r.date),r.weight!=null?r1(r.weight):"",r.steps!=null?Math.round(r.steps):"",r.calories!=null?Math.round(r.calories):"",r.protein!=null?r.protein:"",r.fat!=null?r.fat:"",r.carbs!=null?r.carbs:"",r.activities.join(", ")]);});
+function csvFor(days){var rows=[["Day","Date","Weight","Steps","Calories","Protein","Fat","Carbs","Activities","Notes"]];
+  days.forEach(function(r){rows.push([r.dow,mdyy(r.date),r.weight!=null?r1(r.weight):"",r.steps!=null?Math.round(r.steps):"",r.calories!=null?Math.round(r.calories):"",r.protein!=null?r.protein:"",r.fat!=null?r.fat:"",r.carbs!=null?r.carbs:"",r.activities.join(", "),r.note||""]);});
   return rows.map(function(row){return row.map(csvCell).join(",");}).join("\r\n");}
 function exportWeekCSV(){var days=weekDays(state.weekOffset).map(dayRow);shareOrDownload("weight-summary-"+toISO(weekStartFor(state.weekOffset))+".csv","text/csv",csvFor(days));}
 function exportAllCSV(){var set={};state.weights.forEach(function(x){set[x.date]=1;});Object.keys(state.food).forEach(function(k){set[k]=1;});Object.keys(state.steps).forEach(function(k){set[k]=1;});Object.keys(state.workouts).forEach(function(k){set[k]=1;});
@@ -571,12 +552,12 @@ function view_settings(){
   var f=state.settings;var u=f.units;
   var h='<div class="wl-stack"><div class="wl-card"><div class="wl-card-head"><span>Goals &amp; weight</span></div><div class="wl-row"><label class="wl-field"><span>Units</span><div class="wl-seg">'+
     ["lbs","kg"].map(function(x){return '<button class="'+(u===x?"on":"")+'" data-act="set:units" data-units="'+x+'">'+x+'</button>';}).join("")+'</div></label></div>';
-  h+='<div class="wl-row"><label class="wl-field"><span>Starting weight ('+u+')</span><input type="number" inputmode="decimal" step="0.1" data-set="startingWeight" value="'+esc(f.startingWeight)+'" placeholder="0.0"></label><label class="wl-field"><span>Start date</span><input type="date" data-set="startDate" max="'+todayISO()+'" value="'+esc(f.startDate)+'"></label></div>';
-  h+='<label class="wl-field wl-field-full"><span>Goal weight ('+u+')</span><input type="number" inputmode="decimal" step="0.1" data-set="goalWeight" value="'+esc(f.goalWeight)+'" placeholder="0.0"></label></div>';
-  h+='<div class="wl-card"><div class="wl-card-head"><span>Weekly target</span></div><div class="wl-seg wl-seg-wide"><button class="'+(f.targetType==="lbs_per_week"?"on":"")+'" data-act="set:ttype" data-type="lbs_per_week">'+u+' / week</button><button class="'+(f.targetType==="percent_bw_per_week"?"on":"")+'" data-act="set:ttype" data-type="percent_bw_per_week">% bodyweight / week</button></div><label class="wl-field wl-field-full"><span>'+(f.targetType==="percent_bw_per_week"?"Percent per week":u+" per week")+'</span><input type="number" inputmode="decimal" step="0.1" data-set="targetValue" value="'+esc(f.targetValue)+'" placeholder="1"></label><div class="wl-hint">'+(f.targetType==="percent_bw_per_week"?"e.g. 1 = lose 1% of current bodyweight each week.":"e.g. 1 = lose 1 "+u+" each week (0.5–1 is a common range).")+'</div></div>';
+  h+='<div class="wl-row"><label class="wl-field"><span>Starting weight ('+u+')</span><input class="wl-num" type="text" inputmode="decimal" data-set="startingWeight" value="'+esc(f.startingWeight)+'" placeholder="0.0"></label><label class="wl-field"><span>Start date</span><input type="date" data-set="startDate" max="'+todayISO()+'" value="'+esc(f.startDate)+'"></label></div>';
+  h+='<label class="wl-field wl-field-full"><span>Goal weight ('+u+')</span><input class="wl-num" type="text" inputmode="decimal" data-set="goalWeight" value="'+esc(f.goalWeight)+'" placeholder="0.0"></label></div>';
+  h+='<div class="wl-card"><div class="wl-card-head"><span>Weekly target</span></div><div class="wl-seg wl-seg-wide"><button class="'+(f.targetType==="lbs_per_week"?"on":"")+'" data-act="set:ttype" data-type="lbs_per_week">'+u+' / week</button><button class="'+(f.targetType==="percent_bw_per_week"?"on":"")+'" data-act="set:ttype" data-type="percent_bw_per_week">% bodyweight / week</button></div><label class="wl-field wl-field-full"><span>'+(f.targetType==="percent_bw_per_week"?"Percent per week":u+" per week")+'</span><input class="wl-num" type="text" inputmode="decimal" data-set="targetValue" value="'+esc(f.targetValue)+'" placeholder="1"></label><div class="wl-hint">'+(f.targetType==="percent_bw_per_week"?"e.g. 1 = lose 1% of current bodyweight each week.":"e.g. 1 = lose 1 "+u+" each week (0.5–1 is a common range).")+'</div></div>';
   h+='<div class="wl-card"><div class="wl-card-head"><span>Daily targets <em>optional</em></span></div><div class="wl-macrogrid">'+
     [["targetCalories","Calories","cal"],["targetProtein","Protein","g"],["targetCarbs","Carbs","g"],["targetFat","Fat","g"]].map(function(x){
-      return '<label class="wl-field"><span>'+x[1]+' <em>'+x[2]+'</em></span><input type="number" inputmode="decimal" data-set="'+x[0]+'" value="'+esc(f[x[0]])+'" placeholder="—"></label>';}).join("")+
+      return '<label class="wl-field"><span>'+x[1]+' <em>'+x[2]+'</em></span><input class="wl-num" type="text" inputmode="decimal" data-set="'+x[0]+'" value="'+esc(f[x[0]])+'" placeholder="—"></label>';}).join("")+
     '</div><div class="wl-hint">Set these to see progress bars in your food log. Leave blank to just track raw numbers.</div></div>';
   h+='<div class="wl-card"><div class="wl-card-head"><span>Activity list</span></div><div class="wl-preset-manage">';
   state.presets.forEach(function(p,idx){h+='<div class="wl-preset-manage-row">'+I.dumbbell.replace("<svg","<svg width=14 height=14")+'<span>'+esc(p)+'</span><button class="wl-icon-btn" data-act="preset:del" data-idx="'+idx+'">✕</button></div>';});
@@ -660,10 +641,12 @@ document.addEventListener("click",function(e){
   if(a==="sum:exportall"){exportAllCSV();return;}
   if(a==="reset:ask"){state.confirmReset=true;render();return;}
   if(a==="reset:cancel"){state.confirmReset=false;render();return;}
-  if(a==="reset:do"){state.settings=Object.assign({},DEFAULT_SETTINGS);state.weights=[];state.food={};state.workouts={};state.steps={};state.presets=DEFAULT_PRESETS.slice();state.confirmReset=false;state.view="overview";save();render();toast("All data erased");return;}
+  if(a==="reset:do"){state.settings=Object.assign({},DEFAULT_SETTINGS);state.weights=[];state.food={};state.workouts={};state.steps={};state.notes={};state.presets=DEFAULT_PRESETS.slice();state.confirmReset=false;state.view="overview";save();render();toast("All data erased");return;}
 });
 document.addEventListener("input",function(e){
   var el=e.target;
+  if(el.classList&&el.classList.contains("wl-num")){var isInt=el.hasAttribute("data-int");var cv=isInt?el.value.replace(/[^\d]/g,""):el.value.replace(/[^\d.]/g,"").replace(/(\..*)\./g,"$1");if(cv!==el.value)el.value=cv;}
+  if(el.classList&&el.classList.contains("wl-note-input")){var nd=state.selDate;if(el.value.trim())state.notes[nd]=el.value;else delete state.notes[nd];save();return;}
   if(el.hasAttribute&&el.hasAttribute("data-sync")){var c=syncCfg();c[el.getAttribute("data-sync")]=el.value.trim();setSyncCfg(c);var st=document.getElementById("wl-sync-status");if(st)st.innerHTML=syncStatusHTML();return;}
   if(el.hasAttribute&&el.hasAttribute("data-set")){state.settings[el.getAttribute("data-set")]=el.value;save();return;}
   if(el.classList&&el.classList.contains("wl-food-input")){
