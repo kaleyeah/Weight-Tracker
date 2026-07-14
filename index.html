@@ -239,7 +239,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.22";
+var APP_BUILD="2026-07-14.24";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function toISO(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());}
@@ -275,7 +275,7 @@ var I={
 /* ---------------- storage ---------------- */
 var KEY="wl_v1";
 var DEFAULT_SETTINGS={units:"lbs",startingWeight:"",startDate:todayISO(),goalWeight:"",
-  targetType:"lbs_per_week",targetValue:"1",targetCalories:"",targetProtein:"",targetCarbs:"",targetFat:"",theme:"ink",name:"",reminderTime:"19:00"};
+  targetType:"lbs_per_week",targetValue:"1",targetCalories:"",targetProtein:"",targetCarbs:"",targetFat:"",theme:"ink",name:"",reminderTime:"19:00",connections:[]};
 var SANS="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,system-ui,sans-serif";
 var MONO="ui-monospace,'SF Mono','Cascadia Code',Menlo,Consolas,monospace";
 var THEMES={
@@ -312,7 +312,7 @@ function save(){saveLocal();scheduleCloudPush();}
 /* ---------------- cloud sync (private GitHub repo via Contents API) ---------------- */
 var SYNC_KEY="wl_sync",DIRTY_KEY="wl_dirty",LAST_KEY="wl_lastsync",GH_PATH="data.json",DEFAULT_REPO="kaleyeah/weight-data",DEFAULT_BRANCH="main";
 var syncState={s:"idle",msg:""},pushTimer=null,pushing=false,ghSha=null;
-var partnerData=null;
+var connData={};
 function syncCfg(){try{return JSON.parse(localStorage.getItem(SYNC_KEY))||{};}catch(e){return {};}}
 function setSyncCfg(c){try{localStorage.setItem(SYNC_KEY,JSON.stringify(c));}catch(e){}}
 function normRepo(s){return (s||"").trim().replace(/^https?:\/\/github\.com\//i,"").replace(/\.git$/i,"").replace(/^\/+|\/+$/g,"");}
@@ -334,14 +334,23 @@ function syncStatusHTML(){if(!syncOn())return '<span style="color:var(--faint)">
 function b64enc(str){return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g,function(_,h){return String.fromCharCode(parseInt(h,16));}));}
 function b64dec(b64){b64=(b64||"").replace(/\s/g,"");if(!b64)return "";return decodeURIComponent(Array.prototype.map.call(atob(b64),function(c){return "%"+("00"+c.charCodeAt(0).toString(16)).slice(-2);}).join(""));}
 function ghHeaders(c){return {Authorization:"Bearer "+c.token,Accept:"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"};}
-function myFile(){return syncCfg().profile==="b"?"data-partner.json":"data.json";}
-function partnerFileName(){return syncCfg().profile==="b"?"data.json":"data-partner.json";}
+function fileForUid(uid){return (!uid||uid==="owner")?"data.json":(uid==="partner"?"data-partner.json":"u-"+uid+".json");}
+function myUid(){return syncCfg().uid||"owner";}
+function myFile(){return fileForUid(syncCfg().uid);}
+function randUid(){return Math.random().toString(36).slice(2,8)+Math.random().toString(36).slice(2,6);}
+function ensureIdentity(){var c=syncCfg();var ch=false;
+  if(!c.uid){c.uid=(c.profile==="b")?"partner":"owner";ch=true;} /* migrate old profile toggle */
+  if(ch)setSyncCfg(c);}
+function connectionList(){var cs=state.settings.connections;return Array.isArray(cs)?cs.filter(function(u){return u&&u!==myUid();}):[];}
+function encodeInvite(o){return b64enc(JSON.stringify(o));}
+function decodeInvite(code){try{return JSON.parse(b64dec((code||"").trim()));}catch(e){return null;}}
 function ghUrl(c,path){return "https://api.github.com/repos/"+normRepo(c.repo||DEFAULT_REPO)+"/contents/"+(path||myFile());}
-function pullPartner(){var c=syncCfg();if(!syncOn())return;
-  fetch(ghUrl(c,partnerFileName())+"?ref="+encodeURIComponent(c.branch||DEFAULT_BRANCH)+"&t="+Date.now(),{headers:ghHeaders(c),cache:"no-store"})
-    .then(function(r){if(!r.ok)return null;return r.json();})
-    .then(function(j){if(!j)return;try{var txt=b64dec(j.content||"");var d=txt?JSON.parse(txt):null;if(d&&(d.weights||d.settings)){partnerData=d;render();}}catch(e){}})
-    .catch(function(){});}
+function pullConnections(){var c=syncCfg();if(!syncOn())return;var list=connectionList();if(!list.length)return;
+  list.forEach(function(uid){
+    fetch(ghUrl(c,fileForUid(uid))+"?ref="+encodeURIComponent(c.branch||DEFAULT_BRANCH)+"&t="+Date.now(),{headers:ghHeaders(c),cache:"no-store"})
+      .then(function(r){if(!r.ok)return null;return r.json();})
+      .then(function(j){if(!j)return;try{var txt=b64dec(j.content||"");var d=txt?JSON.parse(txt):null;if(d&&(d.weights||d.settings)){connData[uid]=d;render();}}catch(e){}})
+      .catch(function(){});});}
 function cloudGet(cb){var c=syncCfg();if(!syncOn()){cb&&cb(null,"not configured");return;}
   fetch(ghUrl(c)+"?ref="+encodeURIComponent(c.branch||DEFAULT_BRANCH)+"&t="+Date.now(),{headers:ghHeaders(c),cache:"no-store"})
     .then(function(r){
@@ -359,7 +368,7 @@ function applyCloud(d){if(!d)return;
   saveLocal();markDirty(false);applyTheme(state.settings.theme||"ink");}
 function cloudPull(manual,done){setSync("syncing");cloudGet(function(d,err){
   if(err){setSync(err==="offline"?"offline":"error",err==="auth"?"bad token or repo access":"");if(manual)toast(err==="offline"?"No connection":err==="auth"?"Check token & repo":"Couldn't pull");done&&done();return;}
-  applyCloud(d);setLastSync();setSync("ok");render();pullPartner();if(manual)toast("Pulled from GitHub");done&&done();});}
+  applyCloud(d);setLastSync();setSync("ok");render();pullConnections();if(manual)toast("Pulled from GitHub");done&&done();});}
 function scheduleCloudPush(){if(!syncOn())return;markDirty(true);setSync("saving");clearTimeout(pushTimer);pushTimer=setTimeout(function(){cloudPush();},1400);}
 function ghPut(c,sha,cb){
   var body={message:"Update weight data "+new Date().toISOString(),content:b64enc(JSON.stringify(payload())),branch:c.branch||DEFAULT_BRANCH};
@@ -383,7 +392,7 @@ function cloudPush(manual){var c=syncCfg();if(!syncOn()){if(manual)toast("Set up
 function localHasData(){return state.weights.length>0||Object.keys(state.food).length>0||Object.keys(state.workouts).length>0||num(state.settings.startingWeight)!=null;}
 function cloudEmpty(d){return !d||((d.weights||[]).length===0&&Object.keys(d.food||{}).length===0&&Object.keys(d.workouts||{}).length===0&&(!d.settings||Object.keys(d.settings).length===0));}
 function autoSync(){if(!syncOn())return;
-  pullPartner();
+  pullConnections();
   if(isDirty()){cloudPush();return;}
   setSync("syncing");cloudGet(function(d,err){
     if(err){setSync(err==="offline"?"offline":"error",err==="auth"?"bad token or repo access":"");return;}
@@ -391,7 +400,7 @@ function autoSync(){if(!syncOn())return;
     applyCloud(d);setLastSync();setSync("ok");render();});}
 function cloudTest(){setSync("syncing");cloudGet(function(d,err){
   if(err){setSync(err==="offline"?"offline":"error",err==="auth"?"bad token or repo access":"");toast(err==="offline"?"No connection":err==="auth"?"Check token & repo access":"Failed");return;}
-  var n=(d.weights||[]).length,fd=Object.keys(d.food||{}).length;setLastSync();setSync("ok","repo has "+n+" weigh-ins, "+fd+" food days");pullPartner();toast("Connected to GitHub");render();});}
+  var n=(d.weights||[]).length,fd=Object.keys(d.food||{}).length;setLastSync();setSync("ok","repo has "+n+" weigh-ins, "+fd+" food days");pullConnections();toast("Connected to GitHub");render();});}
 
 /* ---------------- computations ---------------- */
 function sortedWeights(){return state.weights.slice().sort(function(a,b){return a.date.localeCompare(b.date);});}
@@ -423,9 +432,10 @@ function computeForecasts(current,goal,slope){
     else out.observed={stalled:true};}
   return out;
 }
-function missingDays(){var list=[];for(var i=0;i<7;i++){var iso=toISO(new Date(Date.now()-i*DAY));var e=state.food[iso];
-  var empty=!e||(num(e.calories)==null&&num(e.protein)==null&&num(e.carbs)==null&&num(e.fat)==null);
-  if(empty)list.push(iso);}return list;}
+function missingDays(){var list=[];var now=new Date();var dow=now.getDay();
+  for(var i=0;i<=dow;i++){var d=new Date(now.getFullYear(),now.getMonth(),now.getDate()-i);var iso=toISO(d);var e=state.food[iso];
+    var empty=!e||(num(e.calories)==null&&num(e.protein)==null&&num(e.carbs)==null&&num(e.fat)==null);
+    if(empty)list.push(iso);}return list;}
 
 /* ---------------- chart (svg) ---------------- */
 function buildChart(c,goal,unit,compact){
@@ -494,13 +504,17 @@ function view_overview(){
     todayRow(I.weight,"Weight",twt!=null?(r1(twt)+" "+u):null)+
     todayRow(I.dumbbell,"Activity",tw.length?esc(tw.join(", ")):null)+
     '</div></div>';
-  h+=partnerCard();
-  if(past.length){h+='<div class="wl-card"><div class="wl-card-head"><span>Missed days (last 7)</span></div><div class="wl-chips">';past.forEach(function(d){h+='<button class="wl-chip warn" data-act="openday" data-date="'+d+'">'+fmtShort(parseISO(d))+'</button>';});h+='</div></div>';}
+  h+=connectionCards();
+  if(past.length){h+='<div class="wl-card"><div class="wl-card-head"><span>Missed days this week</span></div><div class="wl-chips">';past.forEach(function(d){h+='<button class="wl-chip warn" data-act="openday" data-date="'+d+'">'+fmtShort(parseISO(d))+'</button>';});h+='</div></div>';}
   h+='</div>';return h;
 }
-function partnerCard(){
-  if(!partnerData)return "";
-  var ps=partnerData.settings||{};var pw=Array.isArray(partnerData.weights)?partnerData.weights:[];
+function connectionCards(){
+  var list=connectionList();var out="";
+  list.forEach(function(uid){var d=connData[uid];if(!d)return;out+=oneConnCard(d);});
+  return out;
+}
+function oneConnCard(d){
+  var ps=d.settings||{};var pw=Array.isArray(d.weights)?d.weights:[];
   if(!pw.length&&num(ps.startingWeight)==null)return "";
   var u=ps.units||"lbs";
   var sw=pw.slice().sort(function(a,b){return a.date.localeCompare(b.date);});
@@ -509,15 +523,22 @@ function partnerCard(){
   var lost=(start!=null&&current!=null)?start-current:null;
   var toGo=(current!=null&&goal!=null)?current-goal:null;
   var progress=null;if(start!=null&&goal!=null&&current!=null&&start!==goal){progress=(start-current)/(start-goal);progress=Math.max(0,Math.min(1,progress));}
-  var name=esc(ps.name||"Partner");
+  var name=esc(ps.name||"Someone");
   var h='<div class="wl-card"><div class="wl-card-head"><span>'+name+'\u2019s progress</span><span class="wl-count">shared</span></div>';
   h+='<div class="wl-hero-top" style="margin-bottom:12px"><div><div class="wl-mini-label">Current</div><div class="wl-bignum" style="font-size:30px">'+(current!=null?r1(current):"—")+'<span class="wl-unit">'+u+'</span></div></div>'+(lost!=null?'<div class="wl-change '+(lost>=0?"good":"bad")+'">'+(lost>=0?I.down:I.up)+(lost>=0?"Lost ":"Gained ")+Math.abs(r1(lost))+' '+u+'</div>':'')+'</div>';
   if(progress!=null)h+='<div class="wl-progress-track"><div class="wl-progress-fill" style="width:'+(progress*100)+'%"></div><div class="wl-progress-marker" style="left:'+(progress*100)+'%"></div></div><div class="wl-progress-ends"><span><b>'+r1(start)+'</b> start</span><span class="wl-togo">'+(toGo!=null&&toGo>0?r1(toGo)+" "+u+" to go":"Goal reached")+'</span><span><b>'+r1(goal)+'</b> goal</span></div>';
   var pc=prepChart(pw);if(pc.data.length)h+=buildChart(pc,goal,u,true);
   return h+'</div>';
 }
+function connectionsHTML(){var list=connectionList();
+  if(!list.length)return '<div class="wl-hint" style="margin-top:8px">No one connected yet. Create an invite code to add someone.</div>';
+  var h='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:12px 0 6px">Connected</div>';
+  list.forEach(function(uid){var nm=(connData[uid]&&connData[uid].settings&&connData[uid].settings.name)||"Pending…";
+    h+='<div class="wl-preset-manage-row">'+I.check.replace("<svg","<svg width=14 height=14")+'<span>'+esc(nm)+'</span><button class="wl-icon-btn" data-act="conn:remove" data-uid="'+uid+'">✕</button></div>';});
+  return h;
+}
 function todayRow(icon,label,val){
-  var dot=val!=null?"good":(label==="Calories"?"bad":"muted");
+  var dot=val!=null?"good":"bad";
   return '<button class="wl-today-row" data-act="opentoday"><span class="wl-dot '+dot+'"></span>'+icon.replace("<svg","<svg width=16 height=16")+'<span class="wl-today-label">'+label+'</span><span class="wl-today-val">'+(val!=null?val:(label==="Activity"?"None logged":"Not logged"))+'</span></button>';
 }
 function fcCell(label,sub,fc,stalledMsg){
@@ -699,15 +720,14 @@ function view_settings(){
     (state.syncPasteOpen?'<textarea id="wl-syncpaste" placeholder="Paste setup here, then tap Apply" style="width:100%;min-height:80px;margin-top:10px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--mono);font-size:12px;padding:10px;box-sizing:border-box;outline:none"></textarea><div class="wl-row" style="margin-top:8px"><button class="wl-btn wl-btn-ghost wl-full" data-act="sync:pastecancel">Cancel</button><button class="wl-btn wl-btn-primary wl-full" data-act="sync:pasteapply">Apply</button></div>':'')+
     '<div class="wl-hint" style="margin-top:10px"><b>Status:</b> <span id="wl-sync-status">'+syncStatusHTML()+'</span></div>'+
     '<div class="wl-hint">Synced with <b>kaleyeah/weight-data</b>. Enter your token once, tap <b>Test</b>, then <b>Push</b>. Setting up a new device? Tap <b>Copy setup</b> here and <b>Paste setup</b> there — no retyping the token. Your token is stored on this device only, never in the app\u2019s code.</div></div>'):'')+'</div>';
-  var prof=sc.profile==="b"?"b":"a";
-  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="share"><span>Partner sharing <em>optional</em></span><span class="wl-chevron'+(op.share?" open":"")+'">›</span></button>'+(op.share?('<div class="wl-collapse-body">'+
+  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="share"><span>Sharing <em>invite</em></span><span class="wl-chevron'+(op.share?" open":"")+'">›</span></button>'+(op.share?('<div class="wl-collapse-body">'+
     '<label class="wl-field wl-field-full"><span>Your name</span><input type="text" data-set="name" value="'+esc(f.name||"")+'" placeholder="e.g. Alex" autocapitalize="words" autocorrect="off"></label>'+
-    '<label class="wl-field wl-field-full" style="margin-top:12px"><span>This device logs for</span><div class="wl-seg">'+
-      '<button class="'+(prof==="a"?"on":"")+'" data-act="set:profile" data-profile="a">Person 1</button>'+
-      '<button class="'+(prof==="b"?"on":"")+'" data-act="set:profile" data-profile="b">Person 2</button>'+
-    '</div></label>'+
-    '<div class="wl-hint" style="margin-top:10px">To share results with your partner: set <b>one</b> device to Person 1 and the <b>other</b> to Person 2, both signed in with the same token. Your <b>activity lists and macro plans stay private to each of you</b> — the only thing shared is weight-loss progress, shown on the Overview. Keep this device on <b>Person 1</b> if it already has your data.</div>'+
-    '<div class="wl-hint"><b>Partner:</b> '+(partnerData?esc((partnerData.settings&&partnerData.settings.name)||"connected"):"not connected yet")+'</div>'
+    connectionsHTML()+
+    '<div class="wl-row" style="margin-top:12px"><button class="wl-btn wl-btn-primary wl-full" data-act="invite:create">Create invite code</button><button class="wl-btn wl-btn-ghost wl-full" data-act="invite:open">Enter a code</button></div>'+
+    (state.inviteCode?'<div class="wl-hint" style="margin-top:10px">Send this code to the person you\u2019re adding, then have them tap <b>Enter a code</b> on their device:</div><textarea readonly onclick="this.select()" style="width:100%;min-height:76px;margin-top:6px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--mono);font-size:11px;padding:10px;box-sizing:border-box;outline:none">'+esc(state.inviteCode)+'</textarea><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:6px" data-act="invite:copy">Copy code</button>':'')+
+    (state.joinOpen?'<textarea id="wl-joincode" placeholder="Paste the invite code you were sent" style="width:100%;min-height:76px;margin-top:10px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--mono);font-size:11px;padding:10px;box-sizing:border-box;outline:none"></textarea><div class="wl-row" style="margin-top:6px"><button class="wl-btn wl-btn-ghost wl-full" data-act="invite:joincancel">Cancel</button><button class="wl-btn wl-btn-primary wl-full" data-act="invite:join">Join</button></div>':'')+
+    '<div class="wl-hint" style="margin-top:10px">Add people by <b>invite code</b>. Each person gets their own private space tied to that code — it can\u2019t be switched or overwritten from another device. Your <b>activities and macros stay private</b>; only weight-loss progress is shared, on the Overview.</div>'+
+    '<div class="wl-hint">Note: everyone shares one repo &amp; token, so this is trust-based separation (fine for family) rather than a hard wall. For true isolation each person would need their own repo.</div>'
     ):'')+'</div>';
   h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="backup"><span>Backup &amp; transfer</span><span class="wl-chevron'+(op.backup?" open":"")+'">›</span></button>'+(op.backup?('<div class="wl-collapse-body">'+
     '<div class="wl-row"><button class="wl-btn wl-btn-ghost wl-full" data-act="export">Export / share file</button><button class="wl-btn wl-btn-ghost wl-full" data-act="import">Import file</button></div>'+
@@ -739,7 +759,7 @@ function render(){
 function toast(msg){var t=document.getElementById("wl-toast");t.textContent=msg;t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(function(){t.classList.remove("show");},1600);}
 document.addEventListener("click",function(e){
   var el=e.target.closest("[data-act]");if(!el)return;var a=el.getAttribute("data-act");
-  if(a==="go"){state.view=el.getAttribute("data-view");state.alertDismissed=false;state.confirmReset=false;state.pasteOpen=false;state.syncPasteOpen=false;render();return;}
+  if(a==="go"){state.view=el.getAttribute("data-view");state.alertDismissed=false;state.confirmReset=false;state.pasteOpen=false;state.syncPasteOpen=false;state.inviteCode=null;state.joinOpen=false;render();return;}
   if(a==="alert:dismiss"){state.alertDismissed=true;render();return;}
   if(a==="chart:pt"){var ts=+el.getAttribute("data-ts"),w=+el.getAttribute("data-w"),av=el.getAttribute("data-avg");
     var r=document.getElementById("wl-readout");if(r)r.innerHTML='<b>'+r1(w)+'</b> '+state.settings.units+' · '+fmtFull(new Date(ts))+(av!=="null"?' · avg '+av:'');return;}
@@ -761,7 +781,16 @@ document.addEventListener("click",function(e){
   if(a==="set:units"){state.settings.units=el.getAttribute("data-units");save();render();return;}
   if(a==="set:theme"){state.settings.theme=el.getAttribute("data-theme");save();applyTheme(state.settings.theme);render();return;}
   if(a==="card:toggle"){state.open=state.open||{};var cd=el.getAttribute("data-card");state.open[cd]=!state.open[cd];render();return;}
-  if(a==="set:profile"){var np=el.getAttribute("data-profile");if(np===(syncCfg().profile||"a"))return;if(!window.confirm("Switch this device to "+(np==="a"?"Person 1":"Person 2")+"? It will sync to that person\u2019s file."))return;var pc=syncCfg();pc.profile=np;setSyncCfg(pc);ghSha=null;partnerData=null;render();autoSync();return;}
+  if(a==="invite:create"){var c0=syncCfg();if(!syncOn()){toast("Set up Cloud sync first");return;}var nu=randUid();var cs=Array.isArray(state.settings.connections)?state.settings.connections.slice():[];if(cs.indexOf(nu)<0)cs.push(nu);state.settings.connections=cs;save();state.inviteCode=encodeInvite({t:c0.token,r:c0.repo||DEFAULT_REPO,b:c0.branch||DEFAULT_BRANCH,u:nu,from:myUid(),fromName:state.settings.name||""});state.joinOpen=false;render();return;}
+  if(a==="invite:copy"){if(state.inviteCode)copyText(state.inviteCode,"Invite code copied");return;}
+  if(a==="invite:open"){state.joinOpen=true;state.inviteCode=null;render();return;}
+  if(a==="invite:joincancel"){state.joinOpen=false;render();return;}
+  if(a==="invite:join"){var ta=document.getElementById("wl-joincode");var inv=decodeInvite(ta&&ta.value);if(!inv||!inv.t||!inv.u){toast("That code isn\u2019t valid");return;}
+    if(!window.confirm("Join as a new person on this device? This device will sync to its own private space."))return;
+    setSyncCfg({token:inv.t,repo:inv.r||DEFAULT_REPO,branch:inv.b||DEFAULT_BRANCH,uid:inv.u});
+    var conns=[];if(inv.from)conns.push(inv.from);state.settings.connections=conns;
+    ghSha=null;connData={};state.joinOpen=false;save();render();autoSync();toast("Joined"+(inv.fromName?" · connected to "+inv.fromName:""));return;}
+  if(a==="conn:remove"){var ru=el.getAttribute("data-uid");if(!window.confirm("Stop sharing with this person on your Overview?"))return;state.settings.connections=(state.settings.connections||[]).filter(function(x){return x!==ru;});delete connData[ru];save();render();return;}
   if(a==="reminder:add"){var ti=document.getElementById("wl-remind-time");var tv=(ti&&ti.value)||"19:00";state.settings.reminderTime=tv;save();shareOrDownload("activity-reminder.ics","text/calendar",reminderICS(tv));return;}
   if(a==="set:ttype"){state.settings.targetType=el.getAttribute("data-type");save();render();return;}
   if(a==="preset:add"){var inp=document.getElementById("wl-preset-input");var v=(inp.value||"").trim();
@@ -776,13 +805,12 @@ document.addEventListener("click",function(e){
   if(a==="sync:test"){cloudTest();return;}
   if(a==="sync:pull"){if(window.confirm("Pull from GitHub and replace all data on this device?"))cloudPull(true);return;}
   if(a==="sync:push"){cloudPush(true);return;}
-  if(a==="sync:copy"){var scg=syncCfg();copyText(JSON.stringify({token:scg.token||"",repo:scg.repo||DEFAULT_REPO,branch:scg.branch||DEFAULT_BRANCH}),"Setup copied");return;}
+  if(a==="sync:copy"){var scg=syncCfg();copyText(JSON.stringify({token:scg.token||"",repo:scg.repo||DEFAULT_REPO,branch:scg.branch||DEFAULT_BRANCH,uid:myUid()}),"Setup copied");return;}
   if(a==="sync:paste"){state.syncPasteOpen=!state.syncPasteOpen;render();return;}
   if(a==="sync:pastecancel"){state.syncPasteOpen=false;render();return;}
   if(a==="sync:pasteapply"){var sta=document.getElementById("wl-syncpaste");try{var cfg=JSON.parse((sta&&sta.value)||"{}");if(!cfg.token){toast("No token found in that setup");return;}
-    var isB=window.confirm("Who uses THIS device?\n\nOK  =  your partner (Person 2)\nCancel  =  you (Person 1)");
-    setSyncCfg({token:cfg.token,repo:cfg.repo||DEFAULT_REPO,branch:cfg.branch||DEFAULT_BRANCH,profile:isB?"b":"a"});
-    ghSha=null;partnerData=null;state.syncPasteOpen=false;render();toast("Set up as "+(isB?"Person 2":"Person 1"));autoSync();}catch(e){toast("Couldn't read that setup");}return;}
+    setSyncCfg({token:cfg.token,repo:cfg.repo||DEFAULT_REPO,branch:cfg.branch||DEFAULT_BRANCH,uid:cfg.uid||"owner"});
+    ghSha=null;connData={};state.syncPasteOpen=false;render();toast("Setup applied");autoSync();}catch(e){toast("Couldn't read that setup");}return;}
   if(a==="app:update"){updateApp();return;}
   if(a==="sum:prev"){state.weekOffset--;render();return;}
   if(a==="sum:next"){if(state.weekOffset<0){state.weekOffset++;render();}return;}
@@ -909,7 +937,7 @@ function makeIcon(){
 }
 
 /* ---------------- init ---------------- */
-load();applyTheme(state.settings.theme||"ink");makeIcon();render();autoSync();
+load();ensureIdentity();applyTheme(state.settings.theme||"ink");makeIcon();render();autoSync();
 try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(e){}
 checkForUpdate();
 document.addEventListener("visibilitychange",function(){if(!document.hidden)checkForUpdate();});
