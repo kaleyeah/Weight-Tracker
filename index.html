@@ -191,6 +191,8 @@ input[type=date]{font-family:var(--sans);color-scheme:dark;}
 .wl-seg button{flex:1;background:none;border:none;color:var(--muted);font-size:13px;font-weight:600;padding:9px 14px;border-radius:8px;}
 .wl-seg button.on{background:var(--accent);color:#20160A;}
 .wl-danger{border-color:rgba(242,109,91,.25);}
+.wl-update-banner{position:fixed;top:0;left:0;right:0;z-index:120;display:flex;align-items:center;justify-content:center;gap:12px;background:var(--accent);color:#20160A;font-weight:700;font-size:13px;padding:calc(env(safe-area-inset-top,0px) + 10px) 14px 10px;box-shadow:0 4px 16px rgba(0,0,0,.4);}
+.wl-update-banner button{padding:7px 14px;border:none;border-radius:8px;font-weight:700;}
 .wl-toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);
   background:var(--card2);border:1px solid var(--line2);color:var(--text);font-size:13px;font-weight:600;
   padding:10px 18px;border-radius:22px;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:50;}
@@ -221,7 +223,7 @@ input[type=date]{font-family:var(--sans);color-scheme:dark;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.13";
+var APP_BUILD="2026-07-14.14";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function toISO(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());}
@@ -770,6 +772,23 @@ function legacyCopy(text,msg){
   try{document.execCommand("copy");toast(msg||"Copied");}catch(e){toast("Couldn't copy");}document.body.removeChild(ta);
 }
 function updateApp(){toast("Fetching latest…");setTimeout(function(){location.replace(location.origin+location.pathname+"?v="+Date.now());},250);}
+function extractBuild(txt){var m=/APP_BUILD="([^"]+)"/.exec(txt);return m?m[1]:null;}
+function checkForUpdate(){
+  fetch(location.origin+location.pathname+"?vc="+Date.now(),{cache:"no-store"})
+    .then(function(r){return r.text();})
+    .then(function(txt){var sv=extractBuild(txt);if(!sv||sv===APP_BUILD)return;
+      var already="";try{already=sessionStorage.getItem("wl_reloaded_for")||"";}catch(e){}
+      if(already===sv){showUpdateBanner();return;} /* reload didn't stick (CDN lag) — offer instead of looping */
+      try{sessionStorage.setItem("wl_reloaded_for",sv);}catch(e){}
+      updateApp();
+    }).catch(function(){});
+}
+function showUpdateBanner(){
+  if(document.getElementById("wl-update-banner"))return;
+  var b=document.createElement("div");b.id="wl-update-banner";b.className="wl-update-banner";
+  b.innerHTML='<span>New version available</span><button class="wl-btn" style="background:#20160A;color:#F5B544" data-act="app:update">Update now</button>';
+  document.body.appendChild(b);
+}
 
 /* ---------------- app icon (generated, for Add to Home Screen) ---------------- */
 function makeIcon(){
@@ -792,6 +811,8 @@ function makeIcon(){
 /* ---------------- init ---------------- */
 load();makeIcon();render();autoSync();
 try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(e){}
+checkForUpdate();
+document.addEventListener("visibilitychange",function(){if(!document.hidden)checkForUpdate();});
 
 /* ---------------- pull-to-refresh ---------------- */
 (function(){
