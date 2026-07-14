@@ -205,17 +205,24 @@ input[type=date]{font-family:var(--sans);color-scheme:dark;}
 .wl-navbtn svg{width:20px;height:20px;}
 .wl-navbtn.on{color:var(--accent);}
 @media(max-width:420px){.wl-statrow{grid-template-columns:repeat(2,1fr);}.wl-bignum{font-size:36px;}.wl-navbtn{font-size:9px;}.wl-navbtn svg{width:19px;height:19px;}}
+.wl-photos{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.wl-photo{aspect-ratio:1;border-radius:10px;border:1px solid var(--line);background-size:cover;background-position:center;background-color:var(--bg2);padding:0;}
+.wl-lightbox{position:fixed;inset:0;background:rgba(0,0,0,.93);z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:calc(env(safe-area-inset-top,0px) + 14px) 14px calc(env(safe-area-inset-bottom,0px) + 14px);}
+.wl-lightbox img{max-width:100%;max-height:78vh;border-radius:10px;object-fit:contain;}
+.wl-lb-bar{display:flex;gap:10px;margin-top:16px;}
 </style>
 </head>
 <body>
 <div id="app"></div>
 <div id="wl-toast" class="wl-toast"></div>
 <input type="file" id="wl-import" accept="application/json,.json" style="display:none" />
+<input type="file" id="wl-photo-input" accept="image/*" multiple style="display:none" />
 <script>
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.11";
+var APP_BUILD="2026-07-14.13";
+var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function toISO(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());}
 function todayISO(){return toISO(new Date());}
@@ -501,6 +508,7 @@ function view_calendar(){
   state.presets.forEach(function(p,idx){var on=selList.indexOf(p)>=0;h+='<button class="wl-preset'+(on?" on":"")+'" data-act="cal:toggle" data-idx="'+idx+'">'+(on?I.check:I.plus)+esc(p)+'</button>';});
   h+='</div>'+(selList.length?'<div class="wl-selected-note">Logged: '+esc(selList.join(", "))+'</div>':'')+'<button class="wl-link" style="margin-top:12px" data-act="go" data-view="settings">Edit activity list in Settings →</button>';
   h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:14px 0 8px">Note</div><textarea class="wl-note-input" placeholder="Anything you want to remember about this day…" style="width:100%;min-height:70px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:14px;padding:11px 12px;box-sizing:border-box;outline:none;resize:vertical">'+esc(state.notes[sel]||"")+'</textarea>';
+  h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:14px 0 8px">Photos</div><div id="wl-photos" class="wl-photos"><div class="wl-empty" style="padding:6px 0">Loading…</div></div><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="photo:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add photos</button>';
   if(num(e.calories)!=null||num(e.protein)!=null||num(e.carbs)!=null||num(e.fat)!=null||num(state.steps[sel])!=null)h+='<button class="wl-btn wl-btn-danger wl-full" style="margin-top:12px" data-act="food:del" data-date="'+sel+'">'+I.trash.replace("<svg","<svg width=16 height=16")+'Clear calories & steps</button>';
   h+='<div class="wl-hint" style="margin-top:10px">Everything here saves automatically. Tap a date above to edit another day; empty a field to clear it.</div></div></div>';
   return h;
@@ -525,11 +533,11 @@ function view_summary(){
   var wAvg=wv.length?wv.reduce(function(a,b){return a+b;},0)/wv.length:null;
   var h='<div class="wl-stack"><div class="wl-card"><div class="wl-cal-head"><button class="wl-icon-btn" data-act="sum:prev">‹</button><span class="wl-cal-title">'+label+(isThis?" · This week":"")+'</span><button class="wl-icon-btn" data-act="sum:next"'+(isThis?' style="opacity:.3"':'')+'>›</button></div><div class="wl-hint">Sunday through Saturday.</div></div>';
   h+='<div class="wl-card"><div class="wl-card-head"><span>Weekly Totals</span></div><div class="wl-statrow" style="grid-template-columns:repeat(3,1fr)">'+
-    sumStat("Calories",tot.calories||null,"")+sumStat("Steps",tot.steps||null,"")+sumStat("Weight avg",wAvg!=null?r1(wAvg):null,state.settings.units)+
+    sumStat("Calories",tot.calories||null,"")+sumStat("Steps",tot.steps||null,"")+sumStat("Weigh-ins",wv.length,"")+
     sumStat("Protein",tot.protein||null,"g")+sumStat("Fat",tot.fat||null,"g")+sumStat("Carbs",tot.carbs||null,"g")+'</div></div>';
   h+='<div class="wl-card"><div class="wl-card-head"><span>Averages <em>per logged day</em></span></div><div class="wl-statrow" style="grid-template-columns:repeat(3,1fr)">'+
-    sumStat("Calories",avg("calories"),"")+sumStat("Steps",avg("steps"),"")+sumStat("Protein",avg("protein"),"g")+
-    sumStat("Fat",avg("fat"),"g")+sumStat("Carbs",avg("carbs"),"g")+sumStat("",null,"")+'</div></div>';
+    sumStat("Calories",avg("calories"),"")+sumStat("Steps",avg("steps"),"")+sumStat("Weight avg",wAvg!=null?r1(wAvg):null,state.settings.units)+
+    sumStat("Protein",avg("protein"),"g")+sumStat("Fat",avg("fat"),"g")+sumStat("Carbs",avg("carbs"),"g")+'</div></div>';
   h+='<div class="wl-card"><div class="wl-card-head"><span>By day</span></div><div class="wl-list">';
   days.forEach(function(r){var parts=[];if(r.calories!=null)parts.push(Math.round(r.calories)+" cal");if(r.steps!=null)parts.push(Math.round(r.steps)+" st");
     h+='<button class="wl-list-row wl-list-tap" data-act="sum:day" data-date="'+r.date+'"><span class="wl-list-date">'+r.dow.slice(0,3)+' '+(r.d.getMonth()+1)+'/'+r.d.getDate()+(r.activities.length?' · '+esc(r.activities.join(", ")):"")+'</span><span class="wl-list-val">'+(parts.join(" · ")||"—")+'</span></button>';});
@@ -548,6 +556,42 @@ function exportAllCSV(){var set={};state.weights.forEach(function(x){set[x.date]
 function shareOrDownload(name,mime,text){
   try{var file=new File([text],name,{type:mime});if(navigator.canShare&&navigator.canShare({files:[file]})){navigator.share({files:[file],title:name}).catch(function(){});return;}}catch(e){}
   var blob=new Blob([text],{type:mime});var url=URL.createObjectURL(blob);var a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(function(){URL.revokeObjectURL(url);},1000);toast("Exported");}
+
+/* ---------------- photos (on-device, IndexedDB) ---------------- */
+function idb(){return new Promise(function(res,rej){
+  if(photoDB)return res(photoDB);
+  if(typeof indexedDB==="undefined")return rej("no idb");
+  var r=indexedDB.open("wl_photos",1);
+  r.onupgradeneeded=function(){var db=r.result;if(!db.objectStoreNames.contains("photos")){var os=db.createObjectStore("photos",{keyPath:"id"});os.createIndex("date","date",{unique:false});}};
+  r.onsuccess=function(){photoDB=r.result;res(photoDB);};r.onerror=function(){rej(r.error);};});}
+function idbAdd(rec){return idb().then(function(db){return new Promise(function(res,rej){var tx=db.transaction("photos","readwrite");tx.objectStore("photos").put(rec);tx.oncomplete=function(){res();};tx.onerror=function(){rej(tx.error);};});});}
+function idbByDate(date){return idb().then(function(db){return new Promise(function(res,rej){var out=[];var tx=db.transaction("photos","readonly");var rq=tx.objectStore("photos").index("date").openCursor(IDBKeyRange.only(date));rq.onsuccess=function(){var c=rq.result;if(c){out.push(c.value);c.continue();}else res(out.sort(function(a,b){return a.ts-b.ts;}));};rq.onerror=function(){rej(rq.error);};});});}
+function idbDelete(id){return idb().then(function(db){return new Promise(function(res,rej){var tx=db.transaction("photos","readwrite");tx.objectStore("photos").delete(id);tx.oncomplete=function(){res();};tx.onerror=function(){rej(tx.error);};});});}
+function idbClearAll(){return idb().then(function(db){return new Promise(function(res){var tx=db.transaction("photos","readwrite");tx.objectStore("photos").clear();tx.oncomplete=function(){res();};tx.onerror=function(){res();};});}).catch(function(){});}
+function processImage(file){return new Promise(function(res){
+  try{var url=URL.createObjectURL(file);var img=new Image();
+    img.onload=function(){URL.revokeObjectURL(url);var max=1600;var scale=Math.min(1,max/Math.max(img.width,img.height));
+      var cw=Math.max(1,Math.round(img.width*scale)),ch=Math.max(1,Math.round(img.height*scale));
+      var cv=document.createElement("canvas");cv.width=cw;cv.height=ch;cv.getContext("2d").drawImage(img,0,0,cw,ch);
+      cv.toBlob(function(b){res(b||file);},"image/jpeg",0.85);};
+    img.onerror=function(){URL.revokeObjectURL(url);res(file);};img.src=url;
+  }catch(e){res(file);}});}
+function clearPhotoURLs(){photoURLs.forEach(function(u){try{URL.revokeObjectURL(u);}catch(e){}});photoURLs=[];photoMap={};}
+function renderPhotos(date){var host=document.getElementById("wl-photos");if(!host)return;
+  idbByDate(date).then(function(list){var h2=document.getElementById("wl-photos");if(!h2)return;
+    if(!list.length){h2.innerHTML='<div class="wl-empty" style="padding:6px 0">No photos yet.</div>';return;}
+    var html="";list.forEach(function(p){var url=URL.createObjectURL(p.blob);photoURLs.push(url);photoMap[p.id]=url;
+      html+='<button class="wl-photo" data-act="photo:view" data-id="'+p.id+'" style="background-image:url('+url+')"></button>';});
+    h2.innerHTML=html;
+  }).catch(function(){var h2=document.getElementById("wl-photos");if(h2)h2.innerHTML='<div class="wl-empty" style="padding:6px 0">Photos aren\u2019t available on this device.</div>';});}
+function openLightbox(id){var url=photoMap[id];if(!url)return;
+  var ov=document.createElement("div");ov.className="wl-lightbox";
+  ov.innerHTML='<img src="'+url+'"><div class="wl-lb-bar"><button class="wl-btn wl-btn-ghost" data-lb="close">Close</button><button class="wl-btn wl-btn-danger" data-lb="del" data-id="'+id+'">Delete</button></div>';
+  ov.addEventListener("click",function(e){var b=e.target.closest("[data-lb]");
+    if(!b){if(e.target===ov)document.body.removeChild(ov);return;}
+    if(b.getAttribute("data-lb")==="close"){document.body.removeChild(ov);}
+    else if(window.confirm("Delete this photo?")){idbDelete(b.getAttribute("data-id")).then(function(){if(ov.parentNode)document.body.removeChild(ov);renderPhotos(state.selDate);});}});
+  document.body.appendChild(ov);}
 function view_settings(){
   var f=state.settings;var u=f.units;
   var h='<div class="wl-stack"><div class="wl-card"><div class="wl-card-head"><span>Goals &amp; weight</span></div><div class="wl-row"><label class="wl-field"><span>Units</span><div class="wl-seg">'+
@@ -587,11 +631,13 @@ function view_settings(){
 /* ---------------- render ---------------- */
 var NAV=[["overview","Overview"],["calendar","Daily Log"],["weight","Weight"],["summary","Summary"],["settings","Settings"]];
 function render(){
+  clearPhotoURLs();
   var title=(NAV.filter(function(n){return n[0]===state.view;})[0]||["","" ])[1];
   var body=state.view==="overview"?view_overview():(state.view==="calendar"||state.view==="food")?view_calendar():state.view==="weight"?view_weight():state.view==="summary"?view_summary():view_settings();
   var nav='<nav class="wl-nav">'+NAV.map(function(n){return '<button class="wl-navbtn '+(state.view===n[0]?"on":"")+'" data-act="go" data-view="'+n[0]+'">'+I[n[0]]+'<span>'+n[1]+'</span></button>';}).join("")+'</nav>';
   var hdrRight='<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><div class="wl-datechip">'+fmtLong(new Date())+'</div>'+(syncOn()?'<div id="wl-sync" class="wl-sync '+syncState.s+'">'+syncLabel()+'</div>':'')+(syncOn()?'<div id="wl-synctime" class="wl-synctime">'+lastSyncText()+'</div>':'')+'</div>';
   document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header"><div><div class="wl-eyebrow">Progress Tracker</div><h1 class="wl-title">'+title+'</h1></div>'+hdrRight+'</header><main class="wl-main">'+body+'</main>'+nav+'</div>';
+  if(state.view==="calendar")renderPhotos(state.selDate);
 }
 
 /* ---------------- events ---------------- */
@@ -607,6 +653,8 @@ document.addEventListener("click",function(e){
   if(a==="weight:del"){var dd=el.getAttribute("data-date");state.weights=state.weights.filter(function(x){return x.date!==dd;});save();render();return;}
   if(a==="food:pick"){state.selDate=el.getAttribute("data-date");state.view="calendar";render();return;}
   if(a==="opentoday"){state.selDate=todayISO();state.calY=new Date().getFullYear();state.calM=new Date().getMonth();state.view="calendar";render();return;}
+  if(a==="photo:add"){document.getElementById("wl-photo-input").click();return;}
+  if(a==="photo:view"){openLightbox(el.getAttribute("data-id"));return;}
   if(a==="openday"){var od=el.getAttribute("data-date");state.selDate=od;var pd=parseISO(od);state.calY=pd.getFullYear();state.calM=pd.getMonth();state.view="calendar";render();return;}
   if(a==="food:del"){var fdd=el.getAttribute("data-date");if(window.confirm("Clear food and steps for this day?")){delete state.food[fdd];delete state.steps[fdd];save();render();toast("Day cleared");}return;}
   if(a==="cal:prev"){state.calM--;if(state.calM<0){state.calM=11;state.calY--;}render();return;}
@@ -641,7 +689,7 @@ document.addEventListener("click",function(e){
   if(a==="sum:exportall"){exportAllCSV();return;}
   if(a==="reset:ask"){state.confirmReset=true;render();return;}
   if(a==="reset:cancel"){state.confirmReset=false;render();return;}
-  if(a==="reset:do"){state.settings=Object.assign({},DEFAULT_SETTINGS);state.weights=[];state.food={};state.workouts={};state.steps={};state.notes={};state.presets=DEFAULT_PRESETS.slice();state.confirmReset=false;state.view="overview";save();render();toast("All data erased");return;}
+  if(a==="reset:do"){state.settings=Object.assign({},DEFAULT_SETTINGS);state.weights=[];state.food={};state.workouts={};state.steps={};state.notes={};state.presets=DEFAULT_PRESETS.slice();state.confirmReset=false;state.view="overview";idbClearAll();save();render();toast("All data erased");return;}
 });
 document.addEventListener("input",function(e){
   var el=e.target;
@@ -671,7 +719,17 @@ document.getElementById("wl-import").addEventListener("change",function(e){
   rd.onerror=function(){toast("Couldn't read that file");};
   rd.readAsText(file);e.target.value="";
 });
-function backupJSON(){return JSON.stringify({settings:state.settings,weights:state.weights,food:state.food,workouts:state.workouts,presets:state.presets},null,2);}
+document.getElementById("wl-photo-input").addEventListener("change",function(e){
+  var files=e.target.files;if(!files||!files.length){return;}
+  var date=state.selDate;var arr=Array.prototype.slice.call(files);e.target.value="";
+  toast("Adding "+arr.length+" photo"+(arr.length>1?"s":"")+"…");
+  var chain=Promise.resolve();
+  arr.forEach(function(f){chain=chain.then(function(){return processImage(f).then(function(blob){
+    var id=date+"-"+Date.now()+"-"+Math.random().toString(36).slice(2,7);
+    return idbAdd({id:id,date:date,blob:blob,ts:Date.now()+Math.random()});});});});
+  chain.then(function(){if(state.view==="calendar"&&state.selDate===date)renderPhotos(date);toast("Photos saved");}).catch(function(){toast("Couldn't save photos");});
+});
+function backupJSON(){return JSON.stringify(payload(),null,2);}
 function applyImport(text){
   var d;try{d=JSON.parse(text);}catch(err){toast("That isn't valid backup data");return;}
   if(!d||typeof d!=="object"||(!("weights" in d)&&!("settings" in d))){toast("Unrecognized backup format");return;}
@@ -733,6 +791,7 @@ function makeIcon(){
 
 /* ---------------- init ---------------- */
 load();makeIcon();render();autoSync();
+try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(e){}
 
 /* ---------------- pull-to-refresh ---------------- */
 (function(){
