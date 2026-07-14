@@ -239,7 +239,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.20";
+var APP_BUILD="2026-07-14.22";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function toISO(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());}
@@ -275,7 +275,7 @@ var I={
 /* ---------------- storage ---------------- */
 var KEY="wl_v1";
 var DEFAULT_SETTINGS={units:"lbs",startingWeight:"",startDate:todayISO(),goalWeight:"",
-  targetType:"lbs_per_week",targetValue:"1",targetCalories:"",targetProtein:"",targetCarbs:"",targetFat:"",theme:"ink",name:""};
+  targetType:"lbs_per_week",targetValue:"1",targetCalories:"",targetProtein:"",targetCarbs:"",targetFat:"",theme:"ink",name:"",reminderTime:"19:00"};
 var SANS="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,system-ui,sans-serif";
 var MONO="ui-monospace,'SF Mono','Cascadia Code',Menlo,Consolas,monospace";
 var THEMES={
@@ -477,7 +477,6 @@ function view_overview(){
   var tw=state.workouts[todayISO()]||[];
   var h='<div class="wl-stack">';
   if(!configured)h+='<button class="wl-setup" data-act="go" data-view="settings"><div class="wl-setup-title">Set up your profile</div><div class="wl-setup-sub">Add your starting and goal weight in Settings to unlock progress, forecasts, and the chart.</div></button>';
-  if(todayMiss&&!state.alertDismissed)h+='<div class="wl-alert">'+I.alert+'<div class="wl-alert-body"><div class="wl-alert-title">You haven\'t logged today\'s calories</div><div class="wl-alert-sub">Add today\'s calories and macros in the Daily Log.</div><div class="wl-alert-actions"><button class="wl-btn wl-btn-alert" data-act="opentoday">Log now</button><button class="wl-btn wl-btn-ghost" data-act="alert:dismiss">Later</button></div></div></div>';
   if(configured){
     h+='<div class="wl-card wl-hero"><div class="wl-hero-top"><div><div class="wl-mini-label">Current</div><div class="wl-bignum">'+(current!=null?r1(current):"—")+'<span class="wl-unit">'+u+'</span></div></div>';
     if(lost!=null)h+='<div class="wl-change '+(lost>=0?"good":"bad")+'">'+(lost>=0?I.down:I.up)+(lost>=0?"Lost ":"Gained ")+Math.abs(r1(lost))+' '+u+'</div>';
@@ -618,6 +617,17 @@ function exportAllCSV(){var set={};state.weights.forEach(function(x){set[x.date]
 function shareOrDownload(name,mime,text){
   try{var file=new File([text],name,{type:mime});if(navigator.canShare&&navigator.canShare({files:[file]})){navigator.share({files:[file],title:name}).catch(function(){});return;}}catch(e){}
   var blob=new Blob([text],{type:mime});var url=URL.createObjectURL(blob);var a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(function(){URL.revokeObjectURL(url);},1000);toast("Exported");}
+function pad2(n){return ("0"+n).slice(-2);}
+function reminderICS(hhmm){
+  var p=(hhmm||"19:00").split(":");var hh=pad2(parseInt(p[0]||"19",10)||0),mm=pad2(parseInt(p[1]||"0",10)||0);
+  var now=new Date();var dt=now.getFullYear()+pad2(now.getMonth()+1)+pad2(now.getDate())+"T"+hh+mm+"00";
+  var stamp=new Date().toISOString().replace(/[-:]/g,"").replace(/\.\d+Z$/,"Z");
+  return ["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//WeightTracker//EN","CALSCALE:GREGORIAN","METHOD:PUBLISH",
+    "BEGIN:VEVENT","UID:wl-reminder-"+Date.now()+"@weighttracker","DTSTAMP:"+stamp,"DTSTART:"+dt,"DURATION:PT10M","RRULE:FREQ=DAILY",
+    "SUMMARY:Log your activity time","DESCRIPTION:Open your tracker and log today's activity.",
+    "BEGIN:VALARM","ACTION:DISPLAY","DESCRIPTION:Log your activity time","TRIGGER:PT0S","END:VALARM",
+    "END:VEVENT","END:VCALENDAR"].join("\r\n");
+}
 
 /* ---------------- photos (on-device, IndexedDB) ---------------- */
 function idb(){return new Promise(function(res,rej){
@@ -670,6 +680,10 @@ function view_settings(){
     [["targetCalories","Calories","cal"],["targetProtein","Protein","g"],["targetCarbs","Carbs","g"],["targetFat","Fat","g"]].map(function(x){
       return '<label class="wl-field"><span>'+x[1]+' <em>'+x[2]+'</em></span><input class="wl-num" type="text" inputmode="decimal" data-set="'+x[0]+'" value="'+esc(f[x[0]])+'" placeholder="—"></label>';}).join("")+
     '</div><div class="wl-hint">Set these to see progress bars in your food log. Leave blank to just track raw numbers.</div></div>';
+  h+='<div class="wl-card"><div class="wl-card-head"><span>Daily reminder</span></div>'+
+    '<label class="wl-field wl-field-full"><span>Remind me to log at</span><input type="time" id="wl-remind-time" value="'+esc(f.reminderTime||"19:00")+'"></label>'+
+    '<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="reminder:add">'+I.calendar.replace("<svg","<svg width=16 height=16")+'Add reminder to Calendar</button>'+
+    '<div class="wl-hint" style="margin-top:10px">Tap <b>Add reminder to Calendar</b>, then choose <b>Add All</b> — this creates a daily repeating reminder in your Calendar that notifies you even when the app is closed. (iPhone &amp; iPad don\u2019t let a web app send its own scheduled notifications, so this uses your Calendar instead.) To change the time, pick a new one and add it again, then delete the old event.</div></div>';
   h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="activities"><span>Activity list</span><span class="wl-chevron'+(op.activities?" open":"")+'">›</span></button>';
   if(op.activities){
     h+='<div class="wl-collapse-body"><div class="wl-preset-manage">';
@@ -692,7 +706,7 @@ function view_settings(){
       '<button class="'+(prof==="a"?"on":"")+'" data-act="set:profile" data-profile="a">Person 1</button>'+
       '<button class="'+(prof==="b"?"on":"")+'" data-act="set:profile" data-profile="b">Person 2</button>'+
     '</div></label>'+
-    '<div class="wl-hint" style="margin-top:10px">To share results with your partner: set <b>one</b> device to Person 1 and the <b>other</b> to Person 2, both signed in with the same token. Each person keeps their own weigh-ins, activities, and macros — and you\u2019ll each see the other\u2019s weight-loss progress on the Overview. Keep this device on <b>Person 1</b> if it already has your data.</div>'+
+    '<div class="wl-hint" style="margin-top:10px">To share results with your partner: set <b>one</b> device to Person 1 and the <b>other</b> to Person 2, both signed in with the same token. Your <b>activity lists and macro plans stay private to each of you</b> — the only thing shared is weight-loss progress, shown on the Overview. Keep this device on <b>Person 1</b> if it already has your data.</div>'+
     '<div class="wl-hint"><b>Partner:</b> '+(partnerData?esc((partnerData.settings&&partnerData.settings.name)||"connected"):"not connected yet")+'</div>'
     ):'')+'</div>';
   h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="backup"><span>Backup &amp; transfer</span><span class="wl-chevron'+(op.backup?" open":"")+'">›</span></button>'+(op.backup?('<div class="wl-collapse-body">'+
@@ -748,6 +762,7 @@ document.addEventListener("click",function(e){
   if(a==="set:theme"){state.settings.theme=el.getAttribute("data-theme");save();applyTheme(state.settings.theme);render();return;}
   if(a==="card:toggle"){state.open=state.open||{};var cd=el.getAttribute("data-card");state.open[cd]=!state.open[cd];render();return;}
   if(a==="set:profile"){var np=el.getAttribute("data-profile");if(np===(syncCfg().profile||"a"))return;if(!window.confirm("Switch this device to "+(np==="a"?"Person 1":"Person 2")+"? It will sync to that person\u2019s file."))return;var pc=syncCfg();pc.profile=np;setSyncCfg(pc);ghSha=null;partnerData=null;render();autoSync();return;}
+  if(a==="reminder:add"){var ti=document.getElementById("wl-remind-time");var tv=(ti&&ti.value)||"19:00";state.settings.reminderTime=tv;save();shareOrDownload("activity-reminder.ics","text/calendar",reminderICS(tv));return;}
   if(a==="set:ttype"){state.settings.targetType=el.getAttribute("data-type");save();render();return;}
   if(a==="preset:add"){var inp=document.getElementById("wl-preset-input");var v=(inp.value||"").trim();
     if(!v||state.presets.indexOf(v)>=0){inp.value="";return;}state.presets.push(v);save();render();return;}
@@ -764,7 +779,10 @@ document.addEventListener("click",function(e){
   if(a==="sync:copy"){var scg=syncCfg();copyText(JSON.stringify({token:scg.token||"",repo:scg.repo||DEFAULT_REPO,branch:scg.branch||DEFAULT_BRANCH}),"Setup copied");return;}
   if(a==="sync:paste"){state.syncPasteOpen=!state.syncPasteOpen;render();return;}
   if(a==="sync:pastecancel"){state.syncPasteOpen=false;render();return;}
-  if(a==="sync:pasteapply"){var sta=document.getElementById("wl-syncpaste");try{var cfg=JSON.parse((sta&&sta.value)||"{}");if(!cfg.token){toast("No token found in that setup");return;}setSyncCfg({token:cfg.token,repo:cfg.repo||DEFAULT_REPO,branch:cfg.branch||DEFAULT_BRANCH});state.syncPasteOpen=false;render();toast("Setup applied");autoSync();}catch(e){toast("Couldn't read that setup");}return;}
+  if(a==="sync:pasteapply"){var sta=document.getElementById("wl-syncpaste");try{var cfg=JSON.parse((sta&&sta.value)||"{}");if(!cfg.token){toast("No token found in that setup");return;}
+    var isB=window.confirm("Who uses THIS device?\n\nOK  =  your partner (Person 2)\nCancel  =  you (Person 1)");
+    setSyncCfg({token:cfg.token,repo:cfg.repo||DEFAULT_REPO,branch:cfg.branch||DEFAULT_BRANCH,profile:isB?"b":"a"});
+    ghSha=null;partnerData=null;state.syncPasteOpen=false;render();toast("Set up as "+(isB?"Person 2":"Person 1"));autoSync();}catch(e){toast("Couldn't read that setup");}return;}
   if(a==="app:update"){updateApp();return;}
   if(a==="sum:prev"){state.weekOffset--;render();return;}
   if(a==="sum:next"){if(state.weekOffset<0){state.weekOffset++;render();}return;}
