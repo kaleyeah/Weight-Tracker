@@ -214,6 +214,7 @@ input[type=date]{font-family:var(--sans);color-scheme:dark;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
+var APP_BUILD="2026-07-14.8";
 function pad(n){return String(n).padStart(2,"0");}
 function toISO(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());}
 function todayISO(){return toISO(new Date());}
@@ -518,6 +519,9 @@ function view_settings(){
     '<div class="wl-row" style="margin-top:10px"><button class="wl-btn wl-btn-ghost wl-full" data-act="copy">Copy backup text</button><button class="wl-btn wl-btn-ghost wl-full" data-act="paste">Restore from text</button></div>'+
     (state.pasteOpen?'<textarea id="wl-paste" placeholder="Paste backup JSON here, then tap Restore" style="width:100%;min-height:120px;margin-top:10px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--mono);font-size:13px;padding:10px;box-sizing:border-box;outline:none"></textarea><div class="wl-row" style="margin-top:8px"><button class="wl-btn wl-btn-ghost wl-full" data-act="paste:cancel">Cancel</button><button class="wl-btn wl-btn-primary wl-full" data-act="paste:do">Restore</button></div>':'')+
     '<div class="wl-hint">Your data lives only on this device. To move or sync it: <b>Export</b> (or <b>Copy</b>) a backup, drop it in your Dropbox/Synology folder, then <b>Import</b> (or paste) it on your other device. On iPad, Export opens the Share sheet so you can pick Save to Files.</div></div>';
+  h+='<div class="wl-card"><div class="wl-card-head"><span>App <em>version '+APP_BUILD+'</em></span></div>'+
+    '<button class="wl-btn wl-btn-primary wl-full" data-act="app:update">Update app to latest</button>'+
+    '<div class="wl-hint" style="margin-top:10px">Loads the newest version published to GitHub without re-adding to your Home Screen. Publish your change, wait ~1 minute for GitHub to build, then tap this. Your data and login stay put. After it reloads, check the version number above changed.</div></div>';
   h+='<div class="wl-card wl-danger"><div class="wl-card-head"><span>Reset</span></div>';
   if(!state.confirmReset)h+='<button class="wl-btn wl-btn-danger wl-full" data-act="reset:ask">'+I.trash.replace("<svg","<svg width=16 height=16")+'Erase all data</button>';
   else h+='<div class="wl-hint">This permanently deletes every weigh-in, food entry, workout, and setting. This can\'t be undone.</div><div class="wl-row"><button class="wl-btn wl-btn-ghost wl-full" data-act="reset:cancel">Cancel</button><button class="wl-btn wl-btn-danger wl-full" data-act="reset:do">Yes, erase everything</button></div>';
@@ -571,6 +575,7 @@ document.addEventListener("click",function(e){
   if(a==="sync:paste"){state.syncPasteOpen=!state.syncPasteOpen;render();return;}
   if(a==="sync:pastecancel"){state.syncPasteOpen=false;render();return;}
   if(a==="sync:pasteapply"){var sta=document.getElementById("wl-syncpaste");try{var cfg=JSON.parse((sta&&sta.value)||"{}");if(!cfg.token){toast("No token found in that setup");return;}setSyncCfg({token:cfg.token,repo:cfg.repo||DEFAULT_REPO,branch:cfg.branch||DEFAULT_BRANCH});state.syncPasteOpen=false;render();toast("Setup applied");autoSync();}catch(e){toast("Couldn't read that setup");}return;}
+  if(a==="app:update"){updateApp();return;}
   if(a==="reset:ask"){state.confirmReset=true;render();return;}
   if(a==="reset:cancel"){state.confirmReset=false;render();return;}
   if(a==="reset:do"){state.settings=Object.assign({},DEFAULT_SETTINGS);state.weights=[];state.food={};state.workouts={};state.presets=DEFAULT_PRESETS.slice();state.confirmReset=false;state.view="overview";save();render();toast("All data erased");return;}
@@ -637,6 +642,7 @@ function legacyCopy(text,msg){
   var ta=document.createElement("textarea");ta.value=text;ta.style.position="fixed";ta.style.opacity="0";document.body.appendChild(ta);ta.focus();ta.select();
   try{document.execCommand("copy");toast(msg||"Copied");}catch(e){toast("Couldn't copy");}document.body.removeChild(ta);
 }
+function updateApp(){toast("Fetching latest…");setTimeout(function(){location.replace(location.origin+location.pathname+"?v="+Date.now());},250);}
 
 /* ---------------- app icon (generated, for Add to Home Screen) ---------------- */
 function makeIcon(){
