@@ -51,6 +51,11 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 .wl-card-head{display:flex;align-items:center;justify-content:space-between;
   font-size:13px;font-weight:700;color:var(--text);margin-bottom:12px;}
 .wl-card-head em{font-style:normal;color:var(--faint);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-left:6px;}
+.wl-collapse-head{display:flex;align-items:center;justify-content:space-between;width:100%;background:none;border:none;color:var(--text);font-size:13px;font-weight:700;padding:2px 0;font-family:var(--sans);text-align:left;}
+.wl-collapse-head em{font-style:normal;color:var(--faint);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-left:6px;}
+.wl-chevron{color:var(--muted);font-size:20px;line-height:1;transition:transform .18s ease;flex-shrink:0;}
+.wl-chevron.open{transform:rotate(90deg);}
+.wl-collapse-body{margin-top:12px;}
 .wl-count,.wl-badge{font-family:var(--mono);font-size:11px;color:var(--muted);background:var(--bg2);
   border:1px solid var(--line);border-radius:20px;padding:2px 8px;font-weight:600;}
 .wl-badge.warn{color:var(--bad);border-color:rgba(242,109,91,.4);}
@@ -234,7 +239,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.17";
+var APP_BUILD="2026-07-14.20";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function toISO(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());}
@@ -270,7 +275,7 @@ var I={
 /* ---------------- storage ---------------- */
 var KEY="wl_v1";
 var DEFAULT_SETTINGS={units:"lbs",startingWeight:"",startDate:todayISO(),goalWeight:"",
-  targetType:"lbs_per_week",targetValue:"1",targetCalories:"",targetProtein:"",targetCarbs:"",targetFat:"",theme:"ink"};
+  targetType:"lbs_per_week",targetValue:"1",targetCalories:"",targetProtein:"",targetCarbs:"",targetFat:"",theme:"ink",name:""};
 var SANS="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,system-ui,sans-serif";
 var MONO="ui-monospace,'SF Mono','Cascadia Code',Menlo,Consolas,monospace";
 var THEMES={
@@ -307,6 +312,7 @@ function save(){saveLocal();scheduleCloudPush();}
 /* ---------------- cloud sync (private GitHub repo via Contents API) ---------------- */
 var SYNC_KEY="wl_sync",DIRTY_KEY="wl_dirty",LAST_KEY="wl_lastsync",GH_PATH="data.json",DEFAULT_REPO="kaleyeah/weight-data",DEFAULT_BRANCH="main";
 var syncState={s:"idle",msg:""},pushTimer=null,pushing=false,ghSha=null;
+var partnerData=null;
 function syncCfg(){try{return JSON.parse(localStorage.getItem(SYNC_KEY))||{};}catch(e){return {};}}
 function setSyncCfg(c){try{localStorage.setItem(SYNC_KEY,JSON.stringify(c));}catch(e){}}
 function normRepo(s){return (s||"").trim().replace(/^https?:\/\/github\.com\//i,"").replace(/\.git$/i,"").replace(/^\/+|\/+$/g,"");}
@@ -328,7 +334,14 @@ function syncStatusHTML(){if(!syncOn())return '<span style="color:var(--faint)">
 function b64enc(str){return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g,function(_,h){return String.fromCharCode(parseInt(h,16));}));}
 function b64dec(b64){b64=(b64||"").replace(/\s/g,"");if(!b64)return "";return decodeURIComponent(Array.prototype.map.call(atob(b64),function(c){return "%"+("00"+c.charCodeAt(0).toString(16)).slice(-2);}).join(""));}
 function ghHeaders(c){return {Authorization:"Bearer "+c.token,Accept:"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"};}
-function ghUrl(c){return "https://api.github.com/repos/"+normRepo(c.repo||DEFAULT_REPO)+"/contents/"+GH_PATH;}
+function myFile(){return syncCfg().profile==="b"?"data-partner.json":"data.json";}
+function partnerFileName(){return syncCfg().profile==="b"?"data.json":"data-partner.json";}
+function ghUrl(c,path){return "https://api.github.com/repos/"+normRepo(c.repo||DEFAULT_REPO)+"/contents/"+(path||myFile());}
+function pullPartner(){var c=syncCfg();if(!syncOn())return;
+  fetch(ghUrl(c,partnerFileName())+"?ref="+encodeURIComponent(c.branch||DEFAULT_BRANCH)+"&t="+Date.now(),{headers:ghHeaders(c),cache:"no-store"})
+    .then(function(r){if(!r.ok)return null;return r.json();})
+    .then(function(j){if(!j)return;try{var txt=b64dec(j.content||"");var d=txt?JSON.parse(txt):null;if(d&&(d.weights||d.settings)){partnerData=d;render();}}catch(e){}})
+    .catch(function(){});}
 function cloudGet(cb){var c=syncCfg();if(!syncOn()){cb&&cb(null,"not configured");return;}
   fetch(ghUrl(c)+"?ref="+encodeURIComponent(c.branch||DEFAULT_BRANCH)+"&t="+Date.now(),{headers:ghHeaders(c),cache:"no-store"})
     .then(function(r){
@@ -346,7 +359,7 @@ function applyCloud(d){if(!d)return;
   saveLocal();markDirty(false);applyTheme(state.settings.theme||"ink");}
 function cloudPull(manual,done){setSync("syncing");cloudGet(function(d,err){
   if(err){setSync(err==="offline"?"offline":"error",err==="auth"?"bad token or repo access":"");if(manual)toast(err==="offline"?"No connection":err==="auth"?"Check token & repo":"Couldn't pull");done&&done();return;}
-  applyCloud(d);setLastSync();setSync("ok");render();if(manual)toast("Pulled from GitHub");done&&done();});}
+  applyCloud(d);setLastSync();setSync("ok");render();pullPartner();if(manual)toast("Pulled from GitHub");done&&done();});}
 function scheduleCloudPush(){if(!syncOn())return;markDirty(true);setSync("saving");clearTimeout(pushTimer);pushTimer=setTimeout(function(){cloudPush();},1400);}
 function ghPut(c,sha,cb){
   var body={message:"Update weight data "+new Date().toISOString(),content:b64enc(JSON.stringify(payload())),branch:c.branch||DEFAULT_BRANCH};
@@ -370,6 +383,7 @@ function cloudPush(manual){var c=syncCfg();if(!syncOn()){if(manual)toast("Set up
 function localHasData(){return state.weights.length>0||Object.keys(state.food).length>0||Object.keys(state.workouts).length>0||num(state.settings.startingWeight)!=null;}
 function cloudEmpty(d){return !d||((d.weights||[]).length===0&&Object.keys(d.food||{}).length===0&&Object.keys(d.workouts||{}).length===0&&(!d.settings||Object.keys(d.settings).length===0));}
 function autoSync(){if(!syncOn())return;
+  pullPartner();
   if(isDirty()){cloudPush();return;}
   setSync("syncing");cloudGet(function(d,err){
     if(err){setSync(err==="offline"?"offline":"error",err==="auth"?"bad token or repo access":"");return;}
@@ -377,12 +391,12 @@ function autoSync(){if(!syncOn())return;
     applyCloud(d);setLastSync();setSync("ok");render();});}
 function cloudTest(){setSync("syncing");cloudGet(function(d,err){
   if(err){setSync(err==="offline"?"offline":"error",err==="auth"?"bad token or repo access":"");toast(err==="offline"?"No connection":err==="auth"?"Check token & repo access":"Failed");return;}
-  var n=(d.weights||[]).length,fd=Object.keys(d.food||{}).length;setLastSync();setSync("ok","repo has "+n+" weigh-ins, "+fd+" food days");toast("Connected to GitHub");render();});}
+  var n=(d.weights||[]).length,fd=Object.keys(d.food||{}).length;setLastSync();setSync("ok","repo has "+n+" weigh-ins, "+fd+" food days");pullPartner();toast("Connected to GitHub");render();});}
 
 /* ---------------- computations ---------------- */
 function sortedWeights(){return state.weights.slice().sort(function(a,b){return a.date.localeCompare(b.date);});}
-function prepChart(){
-  var sw=sortedWeights();if(!sw.length)return {data:[],slope:null,intercept:null};
+function prepChart(src){
+  var sw=(src||state.weights).slice().sort(function(a,b){return a.date.localeCompare(b.date);});if(!sw.length)return {data:[],slope:null,intercept:null};
   var pts=sw.map(function(x){return {ts:parseISO(x.date).getTime(),weight:x.weight,date:x.date};});
   var slope=null,intercept=null;
   if(pts.length>=2){var n=pts.length,mx=0,my=0;
@@ -481,8 +495,27 @@ function view_overview(){
     todayRow(I.weight,"Weight",twt!=null?(r1(twt)+" "+u):null)+
     todayRow(I.dumbbell,"Activity",tw.length?esc(tw.join(", ")):null)+
     '</div></div>';
+  h+=partnerCard();
   if(past.length){h+='<div class="wl-card"><div class="wl-card-head"><span>Missed days (last 7)</span></div><div class="wl-chips">';past.forEach(function(d){h+='<button class="wl-chip warn" data-act="openday" data-date="'+d+'">'+fmtShort(parseISO(d))+'</button>';});h+='</div></div>';}
   h+='</div>';return h;
+}
+function partnerCard(){
+  if(!partnerData)return "";
+  var ps=partnerData.settings||{};var pw=Array.isArray(partnerData.weights)?partnerData.weights:[];
+  if(!pw.length&&num(ps.startingWeight)==null)return "";
+  var u=ps.units||"lbs";
+  var sw=pw.slice().sort(function(a,b){return a.date.localeCompare(b.date);});
+  var start=num(ps.startingWeight),goal=num(ps.goalWeight);
+  var current=sw.length?sw[sw.length-1].weight:start;
+  var lost=(start!=null&&current!=null)?start-current:null;
+  var toGo=(current!=null&&goal!=null)?current-goal:null;
+  var progress=null;if(start!=null&&goal!=null&&current!=null&&start!==goal){progress=(start-current)/(start-goal);progress=Math.max(0,Math.min(1,progress));}
+  var name=esc(ps.name||"Partner");
+  var h='<div class="wl-card"><div class="wl-card-head"><span>'+name+'\u2019s progress</span><span class="wl-count">shared</span></div>';
+  h+='<div class="wl-hero-top" style="margin-bottom:12px"><div><div class="wl-mini-label">Current</div><div class="wl-bignum" style="font-size:30px">'+(current!=null?r1(current):"—")+'<span class="wl-unit">'+u+'</span></div></div>'+(lost!=null?'<div class="wl-change '+(lost>=0?"good":"bad")+'">'+(lost>=0?I.down:I.up)+(lost>=0?"Lost ":"Gained ")+Math.abs(r1(lost))+' '+u+'</div>':'')+'</div>';
+  if(progress!=null)h+='<div class="wl-progress-track"><div class="wl-progress-fill" style="width:'+(progress*100)+'%"></div><div class="wl-progress-marker" style="left:'+(progress*100)+'%"></div></div><div class="wl-progress-ends"><span><b>'+r1(start)+'</b> start</span><span class="wl-togo">'+(toGo!=null&&toGo>0?r1(toGo)+" "+u+" to go":"Goal reached")+'</span><span><b>'+r1(goal)+'</b> goal</span></div>';
+  var pc=prepChart(pw);if(pc.data.length)h+=buildChart(pc,goal,u,true);
+  return h+'</div>';
 }
 function todayRow(icon,label,val){
   var dot=val!=null?"good":(label==="Calories"?"bad":"muted");
@@ -623,7 +656,7 @@ function openLightbox(id){var url=photoMap[id];if(!url)return;
   document.body.appendChild(ov);}
 function view_settings(){
   var f=state.settings;var u=f.units;
-  var cur=f.theme||"ink";
+  var cur=f.theme||"ink";var op=state.open||{};
   var h='<div class="wl-stack"><div class="wl-card"><div class="wl-card-head"><span>Theme</span></div><div class="wl-theme-grid">'+
     Object.keys(THEMES).map(function(id){var t=THEMES[id];var on=id===cur;
       return '<button class="wl-theme'+(on?" on":"")+'" data-act="set:theme" data-theme="'+id+'"><span class="wl-theme-sw"><i style="background:'+t.v.bg+'"></i><i style="background:'+t.v.card+'"></i><i style="background:'+t.v.accent+'"></i><i style="background:'+t.v.good+'"></i></span><span class="wl-theme-name">'+t.label+(id==="ink"?" · current":"")+'</span>'+(on?'<span class="wl-theme-check">'+I.check.replace("<svg","<svg width=14 height=14")+'</span>':'')+'</button>';}).join("")+
@@ -637,22 +670,36 @@ function view_settings(){
     [["targetCalories","Calories","cal"],["targetProtein","Protein","g"],["targetCarbs","Carbs","g"],["targetFat","Fat","g"]].map(function(x){
       return '<label class="wl-field"><span>'+x[1]+' <em>'+x[2]+'</em></span><input class="wl-num" type="text" inputmode="decimal" data-set="'+x[0]+'" value="'+esc(f[x[0]])+'" placeholder="—"></label>';}).join("")+
     '</div><div class="wl-hint">Set these to see progress bars in your food log. Leave blank to just track raw numbers.</div></div>';
-  h+='<div class="wl-card"><div class="wl-card-head"><span>Activity list</span></div><div class="wl-preset-manage">';
-  state.presets.forEach(function(p,idx){h+='<div class="wl-preset-manage-row">'+I.dumbbell.replace("<svg","<svg width=14 height=14")+'<span>'+esc(p)+'</span><button class="wl-icon-btn" data-act="preset:del" data-idx="'+idx+'">✕</button></div>';});
-  h+='</div><div class="wl-row"><input class="wl-inline-input" id="wl-preset-input" placeholder="Add an activity (e.g. GLP1, Peloton 20)"><button class="wl-btn wl-btn-primary" data-act="preset:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add</button></div></div>';
+  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="activities"><span>Activity list</span><span class="wl-chevron'+(op.activities?" open":"")+'">›</span></button>';
+  if(op.activities){
+    h+='<div class="wl-collapse-body"><div class="wl-preset-manage">';
+    state.presets.forEach(function(p,idx){h+='<div class="wl-preset-manage-row">'+I.dumbbell.replace("<svg","<svg width=14 height=14")+'<span>'+esc(p)+'</span><button class="wl-icon-btn" data-act="preset:del" data-idx="'+idx+'">✕</button></div>';});
+    h+='</div><div class="wl-row"><input class="wl-inline-input" id="wl-preset-input" placeholder="Add an activity (e.g. GLP1, Peloton 20)"><button class="wl-btn wl-btn-primary" data-act="preset:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add</button></div></div>';
+  }
+  h+='</div>';
   var sc=syncCfg();
-  h+='<div class="wl-card"><div class="wl-card-head"><span>Cloud sync <em>GitHub</em></span></div>'+
+  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="sync"><span>Cloud sync <em>GitHub</em></span><span class="wl-chevron'+(op.sync?" open":"")+'">›</span></button>'+(op.sync?('<div class="wl-collapse-body">'+
     '<label class="wl-field wl-field-full"><span>Access token</span><input type="password" data-sync="token" value="'+esc(sc.token||"")+'" placeholder="github_pat_…" autocapitalize="off" autocorrect="off" spellcheck="false"></label>'+
     '<div class="wl-row" style="margin-top:12px"><button class="wl-btn wl-btn-ghost wl-full" data-act="sync:test">Test</button><button class="wl-btn wl-btn-ghost wl-full" data-act="sync:pull">Pull</button><button class="wl-btn wl-btn-primary wl-full" data-act="sync:push">Push</button></div>'+
     '<div class="wl-row" style="margin-top:10px"><button class="wl-btn wl-btn-ghost wl-full" data-act="sync:copy">Copy setup</button><button class="wl-btn wl-btn-ghost wl-full" data-act="sync:paste">Paste setup</button></div>'+
     (state.syncPasteOpen?'<textarea id="wl-syncpaste" placeholder="Paste setup here, then tap Apply" style="width:100%;min-height:80px;margin-top:10px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--mono);font-size:12px;padding:10px;box-sizing:border-box;outline:none"></textarea><div class="wl-row" style="margin-top:8px"><button class="wl-btn wl-btn-ghost wl-full" data-act="sync:pastecancel">Cancel</button><button class="wl-btn wl-btn-primary wl-full" data-act="sync:pasteapply">Apply</button></div>':'')+
     '<div class="wl-hint" style="margin-top:10px"><b>Status:</b> <span id="wl-sync-status">'+syncStatusHTML()+'</span></div>'+
-    '<div class="wl-hint">Synced with <b>kaleyeah/weight-data</b>. Enter your token once, tap <b>Test</b>, then <b>Push</b>. Setting up a new device? Tap <b>Copy setup</b> here and <b>Paste setup</b> there — no retyping the token. Your token is stored on this device only, never in the app\u2019s code.</div></div>';
-  h+='<div class="wl-card"><div class="wl-card-head"><span>Backup &amp; transfer</span></div>'+
+    '<div class="wl-hint">Synced with <b>kaleyeah/weight-data</b>. Enter your token once, tap <b>Test</b>, then <b>Push</b>. Setting up a new device? Tap <b>Copy setup</b> here and <b>Paste setup</b> there — no retyping the token. Your token is stored on this device only, never in the app\u2019s code.</div></div>'):'')+'</div>';
+  var prof=sc.profile==="b"?"b":"a";
+  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="share"><span>Partner sharing <em>optional</em></span><span class="wl-chevron'+(op.share?" open":"")+'">›</span></button>'+(op.share?('<div class="wl-collapse-body">'+
+    '<label class="wl-field wl-field-full"><span>Your name</span><input type="text" data-set="name" value="'+esc(f.name||"")+'" placeholder="e.g. Alex" autocapitalize="words" autocorrect="off"></label>'+
+    '<label class="wl-field wl-field-full" style="margin-top:12px"><span>This device logs for</span><div class="wl-seg">'+
+      '<button class="'+(prof==="a"?"on":"")+'" data-act="set:profile" data-profile="a">Person 1</button>'+
+      '<button class="'+(prof==="b"?"on":"")+'" data-act="set:profile" data-profile="b">Person 2</button>'+
+    '</div></label>'+
+    '<div class="wl-hint" style="margin-top:10px">To share results with your partner: set <b>one</b> device to Person 1 and the <b>other</b> to Person 2, both signed in with the same token. Each person keeps their own weigh-ins, activities, and macros — and you\u2019ll each see the other\u2019s weight-loss progress on the Overview. Keep this device on <b>Person 1</b> if it already has your data.</div>'+
+    '<div class="wl-hint"><b>Partner:</b> '+(partnerData?esc((partnerData.settings&&partnerData.settings.name)||"connected"):"not connected yet")+'</div>'
+    ):'')+'</div>';
+  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="backup"><span>Backup &amp; transfer</span><span class="wl-chevron'+(op.backup?" open":"")+'">›</span></button>'+(op.backup?('<div class="wl-collapse-body">'+
     '<div class="wl-row"><button class="wl-btn wl-btn-ghost wl-full" data-act="export">Export / share file</button><button class="wl-btn wl-btn-ghost wl-full" data-act="import">Import file</button></div>'+
     '<div class="wl-row" style="margin-top:10px"><button class="wl-btn wl-btn-ghost wl-full" data-act="copy">Copy backup text</button><button class="wl-btn wl-btn-ghost wl-full" data-act="paste">Restore from text</button></div>'+
     (state.pasteOpen?'<textarea id="wl-paste" placeholder="Paste backup JSON here, then tap Restore" style="width:100%;min-height:120px;margin-top:10px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--mono);font-size:13px;padding:10px;box-sizing:border-box;outline:none"></textarea><div class="wl-row" style="margin-top:8px"><button class="wl-btn wl-btn-ghost wl-full" data-act="paste:cancel">Cancel</button><button class="wl-btn wl-btn-primary wl-full" data-act="paste:do">Restore</button></div>':'')+
-    '<div class="wl-hint">Your data lives only on this device. To move or sync it: <b>Export</b> (or <b>Copy</b>) a backup, drop it in your Dropbox/Synology folder, then <b>Import</b> (or paste) it on your other device. On iPad, Export opens the Share sheet so you can pick Save to Files.</div></div>';
+    '<div class="wl-hint">Your data lives only on this device. To move or sync it: <b>Export</b> (or <b>Copy</b>) a backup, drop it in your Dropbox/Synology folder, then <b>Import</b> (or paste) it on your other device. On iPad, Export opens the Share sheet so you can pick Save to Files.</div></div>'):'')+'</div>';
   h+='<div class="wl-card"><div class="wl-card-head"><span>App <em>version '+APP_BUILD+'</em></span></div>'+
     '<button class="wl-btn wl-btn-primary wl-full" data-act="app:update">Update app to latest</button>'+
     '<div class="wl-hint" style="margin-top:10px">Loads the newest version published to GitHub without re-adding to your Home Screen. Publish your change, wait ~1 minute for GitHub to build, then tap this. Your data and login stay put. After it reloads, check the version number above changed.</div></div>';
@@ -699,10 +746,12 @@ document.addEventListener("click",function(e){
     if(nx.length)state.workouts[state.selDate]=nx;else delete state.workouts[state.selDate];save();render();return;}
   if(a==="set:units"){state.settings.units=el.getAttribute("data-units");save();render();return;}
   if(a==="set:theme"){state.settings.theme=el.getAttribute("data-theme");save();applyTheme(state.settings.theme);render();return;}
+  if(a==="card:toggle"){state.open=state.open||{};var cd=el.getAttribute("data-card");state.open[cd]=!state.open[cd];render();return;}
+  if(a==="set:profile"){var np=el.getAttribute("data-profile");if(np===(syncCfg().profile||"a"))return;if(!window.confirm("Switch this device to "+(np==="a"?"Person 1":"Person 2")+"? It will sync to that person\u2019s file."))return;var pc=syncCfg();pc.profile=np;setSyncCfg(pc);ghSha=null;partnerData=null;render();autoSync();return;}
   if(a==="set:ttype"){state.settings.targetType=el.getAttribute("data-type");save();render();return;}
   if(a==="preset:add"){var inp=document.getElementById("wl-preset-input");var v=(inp.value||"").trim();
     if(!v||state.presets.indexOf(v)>=0){inp.value="";return;}state.presets.push(v);save();render();return;}
-  if(a==="preset:del"){state.presets.splice(+el.getAttribute("data-idx"),1);save();render();return;}
+  if(a==="preset:del"){var pi=+el.getAttribute("data-idx");if(window.confirm("Remove \""+state.presets[pi]+"\" from your activities?")){state.presets.splice(pi,1);save();render();}return;}
   if(a==="export"){exportData();return;}
   if(a==="import"){document.getElementById("wl-import").click();return;}
   if(a==="copy"){copyBackup();return;}
