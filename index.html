@@ -264,12 +264,12 @@ function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(payload()));}ca
 function save(){saveLocal();scheduleCloudPush();}
 
 /* ---------------- cloud sync (private GitHub repo via Contents API) ---------------- */
-var SYNC_KEY="wl_sync",DIRTY_KEY="wl_dirty",LAST_KEY="wl_lastsync",GH_PATH="data.json";
+var SYNC_KEY="wl_sync",DIRTY_KEY="wl_dirty",LAST_KEY="wl_lastsync",GH_PATH="data.json",DEFAULT_REPO="kaleyeah/weight-data",DEFAULT_BRANCH="main";
 var syncState={s:"idle",msg:""},pushTimer=null,pushing=false,ghSha=null;
 function syncCfg(){try{return JSON.parse(localStorage.getItem(SYNC_KEY))||{};}catch(e){return {};}}
 function setSyncCfg(c){try{localStorage.setItem(SYNC_KEY,JSON.stringify(c));}catch(e){}}
 function normRepo(s){return (s||"").trim().replace(/^https?:\/\/github\.com\//i,"").replace(/\.git$/i,"").replace(/^\/+|\/+$/g,"");}
-function syncOn(){var c=syncCfg();return !!(c.token&&normRepo(c.repo));}
+function syncOn(){return !!syncCfg().token;}
 function markDirty(v){try{localStorage.setItem(DIRTY_KEY,v?"1":"0");}catch(e){}}
 function isDirty(){return localStorage.getItem(DIRTY_KEY)==="1";}
 function setLastSync(){try{localStorage.setItem(LAST_KEY,String(Date.now()));}catch(e){}}
@@ -287,9 +287,9 @@ function syncStatusHTML(){if(!syncOn())return '<span style="color:var(--faint)">
 function b64enc(str){return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g,function(_,h){return String.fromCharCode(parseInt(h,16));}));}
 function b64dec(b64){b64=(b64||"").replace(/\s/g,"");if(!b64)return "";return decodeURIComponent(Array.prototype.map.call(atob(b64),function(c){return "%"+("00"+c.charCodeAt(0).toString(16)).slice(-2);}).join(""));}
 function ghHeaders(c){return {Authorization:"Bearer "+c.token,Accept:"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"};}
-function ghUrl(c){return "https://api.github.com/repos/"+normRepo(c.repo)+"/contents/"+GH_PATH;}
+function ghUrl(c){return "https://api.github.com/repos/"+normRepo(c.repo||DEFAULT_REPO)+"/contents/"+GH_PATH;}
 function cloudGet(cb){var c=syncCfg();if(!syncOn()){cb&&cb(null,"not configured");return;}
-  fetch(ghUrl(c)+"?ref="+encodeURIComponent(c.branch||"main")+"&t="+Date.now(),{headers:ghHeaders(c),cache:"no-store"})
+  fetch(ghUrl(c)+"?ref="+encodeURIComponent(c.branch||DEFAULT_BRANCH)+"&t="+Date.now(),{headers:ghHeaders(c),cache:"no-store"})
     .then(function(r){
       if(r.status===404){ghSha=null;cb&&cb({},null);return null;}
       if(r.status===401||r.status===403){cb&&cb(null,"auth");return null;}
@@ -308,7 +308,7 @@ function cloudPull(manual,done){setSync("syncing");cloudGet(function(d,err){
   applyCloud(d);setLastSync();setSync("ok");render();if(manual)toast("Pulled from GitHub");done&&done();});}
 function scheduleCloudPush(){if(!syncOn())return;markDirty(true);setSync("saving");clearTimeout(pushTimer);pushTimer=setTimeout(function(){cloudPush();},1400);}
 function ghPut(c,sha,cb){
-  var body={message:"Update weight data "+new Date().toISOString(),content:b64enc(JSON.stringify(payload())),branch:c.branch||"main"};
+  var body={message:"Update weight data "+new Date().toISOString(),content:b64enc(JSON.stringify(payload())),branch:c.branch||DEFAULT_BRANCH};
   if(sha)body.sha=sha;
   fetch(ghUrl(c),{method:"PUT",headers:Object.assign({"Content-Type":"application/json"},ghHeaders(c)),body:JSON.stringify(body)})
     .then(function(r){
@@ -467,7 +467,7 @@ function view_food(){
     h+='<label class="wl-field"><span>'+f[1]+' <em>'+f[2]+'</em></span><input class="wl-food-input" data-food="'+f[0]+'" type="number" inputmode="decimal" placeholder="0" value="'+val+'">';
     if(hasT&&t[f[0]]!=null)h+='<div class="wl-tbar" id="bar-'+f[0]+'">'+barInner(num(val),t[f[0]])+'</div>';
     h+='</label>';});
-  h+='</div><div class="wl-hint">Entries save automatically as you type.</div></div>';
+  h+='</div><div class="wl-hint">Entries save automatically as you type.</div>'+((num(e.calories)!=null||num(e.protein)!=null||num(e.carbs)!=null||num(e.fat)!=null)?'<button class="wl-btn wl-btn-danger wl-full" style="margin-top:10px" data-act="food:del" data-date="'+date+'">'+I.trash.replace("<svg","<svg width=16 height=16")+'Delete this day</button>':'')+'</div>';
   h+='<div class="wl-card"><div class="wl-card-head"><span>Recent days</span></div><div class="wl-list">';
   for(var i=0;i<14;i++){var iso=toISO(new Date(Date.now()-i*DAY));var fe=state.food[iso];var has=fe&&(num(fe.calories)!=null||num(fe.protein)!=null);
     h+='<button class="wl-list-row wl-list-tap" data-act="food:pick" data-date="'+iso+'"><span class="wl-dot '+(has?"good":"bad")+'"></span><span class="wl-list-date">'+fmtLong(parseISO(iso))+(iso===todayISO()?" · Today":"")+'</span><span class="wl-list-val">'+(has?(fe.calories||"—")+" cal":"Not logged")+'</span></button>';}
@@ -504,13 +504,13 @@ function view_settings(){
   state.presets.forEach(function(p,idx){h+='<div class="wl-preset-manage-row">'+I.dumbbell.replace("<svg","<svg width=14 height=14")+'<span>'+esc(p)+'</span><button class="wl-icon-btn" data-act="preset:del" data-idx="'+idx+'">✕</button></div>';});
   h+='</div><div class="wl-row"><input class="wl-inline-input" id="wl-preset-input" placeholder="Add a workout (e.g. Lifting Day 3)"><button class="wl-btn wl-btn-primary" data-act="preset:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add</button></div></div>';
   var sc=syncCfg();
-  h+='<div class="wl-card"><div class="wl-card-head"><span>Cloud sync <em>Private GitHub repo</em></span></div>'+
-    '<label class="wl-field wl-field-full"><span>Data repo <em>owner/repo</em></span><input type="text" data-sync="repo" value="'+esc(sc.repo||"")+'" placeholder="yourname/weight-data" autocapitalize="off" autocorrect="off" spellcheck="false"></label>'+
-    '<label class="wl-field wl-field-full" style="margin-top:10px"><span>Access token</span><input type="password" data-sync="token" value="'+esc(sc.token||"")+'" placeholder="github_pat_…" autocapitalize="off" autocorrect="off" spellcheck="false"></label>'+
-    '<label class="wl-field wl-field-full" style="margin-top:10px"><span>Branch</span><input type="text" data-sync="branch" value="'+esc(sc.branch||"main")+'" placeholder="main" autocapitalize="off" autocorrect="off" spellcheck="false"></label>'+
+  h+='<div class="wl-card"><div class="wl-card-head"><span>Cloud sync <em>GitHub</em></span></div>'+
+    '<label class="wl-field wl-field-full"><span>Access token</span><input type="password" data-sync="token" value="'+esc(sc.token||"")+'" placeholder="github_pat_…" autocapitalize="off" autocorrect="off" spellcheck="false"></label>'+
     '<div class="wl-row" style="margin-top:12px"><button class="wl-btn wl-btn-ghost wl-full" data-act="sync:test">Test</button><button class="wl-btn wl-btn-ghost wl-full" data-act="sync:pull">Pull</button><button class="wl-btn wl-btn-primary wl-full" data-act="sync:push">Push</button></div>'+
+    '<div class="wl-row" style="margin-top:10px"><button class="wl-btn wl-btn-ghost wl-full" data-act="sync:copy">Copy setup</button><button class="wl-btn wl-btn-ghost wl-full" data-act="sync:paste">Paste setup</button></div>'+
+    (state.syncPasteOpen?'<textarea id="wl-syncpaste" placeholder="Paste setup here, then tap Apply" style="width:100%;min-height:80px;margin-top:10px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--mono);font-size:12px;padding:10px;box-sizing:border-box;outline:none"></textarea><div class="wl-row" style="margin-top:8px"><button class="wl-btn wl-btn-ghost wl-full" data-act="sync:pastecancel">Cancel</button><button class="wl-btn wl-btn-primary wl-full" data-act="sync:pasteapply">Apply</button></div>':'')+
     '<div class="wl-hint" style="margin-top:10px"><b>Status:</b> <span id="wl-sync-status">'+syncStatusHTML()+'</span></div>'+
-    '<div class="wl-hint">First time: fill in the fields, tap <b>Test</b>, then <b>Push</b> to seed the repo with this device\u2019s data — after that it syncs on its own. On another device, enter the same repo + token and tap <b>Pull</b>. See <b>SETUP.md</b> for creating the repo and token. Your token is saved on this device only, never in the app\u2019s code.</div></div>';
+    '<div class="wl-hint">Synced with <b>kaleyeah/weight-data</b>. Enter your token once, tap <b>Test</b>, then <b>Push</b>. Setting up a new device? Tap <b>Copy setup</b> here and <b>Paste setup</b> there — no retyping the token. Your token is stored on this device only, never in the app\u2019s code.</div></div>';
   h+='<div class="wl-card"><div class="wl-card-head"><span>Backup &amp; transfer</span></div>'+
     '<div class="wl-row"><button class="wl-btn wl-btn-ghost wl-full" data-act="export">Export / share file</button><button class="wl-btn wl-btn-ghost wl-full" data-act="import">Import file</button></div>'+
     '<div class="wl-row" style="margin-top:10px"><button class="wl-btn wl-btn-ghost wl-full" data-act="copy">Copy backup text</button><button class="wl-btn wl-btn-ghost wl-full" data-act="paste">Restore from text</button></div>'+
@@ -536,7 +536,7 @@ function render(){
 function toast(msg){var t=document.getElementById("wl-toast");t.textContent=msg;t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(function(){t.classList.remove("show");},1600);}
 document.addEventListener("click",function(e){
   var el=e.target.closest("[data-act]");if(!el)return;var a=el.getAttribute("data-act");
-  if(a==="go"){state.view=el.getAttribute("data-view");state.alertDismissed=false;state.confirmReset=false;state.pasteOpen=false;render();return;}
+  if(a==="go"){state.view=el.getAttribute("data-view");state.alertDismissed=false;state.confirmReset=false;state.pasteOpen=false;state.syncPasteOpen=false;render();return;}
   if(a==="alert:dismiss"){state.alertDismissed=true;render();return;}
   if(a==="chart:pt"){var ts=+el.getAttribute("data-ts"),w=+el.getAttribute("data-w"),av=el.getAttribute("data-avg");
     var r=document.getElementById("wl-readout");if(r)r.innerHTML='<b>'+r1(w)+'</b> '+state.settings.units+' · '+fmtFull(new Date(ts))+(av!=="null"?' · avg '+av:'');return;}
@@ -544,6 +544,7 @@ document.addEventListener("click",function(e){
     if(vv==null){toast("Enter a weight");return;}state.weights=state.weights.filter(function(x){return x.date!==dt;});state.weights.push({date:dt,weight:vv});save();render();return;}
   if(a==="weight:del"){var dd=el.getAttribute("data-date");state.weights=state.weights.filter(function(x){return x.date!==dd;});save();render();return;}
   if(a==="food:pick"){state.foodDate=el.getAttribute("data-date");state.view="food";render();return;}
+  if(a==="food:del"){var fdd=el.getAttribute("data-date");if(window.confirm("Delete all food entries for this day?")){delete state.food[fdd];save();render();toast("Day cleared");}return;}
   if(a==="cal:prev"){state.calM--;if(state.calM<0){state.calM=11;state.calY--;}render();return;}
   if(a==="cal:next"){state.calM++;if(state.calM>11){state.calM=0;state.calY++;}render();return;}
   if(a==="cal:sel"){state.selDate=el.getAttribute("data-date");render();return;}
@@ -564,6 +565,10 @@ document.addEventListener("click",function(e){
   if(a==="sync:test"){cloudTest();return;}
   if(a==="sync:pull"){if(window.confirm("Pull from GitHub and replace all data on this device?"))cloudPull(true);return;}
   if(a==="sync:push"){cloudPush(true);return;}
+  if(a==="sync:copy"){var scg=syncCfg();copyText(JSON.stringify({token:scg.token||"",repo:scg.repo||DEFAULT_REPO,branch:scg.branch||DEFAULT_BRANCH}),"Setup copied");return;}
+  if(a==="sync:paste"){state.syncPasteOpen=!state.syncPasteOpen;render();return;}
+  if(a==="sync:pastecancel"){state.syncPasteOpen=false;render();return;}
+  if(a==="sync:pasteapply"){var sta=document.getElementById("wl-syncpaste");try{var cfg=JSON.parse((sta&&sta.value)||"{}");if(!cfg.token){toast("No token found in that setup");return;}setSyncCfg({token:cfg.token,repo:cfg.repo||DEFAULT_REPO,branch:cfg.branch||DEFAULT_BRANCH});state.syncPasteOpen=false;render();toast("Setup applied");autoSync();}catch(e){toast("Couldn't read that setup");}return;}
   if(a==="reset:ask"){state.confirmReset=true;render();return;}
   if(a==="reset:cancel"){state.confirmReset=false;render();return;}
   if(a==="reset:do"){state.settings=Object.assign({},DEFAULT_SETTINGS);state.weights=[];state.food={};state.workouts={};state.presets=DEFAULT_PRESETS.slice();state.confirmReset=false;state.view="overview";save();render();toast("All data erased");return;}
@@ -621,6 +626,14 @@ function copyBackup(){
 function fallbackCopy(text){
   var ta=document.createElement("textarea");ta.value=text;ta.style.position="fixed";ta.style.opacity="0";document.body.appendChild(ta);ta.focus();ta.select();
   try{document.execCommand("copy");toast("Backup copied");}catch(e){toast("Couldn't copy — use Export instead");}document.body.removeChild(ta);
+}
+function copyText(text,msg){
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(function(){toast(msg||"Copied");}).catch(function(){legacyCopy(text,msg);});
+  else legacyCopy(text,msg);
+}
+function legacyCopy(text,msg){
+  var ta=document.createElement("textarea");ta.value=text;ta.style.position="fixed";ta.style.opacity="0";document.body.appendChild(ta);ta.focus();ta.select();
+  try{document.execCommand("copy");toast(msg||"Copied");}catch(e){toast("Couldn't copy");}document.body.removeChild(ta);
 }
 
 /* ---------------- app icon (generated, for Add to Home Screen) ---------------- */
