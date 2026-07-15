@@ -248,7 +248,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.54";
+var APP_BUILD="2026-07-14.57";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -310,7 +310,7 @@ function applyTheme(id){var t=THEMES[id]||THEMES.ink;var root=document.documentE
   var meta=document.querySelector('meta[name="theme-color"]');if(meta)meta.setAttribute("content",t.v.bg);}
 var DEFAULT_PRESETS=[];
 var state={settings:Object.assign({},DEFAULT_SETTINGS),weights:[],food:{},workouts:{},steps:{},notes:{},sleep:{},weeklySummary:null,presets:DEFAULT_PRESETS.slice(),
-  view:"overview",calY:new Date().getFullYear(),calM:new Date().getMonth(),weekOffset:0,trendMode:"W",trendOffset:0,calOpen:false,
+  view:"overview",calY:new Date().getFullYear(),calM:new Date().getMonth(),weekOffset:0,trendMode:"W",trendOffset:0,calOpen:false,sumOpen:true,genBusy:false,
   selDate:todayISO(),foodDate:todayISO(),alertDismissed:false,confirmReset:false};
 
 function load(){
@@ -418,6 +418,46 @@ function autoSync(){if(!syncOn())return;
 function cloudTest(){setSync("syncing");cloudGet(function(d,err){
   if(err){setSync(err==="offline"?"offline":"error",err==="auth"?"bad token or repo access":"");toast(err==="offline"?"No connection":err==="auth"?"Check token & repo access":"Failed");return;}
   var n=(d.weights||[]).length,fd=Object.keys(d.food||{}).length;setLastSync();setSync("ok","repo has "+n+" weigh-ins, "+fd+" food days");pullConnections();toast("Connected to GitHub");render();});}
+function pushDataPromise(){var c=syncCfg();var url=ghUrl(c);var H=ghHeaders(c);var br=c.branch||DEFAULT_BRANCH;
+  return fetch(url+"?ref="+encodeURIComponent(br)+"&t="+Date.now(),{headers:H,cache:"no-store"})
+    .then(function(r){return r.status===404?null:(r.ok?r.json():Promise.reject(new Error("Couldn't reach GitHub")));})
+    .then(function(j){var sha=j&&j.sha||null;var body={message:"Update weight data",content:b64enc(JSON.stringify(payload())),branch:br};if(sha)body.sha=sha;
+      return fetch(url,{method:"PUT",headers:Object.assign({"Content-Type":"application/json"},H),body:JSON.stringify(body)});})
+    .then(function(r){if(!(r.status===200||r.status===201))throw new Error("Couldn't save your data first");ghSha=null;});}
+function pollSummary(prevGen,tries){var c=syncCfg();var url=ghUrl(c);var H=ghHeaders(c);var br=c.branch||DEFAULT_BRANCH;
+  return new Promise(function(resolve){var n=0;
+    function tick(){n++;
+      fetch(url+"?ref="+encodeURIComponent(br)+"&t="+Date.now(),{headers:H,cache:"no-store"})
+        .then(function(r){return r.ok?r.json():null;})
+        .then(function(j){var d=null;try{d=j&&j.content?JSON.parse(b64dec(j.content)):null;}catch(e){}
+          var s=d&&d.weeklySummary;
+          if(s&&s.text&&s.generated!==prevGen){resolve(s);return;}
+          if(n>=tries){resolve(null);return;}setTimeout(tick,6000);})
+        .catch(function(){if(n>=tries)resolve(null);else setTimeout(tick,6000);});}
+    setTimeout(tick,8000);});}
+function genSummary(){var c=syncCfg();
+  if(!syncOn()){toast("Set up cloud sync first (Settings)");return;}
+  if(state.genBusy)return;
+  state.genBusy=true;render();
+  var prevGen=(state.weeklySummary&&state.weeklySummary.generated)||null;
+  var repo=normRepo(c.repo||DEFAULT_REPO),br=c.branch||DEFAULT_BRANCH,wf="weekly-checkin.yml";
+  var wk=toISO(weekStartFor(0));
+  pushDataPromise().then(function(){
+    return fetch("https://api.github.com/repos/"+repo+"/actions/workflows/"+wf+"/dispatches",{
+      method:"POST",headers:Object.assign({"Content-Type":"application/json","Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"},ghHeaders(c)),
+      body:JSON.stringify({ref:br,inputs:{force:"true",week:wk}})});
+  }).then(function(r){
+    if(r.status===204)return;
+    if(r.status===401||r.status===403)throw new Error("Your GitHub token needs Actions: write permission");
+    if(r.status===404)throw new Error("Add weekly-checkin.yml to the repo first");
+    if(r.status===422)throw new Error("Couldn't start — check branch/workflow name");
+    throw new Error("Couldn't start the check-in ("+r.status+")");
+  }).then(function(){return pollSummary(prevGen,30);})
+  .then(function(sum){state.genBusy=false;
+    if(sum){state.weeklySummary=sum;state.sumOpen=true;saveLocal();toast("Your check-in is ready");}
+    else toast("Still working — it will appear here shortly");
+    render();})
+  .catch(function(e){state.genBusy=false;render();toast(e.message||"Couldn't generate");});}
 
 /* ---------------- computations ---------------- */
 function sortedWeights(){return state.weights.slice().sort(function(a,b){return a.date.localeCompare(b.date);});}
@@ -525,6 +565,7 @@ function buildChart(c,goal,unit,compact){
 }
 
 /* ---------------- views ---------------- */
+function renderSummary(t){var o=esc(t);o=o.replace(/\*\*(.+?)\*\*/g,"<b>$1</b>");o=o.replace(/^\s*[-*]\s+/gm,"• ");o=o.replace(/\n/g,"<br>");return o;}
 function weeklyAIText(){
   var u=state.settings.units;
   var avg=function(a){return a.length?Math.round(a.reduce(function(x,y){return x+y;},0)/a.length):null;};
@@ -571,9 +612,15 @@ function view_overview(){
   var tw=state.workouts[todayISO()]||[];
   var h='<div class="wl-stack">';
   var _wk=toISO(weekStartFor(0));var _sum=(state.weeklySummary&&state.weeklySummary.week===_wk&&state.weeklySummary.text)?state.weeklySummary.text:null;
-  h+='<div class="wl-card" style="border:1px solid var(--accent)"><div class="wl-card-head"><span>Weekly check-in</span>'+(_sum?'<span class="wl-count">AI</span>':'')+'</div>';
-  if(_sum){var _p=_sum.split("\n");h+='<div class="wl-ai-summary"><b>'+esc(_p[0])+'</b>'+(_p.length>1?"<br>"+esc(_p.slice(1).join("\n")).replace(/\n/g,"<br>"):"")+'</div><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="ai:copy">Copy the numbers for AI</button>';}
-  else h+='<div class="wl-hint" style="margin-bottom:10px">Copy your week\u2019s numbers to paste into your AI assistant for a summary — or your auto-summary will appear here once it\u2019s generated.</div><button class="wl-btn wl-btn-primary wl-full" data-act="ai:copy">Copy for AI</button>';
+  h+='<div class="wl-card" style="border:1px solid var(--accent)">';
+  if(state.genBusy){
+    h+='<div class="wl-card-head"><span>Weekly check-in</span></div><div class="wl-hint">⏳ Generating your check-in… this takes about a minute. You can keep using the app — it\u2019ll appear here when it\u2019s ready.</div>';
+  }else if(_sum){var _open=state.sumOpen!==false;
+    h+='<button class="wl-collapse-head" data-act="sum:toggle"><span>Weekly check-in'+(_open?' <span class="wl-count" style="margin-left:6px">AI</span>':'')+'</span>'+(_open?'<span class="wl-chevron open">›</span>':'<span style="color:var(--accent);font-weight:600;font-size:13px">View summary ›</span>')+'</button>';
+    if(_open)h+='<div class="wl-ai-summary" style="margin-top:6px">'+renderSummary(_sum)+'</div><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="ai:gen">↻ Regenerate</button>';
+  }else{
+    h+='<div class="wl-card-head"><span>Weekly check-in</span></div><div class="wl-hint" style="margin-bottom:10px">No check-in for this week yet.</div><button class="wl-btn wl-btn-primary wl-full" data-act="ai:gen">Generate summary</button>';
+  }
   h+='</div>';
   if(!configured)h+='<button class="wl-setup" data-act="go" data-view="settings"><div class="wl-setup-title">Set up your profile</div><div class="wl-setup-sub">Add your starting and goal weight in Settings to unlock progress, forecasts, and the chart.</div></button>';
   if(configured){
@@ -987,7 +1034,9 @@ document.addEventListener("click",function(e){
   if(a==="weight:del"){var dd=el.getAttribute("data-date");if(window.confirm("Delete this weigh-in?")){state.weights=state.weights.filter(function(x){return x.date!==dd;});save();render();}return;}
   if(a==="food:pick"){state.selDate=el.getAttribute("data-date");state.view="calendar";render();return;}
   if(a==="opentoday"){state.selDate=todayISO();state.calY=new Date().getFullYear();state.calM=new Date().getMonth();state.view="calendar";render();return;}
-  if(a==="ai:copy"){copyText(weeklyAIText(),"Copied — paste into your AI assistant");return;}
+  if(a==="ai:copy"){copyText(weeklyAIText(),"Copied your week — paste into your AI to generate");return;}
+  if(a==="ai:gen"){genSummary();return;}
+  if(a==="sum:toggle"){state.sumOpen=(state.sumOpen===false);render();return;}
   if(a==="trend:mode"){state.trendMode=el.getAttribute("data-mode");state.trendOffset=0;render();return;}
   if(a==="trend:prev"){state.trendOffset=(state.trendOffset||0)+1;render();return;}
   if(a==="trend:next"){state.trendOffset=Math.max(0,(state.trendOffset||0)-1);render();return;}
