@@ -207,6 +207,10 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 .wl-theme-sw i{width:14px;height:14px;border-radius:4px;border:1px solid rgba(128,128,128,.25);}
 .wl-theme-name{font-size:12.5px;font-weight:700;}
 .wl-theme-check{margin-left:auto;color:var(--accent);display:inline-flex;}
+.wl-optlist{display:flex;flex-direction:column;gap:6px;}
+.wl-opt{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;text-align:left;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg2);color:var(--text);font-size:13px;font-weight:600;font-family:var(--sans);line-height:1.3;}
+.wl-opt.on{border-color:var(--accent);background:var(--accent-dim);}
+.wl-opt-ck{color:var(--accent);flex-shrink:0;display:inline-flex;}
 .wl-update-banner{position:fixed;top:0;left:0;right:0;z-index:120;display:flex;align-items:center;justify-content:center;gap:12px;background:var(--accent);color:var(--on-accent);font-weight:700;font-size:13px;padding:calc(env(safe-area-inset-top,0px) + 10px) 14px 10px;box-shadow:0 4px 16px rgba(0,0,0,.4);}
 .wl-update-banner button{padding:7px 14px;border:none;border-radius:8px;font-weight:700;}
 .wl-toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);
@@ -239,7 +243,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.27";
+var APP_BUILD="2026-07-14.32";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function toISO(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());}
@@ -275,7 +279,7 @@ var I={
 /* ---------------- storage ---------------- */
 var KEY="wl_v1";
 var DEFAULT_SETTINGS={units:"lbs",startingWeight:"",startDate:todayISO(),goalWeight:"",
-  targetType:"lbs_per_week",targetValue:"1",targetCalories:"",targetProtein:"",targetCarbs:"",targetFat:"",theme:"ink",name:"",reminderTime:"19:00",connections:[]};
+  targetType:"lbs_per_week",targetValue:"1",targetCalories:"",targetProtein:"",targetCarbs:"",targetFat:"",theme:"ink",name:"",reminderTime:"19:00",connections:[],sex:"",age:"",heightFt:"",heightIn:"",activityLevel:"light"};
 var SANS="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,system-ui,sans-serif";
 var MONO="ui-monospace,'SF Mono','Cascadia Code',Menlo,Consolas,monospace";
 var THEMES={
@@ -405,6 +409,35 @@ function cloudTest(){setSync("syncing");cloudGet(function(d,err){
 
 /* ---------------- computations ---------------- */
 function sortedWeights(){return state.weights.slice().sort(function(a,b){return a.date.localeCompare(b.date);});}
+function currentWeightAvg(){var w=null;var pc=prepChart();
+  if(pc.data&&pc.data.length)w=pc.data[pc.data.length-1].avg;
+  if(w==null){var sw=sortedWeights();if(sw.length)w=sw[sw.length-1].weight;}
+  if(w==null)w=num(state.settings.startingWeight);
+  return w;}
+function currentWeightKg(){var w=currentWeightAvg();if(w==null)return null;return state.settings.units==="kg"?w:w*0.45359237;}
+function bmr(){var s=state.settings;
+  if(s.sex!=="male"&&s.sex!=="female")return null;
+  var age=num(s.age);if(age==null)return null;
+  var ft=num(s.heightFt);if(ft==null)return null;
+  var inch=num(s.heightIn)||0;var H=(ft*12+inch)*2.54;
+  var wKg=currentWeightKg();if(wKg==null)return null;
+  return Math.round(10*wKg+6.25*H-5*age+(s.sex==="male"?5:-161));}
+function bmrText(){var b=bmr();return b!=null?(b.toLocaleString()+" cal/day"):"—";}
+var ACTIVITY={bmr:1,sedentary:1.2,light:1.375,moderate:1.4625,active:1.55,intense:1.725,physical:1.9};
+function activityMult(){return ACTIVITY[state.settings.activityLevel]||1.375;}
+function maintenanceCals(){var b=bmr();return b!=null?Math.round(b*activityMult()):null;}
+function dailyDeficit(){var s=state.settings;var tv=num(s.targetValue);if(tv==null||tv<=0)return 0;
+  var weekly;
+  if(s.targetType==="percent_bw_per_week"){var cw=currentWeightAvg();if(cw==null)return 0;weekly=(tv/100)*cw;}
+  else weekly=tv;
+  var weeklyLbs=s.units==="kg"?weekly*2.20462:weekly;
+  return weeklyLbs*500;}
+function targetIntake(){var m=maintenanceCals();if(m==null)return null;return Math.round(m-dailyDeficit());}
+function calSummaryHTML(){var b=bmr();if(b==null)return "Add sex, age &amp; height above to calculate.";
+  var m=maintenanceCals(),t=targetIntake(),dd=dailyDeficit();
+  var s='BMR <b>'+b.toLocaleString()+'</b> · Maintenance <b>'+m.toLocaleString()+'</b>';
+  if(dd>0&&t!=null){s+=' · To lose <b>'+t.toLocaleString()+'</b>';if(t<1200)s+=' <span style="color:var(--bad)">(under ~1200/day — consider a gentler goal)</span>';}
+  return s+' cal/day';}
 function prepChart(src){
   var sw=(src||state.weights).slice().sort(function(a,b){return a.date.localeCompare(b.date);});if(!sw.length)return {data:[],slope:null,intercept:null};
   var pts=sw.map(function(x){return {ts:parseISO(x.date).getTime(),weight:x.weight,date:x.date};});
@@ -499,6 +532,16 @@ function view_overview(){
     h+='</div>';
   }
   if(c.data.length)h+='<div class="wl-card"><div class="wl-card-head"><span>Weight trend</span><button class="wl-link" data-act="go" data-view="weight">Details →</button></div>'+buildChart(c,goal,u,true)+'</div>';
+  var bmv=bmr();
+  if(bmv!=null){var mnt=maintenanceCals(),dd=dailyDeficit(),calc=(dd>0?targetIntake():mnt),manual=num(state.settings.targetCalories);
+    var big=manual!=null?manual:calc;
+    h+='<div class="wl-card"><div class="wl-card-head"><span>Calorie target</span><button class="wl-link" data-act="go" data-view="settings">Edit →</button></div>';
+    h+='<div class="wl-bignum" style="font-size:30px">'+big.toLocaleString()+'<span class="wl-unit">cal/day</span></div>';
+    var info=(manual!=null?"Your target":(dd>0?"Suggested to lose":"Maintenance"))+' · Maintenance ~'+mnt.toLocaleString()+' · BMR ~'+bmv.toLocaleString();
+    if(manual!=null&&dd>0)info+=' · Calculated ~'+calc.toLocaleString();
+    h+='<div class="wl-hint" style="margin-top:4px">'+info+'</div>';
+    if(manual==null&&dd>0&&calc<1200)h+='<div class="wl-hint" style="color:var(--bad)">That\u2019s under ~1200 cal/day — consider a gentler weekly goal.</div>';
+    h+='</div>';}
   h+='<div class="wl-card"><div class="wl-card-head"><span>Today</span></div><div class="wl-today">'+
     todayRow(I.food,"Calories",tCal!=null?(Math.round(tCal)+" cal"):null)+
     todayRow(I.summary,"Steps",tSteps!=null?(Math.round(tSteps).toLocaleString()+" steps"):null)+
@@ -686,22 +729,32 @@ function openLightbox(id){var url=photoMap[id];if(!url)return;
     if(b.getAttribute("data-lb")==="close"){document.body.removeChild(ov);}
     else if(window.confirm("Delete this photo?")){idbDelete(b.getAttribute("data-id")).then(function(){if(ov.parentNode)document.body.removeChild(ov);renderPhotos(state.selDate);});}});
   document.body.appendChild(ov);}
+function themeGrid(){var cur=state.settings.theme||"ink";
+  return Object.keys(THEMES).map(function(id){var t=THEMES[id];var on=id===cur;
+    return '<button class="wl-theme'+(on?" on":"")+'" data-act="set:theme" data-theme="'+id+'"><span class="wl-theme-sw"><i style="background:'+t.v.bg+'"></i><i style="background:'+t.v.card+'"></i><i style="background:'+t.v.accent+'"></i><i style="background:'+t.v.good+'"></i></span><span class="wl-theme-name">'+t.label+(id==="ink"?" · current":"")+'</span>'+(on?'<span class="wl-theme-check">'+I.check.replace("<svg","<svg width=14 height=14")+'</span>':'')+'</button>';}).join("");
+}
 function view_settings(){
   var f=state.settings;var u=f.units;
-  var cur=f.theme||"ink";var op=state.open||{};
-  var h='<div class="wl-stack"><div class="wl-card"><div class="wl-card-head"><span>Theme</span></div><div class="wl-theme-grid">'+
-    Object.keys(THEMES).map(function(id){var t=THEMES[id];var on=id===cur;
-      return '<button class="wl-theme'+(on?" on":"")+'" data-act="set:theme" data-theme="'+id+'"><span class="wl-theme-sw"><i style="background:'+t.v.bg+'"></i><i style="background:'+t.v.card+'"></i><i style="background:'+t.v.accent+'"></i><i style="background:'+t.v.good+'"></i></span><span class="wl-theme-name">'+t.label+(id==="ink"?" · current":"")+'</span>'+(on?'<span class="wl-theme-check">'+I.check.replace("<svg","<svg width=14 height=14")+'</span>':'')+'</button>';}).join("")+
-    '</div></div>';
+  var op=state.open||{};
+  var h='<div class="wl-stack">';
   h+='<div class="wl-card"><div class="wl-card-head"><span>Goals &amp; weight</span></div><div class="wl-row"><label class="wl-field"><span>Units</span><div class="wl-seg">'+
     ["lbs","kg"].map(function(x){return '<button class="'+(u===x?"on":"")+'" data-act="set:units" data-units="'+x+'">'+x+'</button>';}).join("")+'</div></label></div>';
   h+='<div class="wl-row"><label class="wl-field"><span>Starting weight ('+u+')</span><input class="wl-num" type="text" inputmode="decimal" data-set="startingWeight" value="'+esc(f.startingWeight)+'" placeholder="0.0"></label><label class="wl-field"><span>Start date</span><input type="date" data-set="startDate" max="'+todayISO()+'" value="'+esc(f.startDate)+'"></label></div>';
   h+='<label class="wl-field wl-field-full"><span>Goal weight ('+u+')</span><input class="wl-num" type="text" inputmode="decimal" data-set="goalWeight" value="'+esc(f.goalWeight)+'" placeholder="0.0"></label></div>';
+  h+='<div class="wl-card"><div class="wl-card-head"><span>Body <em>for BMR</em></span></div>'+
+    '<label class="wl-field wl-field-full"><span>Sex</span><div class="wl-seg"><button class="'+(f.sex==="male"?"on":"")+'" data-act="set:sex" data-sex="male">Male</button><button class="'+(f.sex==="female"?"on":"")+'" data-act="set:sex" data-sex="female">Female</button></div></label>'+
+    '<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Age</span><input class="wl-num" data-int="1" data-set="age" type="text" inputmode="numeric" value="'+esc(f.age||"")+'" placeholder="—"></label><label class="wl-field"><span>Height (ft)</span><input class="wl-num" data-int="1" data-set="heightFt" type="text" inputmode="numeric" value="'+esc(f.heightFt||"")+'" placeholder="ft"></label><label class="wl-field"><span>(in)</span><input class="wl-num" data-int="1" data-set="heightIn" type="text" inputmode="numeric" value="'+esc(f.heightIn||"")+'" placeholder="in"></label></div>'+
+    '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:14px 0 8px">Activity level</div><div class="wl-optlist">'+
+    [["bmr","Basal Metabolic Rate (BMR)"],["sedentary","Little or no exercise"],["light","Exercise 1–3 times/week"],["moderate","Exercise 4–5 times/week"],["active","Daily exercise or intense exercise 3–4 times/week"],["intense","Intense exercise 6–7 times/week"],["physical","Very intense exercise daily, or physical job"]].map(function(x){var on=(f.activityLevel||"light")===x[0];return '<button class="wl-opt'+(on?" on":"")+'" data-act="set:activity" data-level="'+x[0]+'"><span>'+x[1]+'</span>'+(on?'<span class="wl-opt-ck">'+I.check.replace("<svg","<svg width=15 height=15")+'</span>':'')+'</button>';}).join("")+'</div>'+
+    '<div class="wl-hint" style="margin-top:12px"><span id="wl-calread">'+calSummaryHTML()+'</span> <span style="color:var(--faint)">(Mifflin–St Jeor · info only)</span></div>'+
+    '<label class="wl-field wl-field-full" style="margin-top:12px"><span>Your daily calorie target <em>optional</em></span><input class="wl-num" data-int="1" type="text" inputmode="numeric" data-set="targetCalories" value="'+esc(f.targetCalories)+'" placeholder="'+(targetIntake()!=null?targetIntake():"e.g. 1900")+'"></label>'+
+    '<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="cal:usecalc">Use calculated target</button>'+
+    '<div class="wl-hint" style="margin-top:8px">This is the number your Daily Log calories bar fills against. Leave it blank to just track calories with no goal — the calculated figures above are a guide only.</div></div>';
   h+='<div class="wl-card"><div class="wl-card-head"><span>Weekly target</span></div><div class="wl-seg wl-seg-wide"><button class="'+(f.targetType==="lbs_per_week"?"on":"")+'" data-act="set:ttype" data-type="lbs_per_week">'+u+' / week</button><button class="'+(f.targetType==="percent_bw_per_week"?"on":"")+'" data-act="set:ttype" data-type="percent_bw_per_week">% bodyweight / week</button></div><label class="wl-field wl-field-full"><span>'+(f.targetType==="percent_bw_per_week"?"Percent per week":u+" per week")+'</span><input class="wl-num" type="text" inputmode="decimal" data-set="targetValue" value="'+esc(f.targetValue)+'" placeholder="1"></label><div class="wl-hint">'+(f.targetType==="percent_bw_per_week"?"e.g. 1 = lose 1% of current bodyweight each week.":"e.g. 1 = lose 1 "+u+" each week (0.5–1 is a common range).")+'</div></div>';
-  h+='<div class="wl-card"><div class="wl-card-head"><span>Daily targets <em>optional</em></span></div><div class="wl-macrogrid">'+
-    [["targetCalories","Calories","cal"],["targetProtein","Protein","g"],["targetCarbs","Carbs","g"],["targetFat","Fat","g"]].map(function(x){
+  h+='<div class="wl-card"><div class="wl-card-head"><span>Macro targets <em>optional</em></span></div><div class="wl-macrogrid">'+
+    [["targetProtein","Protein","g"],["targetCarbs","Carbs","g"],["targetFat","Fat","g"]].map(function(x){
       return '<label class="wl-field"><span>'+x[1]+' <em>'+x[2]+'</em></span><input class="wl-num" type="text" inputmode="decimal" data-set="'+x[0]+'" value="'+esc(f[x[0]])+'" placeholder="—"></label>';}).join("")+
-    '</div><div class="wl-hint">Set these to see progress bars in your food log. Leave blank to just track raw numbers.</div></div>';
+    '</div><div class="wl-hint">Show macro progress bars in your Daily Log. Your calorie target is set above under <b>Body</b>. Leave blank to just track raw numbers.</div></div>';
   h+='<div class="wl-card"><div class="wl-card-head"><span>Daily reminder</span></div>'+
     '<label class="wl-field wl-field-full"><span>Remind me to log at</span><input type="time" id="wl-remind-time" value="'+esc(f.reminderTime||"19:00")+'"></label>'+
     '<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="reminder:add">'+I.calendar.replace("<svg","<svg width=16 height=16")+'Add reminder to Calendar</button>'+
@@ -713,6 +766,7 @@ function view_settings(){
     h+='</div><div class="wl-row"><input class="wl-inline-input" id="wl-preset-input" placeholder="Add an activity (e.g. GLP1, Peloton 20)"><button class="wl-btn wl-btn-primary" data-act="preset:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add</button></div></div>';
   }
   h+='</div>';
+  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="theme"><span>Theme</span><span class="wl-chevron'+(op.theme?" open":"")+'">›</span></button>'+(op.theme?('<div class="wl-collapse-body"><div class="wl-theme-grid">'+themeGrid()+'</div></div>'):'')+'</div>';
   var sc=syncCfg();
   if(isOwner()){
   h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="sync"><span>Cloud sync <em>GitHub</em></span><span class="wl-chevron'+(op.sync?" open":"")+'">›</span></button>'+(op.sync?('<div class="wl-collapse-body">'+
@@ -782,6 +836,9 @@ document.addEventListener("click",function(e){
     var nx=cur.indexOf(nm)>=0?cur.filter(function(x){return x!==nm;}):cur.concat([nm]);
     if(nx.length)state.workouts[state.selDate]=nx;else delete state.workouts[state.selDate];save();render();return;}
   if(a==="set:units"){state.settings.units=el.getAttribute("data-units");save();render();return;}
+  if(a==="set:sex"){state.settings.sex=el.getAttribute("data-sex");save();render();return;}
+  if(a==="set:activity"){state.settings.activityLevel=el.getAttribute("data-level");save();render();return;}
+  if(a==="cal:usecalc"){var v=dailyDeficit()>0?targetIntake():maintenanceCals();if(v!=null){state.settings.targetCalories=String(v);save();render();toast("Calorie target set to "+v.toLocaleString());}else toast("Add sex, age & height first");return;}
   if(a==="set:theme"){state.settings.theme=el.getAttribute("data-theme");save();applyTheme(state.settings.theme);render();return;}
   if(a==="card:toggle"){state.open=state.open||{};var cd=el.getAttribute("data-card");state.open[cd]=!state.open[cd];render();return;}
   if(a==="invite:create"){var c0=syncCfg();if(!syncOn()){toast("Set up Cloud sync first");return;}var nu=randUid();var cs=Array.isArray(state.settings.connections)?state.settings.connections.slice():[];if(cs.indexOf(nu)<0)cs.push(nu);state.settings.connections=cs;save();state.inviteCode=encodeInvite({t:c0.token,r:c0.repo||DEFAULT_REPO,b:c0.branch||DEFAULT_BRANCH,u:nu,from:myUid(),fromName:state.settings.name||""});state.joinOpen=false;render();return;}
@@ -830,7 +887,7 @@ document.addEventListener("input",function(e){
   if(el.classList&&el.classList.contains("wl-num")){var isInt=el.hasAttribute("data-int");var cv=isInt?el.value.replace(/[^\d]/g,""):el.value.replace(/[^\d.]/g,"").replace(/(\..*)\./g,"$1");if(cv!==el.value)el.value=cv;}
   if(el.classList&&el.classList.contains("wl-note-input")){var nd=state.selDate;if(el.value.trim())state.notes[nd]=el.value;else delete state.notes[nd];save();return;}
   if(el.hasAttribute&&el.hasAttribute("data-sync")){var c=syncCfg();c[el.getAttribute("data-sync")]=el.value.trim();setSyncCfg(c);var st=document.getElementById("wl-sync-status");if(st)st.innerHTML=syncStatusHTML();return;}
-  if(el.hasAttribute&&el.hasAttribute("data-set")){state.settings[el.getAttribute("data-set")]=el.value;save();return;}
+  if(el.hasAttribute&&el.hasAttribute("data-set")){state.settings[el.getAttribute("data-set")]=el.value;save();var ce=document.getElementById("wl-calread");if(ce)ce.innerHTML=calSummaryHTML();return;}
   if(el.classList&&el.classList.contains("wl-food-input")){
     var key=el.getAttribute("data-food");var d=state.selDate;var entry=Object.assign({},state.food[d]||{});
     entry[key]=el.value;
