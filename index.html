@@ -243,7 +243,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.32";
+var APP_BUILD="2026-07-14.38";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function toISO(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());}
@@ -279,7 +279,7 @@ var I={
 /* ---------------- storage ---------------- */
 var KEY="wl_v1";
 var DEFAULT_SETTINGS={units:"lbs",startingWeight:"",startDate:todayISO(),goalWeight:"",
-  targetType:"lbs_per_week",targetValue:"1",targetCalories:"",targetProtein:"",targetCarbs:"",targetFat:"",theme:"ink",name:"",reminderTime:"19:00",connections:[],sex:"",age:"",heightFt:"",heightIn:"",activityLevel:"light"};
+  targetType:"lbs_per_week",targetValue:"1",targetCalories:"",targetProtein:"",targetCarbs:"",targetFat:"",theme:"ink",name:"",reminderTime:"19:00",connections:[],sex:"",age:"",heightFt:"",heightIn:"",activityLevel:"light",stepsGoal:""};
 var SANS="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,system-ui,sans-serif";
 var MONO="ui-monospace,'SF Mono','Cascadia Code',Menlo,Consolas,monospace";
 var THEMES={
@@ -438,6 +438,14 @@ function calSummaryHTML(){var b=bmr();if(b==null)return "Add sex, age &amp; heig
   var s='BMR <b>'+b.toLocaleString()+'</b> · Maintenance <b>'+m.toLocaleString()+'</b>';
   if(dd>0&&t!=null){s+=' · To lose <b>'+t.toLocaleString()+'</b>';if(t<1200)s+=' <span style="color:var(--bad)">(under ~1200/day — consider a gentler goal)</span>';}
   return s+' cal/day';}
+function macroPctHTML(){var s=state.settings;
+  var p=num(s.targetProtein),c=num(s.targetCarbs),ft=num(s.targetFat);
+  if(p==null&&c==null&&ft==null)return "Enter gram targets to see their total calories and share of your daily total.";
+  var total=(p||0)*4+(c||0)*4+(ft||0)*9;
+  var cal=num(s.targetCalories);if(cal==null)cal=(dailyDeficit()>0?targetIntake():maintenanceCals());
+  var out="";
+  if(cal&&cal>0){var parts=[];[["Protein",p,4],["Carbs",c,4],["Fat",ft,9]].forEach(function(m){if(m[1]!=null)parts.push(m[0]+" <b>"+Math.round(m[1]*m[2]/cal*100)+"%</b>");});if(parts.length)out=parts.join(" · ")+" of your "+cal.toLocaleString()+"-cal target · ";}
+  return out+'macros total <b>'+Math.round(total).toLocaleString()+' cal</b>';}
 function prepChart(src){
   var sw=(src||state.weights).slice().sort(function(a,b){return a.date.localeCompare(b.date);});if(!sw.length)return {data:[],slope:null,intercept:null};
   var pts=sw.map(function(x){return {ts:parseISO(x.date).getTime(),weight:x.weight,date:x.date};});
@@ -596,9 +604,27 @@ function view_weight(){
   var start=num(state.settings.startingWeight),goal=num(state.settings.goalWeight);
   var current=sw.length?sw[sw.length-1].weight:start;var lowest=sw.length?Math.min.apply(null,sw.map(function(x){return x.weight;})):null;
   var apw=null;if(sw.length>=2){var f=sw[0],l=sw[sw.length-1];var days=(parseISO(l.date)-parseISO(f.date))/DAY;if(days>0)apw=((f.weight-l.weight)/days)*7;}
+  var cut=toISO(new Date(Date.now()-6*DAY));
   var h='<div class="wl-stack"><div class="wl-card" style="padding:13px 16px"><button class="wl-link" data-act="opentoday">+ Log or edit weight in the Daily Log →</button></div>';
+  /* WEIGHT */
+  var w7=sw.filter(function(x){return x.date>=cut;});var w7ch=w7.length>=2?(w7[w7.length-1].weight-w7[0].weight):null;
+  h+='<div class="wl-card"><div class="wl-card-head"><span>Weight</span></div>';
   h+='<div class="wl-statrow">'+stat("Start",start!=null?r1(start):"—",u)+stat("Current",current!=null?r1(current):"—",u)+stat("Lowest",lowest!=null?r1(lowest):"—",u)+stat("Avg / wk",apw!=null?(apw>=0?"-":"+")+Math.abs(r1(apw)):"—",u)+'</div>';
-  h+='<div class="wl-card"><div class="wl-card-head"><span>Weight over time</span></div>'+buildChart(c,goal,u,false)+'</div>';
+  h+='<div class="wl-hint" style="margin-top:10px"><b>Last 7 days:</b> '+(w7ch!=null?(w7ch<=0?"▼ ":"▲ ")+Math.abs(r1(w7ch))+" "+u:"not enough data yet")+'</div>';
+  if(c.data.length)h+=buildChart(c,goal,u,false);
+  else h+='<div class="wl-empty">Log a few weigh-ins to see your trend.</div>';
+  h+='</div>';
+  /* STEPS */
+  var stepsArr=Object.keys(state.steps).map(function(d){return {date:d,weight:num(state.steps[d])};}).filter(function(x){return x.weight!=null;});
+  var s7vals=stepsArr.filter(function(x){return x.date>=cut;}).map(function(x){return x.weight;});
+  var s7avg=s7vals.length?s7vals.reduce(function(a,b){return a+b;},0)/s7vals.length:null;
+  var stc=prepChart(stepsArr);
+  h+='<div class="wl-card"><div class="wl-card-head"><span>Steps</span></div>';
+  h+='<div class="wl-hint"><b>Last 7 days:</b> '+(s7avg!=null?"avg "+Math.round(s7avg).toLocaleString()+" steps/day":"no steps logged")+'</div>';
+  if(stc.data.length)h+=buildChart(stc,num(state.settings.stepsGoal),"steps",true);
+  else h+='<div class="wl-empty">Log steps in the Daily Log to see your trend.</div>';
+  h+='</div>';
+  /* HISTORY */
   h+='<div class="wl-card"><div class="wl-card-head"><span>History</span><span class="wl-count">'+sw.length+'</span></div>';
   if(sw.length){h+='<div class="wl-list">';sw.slice().reverse().forEach(function(x){h+='<div class="wl-list-row"><span class="wl-list-date">'+fmtLong(parseISO(x.date))+'</span><span class="wl-list-val">'+r1(x.weight)+' '+u+'</span><button class="wl-icon-btn wl-del" data-act="weight:del" data-date="'+x.date+'" aria-label="Delete">'+I.trash.replace("<svg",'<svg width="18" height="18"')+'</button></div>';});h+='</div>';}
   else h+='<div class="wl-empty">Nothing logged yet.</div>';
@@ -737,11 +763,18 @@ function view_settings(){
   var f=state.settings;var u=f.units;
   var op=state.open||{};
   var h='<div class="wl-stack">';
-  h+='<div class="wl-card"><div class="wl-card-head"><span>Goals &amp; weight</span></div><div class="wl-row"><label class="wl-field"><span>Units</span><div class="wl-seg">'+
-    ["lbs","kg"].map(function(x){return '<button class="'+(u===x?"on":"")+'" data-act="set:units" data-units="'+x+'">'+x+'</button>';}).join("")+'</div></label></div>';
-  h+='<div class="wl-row"><label class="wl-field"><span>Starting weight ('+u+')</span><input class="wl-num" type="text" inputmode="decimal" data-set="startingWeight" value="'+esc(f.startingWeight)+'" placeholder="0.0"></label><label class="wl-field"><span>Start date</span><input type="date" data-set="startDate" max="'+todayISO()+'" value="'+esc(f.startDate)+'"></label></div>';
-  h+='<label class="wl-field wl-field-full"><span>Goal weight ('+u+')</span><input class="wl-num" type="text" inputmode="decimal" data-set="goalWeight" value="'+esc(f.goalWeight)+'" placeholder="0.0"></label></div>';
-  h+='<div class="wl-card"><div class="wl-card-head"><span>Body <em>for BMR</em></span></div>'+
+  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="goals"><span>Goals &amp; weight</span><span class="wl-chevron'+(op.goals?" open":"")+'">›</span></button>';
+  if(op.goals){
+    h+='<div class="wl-collapse-body"><div class="wl-row"><label class="wl-field"><span>Units</span><div class="wl-seg">'+
+      ["lbs","kg"].map(function(x){return '<button class="'+(u===x?"on":"")+'" data-act="set:units" data-units="'+x+'">'+x+'</button>';}).join("")+'</div></label></div>';
+    h+='<div class="wl-row"><label class="wl-field"><span>Starting weight ('+u+')</span><input class="wl-num" type="text" inputmode="decimal" data-set="startingWeight" value="'+esc(f.startingWeight)+'" placeholder="0.0"></label><label class="wl-field"><span>Start date</span><input type="date" data-set="startDate" max="'+todayISO()+'" value="'+esc(f.startDate)+'"></label></div>';
+    h+='<label class="wl-field wl-field-full"><span>Target weight ('+u+')</span><input class="wl-num" type="text" inputmode="decimal" data-set="goalWeight" value="'+esc(f.goalWeight)+'" placeholder="0.0"></label>';
+    h+='<label class="wl-field wl-field-full" style="margin-top:12px"><span>Daily steps goal</span><input class="wl-num" data-int="1" data-set="stepsGoal" type="text" inputmode="numeric" value="'+esc(f.stepsGoal||"")+'" placeholder="e.g. 8000"></label>';
+    h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:16px 0 8px">Weekly loss target</div><div class="wl-seg wl-seg-wide"><button class="'+(f.targetType==="lbs_per_week"?"on":"")+'" data-act="set:ttype" data-type="lbs_per_week">'+u+' / week</button><button class="'+(f.targetType==="percent_bw_per_week"?"on":"")+'" data-act="set:ttype" data-type="percent_bw_per_week">% bodyweight / week</button></div><label class="wl-field wl-field-full" style="margin-top:10px"><span>'+(f.targetType==="percent_bw_per_week"?"Percent per week":u+" per week")+'</span><input class="wl-num" type="text" inputmode="decimal" data-set="targetValue" value="'+esc(f.targetValue)+'" placeholder="1"></label><div class="wl-hint">'+(f.targetType==="percent_bw_per_week"?"e.g. 1 = lose 1% of current bodyweight each week.":"e.g. 1 = lose 1 "+u+" each week (0.5–1 is a common range).")+'</div>';
+    h+='</div>';
+  }
+  h+='</div>';
+  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="metrics"><span>My Metrics</span><span class="wl-chevron'+(op.metrics?" open":"")+'">›</span></button>'+(op.metrics?('<div class="wl-collapse-body">'+
     '<label class="wl-field wl-field-full"><span>Sex</span><div class="wl-seg"><button class="'+(f.sex==="male"?"on":"")+'" data-act="set:sex" data-sex="male">Male</button><button class="'+(f.sex==="female"?"on":"")+'" data-act="set:sex" data-sex="female">Female</button></div></label>'+
     '<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Age</span><input class="wl-num" data-int="1" data-set="age" type="text" inputmode="numeric" value="'+esc(f.age||"")+'" placeholder="—"></label><label class="wl-field"><span>Height (ft)</span><input class="wl-num" data-int="1" data-set="heightFt" type="text" inputmode="numeric" value="'+esc(f.heightFt||"")+'" placeholder="ft"></label><label class="wl-field"><span>(in)</span><input class="wl-num" data-int="1" data-set="heightIn" type="text" inputmode="numeric" value="'+esc(f.heightIn||"")+'" placeholder="in"></label></div>'+
     '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:14px 0 8px">Activity level</div><div class="wl-optlist">'+
@@ -749,16 +782,14 @@ function view_settings(){
     '<div class="wl-hint" style="margin-top:12px"><span id="wl-calread">'+calSummaryHTML()+'</span> <span style="color:var(--faint)">(Mifflin–St Jeor · info only)</span></div>'+
     '<label class="wl-field wl-field-full" style="margin-top:12px"><span>Your daily calorie target <em>optional</em></span><input class="wl-num" data-int="1" type="text" inputmode="numeric" data-set="targetCalories" value="'+esc(f.targetCalories)+'" placeholder="'+(targetIntake()!=null?targetIntake():"e.g. 1900")+'"></label>'+
     '<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="cal:usecalc">Use calculated target</button>'+
-    '<div class="wl-hint" style="margin-top:8px">This is the number your Daily Log calories bar fills against. Leave it blank to just track calories with no goal — the calculated figures above are a guide only.</div></div>';
-  h+='<div class="wl-card"><div class="wl-card-head"><span>Weekly target</span></div><div class="wl-seg wl-seg-wide"><button class="'+(f.targetType==="lbs_per_week"?"on":"")+'" data-act="set:ttype" data-type="lbs_per_week">'+u+' / week</button><button class="'+(f.targetType==="percent_bw_per_week"?"on":"")+'" data-act="set:ttype" data-type="percent_bw_per_week">% bodyweight / week</button></div><label class="wl-field wl-field-full"><span>'+(f.targetType==="percent_bw_per_week"?"Percent per week":u+" per week")+'</span><input class="wl-num" type="text" inputmode="decimal" data-set="targetValue" value="'+esc(f.targetValue)+'" placeholder="1"></label><div class="wl-hint">'+(f.targetType==="percent_bw_per_week"?"e.g. 1 = lose 1% of current bodyweight each week.":"e.g. 1 = lose 1 "+u+" each week (0.5–1 is a common range).")+'</div></div>';
-  h+='<div class="wl-card"><div class="wl-card-head"><span>Macro targets <em>optional</em></span></div><div class="wl-macrogrid">'+
-    [["targetProtein","Protein","g"],["targetCarbs","Carbs","g"],["targetFat","Fat","g"]].map(function(x){
-      return '<label class="wl-field"><span>'+x[1]+' <em>'+x[2]+'</em></span><input class="wl-num" type="text" inputmode="decimal" data-set="'+x[0]+'" value="'+esc(f[x[0]])+'" placeholder="—"></label>';}).join("")+
-    '</div><div class="wl-hint">Show macro progress bars in your Daily Log. Your calorie target is set above under <b>Body</b>. Leave blank to just track raw numbers.</div></div>';
-  h+='<div class="wl-card"><div class="wl-card-head"><span>Daily reminder</span></div>'+
+    '<div class="wl-hint" style="margin-top:8px">This is the number your Daily Log calories bar fills against. Leave it blank to just track calories with no goal — the calculated figures above are a guide only.</div>'+
+    '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:16px 0 8px">Macro targets</div><div class="wl-macrogrid">'+
+    [["targetProtein","Protein","g"],["targetCarbs","Carbs","g"],["targetFat","Fat","g"]].map(function(x){return '<label class="wl-field"><span>'+x[1]+' <em>'+x[2]+'</em></span><input class="wl-num" type="text" inputmode="decimal" data-set="'+x[0]+'" value="'+esc(f[x[0]])+'" placeholder="—"></label>';}).join("")+
+    '</div><div class="wl-hint"><span id="wl-macropct">'+macroPctHTML()+'</span></div></div>'):'')+'</div>';
+  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="reminder"><span>Daily reminder</span><span class="wl-chevron'+(op.reminder?" open":"")+'">›</span></button>'+(op.reminder?('<div class="wl-collapse-body">'+
     '<label class="wl-field wl-field-full"><span>Remind me to log at</span><input type="time" id="wl-remind-time" value="'+esc(f.reminderTime||"19:00")+'"></label>'+
     '<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="reminder:add">'+I.calendar.replace("<svg","<svg width=16 height=16")+'Add reminder to Calendar</button>'+
-    '<div class="wl-hint" style="margin-top:10px">Tap <b>Add reminder to Calendar</b>, then choose <b>Add All</b> — this creates a daily repeating reminder in your Calendar that notifies you even when the app is closed. (iPhone &amp; iPad don\u2019t let a web app send its own scheduled notifications, so this uses your Calendar instead.) To change the time, pick a new one and add it again, then delete the old event.</div></div>';
+    '<div class="wl-hint" style="margin-top:10px">Tap <b>Add reminder to Calendar</b>, then choose <b>Add All</b> — this creates a daily repeating reminder in your Calendar that notifies you even when the app is closed. (iPhone &amp; iPad don\u2019t let a web app send its own scheduled notifications, so this uses your Calendar instead.) To change the time, pick a new one and add it again, then delete the old event.</div></div>'):'')+'</div>';
   h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="activities"><span>Activity list</span><span class="wl-chevron'+(op.activities?" open":"")+'">›</span></button>';
   if(op.activities){
     h+='<div class="wl-collapse-body"><div class="wl-preset-manage">';
@@ -801,7 +832,7 @@ function view_settings(){
 }
 
 /* ---------------- render ---------------- */
-var NAV=[["overview","Overview"],["calendar","Daily Log"],["weight","Weight"],["summary","Summary"],["settings","Settings"]];
+var NAV=[["overview","Overview"],["calendar","Daily Log"],["weight","Trends"],["summary","Summary"],["settings","Settings"]];
 function render(){
   clearPhotoURLs();
   var title=(NAV.filter(function(n){return n[0]===state.view;})[0]||["","" ])[1];
@@ -835,7 +866,14 @@ document.addEventListener("click",function(e){
   if(a==="cal:toggle"){var nm=state.presets[+el.getAttribute("data-idx")];var cur=state.workouts[state.selDate]||[];
     var nx=cur.indexOf(nm)>=0?cur.filter(function(x){return x!==nm;}):cur.concat([nm]);
     if(nx.length)state.workouts[state.selDate]=nx;else delete state.workouts[state.selDate];save();render();return;}
-  if(a==="set:units"){state.settings.units=el.getAttribute("data-units");save();render();return;}
+  if(a==="set:units"){var nu=el.getAttribute("data-units");var ou=state.settings.units;if(nu===ou)return;
+    var hasData=state.weights.length||num(state.settings.startingWeight)!=null||num(state.settings.goalWeight)!=null;
+    if(hasData){if(!window.confirm("Convert your weigh-ins and weight goals to "+nu+"?"))return;
+      var factor=nu==="kg"?0.45359237:2.2046226218;
+      state.weights.forEach(function(w){w.weight=Math.round(w.weight*factor*10)/10;});
+      ["startingWeight","goalWeight"].forEach(function(k){var vv=num(state.settings[k]);if(vv!=null)state.settings[k]=String(Math.round(vv*factor*10)/10);});
+      if(state.settings.targetType==="lbs_per_week"){var tv=num(state.settings.targetValue);if(tv!=null)state.settings.targetValue=String(Math.round(tv*factor*100)/100);}}
+    state.settings.units=nu;save();render();return;}
   if(a==="set:sex"){state.settings.sex=el.getAttribute("data-sex");save();render();return;}
   if(a==="set:activity"){state.settings.activityLevel=el.getAttribute("data-level");save();render();return;}
   if(a==="cal:usecalc"){var v=dailyDeficit()>0?targetIntake():maintenanceCals();if(v!=null){state.settings.targetCalories=String(v);save();render();toast("Calorie target set to "+v.toLocaleString());}else toast("Add sex, age & height first");return;}
@@ -887,7 +925,7 @@ document.addEventListener("input",function(e){
   if(el.classList&&el.classList.contains("wl-num")){var isInt=el.hasAttribute("data-int");var cv=isInt?el.value.replace(/[^\d]/g,""):el.value.replace(/[^\d.]/g,"").replace(/(\..*)\./g,"$1");if(cv!==el.value)el.value=cv;}
   if(el.classList&&el.classList.contains("wl-note-input")){var nd=state.selDate;if(el.value.trim())state.notes[nd]=el.value;else delete state.notes[nd];save();return;}
   if(el.hasAttribute&&el.hasAttribute("data-sync")){var c=syncCfg();c[el.getAttribute("data-sync")]=el.value.trim();setSyncCfg(c);var st=document.getElementById("wl-sync-status");if(st)st.innerHTML=syncStatusHTML();return;}
-  if(el.hasAttribute&&el.hasAttribute("data-set")){state.settings[el.getAttribute("data-set")]=el.value;save();var ce=document.getElementById("wl-calread");if(ce)ce.innerHTML=calSummaryHTML();return;}
+  if(el.hasAttribute&&el.hasAttribute("data-set")){state.settings[el.getAttribute("data-set")]=el.value;save();var ce=document.getElementById("wl-calread");if(ce)ce.innerHTML=calSummaryHTML();var mp=document.getElementById("wl-macropct");if(mp)mp.innerHTML=macroPctHTML();return;}
   if(el.classList&&el.classList.contains("wl-food-input")){
     var key=el.getAttribute("data-food");var d=state.selDate;var entry=Object.assign({},state.food[d]||{});
     entry[key]=el.value;
@@ -901,9 +939,13 @@ document.addEventListener("input",function(e){
   if(el.classList&&el.classList.contains("wl-daywt-input")){
     var wd=state.selDate;var wvv=num(el.value);state.weights=state.weights.filter(function(x){return x.date!==wd;});if(wvv!=null)state.weights.push({date:wd,weight:wvv});save();return;}
 });
-document.addEventListener("change",function(e){
-  if(e.target&&e.target.id==="wl-fdate"){state.foodDate=e.target.value;render();}
-});
+function sanityWarn(el){
+  if(!el||!el.classList)return;var v=num(el.value);if(v==null)return;
+  if(el.classList.contains("wl-daywt-input")){var u=state.settings.units;var lo=u==="kg"?23:50,hi=u==="kg"?450:1000;if(v<lo||v>hi)toast("That weight looks off ("+v+" "+u+") — double-check it.");}
+  else if(el.classList.contains("wl-food-input")&&el.getAttribute("data-food")==="calories"){if(v>10000)toast("That\u2019s a lot of calories ("+Math.round(v).toLocaleString()+") — double-check.");}
+  else if(el.getAttribute&&el.getAttribute("data-set")==="targetCalories"){if(v>10000)toast("That calorie target looks high — double-check.");}
+}
+document.addEventListener("change",function(e){sanityWarn(e.target);});
 document.getElementById("wl-import").addEventListener("change",function(e){
   var file=e.target.files[0];if(!file)return;var rd=new FileReader();
   rd.onload=function(){applyImport(rd.result);};
