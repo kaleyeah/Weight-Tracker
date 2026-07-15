@@ -182,21 +182,30 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 .wl-cell.today{border-color:var(--accent);}
 .wl-cell.sel{background:var(--accent-dim);border-color:var(--accent);}
 .wl-cell-num{font-size:13px;font-family:var(--mono);}
-.wl-cell-dots{display:flex;gap:2px;position:absolute;bottom:6px;}
+.wl-cell-dots{display:flex;gap:2px;position:absolute;bottom:6px;left:0;right:0;justify-content:center;}
 .wl-cell-dots i{width:4px;height:4px;border-radius:50%;background:var(--good);}
+.wl-cell-dots i.dot-cardio{background:#3b82f6;}
+.wl-cell-dots i.dot-lifting{background:#22c55e;}
+.wl-cell-dots i.dot-supp{background:#a855f7;}
+.wl-cell-dots i.dot-rest{background:#9ca3af;}
+.wl-cell-dots i.dot-other{background:var(--faint);}
+.wl-cell-dots i.dot-data{background:var(--good);}
 .wl-preset-list{display:flex;flex-wrap:wrap;gap:8px;}
 .wl-achip{display:inline-flex;align-items:center;gap:5px;padding:9px 14px;border-radius:20px;font-size:13px;font-weight:600;font-family:var(--sans);border:1.5px solid;background:transparent;cursor:pointer;line-height:1;}
 .wl-achip.cardio{color:#3b82f6;border-color:#3b82f6;}
 .wl-achip.lifting{color:#22c55e;border-color:#22c55e;}
 .wl-achip.supp{color:#a855f7;border-color:#a855f7;}
+.wl-achip.rest{color:#9ca3af;border-color:#9ca3af;}
 .wl-achip.other{color:var(--faint);border-color:var(--line);}
 .wl-achip.on.cardio{background:#3b82f6;color:#fff;}
 .wl-achip.on.lifting{background:#22c55e;color:#fff;}
 .wl-achip.on.supp{background:#a855f7;color:#fff;}
+.wl-achip.on.rest{background:#6b7280;color:#fff;}
 .wl-achip.on.other{background:var(--faint);color:var(--bg);}
 .wl-cat-cardio{background:rgba(59,130,246,.15);color:#3b82f6;}
 .wl-cat-lifting{background:rgba(34,197,94,.15);color:#22c55e;}
 .wl-cat-supp{background:rgba(168,85,247,.15);color:#a855f7;}
+.wl-cat-rest{background:rgba(156,163,175,.16);color:#9ca3af;}
 .wl-cat-other{background:var(--bg2);color:var(--faint);}
 .wl-actcat{flex-shrink:0;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:5px 8px;border-radius:6px;white-space:nowrap;}
 .wl-select{flex:1;min-width:0;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-size:14px;font-family:var(--sans);padding:0 10px;outline:none;}
@@ -263,7 +272,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.61";
+var APP_BUILD="2026-07-14.63";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -323,22 +332,29 @@ function applyTheme(id){var t=THEMES[id]||THEMES.ink;var root=document.documentE
   for(var k in t.v){root.style.setProperty("--"+k,t.v[k]);}
   root.style.colorScheme=t.scheme;CH=t.chart;
   var meta=document.querySelector('meta[name="theme-color"]');if(meta)meta.setAttribute("content",t.v.bg);}
-var DEFAULT_PRESETS=[{name:"Peloton",cat:"cardio"},{name:"Treadmill",cat:"cardio"},{name:"Rowing",cat:"cardio"},{name:"Weight training",cat:"lifting"},{name:"GLP-1",cat:"supp"}];
+var DEFAULT_PRESETS=[{name:"Peloton",cat:"cardio"},{name:"Treadmill",cat:"cardio"},{name:"Rowing",cat:"cardio"},{name:"Weight training",cat:"lifting"},{name:"Rest day",cat:"rest"},{name:"GLP-1",cat:"supp"}];
 var CARDIO_W=["cardio","peloton","treadmill","row","run","jog","bike","cycle","cycling","spin","elliptical","stair","swim","hiit","zone 2","zone2","zone 3","zone3","incline","sprint"];
 var LIFT_W=["lift","weight","strength","resistance","gym","squat","deadlift","bench","push","pull","leg day","upper","lower","hypertrophy","dumbbell","barbell"];
 var SUPP_W=["glp","semaglutide","tirzepatide","ozempic","wegovy","mounjaro","zepbound","creatine","electrolyte","pre-workout","preworkout","protein powder","supplement","vitamin","medication"];
+var REST_W=["rest","recovery","off day","day off","walk","walking","massage","stretch","mobility","yoga","sauna","foam roll"];
 function catFromName(s){var n=(s||"").toLowerCase();
+  if(REST_W.some(function(k){return n.indexOf(k)>=0;}))return "rest";
   if(SUPP_W.some(function(k){return n.indexOf(k)>=0;}))return "supp";
   if(CARDIO_W.some(function(k){return n.indexOf(k)>=0;}))return "cardio";
   if(LIFT_W.some(function(k){return n.indexOf(k)>=0;}))return "lifting";
   return "other";}
-var CATLABEL={cardio:"Cardio",lifting:"Weight Training",supp:"Supp/Med",other:"Other"};
-var CATPH={cardio:"e.g. Peloton (optional)",lifting:"e.g. Push day (optional)",supp:"e.g. GLP-1",other:"name (optional)"};
+var CATLABEL={cardio:"Cardio",lifting:"Weight Training",supp:"Supp/Med",rest:"Recovery",other:"Other"};
+var CATPH={cardio:"e.g. Peloton (optional)",lifting:"e.g. Push day (optional)",supp:"e.g. GLP-1",rest:"e.g. Walk, massage",other:"name (optional)"};
 function normActs(iso){var raw=state.workouts[iso];if(!Array.isArray(raw))return [];
   return raw.map(function(a){if(typeof a==="string")return {cat:catFromName(a),name:a};return {cat:(a&&a.cat)||catFromName(a&&a.name)||"other",name:(a&&a.name)||""};});}
 function actLabel(a){return a.name?(CATLABEL[a.cat]+": "+a.name):CATLABEL[a.cat];}
 function normPresets(){var raw=state.presets;if(!Array.isArray(raw))return [];
   return raw.map(function(p){if(typeof p==="string")return {name:p,cat:catFromName(p)};return {name:(p&&p.name)||"",cat:(p&&p.cat)||catFromName(p&&p.name)||"other"};});}
+function dayDots(iso){var seen={},cats=[];
+  normActs(iso).forEach(function(a){if(!seen[a.cat]){seen[a.cat]=1;cats.push(a.cat);}});
+  if(cats.length)return '<span class="wl-cell-dots">'+cats.map(function(c){return '<i class="dot-'+c+'"></i>';}).join("")+'</span>';
+  if(dayHasAny(iso))return '<span class="wl-cell-dots"><i class="dot-data"></i></span>';
+  return '';}
 var state={settings:Object.assign({},DEFAULT_SETTINGS),weights:[],food:{},workouts:{},steps:{},notes:{},sleep:{},weeklySummary:null,presets:DEFAULT_PRESETS.slice(),
   view:"overview",calY:new Date().getFullYear(),calM:new Date().getMonth(),weekOffset:0,trendMode:"W",trendOffset:0,calOpen:false,sumOpen:true,genBusy:false,
   selDate:todayISO(),foodDate:todayISO(),alertDismissed:false,confirmReset:false};
@@ -851,7 +867,7 @@ function view_calendar(){
     WEEKDAYS.forEach(function(d){h+='<div class="wl-dow">'+d+'</div>';});h+='</div><div class="wl-cal-grid">';
     for(var i=0;i<lead;i++)h+='<div class="wl-cell empty"></div>';
     for(var d=1;d<=dim;d++){var iso=toISO(new Date(y,m,d));var isT=iso===todayISO();var isS=iso===sel;
-      h+='<button class="wl-cell'+(isS?" sel":"")+(isT?" today":"")+'" data-act="cal:sel" data-date="'+iso+'"><span class="wl-cell-num">'+d+'</span>'+(dayHasData(iso)?'<span class="wl-cell-dots"><i></i></span>':'')+'</button>';}
+      h+='<button class="wl-cell'+(isS?" sel":"")+(isT?" today":"")+'" data-act="cal:sel" data-date="'+iso+'"><span class="wl-cell-num">'+d+'</span>'+dayDots(iso)+'</button>';}
     h+='</div>';
   }
   h+='</div>';
@@ -1021,8 +1037,8 @@ function view_settings(){
     var _mp=normPresets();
     if(_mp.length){h+='<div class="wl-preset-manage">';_mp.forEach(function(p,idx){h+='<div class="wl-preset-manage-row"><span class="wl-actcat wl-cat-'+p.cat+'">'+CATLABEL[p.cat]+'</span><span style="flex:1">'+esc(p.name)+'</span><button class="wl-icon-btn" data-act="preset:del" data-idx="'+idx+'">✕</button></div>';});h+='</div>';}
     h+='<input class="wl-inline-input" id="wl-newact-name" placeholder="Activity name (e.g. Peloton)" style="width:100%;box-sizing:border-box;margin:4px 0 8px">';
-    h+='<div class="wl-row" style="align-items:stretch"><select id="wl-newact-cat" class="wl-select"><option value="cardio">Cardio</option><option value="lifting">Weight Training</option><option value="supp">Supplement/Med</option></select><button class="wl-btn wl-btn-primary" data-act="preset:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add</button></div>';
-    h+='<div class="wl-hint" style="margin-top:8px">These become tappable chips in the Daily Log — <span style="color:#3b82f6">Cardio blue</span>, <span style="color:#22c55e">Weight training green</span>, <span style="color:#a855f7">Supplements purple</span>.</div>';
+    h+='<div class="wl-row" style="align-items:stretch"><select id="wl-newact-cat" class="wl-select"><option value="cardio">Cardio</option><option value="lifting">Weight Training</option><option value="supp">Supplement/Med</option><option value="rest">Recovery</option></select><button class="wl-btn wl-btn-primary" data-act="preset:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add</button></div>';
+    h+='<div class="wl-hint" style="margin-top:8px">These become tappable chips in the Daily Log — <span style="color:#3b82f6">Cardio blue</span>, <span style="color:#22c55e">Weight training green</span>, <span style="color:#a855f7">Supplements purple</span>, <span style="color:#9ca3af">Recovery gray</span>.</div>';
     h+='</div>';
   }
   h+='</div>';
