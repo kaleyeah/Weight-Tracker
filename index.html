@@ -214,6 +214,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 .wl-daypick{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;}
 .wl-day{padding:9px 0;border:1px solid var(--line);border-radius:9px;background:var(--bg2);color:var(--text);font-size:12px;font-weight:700;font-family:var(--sans);}
 .wl-day.on{background:var(--accent);color:var(--on-accent);border-color:var(--accent);}
+.wl-datebtn{flex:1;background:none;border:none;color:var(--text);font-size:15px;font-weight:700;font-family:var(--sans);display:flex;align-items:center;justify-content:center;gap:8px;padding:6px 4px;min-width:0;}
 .wl-update-banner{position:fixed;top:0;left:0;right:0;z-index:120;display:flex;align-items:center;justify-content:center;gap:12px;background:var(--accent);color:var(--on-accent);font-weight:700;font-size:13px;padding:calc(env(safe-area-inset-top,0px) + 10px) 14px 10px;box-shadow:0 4px 16px rgba(0,0,0,.4);}
 .wl-update-banner button{padding:7px 14px;border:none;border-radius:8px;font-weight:700;}
 .wl-toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);
@@ -246,7 +247,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.41";
+var APP_BUILD="2026-07-14.43";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function toISO(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());}
@@ -304,7 +305,7 @@ function applyTheme(id){var t=THEMES[id]||THEMES.ink;var root=document.documentE
   var meta=document.querySelector('meta[name="theme-color"]');if(meta)meta.setAttribute("content",t.v.bg);}
 var DEFAULT_PRESETS=[];
 var state={settings:Object.assign({},DEFAULT_SETTINGS),weights:[],food:{},workouts:{},steps:{},notes:{},presets:DEFAULT_PRESETS.slice(),
-  view:"overview",calY:new Date().getFullYear(),calM:new Date().getMonth(),weekOffset:0,trendMode:"W",trendOffset:0,
+  view:"overview",calY:new Date().getFullYear(),calM:new Date().getMonth(),weekOffset:0,trendMode:"W",trendOffset:0,calOpen:false,
   selDate:todayISO(),foodDate:todayISO(),alertDismissed:false,confirmReset:false};
 
 function load(){
@@ -683,16 +684,20 @@ function view_calendar(){
   var sel=state.selDate;var u=state.settings.units;
   var wmap={};state.weights.forEach(function(x){wmap[x.date]=x.weight;});
   function dayHasData(iso){var f=state.food[iso];return !!((state.workouts[iso]&&state.workouts[iso].length)||wmap[iso]!=null||num(state.steps[iso])!=null||(f&&(num(f.calories)!=null||num(f.protein)!=null||num(f.carbs)!=null||num(f.fat)!=null)));}
-  var h='<div class="wl-stack"><div class="wl-card"><div class="wl-cal-head"><button class="wl-icon-btn" data-act="cal:prev">‹</button><span class="wl-cal-title">'+MONTHS[m]+' '+y+'</span><button class="wl-icon-btn" data-act="cal:next">›</button></div><div class="wl-cal-grid wl-cal-dow">';
-  WEEKDAYS.forEach(function(d){h+='<div class="wl-dow">'+d+'</div>';});h+='</div><div class="wl-cal-grid">';
-  for(var i=0;i<lead;i++)h+='<div class="wl-cell empty"></div>';
-  for(var d=1;d<=dim;d++){var iso=toISO(new Date(y,m,d));var isT=iso===todayISO();var isS=iso===sel;
-    h+='<button class="wl-cell'+(isS?" sel":"")+(isT?" today":"")+'" data-act="cal:sel" data-date="'+iso+'"><span class="wl-cell-num">'+d+'</span>'+(dayHasData(iso)?'<span class="wl-cell-dots"><i></i></span>':'')+'</button>';}
-  h+='</div></div>';
+  var h='<div class="wl-stack"><div class="wl-card"><div class="wl-cal-head"><button class="wl-icon-btn" data-act="day:prev">‹</button><button class="wl-datebtn" data-act="cal:expand">'+fmtLong(parseISO(sel))+(sel===todayISO()?" · Today":"")+'<span class="wl-chevron'+(state.calOpen?" open":"")+'" style="font-size:17px;line-height:1">›</span></button><button class="wl-icon-btn"'+(sel>=todayISO()?' style="opacity:.3"':'')+' data-act="day:next">›</button></div>';
+  if(state.calOpen){
+    h+='<div class="wl-cal-head" style="margin-top:12px"><button class="wl-icon-btn" data-act="cal:prev">‹</button><span class="wl-cal-title">'+MONTHS[m]+' '+y+'</span><button class="wl-icon-btn" data-act="cal:next">›</button></div><div class="wl-cal-grid wl-cal-dow">';
+    WEEKDAYS.forEach(function(d){h+='<div class="wl-dow">'+d+'</div>';});h+='</div><div class="wl-cal-grid">';
+    for(var i=0;i<lead;i++)h+='<div class="wl-cell empty"></div>';
+    for(var d=1;d<=dim;d++){var iso=toISO(new Date(y,m,d));var isT=iso===todayISO();var isS=iso===sel;
+      h+='<button class="wl-cell'+(isS?" sel":"")+(isT?" today":"")+'" data-act="cal:sel" data-date="'+iso+'"><span class="wl-cell-num">'+d+'</span>'+(dayHasData(iso)?'<span class="wl-cell-dots"><i></i></span>':'')+'</button>';}
+    h+='</div>';
+  }
+  h+='</div>';
   var e=state.food[sel]||{};var selList=state.workouts[sel]||[];
   var t={calories:num(state.settings.targetCalories),protein:num(state.settings.targetProtein),carbs:num(state.settings.targetCarbs),fat:num(state.settings.targetFat)};
   var hasT=Object.keys(t).some(function(k){return t[k]!=null;});
-  h+='<div class="wl-card"><div class="wl-card-head"><span>'+fmtLong(parseISO(sel))+(sel===todayISO()?" · Today":"")+'</span></div>';
+  h+='<div class="wl-card">';
   h+='<div class="wl-row"><label class="wl-field"><span>Weight <em>'+u+'</em></span><input class="wl-daywt-input wl-num" type="text" inputmode="decimal" placeholder="—" value="'+(wmap[sel]!=null?wmap[sel]:"")+'"></label><label class="wl-field"><span>Steps</span><input class="wl-steps-input wl-num" data-int="1" type="text" inputmode="numeric" placeholder="—" value="'+(state.steps[sel]!=null?state.steps[sel]:"")+'"></label></div>';
   h+='<div class="wl-macrogrid" style="margin-top:12px">';
   [["calories","Calories","cal"],["protein","Protein","g"],["carbs","Carbs","g"],["fat","Fat","g"]].forEach(function(f){var val=e[f[0]]!=null?e[f[0]]:"";
@@ -873,7 +878,9 @@ function view_settings(){
   h+='<div class="wl-card wl-danger"><div class="wl-card-head"><span>Reset</span></div>';
   if(!state.confirmReset)h+='<button class="wl-btn wl-btn-danger wl-full" data-act="reset:ask">'+I.trash.replace("<svg","<svg width=16 height=16")+'Erase all data</button>';
   else h+='<div class="wl-hint">This permanently deletes every weigh-in, food entry, step count, activity, and setting. This can\'t be undone.</div><div class="wl-row"><button class="wl-btn wl-btn-ghost wl-full" data-act="reset:cancel">Cancel</button><button class="wl-btn wl-btn-danger wl-full" data-act="reset:do">Yes, erase everything</button></div>';
-  return h+'</div></div>';
+  h+='</div>';
+  h+='<div style="text-align:center;color:var(--faint);font-size:11px;padding:16px 0 4px;letter-spacing:.02em">Progress Tracker · version '+APP_BUILD+'</div>';
+  return h+'</div>';
 }
 
 /* ---------------- render ---------------- */
@@ -910,7 +917,9 @@ document.addEventListener("click",function(e){
   if(a==="food:del"){var fdd=el.getAttribute("data-date");if(window.confirm("Clear food and steps for this day?")){delete state.food[fdd];delete state.steps[fdd];save();render();toast("Day cleared");}return;}
   if(a==="cal:prev"){state.calM--;if(state.calM<0){state.calM=11;state.calY--;}render();return;}
   if(a==="cal:next"){state.calM++;if(state.calM>11){state.calM=0;state.calY++;}render();return;}
-  if(a==="cal:sel"){state.selDate=el.getAttribute("data-date");render();return;}
+  if(a==="cal:sel"){state.selDate=el.getAttribute("data-date");var cd=parseISO(state.selDate);state.calY=cd.getFullYear();state.calM=cd.getMonth();state.calOpen=false;render();return;}
+  if(a==="cal:expand"){state.calOpen=!state.calOpen;if(state.calOpen){var pd=parseISO(state.selDate);state.calY=pd.getFullYear();state.calM=pd.getMonth();}render();return;}
+  if(a==="day:prev"||a==="day:next"){var dd=parseISO(state.selDate);if(a==="day:next"&&state.selDate>=todayISO())return;dd.setDate(dd.getDate()+(a==="day:next"?1:-1));state.selDate=toISO(dd);state.calY=dd.getFullYear();state.calM=dd.getMonth();render();return;}
   if(a==="cal:toggle"){var nm=state.presets[+el.getAttribute("data-idx")];var cur=state.workouts[state.selDate]||[];
     var nx=cur.indexOf(nm)>=0?cur.filter(function(x){return x!==nm;}):cur.concat([nm]);
     if(nx.length)state.workouts[state.selDate]=nx;else delete state.workouts[state.selDate];save();render();return;}
