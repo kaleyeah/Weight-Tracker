@@ -239,7 +239,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.24";
+var APP_BUILD="2026-07-14.26";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function toISO(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());}
@@ -292,7 +292,7 @@ function applyTheme(id){var t=THEMES[id]||THEMES.ink;var root=document.documentE
   for(var k in t.v){root.style.setProperty("--"+k,t.v[k]);}
   root.style.colorScheme=t.scheme;CH=t.chart;
   var meta=document.querySelector('meta[name="theme-color"]');if(meta)meta.setAttribute("content",t.v.bg);}
-var DEFAULT_PRESETS=["Lifting Day 1","Lifting Day 2","Peloton 30 min","GLP1","Rest Day"];
+var DEFAULT_PRESETS=[];
 var state={settings:Object.assign({},DEFAULT_SETTINGS),weights:[],food:{},workouts:{},steps:{},notes:{},presets:DEFAULT_PRESETS.slice(),
   view:"overview",calY:new Date().getFullYear(),calM:new Date().getMonth(),weekOffset:0,
   selDate:todayISO(),foodDate:todayISO(),alertDismissed:false,confirmReset:false};
@@ -505,7 +505,7 @@ function view_overview(){
     todayRow(I.dumbbell,"Activity",tw.length?esc(tw.join(", ")):null)+
     '</div></div>';
   h+=connectionCards();
-  if(past.length){h+='<div class="wl-card"><div class="wl-card-head"><span>Missed days this week</span></div><div class="wl-chips">';past.forEach(function(d){h+='<button class="wl-chip warn" data-act="openday" data-date="'+d+'">'+fmtShort(parseISO(d))+'</button>';});h+='</div></div>';}
+  if(past.length){h+='<div class="wl-card"><div class="wl-card-head"><span>Missed days this week</span></div><div class="wl-chips">';past.slice().sort().forEach(function(d){h+='<button class="wl-chip warn" data-act="openday" data-date="'+d+'">'+parseISO(d).toLocaleDateString(undefined,{weekday:"short"})+'</button>';});h+='</div></div>';}
   h+='</div>';return h;
 }
 function connectionCards(){
@@ -786,10 +786,11 @@ document.addEventListener("click",function(e){
   if(a==="invite:open"){state.joinOpen=true;state.inviteCode=null;render();return;}
   if(a==="invite:joincancel"){state.joinOpen=false;render();return;}
   if(a==="invite:join"){var ta=document.getElementById("wl-joincode");var inv=decodeInvite(ta&&ta.value);if(!inv||!inv.t||!inv.u){toast("That code isn\u2019t valid");return;}
-    if(!window.confirm("Join as a new person on this device? This device will sync to its own private space."))return;
+    if(!window.confirm("Join as a new person on this device? This device gets its own private space — it starts empty (no weigh-ins or activities of its own)."))return;
     setSyncCfg({token:inv.t,repo:inv.r||DEFAULT_REPO,branch:inv.b||DEFAULT_BRANCH,uid:inv.u});
-    var conns=[];if(inv.from)conns.push(inv.from);state.settings.connections=conns;
-    ghSha=null;connData={};state.joinOpen=false;save();render();autoSync();toast("Joined"+(inv.fromName?" · connected to "+inv.fromName:""));return;}
+    state.weights=[];state.food={};state.workouts={};state.steps={};state.notes={};state.presets=[];
+    state.settings=Object.assign({},DEFAULT_SETTINGS,{connections:inv.from?[inv.from]:[]});
+    ghSha=null;connData={};state.joinOpen=false;state.inviteCode=null;markDirty(true);save();applyTheme(state.settings.theme||"ink");render();autoSync();toast("Joined"+(inv.fromName?" · connected to "+inv.fromName:""));return;}
   if(a==="conn:remove"){var ru=el.getAttribute("data-uid");if(!window.confirm("Stop sharing with this person on your Overview?"))return;state.settings.connections=(state.settings.connections||[]).filter(function(x){return x!==ru;});delete connData[ru];save();render();return;}
   if(a==="reminder:add"){var ti=document.getElementById("wl-remind-time");var tv=(ti&&ti.value)||"19:00";state.settings.reminderTime=tv;save();shareOrDownload("activity-reminder.ics","text/calendar",reminderICS(tv));return;}
   if(a==="set:ttype"){state.settings.targetType=el.getAttribute("data-type");save();render();return;}
