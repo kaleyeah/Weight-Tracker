@@ -247,7 +247,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.43";
+var APP_BUILD="2026-07-14.44";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function toISO(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());}
@@ -710,7 +710,7 @@ function view_calendar(){
   h+='</div>'+(selList.length?'<div class="wl-selected-note">Logged: '+esc(selList.join(", "))+'</div>':'')+'<button class="wl-link" style="margin-top:12px" data-act="go" data-view="settings">Edit activity list in Settings →</button>';
   h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:14px 0 8px">Note</div><textarea class="wl-note-input" placeholder="Anything you want to remember about this day…" style="width:100%;min-height:70px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:14px;padding:11px 12px;box-sizing:border-box;outline:none;resize:vertical">'+esc(state.notes[sel]||"")+'</textarea>';
   h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:14px 0 8px">Photos</div><div id="wl-photos" class="wl-photos"><div class="wl-empty" style="padding:6px 0">Loading…</div></div><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="photo:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add photos</button>';
-  if(num(e.calories)!=null||num(e.protein)!=null||num(e.carbs)!=null||num(e.fat)!=null||num(state.steps[sel])!=null)h+='<button class="wl-btn wl-btn-danger wl-full" style="margin-top:12px" data-act="food:del" data-date="'+sel+'">'+I.trash.replace("<svg","<svg width=16 height=16")+'Clear calories & steps</button>';
+  if(dayHasData(sel)||state.notes[sel])h+='<button class="wl-btn wl-btn-danger wl-full" style="margin-top:12px" data-act="day:clear" data-date="'+sel+'">'+I.trash.replace("<svg","<svg width=16 height=16")+'Clear all entries for this day</button>';
   h+='<div class="wl-hint" style="margin-top:10px">Everything here saves automatically. Tap a date above to edit another day; empty a field to clear it.</div></div></div>';
   return h;
 }
@@ -914,7 +914,13 @@ document.addEventListener("click",function(e){
   if(a==="photo:add"){document.getElementById("wl-photo-input").click();return;}
   if(a==="photo:view"){openLightbox(el.getAttribute("data-id"));return;}
   if(a==="openday"){var od=el.getAttribute("data-date");state.selDate=od;var pd=parseISO(od);state.calY=pd.getFullYear();state.calM=pd.getMonth();state.view="calendar";render();return;}
-  if(a==="food:del"){var fdd=el.getAttribute("data-date");if(window.confirm("Clear food and steps for this day?")){delete state.food[fdd];delete state.steps[fdd];save();render();toast("Day cleared");}return;}
+  if(a==="day:clear"){var fdd=el.getAttribute("data-date");
+    if(!window.confirm("Clear ALL entries for this day — weight, steps, calories, macros, activities, note, and photos? This can\u2019t be undone.")){return;}
+    delete state.food[fdd];delete state.steps[fdd];delete state.workouts[fdd];delete state.notes[fdd];
+    state.weights=state.weights.filter(function(x){return x.date!==fdd;});
+    save();render();toast("Day cleared");
+    try{idbByDate(fdd).then(function(list){var t=list.map(function(p){return idbDelete(p.id);});Promise.all(t).then(function(){if(state.selDate===fdd)renderPhotos(fdd);});});}catch(e){}
+    return;}
   if(a==="cal:prev"){state.calM--;if(state.calM<0){state.calM=11;state.calY--;}render();return;}
   if(a==="cal:next"){state.calM++;if(state.calM>11){state.calM=0;state.calY++;}render();return;}
   if(a==="cal:sel"){state.selDate=el.getAttribute("data-date");var cd=parseISO(state.selDate);state.calY=cd.getFullYear();state.calM=cd.getMonth();state.calOpen=false;render();return;}
