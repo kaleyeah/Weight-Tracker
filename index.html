@@ -239,7 +239,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.26";
+var APP_BUILD="2026-07-14.27";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function toISO(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());}
@@ -336,6 +336,7 @@ function b64dec(b64){b64=(b64||"").replace(/\s/g,"");if(!b64)return "";return de
 function ghHeaders(c){return {Authorization:"Bearer "+c.token,Accept:"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"};}
 function fileForUid(uid){return (!uid||uid==="owner")?"data.json":(uid==="partner"?"data-partner.json":"u-"+uid+".json");}
 function myUid(){return syncCfg().uid||"owner";}
+function isOwner(){return myUid()==="owner";}
 function myFile(){return fileForUid(syncCfg().uid);}
 function randUid(){return Math.random().toString(36).slice(2,8)+Math.random().toString(36).slice(2,6);}
 function ensureIdentity(){var c=syncCfg();var ch=false;
@@ -713,6 +714,7 @@ function view_settings(){
   }
   h+='</div>';
   var sc=syncCfg();
+  if(isOwner()){
   h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="sync"><span>Cloud sync <em>GitHub</em></span><span class="wl-chevron'+(op.sync?" open":"")+'">›</span></button>'+(op.sync?('<div class="wl-collapse-body">'+
     '<label class="wl-field wl-field-full"><span>Access token</span><input type="password" data-sync="token" value="'+esc(sc.token||"")+'" placeholder="github_pat_…" autocapitalize="off" autocorrect="off" spellcheck="false"></label>'+
     '<div class="wl-row" style="margin-top:12px"><button class="wl-btn wl-btn-ghost wl-full" data-act="sync:test">Test</button><button class="wl-btn wl-btn-ghost wl-full" data-act="sync:pull">Pull</button><button class="wl-btn wl-btn-primary wl-full" data-act="sync:push">Push</button></div>'+
@@ -720,15 +722,16 @@ function view_settings(){
     (state.syncPasteOpen?'<textarea id="wl-syncpaste" placeholder="Paste setup here, then tap Apply" style="width:100%;min-height:80px;margin-top:10px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--mono);font-size:12px;padding:10px;box-sizing:border-box;outline:none"></textarea><div class="wl-row" style="margin-top:8px"><button class="wl-btn wl-btn-ghost wl-full" data-act="sync:pastecancel">Cancel</button><button class="wl-btn wl-btn-primary wl-full" data-act="sync:pasteapply">Apply</button></div>':'')+
     '<div class="wl-hint" style="margin-top:10px"><b>Status:</b> <span id="wl-sync-status">'+syncStatusHTML()+'</span></div>'+
     '<div class="wl-hint">Synced with <b>kaleyeah/weight-data</b>. Enter your token once, tap <b>Test</b>, then <b>Push</b>. Setting up a new device? Tap <b>Copy setup</b> here and <b>Paste setup</b> there — no retyping the token. Your token is stored on this device only, never in the app\u2019s code.</div></div>'):'')+'</div>';
-  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="share"><span>Sharing <em>invite</em></span><span class="wl-chevron'+(op.share?" open":"")+'">›</span></button>'+(op.share?('<div class="wl-collapse-body">'+
+  }
+  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="share"><span>'+(isOwner()?'Sharing <em>invite</em>':'Your profile')+'</span>'+'<span class="wl-chevron'+(op.share?" open":"")+'">›</span></button>'+(op.share?('<div class="wl-collapse-body">'+
     '<label class="wl-field wl-field-full"><span>Your name</span><input type="text" data-set="name" value="'+esc(f.name||"")+'" placeholder="e.g. Alex" autocapitalize="words" autocorrect="off"></label>'+
-    connectionsHTML()+
-    '<div class="wl-row" style="margin-top:12px"><button class="wl-btn wl-btn-primary wl-full" data-act="invite:create">Create invite code</button><button class="wl-btn wl-btn-ghost wl-full" data-act="invite:open">Enter a code</button></div>'+
+    (isOwner()?connectionsHTML():'')+
+    (isOwner()?'<div class="wl-row" style="margin-top:12px"><button class="wl-btn wl-btn-primary wl-full" data-act="invite:create">Create invite code</button></div>':'')+'<div class="wl-row" style="margin-top:8px"><button class="wl-btn wl-btn-ghost wl-full" data-act="invite:open">'+(isOwner()?'Enter a code (join someone)':'Enter an invite code')+'</button></div>'+
     (state.inviteCode?'<div class="wl-hint" style="margin-top:10px">Send this code to the person you\u2019re adding, then have them tap <b>Enter a code</b> on their device:</div><textarea readonly onclick="this.select()" style="width:100%;min-height:76px;margin-top:6px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--mono);font-size:11px;padding:10px;box-sizing:border-box;outline:none">'+esc(state.inviteCode)+'</textarea><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:6px" data-act="invite:copy">Copy code</button>':'')+
     (state.joinOpen?'<textarea id="wl-joincode" placeholder="Paste the invite code you were sent" style="width:100%;min-height:76px;margin-top:10px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--mono);font-size:11px;padding:10px;box-sizing:border-box;outline:none"></textarea><div class="wl-row" style="margin-top:6px"><button class="wl-btn wl-btn-ghost wl-full" data-act="invite:joincancel">Cancel</button><button class="wl-btn wl-btn-primary wl-full" data-act="invite:join">Join</button></div>':'')+
-    '<div class="wl-hint" style="margin-top:10px">Add people by <b>invite code</b>. Each person gets their own private space tied to that code — it can\u2019t be switched or overwritten from another device. Your <b>activities and macros stay private</b>; only weight-loss progress is shared, on the Overview.</div>'+
-    '<div class="wl-hint">Note: everyone shares one repo &amp; token, so this is trust-based separation (fine for family) rather than a hard wall. For true isolation each person would need their own repo.</div>'
+    (isOwner()?'<div class="wl-hint" style="margin-top:10px">Add people by <b>invite code</b>. Each person gets their own private space tied to that code — it can\u2019t be switched or overwritten from another device. Your <b>activities and macros stay private</b>; only weight-loss progress is shared, on the Overview.</div><div class="wl-hint">Note: everyone shares one repo &amp; token, so this is trust-based separation (fine for family) rather than a hard wall.</div>':'<div class="wl-hint" style="margin-top:10px">This name shows on your progress card for whoever you\u2019re sharing with. Your weigh-ins, activities, and macros are your own.</div>')
     ):'')+'</div>';
+  if(isOwner())
   h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="backup"><span>Backup &amp; transfer</span><span class="wl-chevron'+(op.backup?" open":"")+'">›</span></button>'+(op.backup?('<div class="wl-collapse-body">'+
     '<div class="wl-row"><button class="wl-btn wl-btn-ghost wl-full" data-act="export">Export / share file</button><button class="wl-btn wl-btn-ghost wl-full" data-act="import">Import file</button></div>'+
     '<div class="wl-row" style="margin-top:10px"><button class="wl-btn wl-btn-ghost wl-full" data-act="copy">Copy backup text</button><button class="wl-btn wl-btn-ghost wl-full" data-act="paste">Restore from text</button></div>'+
