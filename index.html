@@ -211,6 +211,9 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 .wl-opt{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;text-align:left;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg2);color:var(--text);font-size:13px;font-weight:600;font-family:var(--sans);line-height:1.3;}
 .wl-opt.on{border-color:var(--accent);background:var(--accent-dim);}
 .wl-opt-ck{color:var(--accent);flex-shrink:0;display:inline-flex;}
+.wl-daypick{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;}
+.wl-day{padding:9px 0;border:1px solid var(--line);border-radius:9px;background:var(--bg2);color:var(--text);font-size:12px;font-weight:700;font-family:var(--sans);}
+.wl-day.on{background:var(--accent);color:var(--on-accent);border-color:var(--accent);}
 .wl-update-banner{position:fixed;top:0;left:0;right:0;z-index:120;display:flex;align-items:center;justify-content:center;gap:12px;background:var(--accent);color:var(--on-accent);font-weight:700;font-size:13px;padding:calc(env(safe-area-inset-top,0px) + 10px) 14px 10px;box-shadow:0 4px 16px rgba(0,0,0,.4);}
 .wl-update-banner button{padding:7px 14px;border:none;border-radius:8px;font-weight:700;}
 .wl-toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);
@@ -243,7 +246,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.39";
+var APP_BUILD="2026-07-14.41";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function toISO(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());}
@@ -256,7 +259,10 @@ function num(v){var n=parseFloat(v);return isFinite(n)?n:null;}
 function r1(n){return Math.round(n*10)/10;}
 function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
 var WEEKDAYS=["Su","Mo","Tu","We","Th","Fr","Sa"];
+var DAYS3=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+var DAYFULL=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 var MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
+var MONTHS3=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 /* ---------------- icons (inline svg) ---------------- */
 var I={
@@ -279,7 +285,7 @@ var I={
 /* ---------------- storage ---------------- */
 var KEY="wl_v1";
 var DEFAULT_SETTINGS={units:"lbs",startingWeight:"",startDate:todayISO(),goalWeight:"",
-  targetType:"lbs_per_week",targetValue:"1",targetCalories:"",targetProtein:"",targetCarbs:"",targetFat:"",theme:"ink",name:"",reminderTime:"19:00",connections:[],sex:"",age:"",heightFt:"",heightIn:"",activityLevel:"light",stepsGoal:""};
+  targetType:"lbs_per_week",targetValue:"1",targetCalories:"",targetProtein:"",targetCarbs:"",targetFat:"",theme:"ink",name:"",reminderTime:"19:00",connections:[],sex:"",age:"",heightFt:"",heightIn:"",activityLevel:"light",stepsGoal:"",weekStart:"0"};
 var SANS="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,system-ui,sans-serif";
 var MONO="ui-monospace,'SF Mono','Cascadia Code',Menlo,Consolas,monospace";
 var THEMES={
@@ -298,7 +304,7 @@ function applyTheme(id){var t=THEMES[id]||THEMES.ink;var root=document.documentE
   var meta=document.querySelector('meta[name="theme-color"]');if(meta)meta.setAttribute("content",t.v.bg);}
 var DEFAULT_PRESETS=[];
 var state={settings:Object.assign({},DEFAULT_SETTINGS),weights:[],food:{},workouts:{},steps:{},notes:{},presets:DEFAULT_PRESETS.slice(),
-  view:"overview",calY:new Date().getFullYear(),calM:new Date().getMonth(),weekOffset:0,
+  view:"overview",calY:new Date().getFullYear(),calM:new Date().getMonth(),weekOffset:0,trendMode:"W",trendOffset:0,
   selDate:todayISO(),foodDate:todayISO(),alertDismissed:false,confirmReset:false};
 
 function load(){
@@ -474,8 +480,8 @@ function computeForecasts(current,goal,slope){
     else out.observed={stalled:true};}
   return out;
 }
-function missingDays(){var list=[];var now=new Date();var dow=now.getDay();
-  for(var i=0;i<=dow;i++){var d=new Date(now.getFullYear(),now.getMonth(),now.getDate()-i);var iso=toISO(d);var e=state.food[iso];
+function missingDays(){var list=[];var ws=parseInt(state.settings.weekStart,10)||0;var now=new Date();now.setHours(0,0,0,0);var diff=(now.getDay()-ws+7)%7;
+  for(var i=0;i<=diff;i++){var d=new Date(now.getFullYear(),now.getMonth(),now.getDate()-i);var iso=toISO(d);var e=state.food[iso];
     var empty=!e||(num(e.calories)==null&&num(e.protein)==null&&num(e.carbs)==null&&num(e.fat)==null);
     if(empty)list.push(iso);}return list;}
 
@@ -599,53 +605,73 @@ function fcCell(label,sub,fc,stalledMsg){
   else h+='<div class="wl-fc-na">'+(fc&&fc.stalled?stalledMsg:"Add more data")+'</div>';
   return h+'</div>';
 }
-function buildBarChart(c,goal,unit){
-  var data=c.data;if(!data.length)return '<div class="wl-empty">No data yet.</div>';
-  var W=340,H=150,padL=34,padR=12,padT=14,padB=22;
-  var top=Math.max.apply(null,data.map(function(d){return d.weight;}));if(goal!=null)top=Math.max(top,goal);
-  var yMax=Math.max(1000,Math.ceil(top*1.12/1000)*1000),yMin=0;
-  var plotW=W-padL-padR,n=data.length;
-  function sy(v){return (H-padB)-(v-yMin)/(yMax-yMin)*(H-padT-padB);}
-  function bx(i){return padL+(i+0.5)*(plotW/n);}
-  var bw=Math.max(2,Math.min(22,plotW/n*0.7));
+function addDays(d,n){var x=new Date(d);x.setHours(0,0,0,0);x.setDate(x.getDate()+n);return x;}
+function trendCtx(){
+  var mode=state.trendMode||"W",off=state.trendOffset||0;var start,end,gran,label;
+  if(mode==="W"){start=weekStartFor(-off);end=addDays(start,6);gran="day";label=fmtShort(start)+" – "+fmtShort(end);}
+  else if(mode==="M"){var now=new Date();var mo=new Date(now.getFullYear(),now.getMonth()-off,1);start=new Date(mo.getFullYear(),mo.getMonth(),1);end=new Date(mo.getFullYear(),mo.getMonth()+1,0);gran="day";label=MONTHS[start.getMonth()]+" "+start.getFullYear();}
+  else{var n2=new Date();var em=new Date(n2.getFullYear(),n2.getMonth()-off*6,1);end=new Date(em.getFullYear(),em.getMonth()+1,0);start=new Date(em.getFullYear(),em.getMonth()-5,1);gran="month";label=MONTHS3[start.getMonth()]+" – "+MONTHS3[end.getMonth()]+" "+end.getFullYear();}
+  return {mode:mode,off:off,start:start,end:end,gran:gran,label:label};
+}
+function bucketValues(map){var ctx=trendCtx();var out=[];
+  if(ctx.gran==="day"){for(var d=new Date(ctx.start);d<=ctx.end;d=addDays(d,1)){out.push({value:num(map[toISO(d)]),date:new Date(d)});}}
+  else{var m=new Date(ctx.start);for(var i=0;i<6;i++){var y=m.getFullYear(),mo=m.getMonth(),sum=0,cnt=0;
+    Object.keys(map).forEach(function(k){var dt=parseISO(k);if(dt.getFullYear()===y&&dt.getMonth()===mo){var v=num(map[k]);if(v!=null){sum+=v;cnt++;}}});
+    out.push({value:cnt?Math.round(sum/cnt):null,date:new Date(y,mo,1),month:true});m=new Date(y,mo+1,1);}}
+  return out;
+}
+function bucketAvg(bk){var v=bk.map(function(b){return b.value;}).filter(function(x){return x!=null;});return v.length?Math.round(v.reduce(function(a,b){return a+b;},0)/v.length):null;}
+function niceMax(v){if(v<=0)return 10;var mag=Math.pow(10,Math.floor(Math.log10(v)));var n=v/mag;var nice=n<=1?1:n<=2?2:n<=2.5?2.5:n<=5?5:10;return nice*mag;}
+function buildBars(bk,goal,higherBetter){
+  var n=bk.length;if(!n)return '<div class="wl-empty">No data for this period.</div>';
+  var W=340,H=196,padL=30,padR=8,padT=24,padB=32;
+  var top=Math.max.apply(null,bk.map(function(b){return b.value||0;}).concat([goal||0,1]));
+  var yMax=niceMax(top*1.12);var plotW=W-padL-padR;var showVals=n<=10;
+  function sy(v){return (H-padB)-(v/yMax)*(H-padT-padB);}
+  function cxc(i){return padL+(i+0.5)*(plotW/n);}
+  var bw=Math.min(showVals?22:14,plotW/n*(showVals?0.5:0.72));
   function ylbl(v){return v>=1000?(Math.round(v/100)/10)+"k":Math.round(v);}
   var s='<svg class="wl-chart" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" style="height:'+H+'px">';
-  for(var i=0;i<=4;i++){var yv=yMin+(yMax-yMin)*i/4;var y=sy(yv);
-    s+='<line x1="'+padL+'" y1="'+y+'" x2="'+(W-padR)+'" y2="'+y+'" stroke="'+CH.grid+'" stroke-dasharray="2 4"/>';
-    s+='<text x="'+(padL-5)+'" y="'+(y+3)+'" fill="'+CH.axis+'" font-size="9" text-anchor="end">'+ylbl(yv)+'</text>';}
-  data.forEach(function(d,i){var y=sy(d.weight);var bh=Math.max(0,(H-padB)-y);s+='<rect x="'+(bx(i)-bw/2).toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+bh.toFixed(1)+'" rx="1.5" fill="'+CH.avg+'"/>';});
-  if(goal!=null){var gy=sy(goal);s+='<line x1="'+padL+'" y1="'+gy+'" x2="'+(W-padR)+'" y2="'+gy+'" stroke="'+CH.goal+'" stroke-width="1.3" stroke-dasharray="5 4"/><text x="'+(W-padR)+'" y="'+(gy-4)+'" fill="'+CH.goal+'" font-size="9" text-anchor="end">Goal '+ylbl(goal)+'</text>';}
-  [0,Math.floor((n-1)/2),n-1].forEach(function(idx,k){var d=data[idx];if(!d)return;var anchor=k===0?"start":k===2?"end":"middle";s+='<text x="'+bx(idx).toFixed(1)+'" y="'+(H-6)+'" fill="'+CH.axis+'" font-size="9" text-anchor="'+anchor+'">'+fmtShort(new Date(d.ts))+'</text>';});
-  s+='</svg>';
-  var last=data[data.length-1];
-  s+='<div class="wl-readout"><b>'+Math.round(last.weight).toLocaleString()+'</b> '+unit+' · '+fmtShort(new Date(last.ts))+' (latest)</div>';
-  return s;
+  [0,0.5,1].forEach(function(fr){var yv=yMax*fr;var y=sy(yv);s+='<line x1="'+padL+'" y1="'+y+'" x2="'+(W-padR)+'" y2="'+y+'" stroke="'+CH.grid+'"/><text x="'+(padL-4)+'" y="'+(y+3)+'" fill="'+CH.axis+'" font-size="8.5" text-anchor="end">'+ylbl(yv)+'</text>';});
+  if(goal!=null){var gy=sy(goal);s+='<line x1="'+padL+'" y1="'+gy+'" x2="'+(W-padR)+'" y2="'+gy+'" stroke="'+CH.goal+'" stroke-width="1.2" stroke-dasharray="5 4"/>';}
+  var every=n<=10?1:Math.ceil(n/6);
+  bk.forEach(function(b,i){var x=cxc(i);
+    if(b.value!=null){var y=sy(b.value);var bh=Math.max(1,(H-padB)-y);var good=goal!=null&&(higherBetter!==false?b.value>=goal:b.value<=goal);var col=good?CH.goal:CH.avg;
+      s+='<rect x="'+(x-bw/2).toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+bh.toFixed(1)+'" rx="2.5" fill="'+col+'"/>';
+      if(showVals)s+='<text x="'+x.toFixed(1)+'" y="'+(y-4).toFixed(1)+'" fill="'+col+'" font-size="9.5" font-weight="700" text-anchor="middle">'+Math.round(b.value).toLocaleString()+'</text>';}
+    if(i%every===0||i===n-1){
+      if(b.month)s+='<text x="'+x.toFixed(1)+'" y="'+(H-9)+'" fill="'+CH.axis+'" font-size="9" text-anchor="middle">'+MONTHS3[b.date.getMonth()]+'</text>';
+      else if(showVals)s+='<text x="'+x.toFixed(1)+'" y="'+(H-16)+'" fill="'+CH.axis+'" font-size="9" text-anchor="middle">'+DAYS3[b.date.getDay()]+'</text><text x="'+x.toFixed(1)+'" y="'+(H-5)+'" fill="'+CH.axis+'" font-size="9" font-weight="600" text-anchor="middle">'+b.date.getDate()+'</text>';
+      else s+='<text x="'+x.toFixed(1)+'" y="'+(H-9)+'" fill="'+CH.axis+'" font-size="8.5" text-anchor="middle">'+(b.date.getMonth()+1)+'/'+b.date.getDate()+'</text>';
+    }});
+  s+='</svg>';return s;
 }
 function view_weight(){
-  var c=prepChart();var sw=sortedWeights();var u=state.settings.units;
-  var start=num(state.settings.startingWeight),goal=num(state.settings.goalWeight);
-  var current=sw.length?sw[sw.length-1].weight:start;var lowest=sw.length?Math.min.apply(null,sw.map(function(x){return x.weight;})):null;
-  var apw=null;if(sw.length>=2){var f=sw[0],l=sw[sw.length-1];var days=(parseISO(l.date)-parseISO(f.date))/DAY;if(days>0)apw=((f.weight-l.weight)/days)*7;}
-  var cut=toISO(new Date(Date.now()-6*DAY));
-  var h='<div class="wl-stack"><div class="wl-card" style="padding:13px 16px"><button class="wl-link" data-act="opentoday">+ Log or edit weight in the Daily Log →</button></div>';
-  /* WEIGHT */
-  var w7=sw.filter(function(x){return x.date>=cut;});var w7ch=w7.length>=2?(w7[w7.length-1].weight-w7[0].weight):null;
+  var u=state.settings.units;var ctx=trendCtx();var off=state.trendOffset||0;var perLbl=ctx.gran==="month"?"/mo":"/day";
+  var h='<div class="wl-stack">';
+  h+='<div class="wl-card"><div class="wl-seg wl-seg-wide" style="margin-bottom:10px">'+["W","M","6M"].map(function(m){return '<button class="'+(ctx.mode===m?"on":"")+'" data-act="trend:mode" data-mode="'+m+'">'+m+'</button>';}).join("")+'</div><div class="wl-cal-head"><button class="wl-icon-btn" data-act="trend:prev">‹</button><span class="wl-cal-title">'+ctx.label+'</span><button class="wl-icon-btn" data-act="trend:next"'+(off<=0?' style="opacity:.3"':'')+'>›</button></div></div>';
+  var sw=sortedWeights();var startISO=toISO(ctx.start),endISO=toISO(ctx.end);
+  var rw=sw.filter(function(x){return x.date>=startISO&&x.date<=endISO;});
+  var goal=num(state.settings.goalWeight);var wc=prepChart(rw);
+  var wchg=rw.length>=2?(rw[rw.length-1].weight-rw[0].weight):null;
   h+='<div class="wl-card"><div class="wl-card-head"><span>Weight</span></div>';
-  h+='<div class="wl-statrow">'+stat("Start",start!=null?r1(start):"—",u)+stat("Current",current!=null?r1(current):"—",u)+stat("Lowest",lowest!=null?r1(lowest):"—",u)+stat("Avg / wk",apw!=null?(apw>=0?"-":"+")+Math.abs(r1(apw)):"—",u)+'</div>';
-  h+='<div class="wl-hint" style="margin-top:10px"><b>Last 7 days:</b> '+(w7ch!=null?(w7ch<=0?"▼ ":"▲ ")+Math.abs(r1(w7ch))+" "+u:"not enough data yet")+'</div>';
-  if(c.data.length)h+=buildChart(c,goal,u,false);
-  else h+='<div class="wl-empty">Log a few weigh-ins to see your trend.</div>';
+  h+='<div class="wl-hint" style="margin-bottom:6px"><b>Change '+(wchg!=null?(wchg<=0?"▼ ":"▲ ")+Math.abs(r1(wchg))+" "+u:"—")+'</b>'+(rw.length?' · latest '+r1(rw[rw.length-1].weight)+" "+u:"")+'</div>';
+  if(wc.data.length)h+=buildChart(wc,goal,u,true);
+  else h+='<div class="wl-empty">No weigh-ins in this period.</div>';
   h+='</div>';
-  /* STEPS */
-  var stepsArr=Object.keys(state.steps).map(function(d){return {date:d,weight:num(state.steps[d])};}).filter(function(x){return x.weight!=null;});
-  var s7vals=stepsArr.filter(function(x){return x.date>=cut;}).map(function(x){return x.weight;});
-  var s7avg=s7vals.length?s7vals.reduce(function(a,b){return a+b;},0)/s7vals.length:null;
-  var stc=prepChart(stepsArr);
+  var stepMap={};Object.keys(state.steps).forEach(function(d){var v=num(state.steps[d]);if(v!=null)stepMap[d]=v;});
+  var sbk=bucketValues(stepMap);var savg=bucketAvg(sbk);
   h+='<div class="wl-card"><div class="wl-card-head"><span>Steps</span></div>';
-  h+='<div class="wl-hint"><b>Last 7 days:</b> '+(s7avg!=null?"avg "+Math.round(s7avg).toLocaleString()+" steps/day":"no steps logged")+'</div>';
-  if(stc.data.length)h+=buildBarChart(stc,num(state.settings.stepsGoal),"steps");
-  else h+='<div class="wl-empty">Log steps in the Daily Log to see your trend.</div>';
+  h+='<div class="wl-hint" style="margin-bottom:6px"><b>Average '+(savg!=null?savg.toLocaleString()+perLbl:"—")+'</b></div>';
+  h+=buildBars(sbk,num(state.settings.stepsGoal),true);
   h+='</div>';
+  var calMap={};Object.keys(state.food).forEach(function(d){var c=num(state.food[d]&&state.food[d].calories);if(c!=null)calMap[d]=c;});
+  var cbk=bucketValues(calMap);var cavg=bucketAvg(cbk);
+  h+='<div class="wl-card"><div class="wl-card-head"><span>Calories</span></div>';
+  h+='<div class="wl-hint" style="margin-bottom:6px"><b>Average '+(cavg!=null?cavg.toLocaleString()+perLbl:"—")+'</b></div>';
+  h+=buildBars(cbk,num(state.settings.targetCalories),false);
+  h+='</div>';
+  h+='<div class="wl-card" style="padding:13px 16px"><button class="wl-link" data-act="opentoday">+ Log or edit in the Daily Log →</button></div>';
   return h+'</div>';
 }
 function stat(l,v,u){return '<div class="wl-stat"><div class="wl-stat-label">'+l+'</div><div class="wl-stat-val">'+v+'<span>'+(v!=="—"?" "+u:"")+'</span></div></div>';}
@@ -683,7 +709,7 @@ function view_calendar(){
   h+='<div class="wl-hint" style="margin-top:10px">Everything here saves automatically. Tap a date above to edit another day; empty a field to clear it.</div></div></div>';
   return h;
 }
-function weekStartFor(offset){var d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-d.getDay()+offset*7);return d;}
+function weekStartFor(offset){var ws=parseInt(state.settings.weekStart,10)||0;var d=new Date();d.setHours(0,0,0,0);var diff=(d.getDay()-ws+7)%7;d.setDate(d.getDate()-diff+offset*7);return d;}
 function weekDays(offset){var s=weekStartFor(offset),arr=[];for(var i=0;i<7;i++){var dd=new Date(s);dd.setDate(s.getDate()+i);arr.push(dd);}return arr;}
 function dayRow(d){var iso=toISO(d);var w=null;for(var i=0;i<state.weights.length;i++){if(state.weights[i].date===iso){w=state.weights[i].weight;break;}}
   var f=state.food[iso]||{};return {date:iso,dow:d.toLocaleDateString(undefined,{weekday:"long"}),d:d,weight:w,steps:num(state.steps[iso]),
@@ -701,7 +727,7 @@ function view_summary(){
   function avg(k){return cnt[k]?tot[k]/cnt[k]:null;}
   var wv=days.filter(function(r){return r.weight!=null;}).map(function(r){return r.weight;});
   var wAvg=wv.length?wv.reduce(function(a,b){return a+b;},0)/wv.length:null;
-  var h='<div class="wl-stack"><div class="wl-card"><div class="wl-cal-head"><button class="wl-icon-btn" data-act="sum:prev">‹</button><span class="wl-cal-title">'+label+(isThis?" · This week":"")+'</span><button class="wl-icon-btn" data-act="sum:next"'+(isThis?' style="opacity:.3"':'')+'>›</button></div><div class="wl-hint">Sunday through Saturday.</div></div>';
+  var h='<div class="wl-stack"><div class="wl-card"><div class="wl-cal-head"><button class="wl-icon-btn" data-act="sum:prev">‹</button><span class="wl-cal-title">'+label+(isThis?" · This week":"")+'</span><button class="wl-icon-btn" data-act="sum:next"'+(isThis?' style="opacity:.3"':'')+'>›</button></div><div class="wl-hint">'+DAYFULL[parseInt(state.settings.weekStart,10)||0]+' through '+DAYFULL[((parseInt(state.settings.weekStart,10)||0)+6)%7]+'.</div></div>';
   h+='<div class="wl-card"><div class="wl-card-head"><span>Weekly Totals</span></div><div class="wl-statrow" style="grid-template-columns:repeat(3,1fr)">'+
     sumStat("Calories",tot.calories||null,"")+sumStat("Steps",tot.steps||null,"")+sumStat("Weigh-ins",wv.length,"")+
     sumStat("Protein",tot.protein||null,"g")+sumStat("Fat",tot.fat||null,"g")+sumStat("Carbs",tot.carbs||null,"g")+'</div></div>';
@@ -789,6 +815,7 @@ function view_settings(){
     h+='<label class="wl-field wl-field-full"><span>Target weight ('+u+')</span><input class="wl-num" type="text" inputmode="decimal" data-set="goalWeight" value="'+esc(f.goalWeight)+'" placeholder="0.0"></label>';
     h+='<label class="wl-field wl-field-full" style="margin-top:12px"><span>Daily steps goal</span><input class="wl-num" data-int="1" data-set="stepsGoal" type="text" inputmode="numeric" value="'+esc(f.stepsGoal||"")+'" placeholder="e.g. 8000"></label>';
     h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:16px 0 8px">Weekly loss target</div><div class="wl-seg wl-seg-wide"><button class="'+(f.targetType==="lbs_per_week"?"on":"")+'" data-act="set:ttype" data-type="lbs_per_week">'+u+' / week</button><button class="'+(f.targetType==="percent_bw_per_week"?"on":"")+'" data-act="set:ttype" data-type="percent_bw_per_week">% bodyweight / week</button></div><label class="wl-field wl-field-full" style="margin-top:10px"><span>'+(f.targetType==="percent_bw_per_week"?"Percent per week":u+" per week")+'</span><input class="wl-num" type="text" inputmode="decimal" data-set="targetValue" value="'+esc(f.targetValue)+'" placeholder="1"></label><div class="wl-hint">'+(f.targetType==="percent_bw_per_week"?"e.g. 1 = lose 1% of current bodyweight each week.":"e.g. 1 = lose 1 "+u+" each week (0.5–1 is a common range).")+'</div>';
+    h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:16px 0 8px">Weekly check-in day</div><div class="wl-daypick">'+WEEKDAYS.map(function(dn,i){return '<button class="wl-day'+((parseInt(f.weekStart,10)||0)===i?" on":"")+'" data-act="set:weekstart" data-day="'+i+'">'+dn+'</button>';}).join("")+'</div><div class="wl-hint">Your week — Summary, missed days, and the Steps chart — runs '+DAYFULL[parseInt(f.weekStart,10)||0]+' through '+DAYFULL[((parseInt(f.weekStart,10)||0)+6)%7]+'.</div>';
     h+='</div>';
   }
   h+='</div>';
@@ -874,6 +901,9 @@ document.addEventListener("click",function(e){
   if(a==="weight:del"){var dd=el.getAttribute("data-date");if(window.confirm("Delete this weigh-in?")){state.weights=state.weights.filter(function(x){return x.date!==dd;});save();render();}return;}
   if(a==="food:pick"){state.selDate=el.getAttribute("data-date");state.view="calendar";render();return;}
   if(a==="opentoday"){state.selDate=todayISO();state.calY=new Date().getFullYear();state.calM=new Date().getMonth();state.view="calendar";render();return;}
+  if(a==="trend:mode"){state.trendMode=el.getAttribute("data-mode");state.trendOffset=0;render();return;}
+  if(a==="trend:prev"){state.trendOffset=(state.trendOffset||0)+1;render();return;}
+  if(a==="trend:next"){state.trendOffset=Math.max(0,(state.trendOffset||0)-1);render();return;}
   if(a==="photo:add"){document.getElementById("wl-photo-input").click();return;}
   if(a==="photo:view"){openLightbox(el.getAttribute("data-id"));return;}
   if(a==="openday"){var od=el.getAttribute("data-date");state.selDate=od;var pd=parseISO(od);state.calY=pd.getFullYear();state.calM=pd.getMonth();state.view="calendar";render();return;}
@@ -893,6 +923,7 @@ document.addEventListener("click",function(e){
       if(state.settings.targetType==="lbs_per_week"){var tv=num(state.settings.targetValue);if(tv!=null)state.settings.targetValue=String(Math.round(tv*factor*100)/100);}}
     state.settings.units=nu;save();render();return;}
   if(a==="set:sex"){state.settings.sex=el.getAttribute("data-sex");save();render();return;}
+  if(a==="set:weekstart"){state.settings.weekStart=el.getAttribute("data-day");save();render();return;}
   if(a==="set:activity"){state.settings.activityLevel=el.getAttribute("data-level");save();render();return;}
   if(a==="cal:usecalc"){var v=dailyDeficit()>0?targetIntake():maintenanceCals();if(v!=null){state.settings.targetCalories=String(v);save();render();toast("Calorie target set to "+v.toLocaleString());}else toast("Add sex, age & height first");return;}
   if(a==="set:theme"){state.settings.theme=el.getAttribute("data-theme");save();applyTheme(state.settings.theme);render();return;}
