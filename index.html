@@ -243,7 +243,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.38";
+var APP_BUILD="2026-07-14.39";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function toISO(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());}
@@ -599,6 +599,28 @@ function fcCell(label,sub,fc,stalledMsg){
   else h+='<div class="wl-fc-na">'+(fc&&fc.stalled?stalledMsg:"Add more data")+'</div>';
   return h+'</div>';
 }
+function buildBarChart(c,goal,unit){
+  var data=c.data;if(!data.length)return '<div class="wl-empty">No data yet.</div>';
+  var W=340,H=150,padL=34,padR=12,padT=14,padB=22;
+  var top=Math.max.apply(null,data.map(function(d){return d.weight;}));if(goal!=null)top=Math.max(top,goal);
+  var yMax=Math.max(1000,Math.ceil(top*1.12/1000)*1000),yMin=0;
+  var plotW=W-padL-padR,n=data.length;
+  function sy(v){return (H-padB)-(v-yMin)/(yMax-yMin)*(H-padT-padB);}
+  function bx(i){return padL+(i+0.5)*(plotW/n);}
+  var bw=Math.max(2,Math.min(22,plotW/n*0.7));
+  function ylbl(v){return v>=1000?(Math.round(v/100)/10)+"k":Math.round(v);}
+  var s='<svg class="wl-chart" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" style="height:'+H+'px">';
+  for(var i=0;i<=4;i++){var yv=yMin+(yMax-yMin)*i/4;var y=sy(yv);
+    s+='<line x1="'+padL+'" y1="'+y+'" x2="'+(W-padR)+'" y2="'+y+'" stroke="'+CH.grid+'" stroke-dasharray="2 4"/>';
+    s+='<text x="'+(padL-5)+'" y="'+(y+3)+'" fill="'+CH.axis+'" font-size="9" text-anchor="end">'+ylbl(yv)+'</text>';}
+  data.forEach(function(d,i){var y=sy(d.weight);var bh=Math.max(0,(H-padB)-y);s+='<rect x="'+(bx(i)-bw/2).toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+bh.toFixed(1)+'" rx="1.5" fill="'+CH.avg+'"/>';});
+  if(goal!=null){var gy=sy(goal);s+='<line x1="'+padL+'" y1="'+gy+'" x2="'+(W-padR)+'" y2="'+gy+'" stroke="'+CH.goal+'" stroke-width="1.3" stroke-dasharray="5 4"/><text x="'+(W-padR)+'" y="'+(gy-4)+'" fill="'+CH.goal+'" font-size="9" text-anchor="end">Goal '+ylbl(goal)+'</text>';}
+  [0,Math.floor((n-1)/2),n-1].forEach(function(idx,k){var d=data[idx];if(!d)return;var anchor=k===0?"start":k===2?"end":"middle";s+='<text x="'+bx(idx).toFixed(1)+'" y="'+(H-6)+'" fill="'+CH.axis+'" font-size="9" text-anchor="'+anchor+'">'+fmtShort(new Date(d.ts))+'</text>';});
+  s+='</svg>';
+  var last=data[data.length-1];
+  s+='<div class="wl-readout"><b>'+Math.round(last.weight).toLocaleString()+'</b> '+unit+' · '+fmtShort(new Date(last.ts))+' (latest)</div>';
+  return s;
+}
 function view_weight(){
   var c=prepChart();var sw=sortedWeights();var u=state.settings.units;
   var start=num(state.settings.startingWeight),goal=num(state.settings.goalWeight);
@@ -621,14 +643,10 @@ function view_weight(){
   var stc=prepChart(stepsArr);
   h+='<div class="wl-card"><div class="wl-card-head"><span>Steps</span></div>';
   h+='<div class="wl-hint"><b>Last 7 days:</b> '+(s7avg!=null?"avg "+Math.round(s7avg).toLocaleString()+" steps/day":"no steps logged")+'</div>';
-  if(stc.data.length)h+=buildChart(stc,num(state.settings.stepsGoal),"steps",true);
+  if(stc.data.length)h+=buildBarChart(stc,num(state.settings.stepsGoal),"steps");
   else h+='<div class="wl-empty">Log steps in the Daily Log to see your trend.</div>';
   h+='</div>';
-  /* HISTORY */
-  h+='<div class="wl-card"><div class="wl-card-head"><span>History</span><span class="wl-count">'+sw.length+'</span></div>';
-  if(sw.length){h+='<div class="wl-list">';sw.slice().reverse().forEach(function(x){h+='<div class="wl-list-row"><span class="wl-list-date">'+fmtLong(parseISO(x.date))+'</span><span class="wl-list-val">'+r1(x.weight)+' '+u+'</span><button class="wl-icon-btn wl-del" data-act="weight:del" data-date="'+x.date+'" aria-label="Delete">'+I.trash.replace("<svg",'<svg width="18" height="18"')+'</button></div>';});h+='</div>';}
-  else h+='<div class="wl-empty">Nothing logged yet.</div>';
-  return h+'</div></div>';
+  return h+'</div>';
 }
 function stat(l,v,u){return '<div class="wl-stat"><div class="wl-stat-label">'+l+'</div><div class="wl-stat-val">'+v+'<span>'+(v!=="—"?" "+u:"")+'</span></div></div>';}
 function barInner(val,target){if(val==null||!target)return '<div class="wl-tbar-fill" style="width:0%"></div><span class="wl-tbar-text">— of '+target+'</span>';
