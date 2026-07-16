@@ -272,7 +272,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.63";
+var APP_BUILD="2026-07-14.65";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -355,19 +355,19 @@ function dayDots(iso){var seen={},cats=[];
   if(cats.length)return '<span class="wl-cell-dots">'+cats.map(function(c){return '<i class="dot-'+c+'"></i>';}).join("")+'</span>';
   if(dayHasAny(iso))return '<span class="wl-cell-dots"><i class="dot-data"></i></span>';
   return '';}
-var state={settings:Object.assign({},DEFAULT_SETTINGS),weights:[],food:{},workouts:{},steps:{},notes:{},sleep:{},weeklySummary:null,presets:DEFAULT_PRESETS.slice(),
-  view:"overview",calY:new Date().getFullYear(),calM:new Date().getMonth(),weekOffset:0,trendMode:"W",trendOffset:0,calOpen:false,sumOpen:true,genBusy:false,
+var state={settings:Object.assign({},DEFAULT_SETTINGS),weights:[],food:{},workouts:{},steps:{},notes:{},sleep:{},weeklySummary:null,nightlySummary:null,presets:DEFAULT_PRESETS.slice(),
+  view:"overview",calY:new Date().getFullYear(),calM:new Date().getMonth(),weekOffset:0,trendMode:"W",trendOffset:0,calOpen:false,sumOpen:true,nightOpen:true,genBusy:false,
   selDate:todayISO(),foodDate:todayISO(),alertDismissed:false,confirmReset:false};
 
 function load(){
   try{var raw=localStorage.getItem(KEY);if(raw){var d=JSON.parse(raw);
     state.settings=Object.assign({},DEFAULT_SETTINGS,d.settings||{});
     state.weights=Array.isArray(d.weights)?d.weights:[];
-    state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.weeklySummary=d.weeklySummary||null;
+    state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;
     state.presets=(Array.isArray(d.presets)&&d.presets.length)?d.presets:DEFAULT_PRESETS.slice();
   }}catch(e){}
 }
-function payload(){return {settings:state.settings,weights:state.weights,food:state.food,workouts:state.workouts,steps:state.steps,notes:state.notes,sleep:state.sleep,weeklySummary:state.weeklySummary,presets:state.presets};}
+function payload(){return {settings:state.settings,weights:state.weights,food:state.food,workouts:state.workouts,steps:state.steps,notes:state.notes,sleep:state.sleep,weeklySummary:state.weeklySummary,nightlySummary:state.nightlySummary,presets:state.presets};}
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(payload()));}catch(e){toast("Couldn't save — storage full or blocked");}}
 function save(){saveLocal();scheduleCloudPush();}
 
@@ -426,7 +426,7 @@ function cloudGet(cb){var c=syncCfg();if(!syncOn()){cb&&cb(null,"not configured"
 function applyCloud(d){if(!d)return;
   state.settings=Object.assign({},DEFAULT_SETTINGS,d.settings||{});
   state.weights=Array.isArray(d.weights)?d.weights:[];
-  state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.weeklySummary=d.weeklySummary||null;
+  state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;
   state.presets=(Array.isArray(d.presets)&&d.presets.length)?d.presets:DEFAULT_PRESETS.slice();
   saveLocal();markDirty(false);applyTheme(state.settings.theme||"ink");}
 function cloudPull(manual,done){setSync("syncing");cloudGet(function(d,err){
@@ -675,7 +675,11 @@ function view_overview(){
     h+='<div class="wl-card-head"><span>Weekly check-in</span></div><div class="wl-hint" style="margin-bottom:10px">No check-in for this week yet.</div><button class="wl-btn wl-btn-primary wl-full" data-act="ai:gen">Generate summary</button>';
   }
   h+='</div>';
-  if(!configured)h+='<button class="wl-setup" data-act="go" data-view="settings"><div class="wl-setup-title">Set up your profile</div><div class="wl-setup-sub">Add your starting and goal weight in Settings to unlock progress, forecasts, and the chart.</div></button>';
+  var _ns=state.nightlySummary;var _nsOK=_ns&&_ns.date&&_ns.text&&(_ns.date===todayISO()||_ns.date===toISO(addDays(new Date(),-1)));
+  if(_nsOK){var _no=state.nightOpen!==false;
+    h+='<div class="wl-card"><button class="wl-collapse-head" data-act="night:toggle"><span>Daily recap <span class="wl-count" style="margin-left:6px">'+fmtShort(parseISO(_ns.date))+'</span></span>'+(_no?'<span class="wl-chevron open">›</span>':'<span style="color:var(--accent);font-weight:600;font-size:13px">View ›</span>')+'</button>';
+    if(_no)h+='<div class="wl-ai-summary" style="margin-top:6px">'+renderSummary(_ns.text)+'</div>';
+    h+='</div>';}
   if(configured){
     h+='<div class="wl-card wl-hero"><div class="wl-hero-top"><div><div class="wl-mini-label">Current</div><div class="wl-bignum">'+(current!=null?r1(current):"—")+'<span class="wl-unit">'+u+'</span></div></div>';
     if(lost!=null)h+='<div class="wl-change '+(lost>=0?"good":"bad")+'">'+(lost>=0?I.down:I.up)+(lost>=0?"Lost ":"Gained ")+Math.abs(r1(lost))+' '+u+'</div>';
@@ -883,6 +887,7 @@ function view_calendar(){
     if(hasT&&t[f[0]]!=null)h+='<div class="wl-tbar" id="bar-'+f[0]+'">'+barInner(num(val),t[f[0]])+'</div>';
     h+='</label>';});
   h+='</div>';
+  h+='<div class="wl-hint" style="margin-top:-4px;margin-bottom:2px">Calories auto-fill from your macros — type your own to override (kept even if you add macros after).</div>';
   h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:14px 0 8px">Activity</div>';
   var _pre=normPresets(),_log=normActs(sel);
   function _onIdx(pr){for(var i=0;i<_log.length;i++){if(_log[i].name===pr.name&&_log[i].cat===pr.cat)return i;}return -1;}
@@ -1106,6 +1111,7 @@ document.addEventListener("click",function(e){
   if(a==="ai:copy"){copyText(weeklyAIText(),"Copied your week — paste into your AI to generate");return;}
   if(a==="ai:gen"){genSummary();return;}
   if(a==="sum:toggle"){state.sumOpen=(state.sumOpen===false);render();return;}
+  if(a==="night:toggle"){state.nightOpen=(state.nightOpen===false);render();return;}
   if(a==="trend:mode"){state.trendMode=el.getAttribute("data-mode");state.trendOffset=0;render();return;}
   if(a==="trend:prev"){state.trendOffset=(state.trendOffset||0)+1;render();return;}
   if(a==="trend:next"){state.trendOffset=Math.max(0,(state.trendOffset||0)-1);render();return;}
@@ -1148,7 +1154,7 @@ document.addEventListener("click",function(e){
   if(a==="invite:join"){var ta=document.getElementById("wl-joincode");var inv=decodeInvite(ta&&ta.value);if(!inv||!inv.t||!inv.u){toast("That code isn\u2019t valid");return;}
     if(!window.confirm("Join as a new person on this device? This device gets its own private space — it starts empty (no weigh-ins or activities of its own)."))return;
     setSyncCfg({token:inv.t,repo:inv.r||DEFAULT_REPO,branch:inv.b||DEFAULT_BRANCH,uid:inv.u});
-    state.weights=[];state.food={};state.workouts={};state.steps={};state.notes={};state.sleep={};state.weeklySummary=null;state.presets=[];
+    state.weights=[];state.food={};state.workouts={};state.steps={};state.notes={};state.sleep={};state.weeklySummary=null;state.nightlySummary=null;state.presets=[];
     state.settings=Object.assign({},DEFAULT_SETTINGS,{connections:inv.from?[inv.from]:[]});
     ghSha=null;connData={};state.joinOpen=false;state.inviteCode=null;markDirty(true);save();applyTheme(state.settings.theme||"ink");render();autoSync();toast("Joined"+(inv.fromName?" · connected to "+inv.fromName:""));return;}
   if(a==="conn:remove"){var ru=el.getAttribute("data-uid");if(!window.confirm("Stop sharing with this person on your Overview?"))return;state.settings.connections=(state.settings.connections||[]).filter(function(x){return x!==ru;});delete connData[ru];save();render();return;}
@@ -1179,7 +1185,7 @@ document.addEventListener("click",function(e){
   if(a==="sum:exportall"){exportAllCSV();return;}
   if(a==="reset:ask"){state.confirmReset=true;render();return;}
   if(a==="reset:cancel"){state.confirmReset=false;render();return;}
-  if(a==="reset:do"){state.settings=Object.assign({},DEFAULT_SETTINGS);state.weights=[];state.food={};state.workouts={};state.steps={};state.notes={};state.sleep={};state.weeklySummary=null;state.presets=DEFAULT_PRESETS.slice();state.confirmReset=false;state.view="overview";idbClearAll();save();render();toast("All data erased");return;}
+  if(a==="reset:do"){state.settings=Object.assign({},DEFAULT_SETTINGS);state.weights=[];state.food={};state.workouts={};state.steps={};state.notes={};state.sleep={};state.weeklySummary=null;state.nightlySummary=null;state.presets=DEFAULT_PRESETS.slice();state.confirmReset=false;state.view="overview";idbClearAll();save();render();toast("All data erased");return;}
 });
 document.addEventListener("input",function(e){
   var el=e.target;
@@ -1192,6 +1198,16 @@ document.addEventListener("input",function(e){
   if(el.classList&&el.classList.contains("wl-food-input")){
     var key=el.getAttribute("data-food");var d=state.selDate;var entry=Object.assign({},state.food[d]||{});
     entry[key]=el.value;
+    if(key==="calories"){entry.calAuto=false;}
+    else{
+      if(num(entry.calories)==null||entry.calAuto===true){
+        var pv=num(entry.protein),cv=num(entry.carbs),fv=num(entry.fat);
+        if(pv!=null||cv!=null||fv!=null){entry.calories=String(Math.round((pv||0)*4+(cv||0)*4+(fv||0)*9));entry.calAuto=true;}
+        else{delete entry.calories;delete entry.calAuto;}
+        var cEl=document.querySelector('.wl-food-input[data-food="calories"]');if(cEl)cEl.value=(entry.calories!=null?entry.calories:"");
+        var tc=num(state.settings.targetCalories);var cbar=document.getElementById("bar-calories");if(cbar&&tc!=null)cbar.innerHTML=barInner(num(entry.calories),tc);
+      }
+    }
     var anyv=["calories","protein","carbs","fat"].some(function(k){return num(entry[k])!=null;});
     if(anyv)state.food[d]=entry;else delete state.food[d];save();
     var t=num(state.settings["target"+key.charAt(0).toUpperCase()+key.slice(1)]);
@@ -1235,7 +1251,7 @@ function applyImport(text){
   if(!window.confirm("Replace all data on this device with this backup? Current entries will be overwritten."))return;
   state.settings=Object.assign({},DEFAULT_SETTINGS,d.settings||{});
   state.weights=Array.isArray(d.weights)?d.weights:[];
-  state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.weeklySummary=d.weeklySummary||null;
+  state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;
   state.presets=(Array.isArray(d.presets)&&d.presets.length)?d.presets:DEFAULT_PRESETS.slice();
   state.pasteOpen=false;state.view="overview";applyTheme(state.settings.theme||"ink");save();render();toast("Data restored");
 }
