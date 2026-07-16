@@ -364,7 +364,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.115";
+var APP_BUILD="2026-07-14.116";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -1609,7 +1609,7 @@ function activityManageHTML(){
       else h+='<button class="wl-achip other" data-act="act:addopen" data-cat="'+cat+'">＋ Add</button>';
       h+='</div>';
     });
-    h+='<div class="wl-hint" style="margin-top:12px">These are the activities you can tap-log in the Daily Log. Cardio ones also appear in the cardio logger above.</div></div>';
+    h+='<div class="wl-hint" style="margin-top:12px">These are the activities you can tap-log on the Activity tab (Cardio, Recovery, and Supplements cards). Cardio ones also appear in the cardio logger.</div></div>';
   }
   return h+'</div>';
 }
@@ -1653,7 +1653,6 @@ function view_train(){
   h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:10px" data-act="wt:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add weight training</button></div>';
   h+=actCatCardHTML("rest","Recovery","Walks, mobility, stretching, sauna, rest days — tap to log for this day.",d);
   h+=actCatCardHTML("supp","Supplements & meds","GLP-1, creatine, electrolytes, vitamins — tap to log for this day.",d);
-  h+=activityManageHTML();
   return h+'</div>';
 }
 function view_settings(){
@@ -1701,6 +1700,7 @@ function view_settings(){
     h+='<div class="wl-hint" style="margin-top:6px">Cardio minutes only count sessions whose average heart rate is zone 2 or higher (a session with no zone logged still counts).</div>';
     h+='</div>';}
   h+='</div>';
+  h+=activityManageHTML();
   h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="reminder"><span>Daily reminder</span><span class="wl-chevron'+(op.reminder?" open":"")+'">›</span></button>'+(op.reminder?('<div class="wl-collapse-body">'+
     '<label class="wl-field wl-field-full"><span>Remind me to log at</span><input type="time" id="wl-remind-time" value="'+esc(f.reminderTime||"19:00")+'"></label>'+
     '<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="reminder:add">'+I.calendar.replace("<svg","<svg width=16 height=16")+'Add reminder to Calendar</button>'+
