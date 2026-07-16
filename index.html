@@ -277,7 +277,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.68";
+var APP_BUILD="2026-07-14.69";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -371,6 +371,8 @@ function load(){
     state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;
     state.presets=(Array.isArray(d.presets)&&d.presets.length)?d.presets:DEFAULT_PRESETS.slice();
   }}catch(e){}
+  if(state.settings.macroAuto===undefined&&(num(state.settings.targetProtein)!=null||num(state.settings.targetCarbs)!=null||num(state.settings.targetFat)!=null))state.settings.macroAuto=false;
+  applyAutoMacros();
 }
 function payload(){return {settings:state.settings,weights:state.weights,food:state.food,workouts:state.workouts,steps:state.steps,notes:state.notes,sleep:state.sleep,weeklySummary:state.weeklySummary,nightlySummary:state.nightlySummary,presets:state.presets};}
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(payload()));}catch(e){toast("Couldn't save — storage full or blocked");}}
@@ -433,6 +435,8 @@ function applyCloud(d){if(!d)return;
   state.weights=Array.isArray(d.weights)?d.weights:[];
   state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;
   state.presets=(Array.isArray(d.presets)&&d.presets.length)?d.presets:DEFAULT_PRESETS.slice();
+  if(state.settings.macroAuto===undefined&&(num(state.settings.targetProtein)!=null||num(state.settings.targetCarbs)!=null||num(state.settings.targetFat)!=null))state.settings.macroAuto=false;
+  applyAutoMacros();
   saveLocal();markDirty(false);applyTheme(state.settings.theme||"ink");}
 function cloudPull(manual,done){setSync("syncing");cloudGet(function(d,err){
   if(err){setSync(err==="offline"?"offline":"error",err==="auth"?"bad token or repo access":"");if(manual)toast(err==="offline"?"No connection":err==="auth"?"Check token & repo":"Couldn't pull");done&&done();return;}
@@ -546,6 +550,10 @@ function calSummaryHTML(){var b=bmr();if(b==null)return "Add sex, age &amp; heig
   if(t!=null){s+=' · '+stratLabel()+' <b>'+t.toLocaleString()+'</b>';if(t<1200)s+=' <span style="color:var(--bad)">(under ~1200/day — consider a gentler goal)</span>';}
   var sp=suggestedProteinG();if(sp!=null)s+=' · protein target <b>'+sp+'g</b> (1g/lb of target weight)';
   return s+' cal/day';}
+function suggestedMacros(){var cal=num(state.settings.targetCalories);if(cal==null)cal=targetIntake();if(cal==null)return null;var pro=suggestedProteinG();if(pro==null)return null;var fat=Math.round(cal*0.20/9);var carb=Math.round(Math.max(0,cal-pro*4-fat*9)/4);return {protein:pro,carbs:carb,fat:fat,cal:cal};}
+function applyAutoMacros(){if(state.settings.macroAuto===false)return false;var sm=suggestedMacros();if(!sm)return false;state.settings.targetProtein=String(sm.protein);state.settings.targetCarbs=String(sm.carbs);state.settings.targetFat=String(sm.fat);return true;}
+function syncMacroInputs(){["targetProtein","targetCarbs","targetFat"].forEach(function(k){var el=document.querySelector('[data-set="'+k+'"]');if(el&&document.activeElement!==el)el.value=state.settings[k]||"";});}
+function macroNoticeHTML(){var sm=suggestedMacros();if(!sm)return "";if(state.settings.macroAuto!==false||state.settings.macroDismiss)return "";var p=num(state.settings.targetProtein),c=num(state.settings.targetCarbs),f=num(state.settings.targetFat);if(p===sm.protein&&c===sm.carbs&&f===sm.fat)return "";return '<div class="wl-calnote"><span>Suggested split: <b>'+sm.protein+'g</b> P · <b>'+sm.carbs+'g</b> C · <b>'+sm.fat+'g</b> F <span style="color:var(--faint)">(1g/lb protein, 20% fat, rest carbs)</span>.</span><span class="wl-calnote-actions"><button class="wl-calnote-btn" data-act="macro:suggest">Use suggested</button><button class="wl-calnote-btn ghost" data-act="macro:keep">Keep mine</button></span></div>';}
 function macroPctHTML(){var s=state.settings;
   var p=num(s.targetProtein),c=num(s.targetCarbs),ft=num(s.targetFat);
   if(p==null&&c==null&&ft==null)return "Enter gram targets to see their total calories and share of your daily total.";
@@ -1029,6 +1037,7 @@ function themeGrid(){var cur=state.settings.theme||"ink";
     return '<button class="wl-theme'+(on?" on":"")+'" data-act="set:theme" data-theme="'+id+'"><span class="wl-theme-sw"><i style="background:'+t.v.bg+'"></i><i style="background:'+t.v.card+'"></i><i style="background:'+t.v.accent+'"></i><i style="background:'+t.v.good+'"></i></span><span class="wl-theme-name">'+t.label+(id==="ink"?" · current":"")+'</span>'+(on?'<span class="wl-theme-check">'+I.check.replace("<svg","<svg width=14 height=14")+'</span>':'')+'</button>';}).join("");
 }
 function view_settings(){
+  applyAutoMacros();
   var f=state.settings;var u=f.units;
   var op=state.open||{};
   var h='<div class="wl-stack">';
@@ -1060,7 +1069,7 @@ function view_settings(){
     '<div class="wl-hint" style="margin-top:8px">This is the number your Daily Log calories bar fills against. Leave it blank to just track calories with no goal — the calculated figures above are a guide only.</div>'+
     '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:16px 0 8px">Macro targets</div><div class="wl-macrogrid">'+
     [["targetProtein","Protein","g"],["targetCarbs","Carbs","g"],["targetFat","Fat","g"]].map(function(x){return '<label class="wl-field"><span>'+x[1]+' <em>'+x[2]+'</em></span><input class="wl-num" type="text" inputmode="decimal" data-set="'+x[0]+'" value="'+esc(f[x[0]])+'" placeholder="—"></label>';}).join("")+
-    '</div><div class="wl-hint"><span id="wl-macropct">'+macroPctHTML()+'</span></div></div>'):'')+'</div>';
+    '</div><div id="wl-macronotice">'+macroNoticeHTML()+'</div><div class="wl-hint"><span id="wl-macropct">'+macroPctHTML()+'</span></div></div>'):'')+'</div>';
   h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="reminder"><span>Daily reminder</span><span class="wl-chevron'+(op.reminder?" open":"")+'">›</span></button>'+(op.reminder?('<div class="wl-collapse-body">'+
     '<label class="wl-field wl-field-full"><span>Remind me to log at</span><input type="time" id="wl-remind-time" value="'+esc(f.reminderTime||"19:00")+'"></label>'+
     '<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="reminder:add">'+I.calendar.replace("<svg","<svg width=16 height=16")+'Add reminder to Calendar</button>'+
@@ -1178,6 +1187,8 @@ document.addEventListener("click",function(e){
     state.settings.units=nu;save();render();return;}
   if(a==="set:sex"){state.settings.sex=el.getAttribute("data-sex");save();render();return;}
   if(a==="set:weekstart"){state.settings.weekStart=el.getAttribute("data-day");save();render();return;}
+  if(a==="macro:suggest"){state.settings.macroAuto=true;delete state.settings.macroDismiss;applyAutoMacros();save();render();return;}
+  if(a==="macro:keep"){state.settings.macroDismiss=true;save();var mn=document.getElementById("wl-macronotice");if(mn)mn.innerHTML="";return;}
   if(a==="set:strategy"){state.settings.strategy=el.getAttribute("data-strat");save();render();return;}
   if(a==="set:activity"){state.settings.activityLevel=el.getAttribute("data-level");save();render();return;}
   if(a==="cal:usecalc"){var v=dailyDeficit()>0?targetIntake():maintenanceCals();if(v!=null){state.settings.targetCalories=String(v);save();render();toast("Calorie target set to "+v.toLocaleString());}else toast("Add sex, age & height first");return;}
@@ -1230,7 +1241,10 @@ document.addEventListener("input",function(e){
   if(el.classList&&(el.classList.contains("wl-sleep-h")||el.classList.contains("wl-sleep-m"))){var sl=state.selDate;var hE=document.querySelector(".wl-sleep-h"),mE=document.querySelector(".wl-sleep-m");var hh=hE?num(hE.value):null,mm=mE?num(mE.value):null;if(hh==null&&mm==null)delete state.sleep[sl];else state.sleep[sl]=(hh||0)*60+(mm||0);save();refreshClearBtn();return;}
   if(el.classList&&el.classList.contains("wl-note-input")){var nd=state.selDate;if(el.value.trim())state.notes[nd]=el.value;else delete state.notes[nd];save();refreshClearBtn();return;}
   if(el.hasAttribute&&el.hasAttribute("data-sync")){var c=syncCfg();c[el.getAttribute("data-sync")]=el.value.trim();setSyncCfg(c);var st=document.getElementById("wl-sync-status");if(st)st.innerHTML=syncStatusHTML();return;}
-  if(el.hasAttribute&&el.hasAttribute("data-set")){state.settings[el.getAttribute("data-set")]=el.value;save();var ce=document.getElementById("wl-calread");if(ce)ce.innerHTML=calSummaryHTML();var mp=document.getElementById("wl-macropct");if(mp)mp.innerHTML=macroPctHTML();return;}
+  if(el.hasAttribute&&el.hasAttribute("data-set")){var sk=el.getAttribute("data-set");state.settings[sk]=el.value;
+    if(sk==="targetProtein"||sk==="targetCarbs"||sk==="targetFat"){state.settings.macroAuto=false;delete state.settings.macroDismiss;}
+    else{applyAutoMacros();syncMacroInputs();}
+    save();var ce=document.getElementById("wl-calread");if(ce)ce.innerHTML=calSummaryHTML();var mp=document.getElementById("wl-macropct");if(mp)mp.innerHTML=macroPctHTML();var mn=document.getElementById("wl-macronotice");if(mn)mn.innerHTML=macroNoticeHTML();return;}
   if(el.classList&&el.classList.contains("wl-food-input")){
     var key=el.getAttribute("data-food");var d=state.selDate;var entry=Object.assign({},state.food[d]||{});
     entry[key]=el.value;
