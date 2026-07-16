@@ -364,7 +364,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.117";
+var APP_BUILD="2026-07-14.118";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -2165,10 +2165,9 @@ function makeIcon(){
 load();loadTraining();loadWorkout();ensureIdentity();applyTheme(state.settings.theme||"ink");makeIcon();if(state.workout)state.view="train";render();autoSync();if(state.workout)startWoTick();
 try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(e){}
 try{
-  var wlseen=localStorage.getItem("wl_seenbuild");
-  var justUpdated=false;try{if(sessionStorage.getItem("wl_reloaded_for")===APP_BUILD){justUpdated=true;sessionStorage.removeItem("wl_reloaded_for");}}catch(e){}
-  if(justUpdated||(wlseen&&wlseen!==APP_BUILD))showAppliedBanner(APP_BUILD);
-  localStorage.setItem("wl_seenbuild",APP_BUILD);
+  var wlraw=localStorage.getItem("wl_announced")||"";
+  var wlseen=wlraw?wlraw.split(","):[];
+  if(wlseen.indexOf(APP_BUILD)<0){showAppliedBanner(APP_BUILD);wlseen.push(APP_BUILD);if(wlseen.length>15)wlseen=wlseen.slice(wlseen.length-15);localStorage.setItem("wl_announced",wlseen.join(","));}
 }catch(e){}
 checkForUpdate();
 document.addEventListener("visibilitychange",function(){if(!document.hidden)checkForUpdate();});
