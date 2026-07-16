@@ -277,7 +277,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.71";
+var APP_BUILD="2026-07-14.73";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -374,6 +374,7 @@ function load(){
   if(state.settings.macroAuto===undefined&&(num(state.settings.targetProtein)!=null||num(state.settings.targetCarbs)!=null||num(state.settings.targetFat)!=null))state.settings.macroAuto=false;
   applyAutoMacros();
   try{state.sumOpen=localStorage.getItem("wl_sumopen")!=="0";}catch(e){}
+  try{state.calOpen=localStorage.getItem("wl_calopen")==="1";}catch(e){}
 }
 function payload(){return {settings:state.settings,weights:state.weights,food:state.food,workouts:state.workouts,steps:state.steps,notes:state.notes,sleep:state.sleep,weeklySummary:state.weeklySummary,nightlySummary:state.nightlySummary,presets:state.presets};}
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(payload()));}catch(e){toast("Couldn't save — storage full or blocked");}}
@@ -593,10 +594,10 @@ function calSummaryHTML(){var b=bmr();if(b==null)return "Add sex, age &amp; heig
   if(t!=null){s+=' · '+stratLabel()+' <b>'+t.toLocaleString()+'</b>';if(t<1200)s+=' <span style="color:var(--bad)">(under ~1200/day — consider a gentler goal)</span>';}
   var sp=suggestedProteinG();if(sp!=null)s+=' · protein target <b>'+sp+'g</b> (1g/lb of target weight)';
   return s+' cal/day';}
-function suggestedMacros(){var cal=num(state.settings.targetCalories);if(cal==null)cal=targetIntake();if(cal==null)return null;var pro=suggestedProteinG();if(pro==null)return null;var fat=Math.round(cal*0.20/9);var carb=Math.round(Math.max(0,cal-pro*4-fat*9)/4);return {protein:pro,carbs:carb,fat:fat,cal:cal};}
-function applyAutoMacros(){if(state.settings.macroAuto===false)return false;var sm=suggestedMacros();if(!sm)return false;state.settings.targetProtein=String(sm.protein);state.settings.targetCarbs=String(sm.carbs);state.settings.targetFat=String(sm.fat);return true;}
+function suggestedMacros(){var cal=num(state.settings.targetCalories);if(cal==null)cal=targetIntake();if(cal==null)return null;var pro;if(state.settings.proteinAuto===false){pro=num(state.settings.targetProtein);}else{pro=suggestedProteinG();}if(pro==null)return null;var fat=Math.round(cal*0.20/9);if(fat<40)fat=40;var carb=Math.round(Math.max(0,cal-pro*4-fat*9)/4);return {protein:pro,carbs:carb,fat:fat,cal:cal};}
+function applyAutoMacros(){if(state.settings.macroAuto===false)return false;var sm=suggestedMacros();if(!sm)return false;if(state.settings.proteinAuto!==false)state.settings.targetProtein=String(sm.protein);state.settings.targetCarbs=String(sm.carbs);state.settings.targetFat=String(sm.fat);return true;}
 function syncMacroInputs(){["targetProtein","targetCarbs","targetFat"].forEach(function(k){var el=document.querySelector('[data-set="'+k+'"]');if(el&&document.activeElement!==el)el.value=state.settings[k]||"";});}
-function macroNoticeHTML(){var sm=suggestedMacros();if(!sm)return "";if(state.settings.macroAuto!==false||state.settings.macroDismiss)return "";var p=num(state.settings.targetProtein),c=num(state.settings.targetCarbs),f=num(state.settings.targetFat);if(p===sm.protein&&c===sm.carbs&&f===sm.fat)return "";return '<div class="wl-calnote"><span>Suggested split: <b>'+sm.protein+'g</b> P · <b>'+sm.carbs+'g</b> C · <b>'+sm.fat+'g</b> F <span style="color:var(--faint)">(1g/lb protein, 20% fat, rest carbs)</span>.</span><span class="wl-calnote-actions"><button class="wl-calnote-btn" data-act="macro:suggest">Use suggested</button><button class="wl-calnote-btn ghost" data-act="macro:keep">Keep mine</button></span></div>';}
+function macroNoticeHTML(){var sm=suggestedMacros();if(!sm)return "";if(state.settings.macroAuto!==false||state.settings.macroDismiss)return "";var p=num(state.settings.targetProtein),c=num(state.settings.targetCarbs),f=num(state.settings.targetFat);if(p===sm.protein&&c===sm.carbs&&f===sm.fat)return "";return '<div class="wl-calnote"><span>Suggested: <b>'+sm.protein+'g</b> P · <b>'+sm.carbs+'g</b> C · <b>'+sm.fat+'g</b> F <span style="color:var(--faint)">(protein anchored, fat 20% min 40g, rest carbs)</span>.</span><span class="wl-calnote-actions"><button class="wl-calnote-btn" data-act="macro:suggest">Use suggested</button><button class="wl-calnote-btn ghost" data-act="macro:keep">Keep mine</button></span></div>';}
 function macroPctHTML(){var s=state.settings;
   var p=num(s.targetProtein),c=num(s.targetCarbs),ft=num(s.targetFat);
   if(p==null&&c==null&&ft==null)return "Enter gram targets to see their total calories and share of your daily total.";
@@ -957,6 +958,7 @@ function view_calendar(){
       h+='<button class="wl-cell'+(isS?" sel":"")+(isT?" today":"")+'" data-act="cal:sel" data-date="'+iso+'"><span class="wl-cell-num">'+d+'</span>'+dayDots(iso)+'</button>';}
     h+='</div>';
   }
+  if(sel!==todayISO())h+='<div style="text-align:center;margin-top:'+(state.calOpen?"12px":"10px")+'"><button class="wl-link" data-act="opentoday">↩ Jump to today</button></div>';
   h+='</div>';
   var e=state.food[sel]||{};
   var t={calories:num(state.settings.targetCalories),protein:num(state.settings.targetProtein),carbs:num(state.settings.targetCarbs),fat:num(state.settings.targetFat)};
@@ -1234,8 +1236,8 @@ document.addEventListener("click",function(e){
     return;}
   if(a==="cal:prev"){state.calM--;if(state.calM<0){state.calM=11;state.calY--;}render();return;}
   if(a==="cal:next"){state.calM++;if(state.calM>11){state.calM=0;state.calY++;}render();return;}
-  if(a==="cal:sel"){state.selDate=el.getAttribute("data-date");var cd=parseISO(state.selDate);state.calY=cd.getFullYear();state.calM=cd.getMonth();state.calOpen=false;render();return;}
-  if(a==="cal:expand"){state.calOpen=!state.calOpen;if(state.calOpen){var pd=parseISO(state.selDate);state.calY=pd.getFullYear();state.calM=pd.getMonth();}render();return;}
+  if(a==="cal:sel"){state.selDate=el.getAttribute("data-date");var cd=parseISO(state.selDate);state.calY=cd.getFullYear();state.calM=cd.getMonth();render();return;}
+  if(a==="cal:expand"){state.calOpen=!state.calOpen;try{localStorage.setItem("wl_calopen",state.calOpen?"1":"0");}catch(e){}if(state.calOpen){var pd=parseISO(state.selDate);state.calY=pd.getFullYear();state.calM=pd.getMonth();}render();return;}
   if(a==="day:prev"||a==="day:next"){var dd=parseISO(state.selDate);if(a==="day:next"&&state.selDate>=todayISO())return;dd.setDate(dd.getDate()+(a==="day:next"?1:-1));state.selDate=toISO(dd);state.calY=dd.getFullYear();state.calM=dd.getMonth();render();return;}
   if(a==="cal:overwrite"){var d=state.selDate;var e2=Object.assign({},state.food[d]||{});var p=num(e2.protein),c=num(e2.carbs),f=num(e2.fat);e2.calories=String(Math.round((p||0)*4+(c||0)*4+(f||0)*9));e2.calAuto=true;delete e2.calDismiss;state.food[d]=e2;save();render();return;}
   if(a==="cal:ignore"){var d2=state.selDate;var e3=Object.assign({},state.food[d2]||{});e3.calDismiss=true;state.food[d2]=e3;save();var n=document.getElementById("wl-calnotice");if(n)n.innerHTML="";return;}
@@ -1306,7 +1308,8 @@ document.addEventListener("input",function(e){
   if(el.classList&&el.classList.contains("wl-note-input")){var nd=state.selDate;if(el.value.trim())state.notes[nd]=el.value;else delete state.notes[nd];save();refreshClearBtn();return;}
   if(el.hasAttribute&&el.hasAttribute("data-sync")){var c=syncCfg();c[el.getAttribute("data-sync")]=el.value.trim();setSyncCfg(c);var st=document.getElementById("wl-sync-status");if(st)st.innerHTML=syncStatusHTML();return;}
   if(el.hasAttribute&&el.hasAttribute("data-set")){var sk=el.getAttribute("data-set");state.settings[sk]=el.value;
-    if(sk==="targetProtein"||sk==="targetCarbs"||sk==="targetFat"){state.settings.macroAuto=false;delete state.settings.macroDismiss;}
+    if(sk==="targetProtein"){state.settings.proteinAuto=false;delete state.settings.macroDismiss;applyAutoMacros();syncMacroInputs();}
+    else if(sk==="targetCarbs"||sk==="targetFat"){state.settings.macroAuto=false;delete state.settings.macroDismiss;}
     else{applyAutoMacros();syncMacroInputs();}
     save();var ce=document.getElementById("wl-calread");if(ce)ce.innerHTML=calSummaryHTML();var mp=document.getElementById("wl-macropct");if(mp)mp.innerHTML=macroPctHTML();var mn=document.getElementById("wl-macronotice");if(mn)mn.innerHTML=macroNoticeHTML();return;}
   if(el.classList&&el.classList.contains("wl-food-input")){
