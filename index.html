@@ -361,7 +361,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.112";
+var APP_BUILD="2026-07-14.113";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -1649,8 +1649,8 @@ function view_settings(){
   var f=state.settings;var u=f.units;
   var op=state.open||{};
   var h='<div class="wl-stack">';
-  var profOpen=op.profile!==false;
-  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="profile"><span>Profile'+(profileComplete()?'':' <span class="wl-req">Required</span>')+'</span><span class="wl-chevron'+(profOpen?" open":"")+'">›</span></button>';
+  var profOpen=!!op.profile;
+  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="profile"><span>My Profile'+(profileComplete()?'':' <span class="wl-req">Required</span>')+'</span><span class="wl-chevron'+(profOpen?" open":"")+'">›</span></button>';
   if(profOpen){h+='<div class="wl-collapse-body">';
     if(!profileComplete())h+='<div class="wl-hint" style="margin-bottom:12px">Fill this out first — calorie and macro targets need it.</div>';
     h+='<label class="wl-field wl-field-full"><span>Units</span><div class="wl-seg">'+["lbs","kg"].map(function(x){return '<button class="'+(u===x?"on":"")+'" data-act="set:units" data-units="'+x+'">'+x+'</button>';}).join("")+'</div></label>';
@@ -1662,7 +1662,7 @@ function view_settings(){
     h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:16px 0 8px">Weekly check-in day</div><div class="wl-daypick">'+WEEKDAYS.map(function(dn,i){return '<button class="wl-day'+((parseInt(f.weekStart,10)||0)===i?" on":"")+'" data-act="set:weekstart" data-day="'+i+'">'+dn+'</button>';}).join("")+'</div><div class="wl-hint">Your week runs '+DAYFULL[parseInt(f.weekStart,10)||0]+' through '+DAYFULL[((parseInt(f.weekStart,10)||0)+6)%7]+'.</div>';
     h+='</div>';}
   h+='</div>';
-  var stratOpen=op.strategy!==false;
+  var stratOpen=!!op.strategy;
   h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="strategy"><span>Strategy</span><span class="wl-chevron'+(stratOpen?" open":"")+'">›</span></button>';
   if(stratOpen){h+='<div class="wl-collapse-body">';
     h+='<label class="wl-field wl-field-full"><span>Target weight ('+u+')</span><input class="wl-num" type="text" inputmode="decimal" data-set="goalWeight" value="'+esc(f.goalWeight)+'" placeholder="0.0"></label>';
