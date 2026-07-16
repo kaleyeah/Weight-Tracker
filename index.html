@@ -138,6 +138,7 @@ input[type=date]::-webkit-date-and-time-value{text-align:left;margin:0;}
 input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 .wl-inline-input{font-family:var(--sans);flex:1;}
 .wl-macrogrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;}
+.wl-macro3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
 
 .wl-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:none;border-radius:10px;
   padding:11px 16px;font-size:14px;font-weight:700;transition:filter .15s;}
@@ -209,6 +210,10 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 .wl-cat-other{background:var(--bg2);color:var(--faint);}
 .wl-actcat{flex-shrink:0;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:5px 8px;border-radius:6px;white-space:nowrap;}
 .wl-select{flex:1;min-width:0;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-size:14px;font-family:var(--sans);padding:0 10px;outline:none;}
+.wl-calnote{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;padding:10px 12px;border-radius:10px;background:rgba(234,179,8,.12);border:1px solid rgba(234,179,8,.35);font-size:12.5px;color:var(--text);line-height:1.4;}
+.wl-calnote-actions{display:flex;gap:6px;flex-shrink:0;}
+.wl-calnote-btn{padding:6px 12px;border-radius:8px;border:none;background:#eab308;color:#1a1400;font-size:12px;font-weight:700;font-family:var(--sans);cursor:pointer;}
+.wl-calnote-btn.ghost{background:transparent;border:1px solid var(--line);color:var(--faint);}
 .wl-preset{display:inline-flex;align-items:center;gap:6px;padding:9px 13px;border-radius:22px;
   border:1px solid var(--line);background:var(--bg2);color:var(--muted);font-size:13px;font-weight:600;}
 .wl-preset svg{width:15px;height:15px;}
@@ -272,7 +277,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.65";
+var APP_BUILD="2026-07-14.68";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -860,6 +865,13 @@ function dayHasAny(iso){var f=state.food[iso];var w=false;for(var i=0;i<state.we
   return !!(w||num(state.steps[iso])!=null||num(state.sleep[iso])!=null||(state.workouts[iso]&&state.workouts[iso].length)||(f&&(num(f.calories)!=null||num(f.protein)!=null||num(f.carbs)!=null||num(f.fat)!=null))||(state.notes[iso]&&state.notes[iso].trim()));}
 function clearDayBtnHTML(sel){return dayHasAny(sel)?'<button class="wl-btn wl-btn-danger wl-full" style="margin-top:12px" data-act="day:clear" data-date="'+sel+'">'+I.trash.replace("<svg","<svg width=16 height=16")+'Clear all entries for this day</button>':'';}
 function refreshClearBtn(){var c=document.getElementById("wl-clearday");if(c)c.innerHTML=clearDayBtnHTML(state.selDate);}
+function calNoticeHTML(iso){var e=state.food[iso];if(!e)return "";
+  if(e.calAuto===true)return "";
+  var p=num(e.protein),c=num(e.carbs),f=num(e.fat);if(p==null&&c==null&&f==null)return "";
+  var mt=Math.round((p||0)*4+(c||0)*4+(f||0)*9);var cal=num(e.calories);
+  if(cal==null)return '<div class="wl-calnote"><span>Macros add up to <b>'+mt.toLocaleString()+' cal</b>.</span><span class="wl-calnote-actions"><button class="wl-calnote-btn" data-act="cal:overwrite">Use as calories</button></span></div>';
+  if(Math.abs(cal-mt)<=2||e.calDismiss)return "";
+  return '<div class="wl-calnote"><span>Macros total <b>'+mt.toLocaleString()+' cal</b>, but Calories says <b>'+Math.round(cal).toLocaleString()+'</b>.</span><span class="wl-calnote-actions"><button class="wl-calnote-btn" data-act="cal:overwrite">Overwrite</button><button class="wl-calnote-btn ghost" data-act="cal:ignore">Ignore</button></span></div>';}
 function view_calendar(){
   var y=state.calY,m=state.calM;var first=new Date(y,m,1);var dim=new Date(y,m+1,0).getDate();var lead=first.getDay();
   var sel=state.selDate;var u=state.settings.units;
@@ -878,29 +890,46 @@ function view_calendar(){
   var e=state.food[sel]||{};
   var t={calories:num(state.settings.targetCalories),protein:num(state.settings.targetProtein),carbs:num(state.settings.targetCarbs),fat:num(state.settings.targetFat)};
   var hasT=Object.keys(t).some(function(k){return t[k]!=null;});
-  h+='<div class="wl-card">';
+  h+='<div class="wl-card"><div class="wl-card-head"><span>Weight &amp; steps</span></div>';
   h+='<div class="wl-row"><label class="wl-field"><span>Weight <em>'+u+'</em></span><input class="wl-daywt-input wl-num" type="text" inputmode="decimal" placeholder="—" value="'+(wmap[sel]!=null?wmap[sel]:"")+'"></label><label class="wl-field"><span>Steps</span><input class="wl-steps-input wl-num" data-int="1" type="text" inputmode="numeric" placeholder="—" value="'+(state.steps[sel]!=null?state.steps[sel]:"")+'"></label></div>';
-  h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:14px 0 8px">Total sleep <span style="text-transform:none;letter-spacing:0;font-weight:500">last night</span></div><div class="wl-row"><label class="wl-field"><span>Hours</span><input class="wl-num wl-sleep-h" data-int="1" type="text" inputmode="numeric" placeholder="—" value="'+(state.sleep[sel]!=null?Math.floor(state.sleep[sel]/60):"")+'"></label><label class="wl-field"><span>Minutes</span><input class="wl-num wl-sleep-m" data-int="1" type="text" inputmode="numeric" placeholder="—" value="'+(state.sleep[sel]!=null?state.sleep[sel]%60:"")+'"></label></div>';
-  h+='<div class="wl-macrogrid" style="margin-top:12px">';
-  [["calories","Calories","cal"],["protein","Protein","g"],["carbs","Carbs","g"],["fat","Fat","g"]].forEach(function(f){var val=e[f[0]]!=null?e[f[0]]:"";
+  h+='</div>';
+  h+='<div class="wl-card"><div class="wl-card-head"><span>Total sleep <em>last night</em></span></div>';
+  h+='<div class="wl-row"><label class="wl-field"><span>Hours</span><input class="wl-num wl-sleep-h" data-int="1" type="text" inputmode="numeric" placeholder="—" value="'+(state.sleep[sel]!=null?Math.floor(state.sleep[sel]/60):"")+'"></label><label class="wl-field"><span>Minutes</span><input class="wl-num wl-sleep-m" data-int="1" type="text" inputmode="numeric" placeholder="—" value="'+(state.sleep[sel]!=null?state.sleep[sel]%60:"")+'"></label></div>';
+  h+='</div>';
+  h+='<div class="wl-card"><div class="wl-card-head"><span>Calories &amp; macros</span></div>';
+  h+='<div class="wl-macro3">';
+  [["protein","Protein","g"],["fat","Fat","g"],["carbs","Carbs","g"]].forEach(function(f){var val=e[f[0]]!=null?e[f[0]]:"";
     h+='<label class="wl-field"><span>'+f[1]+' <em>'+f[2]+'</em></span><input class="wl-food-input wl-num" data-food="'+f[0]+'" type="text" inputmode="decimal" placeholder="0" value="'+val+'">';
     if(hasT&&t[f[0]]!=null)h+='<div class="wl-tbar" id="bar-'+f[0]+'">'+barInner(num(val),t[f[0]])+'</div>';
     h+='</label>';});
   h+='</div>';
-  h+='<div class="wl-hint" style="margin-top:-4px;margin-bottom:2px">Calories auto-fill from your macros — type your own to override (kept even if you add macros after).</div>';
-  h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:14px 0 8px">Activity</div>';
+  var _cval=e.calories!=null?e.calories:"";
+  h+='<label class="wl-field wl-field-full" style="margin-top:14px"><span>Total Calories <em>cal</em></span><input class="wl-food-input wl-num" data-food="calories" type="text" inputmode="decimal" placeholder="0" value="'+_cval+'">';
+  if(hasT&&t.calories!=null)h+='<div class="wl-tbar" id="bar-calories">'+barInner(num(_cval),t.calories)+'</div>';
+  h+='</label>';
+  h+='<div id="wl-calnotice">'+calNoticeHTML(sel)+'</div>';
+  h+='</div>';
+  h+='<div class="wl-card"><div class="wl-card-head"><span>Activity</span></div>';
   var _pre=normPresets(),_log=normActs(sel);
   function _onIdx(pr){for(var i=0;i<_log.length;i++){if(_log[i].name===pr.name&&_log[i].cat===pr.cat)return i;}return -1;}
-  h+='<div class="wl-preset-list">';
-  _pre.forEach(function(pr,idx){var on=_onIdx(pr)>=0;h+='<button class="wl-achip '+pr.cat+(on?" on":"")+'" data-act="act:toggle" data-idx="'+idx+'">'+(on?"✓ ":"")+esc(pr.name||CATLABEL[pr.cat])+'</button>';});
-  _log.forEach(function(a,i){var inP=false;for(var j=0;j<_pre.length;j++){if(_pre[j].name===a.name&&_pre[j].cat===a.cat){inP=true;break;}}if(!inP)h+='<button class="wl-achip '+a.cat+' on" data-act="act:del" data-idx="'+i+'">'+esc(a.name||CATLABEL[a.cat])+' ✕</button>';});
+  ["cardio","lifting","supp","rest","other"].forEach(function(cat){
+    var items=_pre.map(function(p,i){return {p:p,i:i};}).filter(function(x){return x.p.cat===cat;}).sort(function(a,b){return (a.p.name||"").toLowerCase().localeCompare((b.p.name||"").toLowerCase());});
+    if(!items.length)return;
+    h+='<div style="margin:12px 0 6px"><span class="wl-actcat wl-cat-'+cat+'">'+CATLABEL[cat]+'</span></div><div class="wl-preset-list">';
+    items.forEach(function(x){var on=_onIdx(x.p)>=0;h+='<button class="wl-achip '+cat+(on?" on":"")+'" data-act="act:toggle" data-idx="'+x.i+'">'+(on?"✓ ":"")+esc(x.p.name||CATLABEL[cat])+'</button>';});
+    h+='</div>';
+  });
+  var _orph=[];_log.forEach(function(a,i){var inP=false;for(var j=0;j<_pre.length;j++){if(_pre[j].name===a.name&&_pre[j].cat===a.cat){inP=true;break;}}if(!inP)_orph.push({a:a,i:i});});
+  if(_orph.length){h+='<div style="margin:12px 0 6px"><span class="wl-actcat wl-cat-other">Logged (not saved)</span></div><div class="wl-preset-list">';_orph.forEach(function(x){h+='<button class="wl-achip '+x.a.cat+' on" data-act="act:del" data-idx="'+x.i+'">'+esc(x.a.name||CATLABEL[x.a.cat])+' ✕</button>';});h+='</div>';}
+  if(!_pre.length&&!_orph.length)h+='<div class="wl-hint">No activities yet — add some under Settings → Activities.</div>';
+  h+='<button class="wl-link" style="margin-top:12px" data-act="go" data-view="settings">Manage activities in Settings →</button>';
   h+='</div>';
-  if(!_pre.length)h+='<div class="wl-hint">No activities yet — add some under Settings → Activities.</div>';
-  h+='<button class="wl-link" style="margin-top:10px" data-act="go" data-view="settings">Manage activities in Settings →</button>';
-  h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:14px 0 8px">Note</div><textarea class="wl-note-input" placeholder="Anything you want to remember about this day…" style="width:100%;min-height:70px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:14px;padding:11px 12px;box-sizing:border-box;outline:none;resize:vertical">'+esc(state.notes[sel]||"")+'</textarea>';
+  h+='<div class="wl-card"><div class="wl-card-head"><span>Notes &amp; photos</span></div>';
+  h+='<textarea class="wl-note-input" placeholder="Any notes for the AI summary (feeling sick, feeling good, on vacation…)" style="width:100%;min-height:70px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:14px;padding:11px 12px;box-sizing:border-box;outline:none;resize:vertical">'+esc(state.notes[sel]||"")+'</textarea>';
   h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:14px 0 8px">Photos</div><div id="wl-photos" class="wl-photos"><div class="wl-empty" style="padding:6px 0">Loading…</div></div><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="photo:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add photos</button>';
+  h+='</div>';
   h+='<div id="wl-clearday">'+clearDayBtnHTML(sel)+'</div>';
-  h+='<div class="wl-hint" style="margin-top:10px">Everything here saves automatically. Tap a date above to edit another day; empty a field to clear it.</div></div></div>';
+  h+='<div class="wl-hint" style="margin-top:10px;text-align:center">Everything saves automatically. Tap the date above to switch days.</div></div>';
   return h;
 }
 function weekStartFor(offset){var ws=parseInt(state.settings.weekStart,10)||0;var d=new Date();d.setHours(0,0,0,0);var diff=(d.getDay()-ws+7)%7;d.setDate(d.getDate()-diff+offset*7);return d;}
@@ -1040,7 +1069,12 @@ function view_settings(){
   if(op.activities){
     h+='<div class="wl-collapse-body">';
     var _mp=normPresets();
-    if(_mp.length){h+='<div class="wl-preset-manage">';_mp.forEach(function(p,idx){h+='<div class="wl-preset-manage-row"><span class="wl-actcat wl-cat-'+p.cat+'">'+CATLABEL[p.cat]+'</span><span style="flex:1">'+esc(p.name)+'</span><button class="wl-icon-btn" data-act="preset:del" data-idx="'+idx+'">✕</button></div>';});h+='</div>';}
+    if(_mp.length){["cardio","lifting","supp","rest","other"].forEach(function(cat){
+      var items=_mp.map(function(p,i){return {p:p,i:i};}).filter(function(x){return x.p.cat===cat;}).sort(function(a,b){return (a.p.name||"").toLowerCase().localeCompare((b.p.name||"").toLowerCase());});
+      if(!items.length)return;
+      h+='<div style="margin:12px 0 6px"><span class="wl-actcat wl-cat-'+cat+'">'+CATLABEL[cat]+'</span></div><div class="wl-preset-manage">';
+      items.forEach(function(x){h+='<div class="wl-preset-manage-row"><span style="flex:1">'+esc(x.p.name)+'</span><button class="wl-icon-btn" data-act="preset:del" data-idx="'+x.i+'">✕</button></div>';});
+      h+='</div>';});}
     h+='<input class="wl-inline-input" id="wl-newact-name" placeholder="Activity name (e.g. Peloton)" style="width:100%;box-sizing:border-box;margin:4px 0 8px">';
     h+='<div class="wl-row" style="align-items:stretch"><select id="wl-newact-cat" class="wl-select"><option value="cardio">Cardio</option><option value="lifting">Weight Training</option><option value="supp">Supplement/Med</option><option value="rest">Recovery</option></select><button class="wl-btn wl-btn-primary" data-act="preset:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add</button></div>';
     h+='<div class="wl-hint" style="margin-top:8px">These become tappable chips in the Daily Log — <span style="color:#3b82f6">Cardio blue</span>, <span style="color:#22c55e">Weight training green</span>, <span style="color:#a855f7">Supplements purple</span>, <span style="color:#9ca3af">Recovery gray</span>.</div>';
@@ -1118,9 +1152,9 @@ document.addEventListener("click",function(e){
   if(a==="photo:add"){document.getElementById("wl-photo-input").click();return;}
   if(a==="photo:view"){openLightbox(el.getAttribute("data-id"));return;}
   if(a==="openday"){var od=el.getAttribute("data-date");state.selDate=od;var pd=parseISO(od);state.calY=pd.getFullYear();state.calM=pd.getMonth();state.view="calendar";render();return;}
-  if(a==="day:clear"){var fdd=el.getAttribute("data-date");
-    if(!window.confirm("Clear ALL entries for this day — weight, steps, calories, macros, activities, note, and photos? This can\u2019t be undone.")){return;}
-    delete state.food[fdd];delete state.steps[fdd];delete state.workouts[fdd];delete state.notes[fdd];delete state.sleep[fdd];
+  if(a==="day:clear"){var fdd=state.selDate;
+    if(!window.confirm("Clear ALL entries for this day — weight, steps, sleep, calories, macros, activities, note, and photos? This can\u2019t be undone.")){return;}
+    delete state.food[fdd];delete state.steps[fdd];delete state.sleep[fdd];delete state.workouts[fdd];delete state.notes[fdd];
     state.weights=state.weights.filter(function(x){return x.date!==fdd;});
     save();render();toast("Day cleared");
     try{idbByDate(fdd).then(function(list){var t=list.map(function(p){return idbDelete(p.id);});Promise.all(t).then(function(){if(state.selDate===fdd)renderPhotos(fdd);});});}catch(e){}
@@ -1130,6 +1164,8 @@ document.addEventListener("click",function(e){
   if(a==="cal:sel"){state.selDate=el.getAttribute("data-date");var cd=parseISO(state.selDate);state.calY=cd.getFullYear();state.calM=cd.getMonth();state.calOpen=false;render();return;}
   if(a==="cal:expand"){state.calOpen=!state.calOpen;if(state.calOpen){var pd=parseISO(state.selDate);state.calY=pd.getFullYear();state.calM=pd.getMonth();}render();return;}
   if(a==="day:prev"||a==="day:next"){var dd=parseISO(state.selDate);if(a==="day:next"&&state.selDate>=todayISO())return;dd.setDate(dd.getDate()+(a==="day:next"?1:-1));state.selDate=toISO(dd);state.calY=dd.getFullYear();state.calM=dd.getMonth();render();return;}
+  if(a==="cal:overwrite"){var d=state.selDate;var e2=Object.assign({},state.food[d]||{});var p=num(e2.protein),c=num(e2.carbs),f=num(e2.fat);e2.calories=String(Math.round((p||0)*4+(c||0)*4+(f||0)*9));e2.calAuto=true;delete e2.calDismiss;state.food[d]=e2;save();render();return;}
+  if(a==="cal:ignore"){var d2=state.selDate;var e3=Object.assign({},state.food[d2]||{});e3.calDismiss=true;state.food[d2]=e3;save();var n=document.getElementById("wl-calnotice");if(n)n.innerHTML="";return;}
   if(a==="act:toggle"){var d0=state.selDate;var pr=normPresets()[+el.getAttribute("data-idx")];if(!pr)return;var list=normActs(d0);var found=-1;for(var i=0;i<list.length;i++){if(list[i].name===pr.name&&list[i].cat===pr.cat){found=i;break;}}if(found>=0)list.splice(found,1);else list.push({cat:pr.cat,name:pr.name});if(list.length)state.workouts[d0]=list;else delete state.workouts[d0];save();render();refreshClearBtn();return;}
   if(a==="act:del"){var d1=state.selDate;var l1=normActs(d1);l1.splice(+el.getAttribute("data-idx"),1);if(l1.length)state.workouts[d1]=l1;else delete state.workouts[d1];save();render();refreshClearBtn();return;}
   if(a==="set:units"){var nu=el.getAttribute("data-units");var ou=state.settings.units;if(nu===ou)return;
@@ -1198,10 +1234,10 @@ document.addEventListener("input",function(e){
   if(el.classList&&el.classList.contains("wl-food-input")){
     var key=el.getAttribute("data-food");var d=state.selDate;var entry=Object.assign({},state.food[d]||{});
     entry[key]=el.value;
-    if(key==="calories"){entry.calAuto=false;}
-    else{
-      if(num(entry.calories)==null||entry.calAuto===true){
-        var pv=num(entry.protein),cv=num(entry.carbs),fv=num(entry.fat);
+    if(key==="calories"){entry.calAuto=false;delete entry.calDismiss;}
+    else{delete entry.calDismiss;
+      var autoOK=entry.calAuto===true||(entry.calAuto!==false&&num(entry.calories)==null);
+      if(autoOK){var pv=num(entry.protein),cv=num(entry.carbs),fv=num(entry.fat);
         if(pv!=null||cv!=null||fv!=null){entry.calories=String(Math.round((pv||0)*4+(cv||0)*4+(fv||0)*9));entry.calAuto=true;}
         else{delete entry.calories;delete entry.calAuto;}
         var cEl=document.querySelector('.wl-food-input[data-food="calories"]');if(cEl)cEl.value=(entry.calories!=null?entry.calories:"");
@@ -1212,6 +1248,7 @@ document.addEventListener("input",function(e){
     if(anyv)state.food[d]=entry;else delete state.food[d];save();
     var t=num(state.settings["target"+key.charAt(0).toUpperCase()+key.slice(1)]);
     var bar=document.getElementById("bar-"+key);if(bar&&t!=null)bar.innerHTML=barInner(num(el.value),t);
+    var noteEl=document.getElementById("wl-calnotice");if(noteEl)noteEl.innerHTML=calNoticeHTML(d);
     refreshClearBtn();
     return;}
   if(el.classList&&el.classList.contains("wl-steps-input")){
