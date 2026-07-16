@@ -364,7 +364,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.118";
+var APP_BUILD="2026-07-14.119";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -1621,7 +1621,7 @@ function actCatCardHTML(cat,title,hint,date){
   var h='<div class="wl-card"><div class="wl-card-head"><span>'+title+(loggedN?' <span class="wl-count">'+loggedN+'</span>':'')+'</span></div>';
   if(hint)h+='<div class="wl-hint" style="margin-bottom:10px">'+hint+'</div>';
   h+='<div class="wl-preset-list">';
-  items.forEach(function(x){var on=onIdx(x.p)>=0;h+='<button class="wl-achip '+cat+(on?" on":"")+'" data-act="act:toggle" data-idx="'+x.i+'" data-date="'+date+'">'+(on?"✓ ":"")+esc(x.p.name||CATLABEL[cat])+'</button>';});
+  items.forEach(function(x){var on=onIdx(x.p)>=0;h+='<button class="wl-achip '+cat+(on?" on":"")+'" data-act="act:toggle" data-idx="'+x.i+'" data-date="'+date+'"><span class="wl-chip-ic">'+(on?"✓":"")+'</span>'+esc(x.p.name||CATLABEL[cat])+'</button>';});
   if(state.actAddCat===cat)h+='<span class="wl-mgchip '+cat+'"><input class="wl-mgchip-input" id="wl-addact-'+cat+'" placeholder="name…" autocomplete="off"><button class="wl-mgchip-x" data-act="act:addcat" data-cat="'+cat+'">✓</button></span>';
   else h+='<button class="wl-achip other" data-act="act:addopen" data-cat="'+cat+'">＋ Add</button>';
   h+='</div>';
