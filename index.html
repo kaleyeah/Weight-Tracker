@@ -57,6 +57,17 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 .wl-mtag.on{background:var(--mc);color:#fff;border-color:var(--mc);}
 .wl-mtag-bars{letter-spacing:-2px;font-size:11px;opacity:.9;}
 .wl-chip-ic{display:inline-flex;justify-content:center;align-items:center;width:14px;flex:none;font-size:12px;}
+.wl-note{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:rgba(180,150,60,.18);border:1px solid rgba(180,150,60,.35);border-radius:8px;padding:9px 12px;margin-top:6px;color:#d8c68a;font-family:var(--sans);font-size:13.5px;cursor:pointer;}
+.wl-note-txt{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.wl-note-pin{flex:none;font-size:12px;}
+.wl-note-add{background:none;border:1px dashed var(--line);color:var(--faint);border-radius:8px;padding:7px 12px;margin-top:6px;font-size:13px;cursor:pointer;font-family:var(--sans);}
+.wl-note-editor{margin-top:8px;padding:12px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;}
+.wl-noteinput{width:100%;box-sizing:border-box;background:var(--card);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:var(--sans);font-size:14px;padding:10px 12px;outline:none;}
+.wl-stepper{display:inline-flex;align-items:center;gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;}
+.wl-stepper button{background:var(--bg2);border:none;color:var(--text);font-size:20px;width:42px;height:38px;cursor:pointer;line-height:1;}
+.wl-stepper button:active{background:var(--accent);color:#fff;}
+.wl-stepper span{min-width:40px;text-align:center;font-weight:700;font-size:16px;}
+.wl-ri-actions{display:inline-flex;gap:2px;}
 .wl-exrow{display:flex;align-items:center;gap:8px;padding:11px 0;border-bottom:1px solid var(--line);}
 .wl-exrow:last-child{border-bottom:none;}
 .wl-exrow-main{flex:1;text-align:left;background:none;border:none;color:inherit;padding:0;cursor:pointer;display:flex;flex-direction:column;gap:2px;font-family:var(--sans);}
@@ -323,7 +334,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.97";
+var APP_BUILD="2026-07-14.98";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -419,7 +430,7 @@ function dayDots(iso){var seen={},cats=[];
   return '';}
 var state={settings:Object.assign({},DEFAULT_SETTINGS),weights:[],food:{},workouts:{},steps:{},notes:{},sleep:{},weeklySummary:null,nightlySummary:null,presets:DEFAULT_PRESETS.slice(),
   view:"overview",calY:new Date().getFullYear(),calM:new Date().getMonth(),weekOffset:0,trendMode:"W",trendOffset:0,calOpen:false,sumOpen:true,nightOpen:true,genBusy:false,nightBusy:false,diaryWeeks:1,
-  training:{cardioTypes:DEFAULT_CARDIO_TYPES.slice(),sessions:{},exercises:[],routines:[],liftSessions:{}},trainDate:todayISO(),cardioForm:null,manageOpen:false,actAddCat:null,exForm:null,
+  training:{cardioTypes:DEFAULT_CARDIO_TYPES.slice(),sessions:{},exercises:[],routines:[],liftSessions:{}},trainDate:todayISO(),cardioForm:null,manageOpen:false,actAddCat:null,exForm:null,routineId:null,riPickOpen:false,noteEdit:null,
   selDate:todayISO(),foodDate:todayISO(),alertDismissed:false,confirmReset:false};
 
 function load(){
@@ -1299,6 +1310,60 @@ function view_exlib(){
     if(exs.length)h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="ex:clearall">Clear all exercises</button>';}
   return h+'</div>';
 }
+function exById(id){return (state.training.exercises||[]).filter(function(e){return e.id===id;})[0];}
+function getRoutine(id){return (state.training.routines||[]).filter(function(r){return r.id===id;})[0];}
+function rItem(rt,iid){return (rt.items||[]).filter(function(i){return i.id===iid;})[0];}
+function noteEditorHTML(){var ne=state.noteEdit;
+  var h='<div class="wl-note-editor"><input class="wl-noteinput" id="wl-noteinput" type="text" placeholder="One-line note (e.g. 8-12 goal, Bench 30)" value="'+esc(ne.text||"")+'" autocomplete="off">';
+  h+='<button class="wl-achip'+(ne.pinned?" on":"")+'" style="margin-top:10px;'+(ne.pinned?"background:var(--accent);border-color:var(--accent);color:#fff":"")+'" data-act="note:pin"><span class="wl-chip-ic">'+(ne.pinned?"✓":"📌")+'</span>Pin to exercise (shows in every routine)</button>';
+  h+='<div class="wl-row" style="margin-top:10px"><button class="wl-btn wl-btn-primary wl-full" data-act="note:save">Save note</button><button class="wl-btn wl-btn-ghost" data-act="note:cancel">Cancel</button></div>';
+  if(ne.nid)h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="note:del">Delete note</button>';
+  return h+'</div>';}
+function routineNotesHTML(rt,it,ex){var h='';
+  (ex.notes||[]).forEach(function(n){h+='<button class="wl-note" data-act="note:edit" data-iid="'+it.id+'" data-nid="'+n.id+'" data-pinned="1"><span class="wl-note-txt">'+esc(n.text)+'</span><span class="wl-note-pin">📌</span></button>';});
+  (it.notes||[]).forEach(function(n){h+='<button class="wl-note" data-act="note:edit" data-iid="'+it.id+'" data-nid="'+n.id+'" data-pinned="0"><span class="wl-note-txt">'+esc(n.text)+'</span></button>';});
+  if(state.noteEdit&&state.noteEdit.iid===it.id&&!state.noteEdit.forHeader)h+=noteEditorHTML();
+  else h+='<button class="wl-note-add" data-act="note:add" data-iid="'+it.id+'">＋ note</button>';
+  return h;}
+function routineItemHTML(rt,it,idx){
+  var ex=exById(it.exerciseId);if(!ex)return '<div class="wl-card"><div class="wl-hint">Missing exercise. <button class="wl-link" data-act="ri:remove" data-iid="'+it.id+'">Remove</button></div></div>';
+  var u=state.settings.units;
+  var h='<div class="wl-card wl-ritem">';
+  h+='<div style="margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">'+muscleTagHTML(ex.muscle||"other")+'<span class="wl-ri-actions">'+(idx>0?'<button class="wl-icon-btn" data-act="ri:up" data-iid="'+it.id+'">'+I.up.replace("<svg","<svg width=17 height=17")+'</button>':'')+(idx<rt.items.length-1?'<button class="wl-icon-btn" data-act="ri:down" data-iid="'+it.id+'">'+I.down.replace("<svg","<svg width=17 height=17")+'</button>':'')+'<button class="wl-icon-btn" data-act="ri:remove" data-iid="'+it.id+'">'+I.trash.replace("<svg","<svg width=16 height=16")+'</button></span></div>';
+  h+='<div class="wl-exrow-name">'+esc(ex.name)+'</div>'+((ex.equipment||ex.bodyweight)?'<div class="wl-exrow-sub" style="margin-bottom:8px">'+esc(ex.equipment||"")+(ex.bodyweight?(ex.equipment?" · ":"")+"Bodyweight":"")+'</div>':'<div style="height:6px"></div>');
+  h+=routineNotesHTML(rt,it,ex);
+  h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Rep range</span><div style="display:flex;align-items:center;gap:6px"><input class="wl-ri-input wl-num" data-iid="'+it.id+'" data-field="repLow" type="text" inputmode="numeric" value="'+esc(it.repLow!=null?it.repLow:"")+'" placeholder="8" style="text-align:center"><span style="color:var(--faint)">–</span><input class="wl-ri-input wl-num" data-iid="'+it.id+'" data-field="repHigh" type="text" inputmode="numeric" value="'+esc(it.repHigh!=null?it.repHigh:"")+'" placeholder="12" style="text-align:center"></div></label>';
+  h+='<label class="wl-field"><span>'+(ex.bodyweight?"Added wt <em>optional</em>":"Weight ("+u+")")+'</span><input class="wl-ri-input wl-num" data-iid="'+it.id+'" data-field="weight" type="text" inputmode="decimal" value="'+esc(it.weight!=null?it.weight:"")+'" placeholder="'+(ex.bodyweight?"0 = BW":"0")+'"></label></div>';
+  h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px"><span class="wl-cf-label" style="margin:0">Sets</span><div class="wl-stepper"><button data-act="ri:setdec" data-iid="'+it.id+'">−</button><span>'+(it.sets||0)+'</span><button data-act="ri:setinc" data-iid="'+it.id+'">+</button></div></div>';
+  return h+'</div>';
+}
+function routinePickHTML(rt){
+  var h='<div class="wl-stack">';
+  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="ri:pickclose">‹</button><span class="wl-cal-title">Add exercise</span><span style="width:36px;display:inline-block"></span></div>';
+  var exs=state.training.exercises||[];
+  if(!exs.length)h+='<div class="wl-card"><div class="wl-hint">Your library is empty. <button class="wl-link" data-act="go" data-view="exlib">Add exercises first</button>.</div></div>';
+  MUSCLES.forEach(function(m){var items=exs.filter(function(e){return (e.muscle||"other")===m[0];}).sort(function(a,b){return (a.name||"").toLowerCase().localeCompare((b.name||"").toLowerCase());});
+    if(!items.length)return;
+    h+='<div class="wl-card"><div style="margin-bottom:8px">'+muscleTagHTML(m[0])+'</div>';
+    items.forEach(function(e){var already=(rt.items||[]).some(function(i){return i.exerciseId===e.id;});
+      h+='<div class="wl-exrow"><button class="wl-exrow-main" data-act="ri:pick" data-eid="'+e.id+'"><span class="wl-exrow-name">'+esc(e.name)+'</span>'+((e.equipment||e.bodyweight)?'<span class="wl-exrow-sub">'+esc(e.equipment||"")+(e.bodyweight?(e.equipment?" · ":"")+"Bodyweight":"")+'</span>':'')+'</button>'+(already?'<span class="wl-note-pin" style="font-size:13px;color:var(--good)">✓ added</span>':'<button class="wl-btn wl-btn-ghost" data-act="ri:pick" data-eid="'+e.id+'" style="padding:6px 12px">Add</button>')+'</div>';});
+    h+='</div>';});
+  h+='<button class="wl-btn wl-btn-primary wl-full" data-act="ri:pickclose">Done</button>';
+  return h+'</div>';
+}
+function view_routine(){
+  var rt=getRoutine(state.routineId);
+  var h='<div class="wl-stack">';
+  if(!rt){h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="go" data-view="train">‹</button><span class="wl-cal-title">Routine</span></div><div class="wl-card"><div class="wl-hint">Routine not found.</div></div>';return h+'</div>';}
+  if(state.riPickOpen)return routinePickHTML(rt);
+  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="go" data-view="train">‹</button><span class="wl-cal-title">Edit routine</span><span style="width:36px;display:inline-block"></span></div>';
+  h+='<div class="wl-card"><label class="wl-field wl-field-full"><span>Routine name</span><input class="wl-rt-name" type="text" value="'+esc(rt.name||"")+'" placeholder="e.g. Day 1 – Push"></label></div>';
+  if(!(rt.items||[]).length)h+='<div class="wl-card"><div class="wl-hint">No exercises yet. Add them from your library below — they\u2019ll group by muscle automatically.</div></div>';
+  (rt.items||[]).forEach(function(it,idx){h+=routineItemHTML(rt,it,idx);});
+  h+='<button class="wl-btn wl-btn-primary wl-full" data-act="ri:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add exercise</button>';
+  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="rt:del" data-id="'+rt.id+'">Delete routine</button>';
+  return h+'</div>';
+}
 function cardioFormHTML(cf){
   var types=normPresets().filter(function(p){return p.cat==="cardio";}).map(function(p){return p.name;});
   var h='<div class="wl-cardioform">';
@@ -1345,7 +1410,12 @@ function view_train(){
   if(cf&&cf.kind==="cardio")h+=cardioFormHTML(cf);
   else h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:10px" data-act="cardio:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add cardio</button>';
   h+='</div>';
-  h+='<div class="wl-card"><div class="wl-card-head"><span>Weight training</span></div><div class="wl-hint">Build routines from your exercise library, then log them set by set.</div><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:12px" data-act="go" data-view="exlib">Exercise library'+((state.training.exercises||[]).length?' <span class="wl-count">'+state.training.exercises.length+'</span>':'')+'</button><div class="wl-hint" style="margin-top:10px;color:var(--faint)">Next: build routines from your library.</div></div>';
+  h+='<div class="wl-card"><div class="wl-card-head"><span>Weight training</span></div>';
+  var rts=state.training.routines||[];
+  if(rts.length){rts.forEach(function(rt){var nEx=(rt.items||[]).length;h+='<button class="wl-exrow-main" data-act="rt:open" data-id="'+rt.id+'" style="width:100%;padding:12px 0;border-bottom:1px solid var(--line)"><span class="wl-exrow-name">'+esc(rt.name||"Untitled routine")+'</span><span class="wl-exrow-sub">'+nEx+' exercise'+(nEx===1?"":"s")+' · tap to edit</span></button>';});}
+  else h+='<div class="wl-hint">No routines yet. Create one and add exercises from your library.</div>';
+  h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="rt:new">'+I.plus.replace("<svg","<svg width=16 height=16")+'New routine</button>';
+  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="go" data-view="exlib">Exercise library'+((state.training.exercises||[]).length?' <span class="wl-count">'+state.training.exercises.length+'</span>':'')+'</button></div>';
   h+=activityManageHTML();
   return h+'</div>';
 }
@@ -1441,8 +1511,8 @@ function confirmOverlayHTML(){var c=state.pendingConfirm;if(!c)return "";
   return '<div class="wl-confirm"><div class="wl-confirm-card"><div class="wl-confirm-msg">'+esc(c.message)+'</div><div class="wl-confirm-btns"><button class="wl-btn wl-btn-ghost wl-full" data-act="confirm:no">Cancel</button><button class="wl-btn wl-full" style="background:'+(c.danger?"var(--bad)":"var(--accent)")+';color:#fff;border:none" data-act="confirm:yes">'+esc(c.label)+'</button></div></div></div>';}
 function render(){
   clearPhotoURLs();
-  var title=state.view==="settings"?"Settings":state.view==="diary"?"Food Diary":state.view==="exlib"?"Exercise Library":(NAV.filter(function(n){return n[0]===state.view;})[0]||["","" ])[1];
-  var body=state.view==="overview"?view_overview():(state.view==="calendar"||state.view==="food")?view_calendar():state.view==="weight"?view_weight():state.view==="summary"?view_summary():state.view==="diary"?view_diary():state.view==="train"?view_train():state.view==="exlib"?view_exlib():view_settings();
+  var title=state.view==="settings"?"Settings":state.view==="diary"?"Food Diary":state.view==="exlib"?"Exercise Library":state.view==="routine"?"Routine":(NAV.filter(function(n){return n[0]===state.view;})[0]||["","" ])[1];
+  var body=state.view==="overview"?view_overview():(state.view==="calendar"||state.view==="food")?view_calendar():state.view==="weight"?view_weight():state.view==="summary"?view_summary():state.view==="diary"?view_diary():state.view==="train"?view_train():state.view==="exlib"?view_exlib():state.view==="routine"?view_routine():view_settings();
   var nav='<nav class="wl-nav">'+NAV.map(function(n){return '<button class="wl-navbtn '+(state.view===n[0]||(n[0]==="summary"&&state.view==="diary")?"on":"")+'" data-act="go" data-view="'+n[0]+'">'+I[n[0]]+'<span>'+n[1]+'</span></button>';}).join("")+'</nav>';
   var _ini=(state.settings.name||"").trim().charAt(0).toUpperCase();
   var avatar='<button class="wl-avatar'+(state.view==="settings"?" on":"")+'" data-act="go" data-view="settings" aria-label="Settings">'+(_ini||I.user.replace("<svg",'<svg width="18" height="18"'))+'</button>';
@@ -1480,6 +1550,24 @@ document.addEventListener("click",function(e){
     var existing=xl.filter(function(e){return e.name.toLowerCase()===sd.n.toLowerCase();})[0];
     if(existing){state.training.exercises=xl.filter(function(e){return e.id!==existing.id;});saveTraining();render();return;}
     xl.push({id:"x-"+Date.now()+"-"+Math.random().toString(36).slice(2,6),name:sd.n,muscle:sd.m,equipment:sd.e||"",bodyweight:!!sd.bw,notes:[]});state.training.exercises=xl;saveTraining();render();return;}
+  if(a==="rt:new"){var rid="r-"+Date.now()+"-"+Math.random().toString(36).slice(2,6);var rl=(state.training.routines||[]).slice();rl.push({id:rid,name:"",items:[]});state.training.routines=rl;saveTraining();state.routineId=rid;state.riPickOpen=false;state.noteEdit=null;state.view="routine";render();return;}
+  if(a==="rt:open"){state.routineId=el.getAttribute("data-id");state.riPickOpen=false;state.noteEdit=null;state.view="routine";render();return;}
+  if(a==="rt:del"){var rid=el.getAttribute("data-id");var rr=getRoutine(rid);askConfirm("Delete the routine \""+((rr&&rr.name)||"Untitled")+"\"? This can\u2019t be undone. (Your exercise library is unaffected.)",function(){state.training.routines=(state.training.routines||[]).filter(function(r){return r.id!==rid;});saveTraining();state.view="train";state.routineId=null;});return;}
+  if(a==="ri:add"){state.riPickOpen=true;state.noteEdit=null;render();return;}
+  if(a==="ri:pickclose"){state.riPickOpen=false;render();return;}
+  if(a==="ri:pick"){var rt=getRoutine(state.routineId);if(!rt)return;var eid=el.getAttribute("data-eid");if((rt.items||[]).some(function(i){return i.exerciseId===eid;}))return;rt.items=rt.items||[];rt.items.push({id:"i-"+Date.now()+"-"+Math.random().toString(36).slice(2,6),exerciseId:eid,repLow:"",repHigh:"",sets:3,weight:"",notes:[]});saveTraining();render();return;}
+  if(a==="ri:remove"){var rt=getRoutine(state.routineId);if(!rt)return;var iid=el.getAttribute("data-iid");var itm=rItem(rt,iid);var exn=itm&&exById(itm.exerciseId);askConfirm("Remove "+((exn&&exn.name)||"this exercise")+" from this routine?",function(){var r2=getRoutine(state.routineId);if(r2)r2.items=(r2.items||[]).filter(function(i){return i.id!==iid;});saveTraining();},{label:"Remove"});return;}
+  if(a==="ri:up"||a==="ri:down"){var rt=getRoutine(state.routineId);if(!rt)return;var iid=el.getAttribute("data-iid");var arr=rt.items||[];var ix=-1;for(var i=0;i<arr.length;i++){if(arr[i].id===iid){ix=i;break;}}if(ix<0)return;var ni=a==="ri:up"?ix-1:ix+1;if(ni<0||ni>=arr.length)return;var tmp=arr[ix];arr[ix]=arr[ni];arr[ni]=tmp;saveTraining();render();return;}
+  if(a==="ri:setinc"||a==="ri:setdec"){var rt=getRoutine(state.routineId);if(!rt)return;var it=rItem(rt,el.getAttribute("data-iid"));if(!it)return;var s=(+it.sets||0)+(a==="ri:setinc"?1:-1);if(s<1)s=1;if(s>15)s=15;it.sets=s;saveTraining();render();return;}
+  if(a==="note:add"){state.noteEdit={iid:el.getAttribute("data-iid"),nid:null,text:"",pinned:false};render();return;}
+  if(a==="note:edit"){var iid=el.getAttribute("data-iid");var nid=el.getAttribute("data-nid");var pinned=el.getAttribute("data-pinned")==="1";var rt=getRoutine(state.routineId);var it=rItem(rt,iid);var ex=it&&exById(it.exerciseId);var src=pinned?(ex&&ex.notes):(it&&it.notes);var note=(src||[]).filter(function(n){return n.id===nid;})[0];state.noteEdit={iid:iid,nid:nid,text:(note&&note.text)||"",pinned:pinned};render();return;}
+  if(a==="note:pin"){if(state.noteEdit){var ip=document.getElementById("wl-noteinput");if(ip)state.noteEdit.text=ip.value;state.noteEdit.pinned=!state.noteEdit.pinned;}render();return;}
+  if(a==="note:cancel"){state.noteEdit=null;render();return;}
+  if(a==="note:save"){var ne=state.noteEdit;if(!ne)return;var ip=document.getElementById("wl-noteinput");var txt=((ip&&ip.value)||ne.text||"").trim();var rt=getRoutine(state.routineId);var it=rItem(rt,ne.iid);var ex=it&&exById(it.exerciseId);if(!it||!ex){state.noteEdit=null;render();return;}
+    if(ne.nid){ex.notes=(ex.notes||[]).filter(function(n){return n.id!==ne.nid;});it.notes=(it.notes||[]).filter(function(n){return n.id!==ne.nid;});}
+    if(txt){var note={id:ne.nid||("n-"+Date.now()+"-"+Math.random().toString(36).slice(2,6)),text:txt};if(ne.pinned){ex.notes=ex.notes||[];ex.notes.push(note);}else{it.notes=it.notes||[];it.notes.push(note);}}
+    saveTraining();state.noteEdit=null;render();return;}
+  if(a==="note:del"){var ne=state.noteEdit;if(!ne||!ne.nid){state.noteEdit=null;render();return;}var rt=getRoutine(state.routineId);var it=rItem(rt,ne.iid);var ex=it&&exById(it.exerciseId);if(ex)ex.notes=(ex.notes||[]).filter(function(n){return n.id!==ne.nid;});if(it)it.notes=(it.notes||[]).filter(function(n){return n.id!==ne.nid;});saveTraining();state.noteEdit=null;render();return;}
   if(a==="ex:seedall"){var xa=(state.training.exercises||[]);EXSEED.forEach(function(sd,ix){if(!xa.some(function(e){return e.name.toLowerCase()===sd.n.toLowerCase();}))xa.push({id:"x-"+Date.now()+"-"+ix+"-"+Math.random().toString(36).slice(2,6),name:sd.n,muscle:sd.m,equipment:sd.e||"",bodyweight:!!sd.bw,notes:[]});});state.training.exercises=xa;saveTraining();render();return;}
   if(a==="ex:clearall"){if(!(state.training.exercises||[]).length)return;askConfirm("Remove ALL exercises from your library? You can re-add them from Browse.",function(){state.training.exercises=[];saveTraining();},{label:"Remove all"});return;}
   if(a==="ex:add"){state.exForm={id:null,name:"",muscle:"chest",equipment:"",bodyweight:false};render();return;}
@@ -1600,6 +1688,9 @@ document.addEventListener("input",function(e){
   if(el.classList&&el.classList.contains("wl-num")){var isInt=el.hasAttribute("data-int");var cv=isInt?el.value.replace(/[^\d]/g,""):el.value.replace(/[^\d.]/g,"").replace(/(\..*)\./g,"$1");if(cv!==el.value)el.value=cv;}
   if(el.classList&&(el.classList.contains("wl-goalsleep-h")||el.classList.contains("wl-goalsleep-m"))){var gh=document.querySelector(".wl-goalsleep-h"),gm=document.querySelector(".wl-goalsleep-m");var hh=gh?num(gh.value):null,mm=gm?num(gm.value):null;if(hh==null&&mm==null)state.settings.sleepGoal="";else state.settings.sleepGoal=String((hh||0)*60+(mm||0));save();return;}
   if(el.classList&&(el.classList.contains("wl-sleep-h")||el.classList.contains("wl-sleep-m"))){var sl=state.selDate;var hE=document.querySelector(".wl-sleep-h"),mE=document.querySelector(".wl-sleep-m");var hh=hE?num(hE.value):null,mm=mE?num(mE.value):null;if(hh==null&&mm==null)delete state.sleep[sl];else state.sleep[sl]=(hh||0)*60+(mm||0);save();refreshClearBtn();return;}
+  if(el.classList&&el.classList.contains("wl-rt-name")){var rt=getRoutine(state.routineId);if(rt){rt.name=el.value;saveTraining();}return;}
+  if(el.classList&&el.classList.contains("wl-ri-input")){var rt=getRoutine(state.routineId);if(rt){var it=rItem(rt,el.getAttribute("data-iid"));if(it){it[el.getAttribute("data-field")]=el.value;saveTraining();}}return;}
+  if(el.classList&&el.classList.contains("wl-noteinput")){if(state.noteEdit)state.noteEdit.text=el.value;return;}
   if(el.classList&&el.classList.contains("wl-ex-input")){if(state.exForm)state.exForm[el.getAttribute("data-xf")]=el.value;return;}
   if(el.classList&&el.classList.contains("wl-cf-input")){if(state.cardioForm)state.cardioForm[el.getAttribute("data-cf")]=el.value;if(el.getAttribute("data-cf")==="hr"){var za=document.getElementById("wl-zonearea");if(za&&state.cardioForm)za.innerHTML=zoneAreaHTML(state.cardioForm);}return;}
   if(el.classList&&el.classList.contains("wl-note-input")){var nd=state.selDate;if(el.value.trim())state.notes[nd]=el.value;else delete state.notes[nd];save();refreshClearBtn();return;}
