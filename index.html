@@ -72,6 +72,9 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 .wl-ip-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--good);margin-right:9px;vertical-align:middle;animation:wlpulse 1.4s ease-in-out infinite;}
 @keyframes wlpulse{0%,100%{opacity:1;}50%{opacity:.3;}}
 .wl-ip-badge{font-size:12.5px;font-weight:700;color:var(--good);}
+.wl-inprogress.partial{background:rgba(234,179,8,.12);border-color:#eab308;}
+.wl-ip-dot.pauseddot{background:#eab308;animation:none;}
+.wl-ip-badge.partial{color:#eab308;}
 .wl-timerbar{position:sticky;top:calc(var(--headh,64px) - 2px);z-index:4;display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--card);border:1px solid var(--accent);border-radius:12px;padding:10px 12px;margin-bottom:4px;box-shadow:0 6px 16px rgba(0,0,0,.35);}
 .wl-tb-total{font-size:24px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums;}
 .wl-tb-seg{font-size:12px;font-weight:600;margin-top:3px;}
@@ -358,7 +361,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.108";
+var APP_BUILD="2026-07-14.111";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -461,7 +464,7 @@ function dayDots(iso){var seen={},cats=[];
   return '';}
 var state={settings:Object.assign({},DEFAULT_SETTINGS),weights:[],food:{},workouts:{},steps:{},notes:{},sleep:{},weeklySummary:null,nightlySummary:null,presets:DEFAULT_PRESETS.slice(),
   view:"overview",calY:new Date().getFullYear(),calM:new Date().getMonth(),weekOffset:0,trendMode:"W",trendOffset:0,calOpen:false,sumOpen:true,nightOpen:true,genBusy:false,nightBusy:false,diaryWeeks:1,
-  training:{cardioTypes:DEFAULT_CARDIO_TYPES.slice(),sessions:{},exercises:[],routines:[],liftSessions:{}},trainDate:todayISO(),cardioForm:null,manageOpen:false,actAddCat:null,exForm:null,routineId:null,riPickOpen:false,noteEdit:null,liftForm:null,workout:null,setMenu:null,woPrompt:false,bwEdit:false,histView:null,exMenu:null,woReplaceEi:null,liftViewId:null,liftViewDate:null,woResume:false,
+  training:{cardioTypes:DEFAULT_CARDIO_TYPES.slice(),sessions:{},exercises:[],routines:[],liftSessions:{}},trainDate:todayISO(),cardioForm:null,manageOpen:false,actAddCat:null,exForm:null,routineId:null,riPickOpen:false,noteEdit:null,liftForm:null,workout:null,setMenu:null,woPrompt:false,bwEdit:false,histView:null,exMenu:null,woReplaceEi:null,liftViewId:null,liftViewDate:null,woResume:false,liftEdit:null,
   selDate:todayISO(),foodDate:todayISO(),alertDismissed:false,confirmReset:false};
 
 function load(){
@@ -1446,7 +1449,8 @@ function rebuildEntryNotes(ei){var w=state.workout;if(!w)return;var en=w.entries
 function startWorkout(rt){var bw=currentBW();  state.workout={routineId:rt.id,name:rt.name||"Weight training",date:todayISO(),startTs:null,tState:"ready",stateStartTs:null,warmupMs:0,workMs:0,restMs:0,bw:bw,entries:buildWorkoutEntries(rt,bw),finishing:false,restHidden:false};
   state.setMenu=null;state.woPrompt=false;state.view="workout";saveWorkout();render();startWoTick();}
 function woTransition(ns){var w=state.workout;if(!w)return;var now=Date.now();var seg=now-w.stateStartTs;if(w.tState==="warmup")w.warmupMs+=seg;else if(w.tState==="working")w.workMs+=seg;else w.restMs+=seg;w.tState=ns;w.stateStartTs=now;saveWorkout();}
-function woBuckets(){var w=state.workout;if(!w)return null;if(w.tState==="ready"||!w.stateStartTs)return {warmup:0,work:0,rest:0,total:0,segMs:0};var now=Date.now();var seg=now-w.stateStartTs;var b={warmup:w.warmupMs,work:w.workMs,rest:w.restMs};if(w.tState==="warmup")b.warmup+=seg;else if(w.tState==="working")b.work+=seg;else b.rest+=seg;b.total=b.warmup+b.work+b.rest;b.segMs=seg;return b;}
+function pauseWorkout(){var w=state.workout;if(!w)return;if(w.tState!=="ready"&&w.stateStartTs){var now=Date.now();var seg=now-w.stateStartTs;if(w.tState==="warmup")w.warmupMs+=seg;else if(w.tState==="working")w.workMs+=seg;else w.restMs+=seg;}w.paused=true;w.stateStartTs=null;saveWorkout();}
+function woBuckets(){var w=state.workout;if(!w)return null;if(w.tState==="ready")return {warmup:0,work:0,rest:0,total:0,segMs:0};if(w.paused||!w.stateStartTs){var tot=w.warmupMs+w.workMs+w.restMs;return {warmup:w.warmupMs,work:w.workMs,rest:w.restMs,total:tot,segMs:0};}var now=Date.now();var seg=now-w.stateStartTs;var b={warmup:w.warmupMs,work:w.workMs,rest:w.restMs};if(w.tState==="warmup")b.warmup+=seg;else if(w.tState==="working")b.work+=seg;else b.rest+=seg;b.total=b.warmup+b.work+b.rest;b.segMs=seg;return b;}
 function fmtDur(ms){var s=Math.max(0,Math.floor(ms/1000));var h=Math.floor(s/3600);var m=Math.floor((s%3600)/60);var ss=s%60;return (h?h+":"+("0"+m).slice(-2):m)+":"+("0"+ss).slice(-2);}
 var woTimer=null;
 function startWoTick(){if(woTimer)clearInterval(woTimer);woTimer=setInterval(function(){if(!state.workout||state.view!=="workout"){return;}var w=state.workout;var b=woBuckets();var t=document.getElementById("wl-tb-total");if(t)t.textContent=fmtDur(b.total);var s=document.getElementById("wl-tb-seg");if(s)s.textContent=(w.tState==="ready"?"Ready":w.tState==="warmup"?"Warmup":w.tState==="working"?"Working":"Resting")+(w.tState==="ready"?"":" · "+fmtDur(b.segMs));var rt=document.getElementById("wl-rest-time");if(rt&&w.tState==="resting")rt.textContent=fmtDur(b.segMs);},1000);}
@@ -1502,21 +1506,35 @@ function finishSheetHTML(){var w=state.workout;var b=woBuckets();var ff=w.finish
   h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="wo:discard">Discard workout</button></div>';
   return h+'</div>';}
 function getLiftSession(){var arr=(state.training.liftSessions||{})[state.liftViewDate]||[];return arr.filter(function(s){return s.id===state.liftViewId;})[0];}
-function view_liftview(){var s=getLiftSession();var u=state.settings.units;var h='<div class="wl-stack">';
-  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="go" data-view="train">‹</button><span class="wl-cal-title">'+esc((s&&s.name)||"Session")+'</span><span style="width:36px;display:inline-block"></span></div>';
-  if(!s){h+='<div class="wl-card"><div class="wl-hint">Session not found.</div></div>';return h+'</div>';}
-  h+='<div class="wl-card"><div class="wl-card-head"><span>Summary <span class="wl-count">'+(s.mode==="full"?"logged":"quick")+'</span></span></div>';
-  if(s.mode==="full")h+='<div class="wl-diary-macros" style="border:none;padding:0;margin-bottom:10px">work '+fmtDur((s.workSec||0)*1000)+' · rest '+fmtDur((s.restSec||0)*1000)+(s.warmupSec>2?' · warmup '+fmtDur((s.warmupSec||0)*1000):"")+'</div>';
+function liftSummaryFieldsHTML(s){var h='';
   h+='<div class="wl-row"><label class="wl-field"><span>Duration <em>min</em></span><input class="wl-sv-input wl-num" data-sv="mins" type="text" inputmode="numeric" value="'+esc(s.mins!=null?String(s.mins):"")+'"></label><label class="wl-field"><span>Avg HR</span><input class="wl-sv-input wl-num" data-sv="hr" type="text" inputmode="numeric" value="'+esc(s.hr!=null?String(s.hr):"")+'"></label></div>';
   h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Peak HR</span><input class="wl-sv-input wl-num" data-sv="hrMax" type="text" inputmode="numeric" value="'+esc(s.hrMax!=null?String(s.hrMax):"")+'"></label><label class="wl-field"><span>Est. calories</span><input class="wl-sv-input wl-num" data-sv="cal" type="text" inputmode="numeric" value="'+esc(s.cal!=null?String(s.cal):"")+'"></label></div>';
   h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>RPE</span><input class="wl-sv-input wl-num" data-sv="rpe" type="text" inputmode="numeric" value="'+esc(s.rpe!=null?String(s.rpe):"")+'"></label><label class="wl-field" style="visibility:hidden"><span>.</span><input></label></div>';
-  h+='<label class="wl-field wl-field-full" style="margin-top:12px"><span>Notes</span><textarea class="wl-sv-input" data-sv="notes" style="width:100%;min-height:56px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:14px;padding:11px 12px;box-sizing:border-box;outline:none;resize:vertical">'+esc(s.notes||"")+'</textarea></label></div>';
+  h+='<label class="wl-field wl-field-full" style="margin-top:12px"><span>Notes</span><textarea class="wl-sv-input" data-sv="notes" style="width:100%;min-height:56px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:14px;padding:11px 12px;box-sizing:border-box;outline:none;resize:vertical">'+esc(s.notes||"")+'</textarea></label>';
+  return h;}
+function view_liftview(){var s=getLiftSession();var u=state.settings.units;var mode=state.liftEdit;var h='<div class="wl-stack">';
+  if(!s){h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="lift:back">‹</button><span class="wl-cal-title">Session</span></div><div class="wl-card"><div class="wl-hint">Session not found.</div></div>';return h+'</div>';}
+  if(mode==="summary"){
+    h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="lift:summaryback">‹</button><span class="wl-cal-title">Edit summary</span><span style="width:36px;display:inline-block"></span></div>';
+    h+='<div class="wl-card"><div class="wl-card-head"><span>'+esc(s.name||"Session")+'</span></div><div class="wl-hint" style="margin-bottom:12px">Your saved values are filled in — write over anything you want to change.</div>'+liftSummaryFieldsHTML(s)+'</div>';
+    h+='<button class="wl-btn wl-btn-primary wl-full" data-act="lift:savedetail">Save workout</button>';
+    return h+'</div>';}
+  var editing=mode==="sets";
+  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="'+(editing?"lift:editcancel":"lift:back")+'">‹</button><span class="wl-cal-title">'+esc(s.name||"Session")+'</span><span style="width:36px;display:inline-block"></span></div>';
+  h+='<div class="wl-card"><div class="wl-card-head"><span>Summary <span class="wl-count">'+(s.mode==="full"?"logged":"quick")+'</span></span></div>';
+  if(s.mode==="full")h+='<div class="wl-diary-macros" style="border:none;padding:0;margin-bottom:6px">'+(s.mins!=null?'<b>'+s.mins+' min</b> · ':"")+'work '+fmtDur((s.workSec||0)*1000)+' · rest '+fmtDur((s.restSec||0)*1000)+(s.warmupSec>2?' · warmup '+fmtDur((s.warmupSec||0)*1000):"")+'</div>';
+  var sm=[];if(s.mins!=null&&s.mode!=="full")sm.push(s.mins+" min");if(s.hr!=null)sm.push("HR "+s.hr+(s.hrMax!=null?"/"+s.hrMax:""));else if(s.hrMax!=null)sm.push("peak "+s.hrMax);if(s.zone)sm.push("Zone "+s.zone);if(s.cal!=null)sm.push("~"+s.cal+" cal");if(s.rpe!=null)sm.push("RPE "+s.rpe);
+  h+='<div class="wl-exrow-sub" style="line-height:1.6">'+(sm.length?sm.join("  ·  "):"No HR / calories / RPE recorded")+'</div>';
+  if(s.notes)h+='<div class="wl-note" style="cursor:default;margin-top:8px"><span class="wl-note-txt" style="white-space:normal">'+esc(s.notes)+'</span></div>';
+  h+='</div>';
   if(s.mode==="full"&&s.entries){s.entries.forEach(function(en,ei){h+='<div class="wl-card"><div style="margin-bottom:6px">'+muscleTagHTML(en.muscle||"other")+'</div><div class="wl-exrow-name">'+esc(en.name)+'</div>';
     h+='<div class="wl-setgrid wl-sethead" style="grid-template-columns:1fr 1fr 46px 60px;margin-top:8px"><span>WEIGHT</span><span>REPS</span><span>RIR</span><span></span></div>';
-    en.sets.forEach(function(st,si){h+='<div class="wl-setgrid wl-setrow" style="grid-template-columns:1fr 1fr 46px 60px"><input class="wl-sv-set wl-set-input" data-ei="'+ei+'" data-si="'+si+'" data-field="weight" type="text" inputmode="decimal" value="'+esc(st.weight!=null?String(st.weight):"")+'"><input class="wl-sv-set wl-set-input" data-ei="'+ei+'" data-si="'+si+'" data-field="reps" type="text" inputmode="numeric" value="'+esc(st.reps!=null?String(st.reps):"")+'"><input class="wl-sv-set wl-set-input wl-set-rir" data-ei="'+ei+'" data-si="'+si+'" data-field="rir" type="text" inputmode="numeric" placeholder="–" value="'+esc(st.rir!=null?String(st.rir):"")+'"><span class="wl-exrow-sub" style="text-align:center">'+(st.status==="skipped"?"skipped":st.status==="done"?"✓":"")+'</span></div>';});
+    en.sets.forEach(function(st,si){var stat=st.status==="skipped"?"skipped":st.status==="done"?"✓":"";
+      if(editing)h+='<div class="wl-setgrid wl-setrow" style="grid-template-columns:1fr 1fr 46px 60px"><input class="wl-sv-set wl-set-input" data-ei="'+ei+'" data-si="'+si+'" data-field="weight" type="text" inputmode="decimal" value="'+esc(st.weight!=null?String(st.weight):"")+'"><input class="wl-sv-set wl-set-input" data-ei="'+ei+'" data-si="'+si+'" data-field="reps" type="text" inputmode="numeric" value="'+esc(st.reps!=null?String(st.reps):"")+'"><input class="wl-sv-set wl-set-input wl-set-rir" data-ei="'+ei+'" data-si="'+si+'" data-field="rir" type="text" inputmode="numeric" placeholder="–" value="'+esc(st.rir!=null?String(st.rir):"")+'"><span class="wl-exrow-sub" style="text-align:center">'+stat+'</span></div>';
+      else h+='<div class="wl-setgrid" style="grid-template-columns:1fr 1fr 46px 60px;padding:7px 0;border-top:1px solid var(--line)"><span style="text-align:center;font-size:15px">'+(st.weight!=null?st.weight:"–")+'</span><span style="text-align:center;font-size:15px">'+(st.reps!=null?st.reps:"–")+'</span><span style="text-align:center;color:var(--faint)">'+(st.rir!=null?st.rir:"–")+'</span><span class="wl-exrow-sub" style="text-align:center">'+stat+'</span></div>';});
     h+='</div>';});}
-  h+='<button class="wl-btn wl-btn-primary wl-full" data-act="lift:savedetail">Save changes</button>';
-  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="lift:del" data-id="'+s.id+'">Delete session</button>';
+  if(editing){h+='<button class="wl-btn wl-btn-primary wl-full" data-act="lift:tofinish">Finish → edit summary</button>';h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="lift:editcancel">Cancel edits</button>';}
+  else{h+='<button class="wl-btn wl-btn-primary wl-full" data-act="lift:edit">Edit workout</button>';h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="lift:del" data-id="'+s.id+'">Delete session</button>';}
   return h+'</div>';}
 function openHistory(exId,name){state.histView={exId:exId,name:name};render();}
 function histOverlayHTML(){var hv=state.histView;var ls=state.training.liftSessions||{};var dates=Object.keys(ls).sort().reverse();var rows=[];
@@ -1528,7 +1546,7 @@ function histOverlayHTML(){var hv=state.histView;var ls=state.training.liftSessi
 function woOverlaysHTML(){var h="";
   if(state.setMenu){h+='<div class="wl-confirm"><div class="wl-confirm-card"><div class="wl-confirm-msg" style="font-weight:700;margin-bottom:14px">Set</div><button class="wl-btn wl-btn-ghost wl-full" data-act="wo:addset">Add set below</button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:skipset">Skip / unskip set</button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="wo:delset">Delete set</button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:12px" data-act="wo:setmenu:close">Cancel</button></div></div>';}
   if(state.woPrompt){var w=state.workout;var pending=0;if(w)w.entries.forEach(function(en){en.sets.forEach(function(s){if(s.status==="pending")pending++;});});
-    h+='<div class="wl-confirm"><div class="wl-confirm-card"><div class="wl-confirm-msg">You have <b>'+pending+'</b> unfinished set'+(pending===1?"":"s")+'. Complete them, or skip them to finish?</div><button class="wl-btn wl-btn-primary wl-full" data-act="wo:completethem">Complete them</button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:skipthem">Skip them &amp; finish</button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:promptcancel">Cancel</button></div></div>';}
+    h+='<div class="wl-confirm"><div class="wl-confirm-card"><div class="wl-confirm-msg">You have <b>'+pending+'</b> unfinished set'+(pending===1?"":"s")+'. Complete them, skip them, or finish later?</div><button class="wl-btn wl-btn-primary wl-full" data-act="wo:completethem">Complete them</button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:skipthem">Skip them &amp; finish</button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:finishlater">Finish later <em style="color:var(--faint);font-style:normal">(save as partial)</em></button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:promptcancel">Cancel</button></div></div>';}
   if(state.bwEdit){var w=state.workout;h+='<div class="wl-confirm"><div class="wl-confirm-card"><div class="wl-confirm-msg" style="font-weight:700">Bodyweight</div><div class="wl-hint" style="margin-bottom:12px">Applied to every bodyweight exercise this session.</div><input class="wl-noteinput" id="wl-bwinput" type="text" inputmode="decimal" value="'+esc(w&&w.bw!=null?String(w.bw):"")+'"><div class="wl-row" style="margin-top:12px"><button class="wl-btn wl-btn-primary wl-full" data-act="wo:bwsave">Update</button><button class="wl-btn wl-btn-ghost" data-act="wo:bwcancel">Cancel</button></div></div></div>';}
   if(state.histView)h+=histOverlayHTML();
   if(state.exMenu){var w=state.workout;var ei=state.exMenu.ei;var en=w&&w.entries[ei];
@@ -1548,7 +1566,8 @@ function woOverlaysHTML(){var h="";
     h+='</div></div>';}
   if(state.workout&&state.workout.tState==="resting"){var b=woBuckets();
     h+='<div class="wl-confirm"><div class="wl-confirm-card" style="text-align:center"><div style="font-size:12px;color:var(--faint);text-transform:uppercase;letter-spacing:.1em;font-weight:800">Rest</div><div class="wl-tb-total" id="wl-rest-time" style="font-size:52px;margin:12px 0;color:#3b82f6">'+fmtDur(b.segMs)+'</div><button class="wl-btn wl-btn-primary wl-full" data-act="wo:endrest">Begin next set</button></div></div>';}
-  if(state.woResume){var w=state.workout;h+='<div class="wl-confirm"><div class="wl-confirm-card"><div class="wl-confirm-msg" style="font-weight:700;margin-bottom:4px">'+esc((w&&w.name)||"Workout")+'</div><div class="wl-hint" style="margin-bottom:14px">You have a workout in progress.</div><button class="wl-btn wl-btn-primary wl-full" data-act="wo:resume">Resume workout</button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:endnow">End &amp; save</button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="wo:discardnow">Discard</button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:12px" data-act="wo:resumecancel">Cancel</button></div></div>';}
+  if(state.woResume){var w=state.workout;var paused=w&&w.paused;
+    h+='<div class="wl-confirm"><div class="wl-confirm-card"><div class="wl-confirm-msg" style="font-weight:700;margin-bottom:4px">'+esc((w&&w.name)||"Workout")+'</div><div class="wl-hint" style="margin-bottom:14px">'+(paused?"Paused — resume where you left off. The time in between isn\u2019t counted.":"You have a workout in progress.")+'</div><button class="wl-btn wl-btn-primary wl-full" data-act="wo:resume">Resume workout</button>'+(paused?"":'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:finishlater">Finish later <em style="color:var(--faint);font-style:normal">(pause)</em></button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:endnow">End &amp; save</button>')+'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="wo:discardnow">Discard</button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:12px" data-act="wo:resumecancel">Cancel</button></div></div>';}
   if(state.noteEdit&&state.noteEdit.woEi!=null)h+='<div class="wl-confirm"><div class="wl-confirm-card">'+noteEditorHTML()+'</div></div>';
   return h;}
 function view_wtadd(){var h='<div class="wl-stack">';
@@ -1616,7 +1635,7 @@ function view_train(){
   else h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:10px" data-act="cardio:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add cardio</button>';
   h+='</div>';
   h+='<div class="wl-card"><div class="wl-card-head"><span>Weight training</span></div>';
-  if(state.workout){h+='<button class="wl-inprogress" data-act="wo:resumeask"><span><span class="wl-ip-dot"></span>'+esc(state.workout.name||"Workout")+'</span><span class="wl-ip-badge">In progress ›</span></button>';}
+  if(state.workout){var wp=state.workout.paused;h+='<button class="wl-inprogress'+(wp?" partial":"")+'" data-act="wo:resumeask"><span><span class="wl-ip-dot'+(wp?" pauseddot":"")+'"></span>'+esc(state.workout.name||"Workout")+'</span><span class="wl-ip-badge'+(wp?" partial":"")+'">'+(wp?"Partial ›":"In progress ›")+'</span></button>';}
   var lsess=((state.training.liftSessions||{})[d]||[]);
   if(lsess.length){lsess.forEach(function(s){var meta=[];meta.push((s.mode==="full"?"logged":"quick"));if(s.mins)meta.push(s.mins+" min");if(s.hr)meta.push("HR "+s.hr+(s.hrMax?"/"+s.hrMax:""));if(s.rpe)meta.push("RPE "+s.rpe);if(s.cal)meta.push("~"+s.cal+" cal");
     h+='<div class="wl-sess"><button class="wl-sess-main" data-act="lift:view" data-id="'+s.id+'"><span class="wl-sess-type">'+esc(s.name||"Weight training")+'</span><span class="wl-sess-meta">'+meta.join("  ·  ")+'</span></button><button class="wl-icon-btn" data-act="lift:del" data-id="'+s.id+'">'+I.trash.replace("<svg","<svg width=15 height=15")+'</button></div>';});}
@@ -1764,12 +1783,17 @@ document.addEventListener("click",function(e){
   if(a==="rt:new"){var rid="r-"+Date.now()+"-"+Math.random().toString(36).slice(2,6);var rl=(state.training.routines||[]).slice();rl.push({id:rid,name:"",items:[]});state.training.routines=rl;saveTraining();state.routineId=rid;state.riPickOpen=false;state.noteEdit=null;state.view="routine";render();return;}
   if(a==="rt:open"){state.routineId=el.getAttribute("data-id");state.riPickOpen=false;state.noteEdit=null;state.view="rlaunch";render();return;}
   if(a==="rt:openedit"){state.routineId=el.getAttribute("data-id");state.riPickOpen=false;state.noteEdit=null;state.view="routine";render();return;}
-  if(a==="wo:start"){var rt=getRoutine(el.getAttribute("data-id"));if(rt)startWorkout(rt);return;}
+  if(a==="wo:start"){if(state.workout){state.view="train";toast("Finish or discard your current workout first");state.woResume=true;render();return;}var rt=getRoutine(el.getAttribute("data-id"));if(rt)startWorkout(rt);return;}
   if(a==="wo:begin"){var w=state.workout;if(!w)return;w.tState="warmup";w.startTs=Date.now();w.stateStartTs=Date.now();saveWorkout();render();startWoTick();return;}
   if(a==="wo:startroutine"){woTransition("working");render();return;}
   if(a==="wo:endrest"){woTransition("working");render();return;}
   if(a==="wo:log"){var w=state.workout;if(!w)return;if(w.tState==="ready"){toast("Tap Start to begin your warmup first");return;}if(w.tState==="warmup"){toast("Finish your warmup — tap End warmup to start the routine");return;}var ei=+el.getAttribute("data-ei"),si=+el.getAttribute("data-si");var stt=w.entries[ei].sets[si];
     if(stt.status==="done"){askConfirm("Reopen this set? It goes back to unlogged, and time counts as working until you check it again.",function(){var w2=state.workout;if(!w2)return;var s2=w2.entries[ei].sets[si];s2.status="pending";if(w2.tState==="resting"){var now=Date.now();w2.workMs+=(now-w2.stateStartTs);w2.tState="working";w2.stateStartTs=now;}saveWorkout();},{label:"Reopen",danger:false});return;}
+    var en=w.entries[ei];var need=[];var vw=num(stt.weight),vr=num(stt.reps),vi=num(stt.rir);
+    if(!en.bodyweight&&(vw==null||vw<=0))need.push("a weight");
+    if(vr==null||vr<=0)need.push("reps above 0");
+    if(vi==null||vi<0)need.push("RIR");
+    if(need.length){toast("Enter "+need.join(", ")+" before logging this set");return;}
     stt.status="done";woTransition("resting");saveWorkout();render();return;}
   if(a==="wo:setmenu"){state.setMenu={ei:+el.getAttribute("data-ei"),si:+el.getAttribute("data-si")};render();return;}
   if(a==="wo:setmenu:close"){state.setMenu=null;render();return;}
@@ -1804,13 +1828,19 @@ document.addEventListener("click",function(e){
     var sess={id:"l-"+Date.now()+"-"+Math.random().toString(36).slice(2,6),routineId:w.routineId,name:w.name,mode:"full",date:w.date,mins:Math.round(b.total/60000),warmupSec:Math.round(b.warmup/1000),workSec:Math.round(b.work/1000),restSec:Math.round(b.rest/1000),hr:num(ff.hr),hrMax:num(ff.hrMax),zone:zone,cal:num(ff.cal),rpe:num(ff.rpe),notes:(ff.notes||"").trim(),bw:w.bw,entries:entries,ts:Date.now()};
     state.training.liftSessions=state.training.liftSessions||{};var d=w.date;var list=(state.training.liftSessions[d]||[]).slice();list.push(sess);state.training.liftSessions[d]=list;
     syncLiftTags(d);saveTraining();save();state.workout=null;saveWorkout();if(woTimer)clearInterval(woTimer);state.view="train";toast("Workout saved");render();return;}
-  if(a==="lift:view"){state.liftViewDate=state.trainDate;state.liftViewId=el.getAttribute("data-id");state.view="liftview";render();return;}
-  if(a==="lift:del"){var d=state.liftViewDate||state.trainDate;var sid=el.getAttribute("data-id");var arr=(state.training.liftSessions||{})[d]||[];var vic=arr.filter(function(s){return s.id===sid;})[0];askConfirm("Delete this "+((vic&&vic.name)||"workout")+" session? This can\u2019t be undone.",function(){var a2=((state.training.liftSessions||{})[d]||[]).filter(function(s){return s.id!==sid;});if(a2.length)state.training.liftSessions[d]=a2;else delete state.training.liftSessions[d];syncLiftTags(d);saveTraining();save();if(state.view==="liftview")state.view="train";},{label:"Delete"});return;}
-  if(a==="lift:savedetail"){saveTraining();save();state.view="train";state.liftViewId=null;toast("Saved");render();return;}
+  if(a==="lift:view"){state.liftViewDate=state.trainDate;state.liftViewId=el.getAttribute("data-id");state.liftEdit=null;state.view="liftview";render();return;}
+  if(a==="lift:back"){state.view="train";state.liftViewId=null;state.liftEdit=null;render();return;}
+  if(a==="lift:edit"){state.liftEdit=(getLiftSession()&&getLiftSession().mode==="full")?"sets":"summary";render();return;}
+  if(a==="lift:editcancel"){state.liftEdit=null;render();return;}
+  if(a==="lift:tofinish"){state.liftEdit="summary";render();return;}
+  if(a==="lift:summaryback"){state.liftEdit=(getLiftSession()&&getLiftSession().mode==="full")?"sets":null;render();return;}
+  if(a==="lift:del"){var d=state.liftViewDate||state.trainDate;var sid=el.getAttribute("data-id");var arr=(state.training.liftSessions||{})[d]||[];var vic=arr.filter(function(s){return s.id===sid;})[0];askConfirm("Delete this "+((vic&&vic.name)||"workout")+" session? This can\u2019t be undone.",function(){var a2=((state.training.liftSessions||{})[d]||[]).filter(function(s){return s.id!==sid;});if(a2.length)state.training.liftSessions[d]=a2;else delete state.training.liftSessions[d];syncLiftTags(d);saveTraining();save();if(state.view==="liftview"){state.view="train";state.liftEdit=null;}},{label:"Delete"});return;}
+  if(a==="lift:savedetail"){saveTraining();save();state.view="train";state.liftViewId=null;state.liftEdit=null;toast("Saved");render();return;}
   if(a==="wt:add"){state.view="wtadd";render();return;}
   if(a==="wo:resumeask"){state.woResume=true;render();return;}
   if(a==="wo:resumecancel"){state.woResume=false;render();return;}
-  if(a==="wo:resume"){state.woResume=false;state.view="workout";render();startWoTick();return;}
+  if(a==="wo:resume"){state.woResume=false;var w=state.workout;if(w&&w.paused){w.paused=false;w.tState="working";w.stateStartTs=Date.now();if(w.startTs==null)w.startTs=Date.now();saveWorkout();}state.view="workout";render();startWoTick();return;}
+  if(a==="wo:finishlater"){pauseWorkout();state.woPrompt=false;state.woResume=false;state.view="train";toast("Saved to finish later");render();return;}
   if(a==="wo:endnow"){state.woResume=false;state.view="workout";var w=state.workout;if(w){var pending=0;w.entries.forEach(function(en){en.sets.forEach(function(s){if(s.status==="pending")pending++;});});if(pending>0){state.woPrompt=true;}else{w.finishing=true;w.finishForm=w.finishForm||{hr:"",hrMax:"",cal:"",rpe:"",zone:2,notes:""};}saveWorkout();}render();return;}
   if(a==="wo:discardnow"){state.woResume=false;askConfirm("Discard this workout? Nothing will be saved.",function(){state.workout=null;saveWorkout();if(woTimer)clearInterval(woTimer);state.view="train";},{label:"Discard"});return;}
   if(a==="wo:quick"){var rid=el.getAttribute("data-id");state.liftForm={routineId:rid,id:null,date:todayISO(),mins:"",hr:"",hrMax:"",cal:"",zone:2,rpe:"",notes:""};state.view="quicklog";render();return;}
