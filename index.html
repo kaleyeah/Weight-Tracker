@@ -358,7 +358,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.104";
+var APP_BUILD="2026-07-14.106";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -1456,8 +1456,7 @@ function setTargetIcon(reps,lo,hi){reps=num(reps);lo=num(lo);hi=num(hi);if(reps=
   return '<span class="wl-tgt" style="color:#eab308">'+I.target.replace("<svg","<svg width=17 height=17")+'</span>';}
 function timerBarHTML(){var w=state.workout;var b=woBuckets();
   var lbl=w.tState==="ready"?"Ready":w.tState==="warmup"?"Warmup":w.tState==="working"?"Working":"Resting";
-  var seg=w.tState==="resting"?' data-act="wo:restshow"':'';
-  var h='<div class="wl-timerbar"><div class="wl-tb-left"'+seg+'><div class="wl-tb-total" id="wl-tb-total">'+fmtDur(b.total)+'</div><div class="wl-tb-seg wl-tb-'+w.tState+'" id="wl-tb-seg">'+lbl+(w.tState==="ready"?"":' · '+fmtDur(b.segMs))+'</div></div><div class="wl-tb-btns">';
+  var h='<div class="wl-timerbar"><div class="wl-tb-left"><div class="wl-tb-total" id="wl-tb-total">'+fmtDur(b.total)+'</div><div class="wl-tb-seg wl-tb-'+w.tState+'" id="wl-tb-seg">'+lbl+(w.tState==="ready"?"":' · '+fmtDur(b.segMs))+'</div></div><div class="wl-tb-btns">';
   if(w.tState==="ready")h+='<button class="wl-btn wl-btn-primary" data-act="wo:begin" style="padding:9px 16px">Start</button>';
   else if(w.tState==="warmup")h+='<button class="wl-btn wl-btn-primary" data-act="wo:startroutine" style="padding:9px 14px">End warmup</button>';
   h+='</div></div>';
@@ -1547,8 +1546,8 @@ function woOverlaysHTML(){var h="";
       h+='<div style="margin:10px 0 4px">'+muscleTagHTML(m[0])+'</div>';
       items.forEach(function(e){h+='<button class="wl-exrow-main" data-act="wo:replacepick" data-eid="'+e.id+'" style="width:100%;padding:9px 0;border-bottom:1px solid var(--line)"><span class="wl-exrow-name">'+esc(e.name)+'</span></button>';});});
     h+='</div></div>';}
-  if(state.workout&&state.workout.tState==="resting"&&!state.workout.restHidden){var b=woBuckets();
-    h+='<div class="wl-confirm"><div class="wl-confirm-card" style="text-align:center"><div style="font-size:12px;color:var(--faint);text-transform:uppercase;letter-spacing:.1em;font-weight:800">Rest</div><div class="wl-tb-total" id="wl-rest-time" style="font-size:46px;margin:10px 0;color:#3b82f6">'+fmtDur(b.segMs)+'</div><button class="wl-btn wl-btn-primary wl-full" data-act="wo:endrest">Begin next set</button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:resthide">Keep resting · view log</button></div></div>';}
+  if(state.workout&&state.workout.tState==="resting"){var b=woBuckets();
+    h+='<div class="wl-confirm"><div class="wl-confirm-card" style="text-align:center"><div style="font-size:12px;color:var(--faint);text-transform:uppercase;letter-spacing:.1em;font-weight:800">Rest</div><div class="wl-tb-total" id="wl-rest-time" style="font-size:52px;margin:12px 0;color:#3b82f6">'+fmtDur(b.segMs)+'</div><button class="wl-btn wl-btn-primary wl-full" data-act="wo:endrest">Begin next set</button></div></div>';}
   if(state.woResume){var w=state.workout;h+='<div class="wl-confirm"><div class="wl-confirm-card"><div class="wl-confirm-msg" style="font-weight:700;margin-bottom:4px">'+esc((w&&w.name)||"Workout")+'</div><div class="wl-hint" style="margin-bottom:14px">You have a workout in progress.</div><button class="wl-btn wl-btn-primary wl-full" data-act="wo:resume">Resume workout</button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:endnow">End &amp; save</button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="wo:discardnow">Discard</button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:12px" data-act="wo:resumecancel">Cancel</button></div></div>';}
   if(state.noteEdit&&state.noteEdit.woEi!=null)h+='<div class="wl-confirm"><div class="wl-confirm-card">'+noteEditorHTML()+'</div></div>';
   return h;}
@@ -1763,8 +1762,6 @@ document.addEventListener("click",function(e){
   if(a==="wo:begin"){var w=state.workout;if(!w)return;w.tState="warmup";w.startTs=Date.now();w.stateStartTs=Date.now();saveWorkout();render();startWoTick();return;}
   if(a==="wo:startroutine"){woTransition("working");render();return;}
   if(a==="wo:endrest"){woTransition("working");render();return;}
-  if(a==="wo:resthide"){if(state.workout)state.workout.restHidden=true;render();return;}
-  if(a==="wo:restshow"){if(state.workout)state.workout.restHidden=false;render();return;}
   if(a==="wo:log"){var w=state.workout;if(!w)return;if(w.tState==="ready"){toast("Tap Start to begin your workout first");return;}var ei=+el.getAttribute("data-ei"),si=+el.getAttribute("data-si");var stt=w.entries[ei].sets[si];
     if(stt.status==="done"){askConfirm("Reopen this set? It goes back to unlogged, and time counts as working until you check it again.",function(){var w2=state.workout;if(!w2)return;var s2=w2.entries[ei].sets[si];s2.status="pending";if(w2.tState==="resting"){var now=Date.now();w2.workMs+=(now-w2.stateStartTs);w2.tState="working";w2.stateStartTs=now;w2.restHidden=false;}saveWorkout();},{label:"Reopen",danger:false});return;}
     stt.status="done";if(w.tState==="warmup"){woTransition("working");}woTransition("resting");w.restHidden=false;saveWorkout();render();return;}
@@ -2103,7 +2100,7 @@ function makeIcon(){
 }
 
 /* ---------------- init ---------------- */
-load();loadTraining();loadWorkout();ensureIdentity();applyTheme(state.settings.theme||"ink");makeIcon();render();autoSync();if(state.workout)startWoTick();
+load();loadTraining();loadWorkout();ensureIdentity();applyTheme(state.settings.theme||"ink");makeIcon();if(state.workout)state.view="train";render();autoSync();if(state.workout)startWoTick();
 try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(e){}
 checkForUpdate();
 document.addEventListener("visibilitychange",function(){if(!document.hidden)checkForUpdate();});
