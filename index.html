@@ -358,7 +358,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.106";
+var APP_BUILD="2026-07-14.107";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -1762,9 +1762,9 @@ document.addEventListener("click",function(e){
   if(a==="wo:begin"){var w=state.workout;if(!w)return;w.tState="warmup";w.startTs=Date.now();w.stateStartTs=Date.now();saveWorkout();render();startWoTick();return;}
   if(a==="wo:startroutine"){woTransition("working");render();return;}
   if(a==="wo:endrest"){woTransition("working");render();return;}
-  if(a==="wo:log"){var w=state.workout;if(!w)return;if(w.tState==="ready"){toast("Tap Start to begin your workout first");return;}var ei=+el.getAttribute("data-ei"),si=+el.getAttribute("data-si");var stt=w.entries[ei].sets[si];
-    if(stt.status==="done"){askConfirm("Reopen this set? It goes back to unlogged, and time counts as working until you check it again.",function(){var w2=state.workout;if(!w2)return;var s2=w2.entries[ei].sets[si];s2.status="pending";if(w2.tState==="resting"){var now=Date.now();w2.workMs+=(now-w2.stateStartTs);w2.tState="working";w2.stateStartTs=now;w2.restHidden=false;}saveWorkout();},{label:"Reopen",danger:false});return;}
-    stt.status="done";if(w.tState==="warmup"){woTransition("working");}woTransition("resting");w.restHidden=false;saveWorkout();render();return;}
+  if(a==="wo:log"){var w=state.workout;if(!w)return;if(w.tState==="ready"){toast("Tap Start to begin your warmup first");return;}if(w.tState==="warmup"){toast("Finish your warmup — tap End warmup to start the routine");return;}var ei=+el.getAttribute("data-ei"),si=+el.getAttribute("data-si");var stt=w.entries[ei].sets[si];
+    if(stt.status==="done"){askConfirm("Reopen this set? It goes back to unlogged, and time counts as working until you check it again.",function(){var w2=state.workout;if(!w2)return;var s2=w2.entries[ei].sets[si];s2.status="pending";if(w2.tState==="resting"){var now=Date.now();w2.workMs+=(now-w2.stateStartTs);w2.tState="working";w2.stateStartTs=now;}saveWorkout();},{label:"Reopen",danger:false});return;}
+    stt.status="done";woTransition("resting");saveWorkout();render();return;}
   if(a==="wo:setmenu"){state.setMenu={ei:+el.getAttribute("data-ei"),si:+el.getAttribute("data-si")};render();return;}
   if(a==="wo:setmenu:close"){state.setMenu=null;render();return;}
   if(a==="wo:addset"){var w=state.workout,sm=state.setMenu;if(!w||!sm)return;var s0=w.entries[sm.ei].sets[sm.si];w.entries[sm.ei].sets.splice(sm.si+1,0,{weight:s0?s0.weight:"",reps:"",rir:"",status:"pending"});state.setMenu=null;saveWorkout();render();return;}
