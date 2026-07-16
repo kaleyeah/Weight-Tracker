@@ -361,7 +361,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.111";
+var APP_BUILD="2026-07-14.112";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -477,6 +477,7 @@ function load(){
   if(state.settings.macroAuto===undefined&&(num(state.settings.targetProtein)!=null||num(state.settings.targetCarbs)!=null||num(state.settings.targetFat)!=null))state.settings.macroAuto=false;
   if(state.settings.calTargetAuto===undefined&&num(state.settings.targetCalories)!=null)state.settings.calTargetAuto=false;
   applyAutoMacros();
+  if((state.settings.cardioMinGoal==null||state.settings.cardioMinGoal==="")&&num(state.settings.exerciseMinGoal)!=null)state.settings.cardioMinGoal=state.settings.exerciseMinGoal;
   try{state.sumOpen=localStorage.getItem("wl_sumopen")!=="0";}catch(e){}
   try{state.calOpen=localStorage.getItem("wl_calopen")==="1";}catch(e){}
 }
@@ -1277,19 +1278,18 @@ function zoneAreaHTML(cf,pfx){pfx=pfx||"cf";var mx=effMaxHR();var hr=num(cf.hr);
   if(mx!=null&&hr!=null){var z=zoneFromHR(hr,mx);return '<div class="wl-cf-label">Zone</div><div class="wl-hint">From your avg HR: <b>Zone '+z+'</b> ('+Math.round(hr/mx*100)+'% of max '+mx+' bpm) — set automatically.</div>';}
   var label=mx!=null?'Zone <em>enter avg HR above to auto-detect</em>':'Zone';
   return '<div class="wl-cf-label">'+label+'</div><div class="wl-seg wl-seg-wide">'+[1,2,3,4,5].map(function(z){return '<button class="'+(cf.zone===z?"on":"")+'" data-act="'+pfx+':zone" data-zone="'+z+'">'+z+'</button>';}).join("")+'</div>';}
-function weekTrainingStats(ws){var out={cardioSessions:0,cardioMins:0,liftSessions:0,liftMins:0,totalMins:0};
+function weekTrainingStats(ws){var out={cardioSessions:0,cardioMins:0,cardioZ2Mins:0,liftSessions:0,liftMins:0,totalMins:0};
   for(var i=0;i<7;i++){var iso=toISO(addDays(ws,i));
-    ((state.training.sessions||{})[iso]||[]).forEach(function(x){if(x.kind==="cardio"){out.cardioSessions++;out.cardioMins+=(num(x.mins)||0);}});
+    ((state.training.sessions||{})[iso]||[]).forEach(function(x){if(x.kind==="cardio"){out.cardioSessions++;var m=(num(x.mins)||0);out.cardioMins+=m;var z=num(x.zone);if(z==null||z>=2)out.cardioZ2Mins+=m;}});
     ((state.training.liftSessions||{})[iso]||[]).forEach(function(x){out.liftSessions++;out.liftMins+=(num(x.mins)||0);});}
   out.totalMins=out.cardioMins+out.liftMins;return out;}
 function goalBarHTML(label,val,goal,unit,soon){var pct=goal>0?Math.min(100,Math.round(val/goal*100)):0;var done=goal>0&&val>=goal;
   return '<div class="wl-goalrow"><div class="wl-goalrow-top"><span>'+label+(soon?' <em style="color:var(--faint);font-style:normal">· logging soon</em>':'')+'</span><span class="wl-goalrow-val'+(done?" done":"")+'">'+val+' / '+goal+(unit?' '+unit:'')+(done?' ✓':'')+'</span></div><div class="wl-goalbar"><div class="wl-goalbar-fill'+(done?" done":"")+'" style="width:'+pct+'%"></div></div></div>';}
 function trainingGoalsHTML(ws){var st=weekTrainingStats(ws);var f=state.settings;
-  var emGoal=num(f.exerciseMinGoal),cardGoal=num(f.cardioSessGoal),liftGoal=num(f.liftSessGoal);
-  if(emGoal==null&&cardGoal==null&&liftGoal==null)return '<div class="wl-hint">Set weekly training goals in Settings → Goals to track them here.</div>';
+  var cmGoal=num(f.cardioMinGoal),liftGoal=num(f.liftSessGoal);
+  if(cmGoal==null&&liftGoal==null)return '<div class="wl-hint">Set weekly training goals in Settings → Goals to track them here.</div>';
   var h='';
-  if(emGoal!=null)h+=goalBarHTML("Exercise minutes",st.totalMins,emGoal,"min",false);
-  if(cardGoal!=null)h+=goalBarHTML("Cardio sessions",st.cardioSessions,cardGoal,"",false);
+  if(cmGoal!=null)h+=goalBarHTML("Cardio minutes (zone 2+)",st.cardioZ2Mins,cmGoal,"min",false);
   if(liftGoal!=null)h+=goalBarHTML("Lifting sessions",st.liftSessions,liftGoal,"",false);
   return h;}
 var MUSCLES=[["chest","Chest","#d926b8"],["back","Back","#3aa0c9"],["shoulders","Shoulders","#a855f7"],["biceps","Biceps","#f59e0b"],["triceps","Triceps","#ec4899"],["quads","Quads","#22c55e"],["hamstrings","Hamstrings","#10b981"],["glutes","Glutes","#14b8a6"],["calves","Calves","#84cc16"],["core","Core","#eab308"],["forearms","Forearms","#f97316"],["other","Other","#9ca3af"]];
@@ -1685,8 +1685,8 @@ function view_settings(){
     h+='<label class="wl-field wl-field-full"><span>Daily steps goal</span><input class="wl-num" data-int="1" data-set="stepsGoal" type="text" inputmode="numeric" value="'+esc(f.stepsGoal||"")+'" placeholder="e.g. 8000"></label>';
     h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:16px 0 8px">Sleep goal</div><div class="wl-row"><label class="wl-field"><span>Hours</span><input class="wl-num wl-goalsleep-h" data-int="1" type="text" inputmode="numeric" placeholder="8" value="'+(num(f.sleepGoal)!=null?Math.floor(num(f.sleepGoal)/60):"")+'"></label><label class="wl-field"><span>Minutes</span><input class="wl-num wl-goalsleep-m" data-int="1" type="text" inputmode="numeric" placeholder="0" value="'+(num(f.sleepGoal)!=null?num(f.sleepGoal)%60:"")+'"></label></div>';
     h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:16px 0 8px">Weekly training goals</div>';
-    h+='<label class="wl-field wl-field-full"><span>Exercise minutes / week</span><input class="wl-num" data-int="1" data-set="exerciseMinGoal" type="text" inputmode="numeric" value="'+esc(f.exerciseMinGoal||"")+'" placeholder="e.g. 150"></label>';
-    h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Cardio sessions / week</span><input class="wl-num" data-int="1" data-set="cardioSessGoal" type="text" inputmode="numeric" value="'+esc(f.cardioSessGoal||"")+'" placeholder="e.g. 3"></label><label class="wl-field"><span>Lifting sessions / week</span><input class="wl-num" data-int="1" data-set="liftSessGoal" type="text" inputmode="numeric" value="'+esc(f.liftSessGoal||"")+'" placeholder="e.g. 3"></label></div>';
+    h+='<div class="wl-row"><label class="wl-field"><span>Cardio minutes / week <em>zone 2+</em></span><input class="wl-num" data-int="1" data-set="cardioMinGoal" type="text" inputmode="numeric" value="'+esc(f.cardioMinGoal||"")+'" placeholder="e.g. 60"></label><label class="wl-field"><span>Lifting sessions / week</span><input class="wl-num" data-int="1" data-set="liftSessGoal" type="text" inputmode="numeric" value="'+esc(f.liftSessGoal||"")+'" placeholder="e.g. 3"></label></div>';
+    h+='<div class="wl-hint" style="margin-top:6px">Cardio minutes only count sessions whose average heart rate is zone 2 or higher (a session with no zone logged still counts).</div>';
     h+='</div>';}
   h+='</div>';
   h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="reminder"><span>Daily reminder</span><span class="wl-chevron'+(op.reminder?" open":"")+'">›</span></button>'+(op.reminder?('<div class="wl-collapse-body">'+
