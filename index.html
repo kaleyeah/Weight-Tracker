@@ -277,7 +277,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.69";
+var APP_BUILD="2026-07-14.71";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -361,7 +361,7 @@ function dayDots(iso){var seen={},cats=[];
   if(dayHasAny(iso))return '<span class="wl-cell-dots"><i class="dot-data"></i></span>';
   return '';}
 var state={settings:Object.assign({},DEFAULT_SETTINGS),weights:[],food:{},workouts:{},steps:{},notes:{},sleep:{},weeklySummary:null,nightlySummary:null,presets:DEFAULT_PRESETS.slice(),
-  view:"overview",calY:new Date().getFullYear(),calM:new Date().getMonth(),weekOffset:0,trendMode:"W",trendOffset:0,calOpen:false,sumOpen:true,nightOpen:true,genBusy:false,
+  view:"overview",calY:new Date().getFullYear(),calM:new Date().getMonth(),weekOffset:0,trendMode:"W",trendOffset:0,calOpen:false,sumOpen:true,nightOpen:true,genBusy:false,nightBusy:false,
   selDate:todayISO(),foodDate:todayISO(),alertDismissed:false,confirmReset:false};
 
 function load(){
@@ -373,6 +373,7 @@ function load(){
   }}catch(e){}
   if(state.settings.macroAuto===undefined&&(num(state.settings.targetProtein)!=null||num(state.settings.targetCarbs)!=null||num(state.settings.targetFat)!=null))state.settings.macroAuto=false;
   applyAutoMacros();
+  try{state.sumOpen=localStorage.getItem("wl_sumopen")!=="0";}catch(e){}
 }
 function payload(){return {settings:state.settings,weights:state.weights,food:state.food,workouts:state.workouts,steps:state.steps,notes:state.notes,sleep:state.sleep,weeklySummary:state.weeklySummary,nightlySummary:state.nightlySummary,presets:state.presets};}
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(payload()));}catch(e){toast("Couldn't save — storage full or blocked");}}
@@ -513,6 +514,48 @@ function genSummary(){var c=syncCfg();
     else toast("Still working — it will appear here shortly");
     render();})
   .catch(function(e){state.genBusy=false;render();toast(e.message||"Couldn't generate");});}
+function todayMissing(){var iso=todayISO();var miss=[];
+  if(!state.weights.some(function(x){return x.date===iso;}))miss.push("weight");
+  if(state.steps[iso]==null)miss.push("steps");
+  if(state.sleep[iso]==null)miss.push("sleep");
+  var f=state.food[iso]||{};if(num(f.calories)==null)miss.push("calories");
+  return miss;}
+function pollNightly(prevGen,tries){var c=syncCfg();var url=ghUrl(c);var H=ghHeaders(c);var br=c.branch||DEFAULT_BRANCH;
+  return new Promise(function(resolve){var n=0;
+    function tick(){n++;
+      fetch(url+"?ref="+encodeURIComponent(br)+"&t="+Date.now(),{headers:H,cache:"no-store"})
+        .then(function(r){return r.ok?r.json():null;})
+        .then(function(j){var d=null;try{d=j&&j.content?JSON.parse(b64dec(j.content)):null;}catch(e){}
+          var s=d&&d.nightlySummary;
+          if(s&&s.text&&s.generated!==prevGen){resolve(s);return;}
+          if(n>=tries){resolve(null);return;}setTimeout(tick,6000);})
+        .catch(function(){if(n>=tries)resolve(null);else setTimeout(tick,6000);});}
+    setTimeout(tick,8000);});}
+function genNightly(){var c=syncCfg();
+  if(!syncOn()){toast("Set up cloud sync first (Settings)");return;}
+  if(state.nightBusy||state.genBusy)return;
+  var miss=todayMissing();
+  if(miss.length){toast("Log "+miss.join(", ")+" first to complete today");return;}
+  state.nightBusy=true;render();
+  var prevGen=(state.nightlySummary&&state.nightlySummary.generated)||null;
+  var repo=normRepo(c.repo||DEFAULT_REPO),br=c.branch||DEFAULT_BRANCH,wf="nightly-checkin.yml";
+  var day=todayISO();
+  pushDataPromise().then(function(){
+    return fetch("https://api.github.com/repos/"+repo+"/actions/workflows/"+wf+"/dispatches",{
+      method:"POST",headers:Object.assign({"Content-Type":"application/json","Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"},ghHeaders(c)),
+      body:JSON.stringify({ref:br,inputs:{force:"true",day:day}})});
+  }).then(function(r){
+    if(r.status===204)return;
+    if(r.status===401||r.status===403)throw new Error("Your GitHub token needs Actions: write permission");
+    if(r.status===404)throw new Error("Add nightly-checkin.yml to the repo first");
+    if(r.status===422)throw new Error("Couldn't start — check branch/workflow name");
+    throw new Error("Couldn't start the recap ("+r.status+")");
+  }).then(function(){return pollNightly(prevGen,30);})
+  .then(function(sum){state.nightBusy=false;
+    if(sum){state.nightlySummary=sum;state.nightOpen=true;saveLocal();toast("Today\u2019s recap is ready");}
+    else toast("Still working — it will appear here shortly");
+    render();})
+  .catch(function(e){state.nightBusy=false;render();toast(e.message||"Couldn't generate");});}
 
 /* ---------------- computations ---------------- */
 function sortedWeights(){return state.weights.slice().sort(function(a,b){return a.date.localeCompare(b.date);});}
@@ -678,21 +721,41 @@ function view_overview(){
   var tw=state.workouts[todayISO()]||[];
   var h='<div class="wl-stack">';
   var _wk=toISO(weekStartFor(0));var _sum=(state.weeklySummary&&state.weeklySummary.week===_wk&&state.weeklySummary.text)?state.weeklySummary.text:null;
+  var _ciDay=(new Date().getDay()===(parseInt(state.settings.weekStart,10)||0));
+  if(_sum){try{var _seen=localStorage.getItem("wl_sumseen");if(state.weeklySummary.week!==_seen){state.sumOpen=true;localStorage.setItem("wl_sumseen",state.weeklySummary.week);localStorage.setItem("wl_sumopen","1");}}catch(e){}}
+  if(state.genBusy||_sum||_ciDay){
   h+='<div class="wl-card" style="border:1px solid var(--accent)">';
   if(state.genBusy){
     h+='<div class="wl-card-head"><span>Weekly check-in</span></div><div class="wl-hint">⏳ Generating your check-in… this takes about a minute. You can keep using the app — it\u2019ll appear here when it\u2019s ready.</div>';
   }else if(_sum){var _open=state.sumOpen!==false;
     h+='<button class="wl-collapse-head" data-act="sum:toggle"><span>Weekly check-in'+(_open?' <span class="wl-count" style="margin-left:6px">AI</span>':'')+'</span>'+(_open?'<span class="wl-chevron open">›</span>':'<span style="color:var(--accent);font-weight:600;font-size:13px">View summary ›</span>')+'</button>';
-    if(_open)h+='<div class="wl-ai-summary" style="margin-top:6px">'+renderSummary(_sum)+'</div><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="ai:gen">↻ Regenerate</button>';
+    if(_open){h+='<div class="wl-ai-summary" style="margin-top:6px">'+renderSummary(_sum)+'</div>';if(_ciDay)h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="ai:gen">↻ Regenerate</button>';}
   }else{
-    h+='<div class="wl-card-head"><span>Weekly check-in</span></div><div class="wl-hint" style="margin-bottom:10px">No check-in for this week yet.</div><button class="wl-btn wl-btn-primary wl-full" data-act="ai:gen">Generate summary</button>';
+    h+='<div class="wl-card-head"><span>Weekly check-in</span></div><div class="wl-hint" style="margin-bottom:10px">Your recap of last week is ready to generate.</div><button class="wl-btn wl-btn-primary wl-full" data-act="ai:gen">Generate summary</button>';
   }
   h+='</div>';
-  var _ns=state.nightlySummary;var _nsOK=_ns&&_ns.date&&_ns.text&&(_ns.date===todayISO()||_ns.date===toISO(addDays(new Date(),-1)));
-  if(_nsOK){var _no=state.nightOpen!==false;
-    h+='<div class="wl-card"><button class="wl-collapse-head" data-act="night:toggle"><span>Daily recap <span class="wl-count" style="margin-left:6px">'+fmtShort(parseISO(_ns.date))+'</span></span>'+(_no?'<span class="wl-chevron open">›</span>':'<span style="color:var(--accent);font-weight:600;font-size:13px">View ›</span>')+'</button>';
-    if(_no)h+='<div class="wl-ai-summary" style="margin-top:6px">'+renderSummary(_ns.text)+'</div>';
-    h+='</div>';}
+  }
+  h+='<div class="wl-card">';
+  if(state.nightBusy){
+    h+='<div class="wl-card-head"><span>Today\u2019s recap</span></div><div class="wl-hint">⏳ Completing today… generating your recap (about a minute). It\u2019ll appear here when ready.</div>';
+  }else{
+    var _ns=state.nightlySummary;var _tISO=todayISO();
+    var _recent=_ns&&_ns.date&&_ns.text&&(_ns.date===_tISO||_ns.date===toISO(addDays(new Date(),-1)));
+    if(_recent){var _no=state.nightOpen!==false;
+      h+='<button class="wl-collapse-head" data-act="night:toggle"><span>Daily recap <span class="wl-count" style="margin-left:6px">'+fmtShort(parseISO(_ns.date))+'</span></span>'+(_no?'<span class="wl-chevron open">›</span>':'<span style="color:var(--accent);font-weight:600;font-size:13px">View ›</span>')+'</button>';
+      if(_no)h+='<div class="wl-ai-summary" style="margin-top:6px">'+renderSummary(_ns.text)+'</div>';
+    }else{
+      h+='<div class="wl-card-head"><span>Today\u2019s recap</span></div>';
+    }
+    if(_ns&&_ns.date===_tISO){
+      h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="night:gen">↻ Regenerate today</button>';
+    }else{
+      var _miss=todayMissing();
+      if(_miss.length)h+='<div class="wl-hint" style="margin:10px 0 8px">Log '+_miss.join(", ")+' to complete today.</div>';
+      h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:'+(_miss.length?"0":"10px")+'" data-act="night:gen">Complete today</button>';
+    }
+  }
+  h+='</div>';
   if(configured){
     h+='<div class="wl-card wl-hero"><div class="wl-hero-top"><div><div class="wl-mini-label">Current</div><div class="wl-bignum">'+(current!=null?r1(current):"—")+'<span class="wl-unit">'+u+'</span></div></div>';
     if(lost!=null)h+='<div class="wl-change '+(lost>=0?"good":"bad")+'">'+(lost>=0?I.down:I.up)+(lost>=0?"Lost ":"Gained ")+Math.abs(r1(lost))+' '+u+'</div>';
@@ -1153,8 +1216,9 @@ document.addEventListener("click",function(e){
   if(a==="opentoday"){state.selDate=todayISO();state.calY=new Date().getFullYear();state.calM=new Date().getMonth();state.view="calendar";render();return;}
   if(a==="ai:copy"){copyText(weeklyAIText(),"Copied your week — paste into your AI to generate");return;}
   if(a==="ai:gen"){genSummary();return;}
-  if(a==="sum:toggle"){state.sumOpen=(state.sumOpen===false);render();return;}
+  if(a==="sum:toggle"){state.sumOpen=(state.sumOpen===false);try{localStorage.setItem("wl_sumopen",state.sumOpen?"1":"0");}catch(e){}render();return;}
   if(a==="night:toggle"){state.nightOpen=(state.nightOpen===false);render();return;}
+  if(a==="night:gen"){genNightly();return;}
   if(a==="trend:mode"){state.trendMode=el.getAttribute("data-mode");state.trendOffset=0;render();return;}
   if(a==="trend:prev"){state.trendOffset=(state.trendOffset||0)+1;render();return;}
   if(a==="trend:next"){state.trendOffset=Math.max(0,(state.trendOffset||0)-1);render();return;}
