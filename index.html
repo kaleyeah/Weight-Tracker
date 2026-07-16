@@ -334,7 +334,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.98";
+var APP_BUILD="2026-07-14.99";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -1356,11 +1356,12 @@ function view_routine(){
   var h='<div class="wl-stack">';
   if(!rt){h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="go" data-view="train">‹</button><span class="wl-cal-title">Routine</span></div><div class="wl-card"><div class="wl-hint">Routine not found.</div></div>';return h+'</div>';}
   if(state.riPickOpen)return routinePickHTML(rt);
-  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="go" data-view="train">‹</button><span class="wl-cal-title">Edit routine</span><span style="width:36px;display:inline-block"></span></div>';
+  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="rt:save">‹</button><span class="wl-cal-title">Edit routine</span><span style="width:36px;display:inline-block"></span></div>';
   h+='<div class="wl-card"><label class="wl-field wl-field-full"><span>Routine name</span><input class="wl-rt-name" type="text" value="'+esc(rt.name||"")+'" placeholder="e.g. Day 1 – Push"></label></div>';
   if(!(rt.items||[]).length)h+='<div class="wl-card"><div class="wl-hint">No exercises yet. Add them from your library below — they\u2019ll group by muscle automatically.</div></div>';
   (rt.items||[]).forEach(function(it,idx){h+=routineItemHTML(rt,it,idx);});
-  h+='<button class="wl-btn wl-btn-primary wl-full" data-act="ri:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add exercise</button>';
+  h+='<button class="wl-btn wl-btn-ghost wl-full" data-act="ri:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add exercise</button>';
+  h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:8px" data-act="rt:save">'+I.check.replace("<svg","<svg width=16 height=16")+'Save routine</button>';
   h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="rt:del" data-id="'+rt.id+'">Delete routine</button>';
   return h+'</div>';
 }
@@ -1550,6 +1551,10 @@ document.addEventListener("click",function(e){
     var existing=xl.filter(function(e){return e.name.toLowerCase()===sd.n.toLowerCase();})[0];
     if(existing){state.training.exercises=xl.filter(function(e){return e.id!==existing.id;});saveTraining();render();return;}
     xl.push({id:"x-"+Date.now()+"-"+Math.random().toString(36).slice(2,6),name:sd.n,muscle:sd.m,equipment:sd.e||"",bodyweight:!!sd.bw,notes:[]});state.training.exercises=xl;saveTraining();render();return;}
+  if(a==="rt:save"){var rt=getRoutine(state.routineId);
+    if(rt&&!(rt.name||"").trim()&&!(rt.items||[]).length){state.training.routines=(state.training.routines||[]).filter(function(r){return r.id!==rt.id;});saveTraining();state.view="train";state.routineId=null;state.noteEdit=null;state.riPickOpen=false;render();return;}
+    if(rt&&!(rt.name||"").trim())rt.name="Untitled routine";
+    saveTraining();state.view="train";state.routineId=null;state.noteEdit=null;state.riPickOpen=false;toast("Routine saved");render();return;}
   if(a==="rt:new"){var rid="r-"+Date.now()+"-"+Math.random().toString(36).slice(2,6);var rl=(state.training.routines||[]).slice();rl.push({id:rid,name:"",items:[]});state.training.routines=rl;saveTraining();state.routineId=rid;state.riPickOpen=false;state.noteEdit=null;state.view="routine";render();return;}
   if(a==="rt:open"){state.routineId=el.getAttribute("data-id");state.riPickOpen=false;state.noteEdit=null;state.view="routine";render();return;}
   if(a==="rt:del"){var rid=el.getAttribute("data-id");var rr=getRoutine(rid);askConfirm("Delete the routine \""+((rr&&rr.name)||"Untitled")+"\"? This can\u2019t be undone. (Your exercise library is unaffected.)",function(){state.training.routines=(state.training.routines||[]).filter(function(r){return r.id!==rid;});saveTraining();state.view="train";state.routineId=null;});return;}
