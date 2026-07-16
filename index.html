@@ -364,7 +364,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.116";
+var APP_BUILD="2026-07-14.117";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -2133,7 +2133,7 @@ function showAppliedBanner(ver){
   var b=document.createElement("div");b.id="wl-applied-banner";b.className="wl-applied-banner";
   b.innerHTML='<span>✓ Updated to version '+ver+'</span><span class="wl-applied-hint">Swipe to dismiss</span>';
   document.body.appendChild(b);
-  requestAnimationFrame(function(){b.classList.add("in");});
+  setTimeout(function(){b.classList.add("in");},30);
   var sx=0,sy=0,dx=0,dy=0,drag=false,gone=false;
   function dismiss(){if(gone)return;gone=true;b.style.transition="transform .25s ease, opacity .25s ease";b.style.transform="translateY(-130%)";b.style.opacity="0";setTimeout(function(){if(b.parentNode)b.parentNode.removeChild(b);},280);}
   b.addEventListener("touchstart",function(e){sx=e.touches[0].clientX;sy=e.touches[0].clientY;dx=dy=0;drag=true;b.style.transition="none";},{passive:true});
@@ -2164,7 +2164,12 @@ function makeIcon(){
 /* ---------------- init ---------------- */
 load();loadTraining();loadWorkout();ensureIdentity();applyTheme(state.settings.theme||"ink");makeIcon();if(state.workout)state.view="train";render();autoSync();if(state.workout)startWoTick();
 try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(e){}
-try{var wlseen=localStorage.getItem("wl_seenbuild");if(wlseen&&wlseen!==APP_BUILD)showAppliedBanner(APP_BUILD);localStorage.setItem("wl_seenbuild",APP_BUILD);}catch(e){}
+try{
+  var wlseen=localStorage.getItem("wl_seenbuild");
+  var justUpdated=false;try{if(sessionStorage.getItem("wl_reloaded_for")===APP_BUILD){justUpdated=true;sessionStorage.removeItem("wl_reloaded_for");}}catch(e){}
+  if(justUpdated||(wlseen&&wlseen!==APP_BUILD))showAppliedBanner(APP_BUILD);
+  localStorage.setItem("wl_seenbuild",APP_BUILD);
+}catch(e){}
 checkForUpdate();
 document.addEventListener("visibilitychange",function(){if(!document.hidden)checkForUpdate();});
 
