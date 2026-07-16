@@ -269,6 +269,9 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 .wl-diary-dayhead{display:flex;align-items:baseline;justify-content:space-between;gap:8px;}
 .wl-diary-date{font-weight:700;font-size:15px;}
 .wl-diary-macros{font-size:12.5px;color:var(--text);margin-top:4px;padding-bottom:2px;border-bottom:1px solid var(--line);margin-bottom:4px;}
+.wl-diary-weekhead{font-size:13px;font-weight:700;color:var(--accent);letter-spacing:.02em;margin:14px 2px 2px;}
+.wl-diary-weekhead:first-child{margin-top:0;}
+.wl-diary-partial{font-size:12px;color:#eab308;margin:2px 0 4px;}
 .wl-photo{aspect-ratio:1;border-radius:10px;border:1px solid var(--line);background-size:cover;background-position:center;background-color:var(--bg2);padding:0;}
 .wl-lightbox{position:fixed;inset:0;background:rgba(0,0,0,.93);z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:calc(env(safe-area-inset-top,0px) + 14px) 14px calc(env(safe-area-inset-bottom,0px) + 14px);}
 .wl-lightbox img{max-width:100%;max-height:78vh;border-radius:10px;object-fit:contain;}
@@ -284,7 +287,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.75";
+var APP_BUILD="2026-07-14.76";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -368,7 +371,7 @@ function dayDots(iso){var seen={},cats=[];
   if(dayHasAny(iso))return '<span class="wl-cell-dots"><i class="dot-data"></i></span>';
   return '';}
 var state={settings:Object.assign({},DEFAULT_SETTINGS),weights:[],food:{},workouts:{},steps:{},notes:{},sleep:{},weeklySummary:null,nightlySummary:null,presets:DEFAULT_PRESETS.slice(),
-  view:"overview",calY:new Date().getFullYear(),calM:new Date().getMonth(),weekOffset:0,trendMode:"W",trendOffset:0,calOpen:false,sumOpen:true,nightOpen:true,genBusy:false,nightBusy:false,
+  view:"overview",calY:new Date().getFullYear(),calM:new Date().getMonth(),weekOffset:0,trendMode:"W",trendOffset:0,calOpen:false,sumOpen:true,nightOpen:true,genBusy:false,nightBusy:false,diaryWeeks:1,
   selDate:todayISO(),foodDate:todayISO(),alertDismissed:false,confirmReset:false};
 
 function load(){
@@ -1115,27 +1118,32 @@ function view_diary(){
   h+='</div>';
   return h;
 }
+function weekStartOf(iso){var ws=parseInt(state.settings.weekStart,10)||0;var d=parseISO(iso);var diff=(d.getDay()-ws+7)%7;d.setDate(d.getDate()-diff);d.setHours(0,0,0,0);return d;}
 function renderDiary(){var host=document.getElementById("wl-diary");if(!host)return;
   idbAll().then(function(all){var host2=document.getElementById("wl-diary");if(!host2)return;
+    clearPhotoURLs();
     if(!all.length){host2.innerHTML='<div class="wl-empty" style="padding:20px 0">No food photos yet. Open a day\u2019s Food diary to add meals.</div>';return;}
     var byDate={};all.forEach(function(p){(byDate[p.date]=byDate[p.date]||[]).push(p);});
-    var dates=Object.keys(byDate);var wk=toISO(weekStartFor(0));
-    var cur=dates.filter(function(d){return d>=wk;}).sort();
-    var old=dates.filter(function(d){return d<wk;}).sort().reverse();
-    var ordered=cur.concat(old);
+    var weekSet={};Object.keys(byDate).forEach(function(d){weekSet[toISO(weekStartOf(d))]=true;});
+    var weeks=Object.keys(weekSet).sort().reverse();
+    var show=Math.min(state.diaryWeeks||1,weeks.length);var shown=weeks.slice(0,show);
     var MEALS=[["breakfast","Breakfast"],["lunch","Lunch"],["snack","Snack"],["dinner","Dinner"],["","Other"]];
     var html="";
-    ordered.forEach(function(date){
-      var photos=byDate[date];var f=state.food[date]||{};
-      var cal=num(f.calories),p=num(f.protein),c=num(f.carbs),ft=num(f.fat);
-      html+='<div class="wl-card wl-diary-day"><div class="wl-diary-dayhead"><span class="wl-diary-date">'+fmtLong(parseISO(date))+(date===todayISO()?' · Today':'')+'</span></div>';
-      if(cal!=null||p!=null||c!=null||ft!=null){html+='<div class="wl-diary-macros">'+(cal!=null?'<b>'+Math.round(cal).toLocaleString()+'</b> cal':'<span style="color:var(--faint)">calories not logged</span>')+(p!=null?'  ·  P: '+p+'g':'')+(ft!=null?'  ·  F: '+ft+'g':'')+(c!=null?'  ·  C: '+c+'g':'')+'</div>';}
-      MEALS.forEach(function(m){var items=photos.filter(function(x){return (x.meal||"")===m[0];});if(!items.length)return;
-        html+='<div class="wl-meal-label">'+m[1]+'</div><div class="wl-photos">';
-        items.forEach(function(x){var url=URL.createObjectURL(x.blob);photoURLs.push(url);photoMap[x.id]=url;html+='<button class="wl-photo" data-act="photo:view" data-id="'+x.id+'" style="background-image:url('+url+')"></button>';});
-        html+='</div>';});
-      html+='</div>';
+    shown.forEach(function(wkISO){var ws0=parseISO(wkISO),we=addDays(ws0,6);
+      html+='<div class="wl-diary-weekhead">'+fmtShort(ws0)+' – '+fmtShort(we)+(toISO(weekStartFor(0))===wkISO?' · This week':'')+'</div>';
+      for(var i=0;i<7;i++){var dISO=toISO(addDays(ws0,i));var photos=byDate[dISO];if(!photos)continue;
+        var f=state.food[dISO]||{};var cal=num(f.calories),p=num(f.protein),c=num(f.carbs),ft=num(f.fat);
+        html+='<div class="wl-card wl-diary-day"><div class="wl-diary-dayhead"><span class="wl-diary-date">'+fmtLong(parseISO(dISO))+(dISO===todayISO()?' · Today':'')+'</span></div>';
+        if(cal!=null||p!=null||c!=null||ft!=null){html+='<div class="wl-diary-macros">'+(cal!=null?'<b>'+Math.round(cal).toLocaleString()+'</b> cal':'<span style="color:var(--faint)">calories not logged</span>')+(p!=null?'  ·  P: '+p+'g':'')+(ft!=null?'  ·  F: '+ft+'g':'')+(c!=null?'  ·  C: '+c+'g':'')+'</div>';
+          var mc=(p||0)*4+(c||0)*4+(ft||0)*9;if((p!=null||c!=null||ft!=null)&&cal!=null&&Math.abs(cal-mc)>2)html+='<div class="wl-diary-partial">⚠️ Partial log — macros don\u2019t total the calories</div>';}
+        MEALS.forEach(function(m){var items=photos.filter(function(x){return (x.meal||"")===m[0];});if(!items.length)return;
+          html+='<div class="wl-meal-label">'+m[1]+'</div><div class="wl-photos">';
+          items.forEach(function(x){var url=URL.createObjectURL(x.blob);photoURLs.push(url);photoMap[x.id]=url;html+='<button class="wl-photo" data-act="photo:view" data-id="'+x.id+'" style="background-image:url('+url+')"></button>';});
+          html+='</div>';});
+        html+='</div>';
+      }
     });
+    if(weeks.length>show)html+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:4px" data-act="diary:older">↓ Load older week</button>';
     host2.innerHTML=html;
   }).catch(function(){var host2=document.getElementById("wl-diary");if(host2)host2.innerHTML='<div class="wl-empty" style="padding:20px 0">Photos aren\u2019t available on this device.</div>';});}
 function openLightbox(id){var url=photoMap[id];if(!url)return;
@@ -1257,7 +1265,7 @@ function render(){
 function toast(msg){var t=document.getElementById("wl-toast");t.textContent=msg;t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(function(){t.classList.remove("show");},1600);}
 document.addEventListener("click",function(e){
   var el=e.target.closest("[data-act]");if(!el)return;var a=el.getAttribute("data-act");
-  if(a==="go"){state.view=el.getAttribute("data-view");state.alertDismissed=false;state.confirmReset=false;state.pasteOpen=false;state.syncPasteOpen=false;state.inviteCode=null;state.joinOpen=false;render();return;}
+  if(a==="go"){state.view=el.getAttribute("data-view");if(state.view==="diary")state.diaryWeeks=1;state.alertDismissed=false;state.confirmReset=false;state.pasteOpen=false;state.syncPasteOpen=false;state.inviteCode=null;state.joinOpen=false;render();return;}
   if(a==="alert:dismiss"){state.alertDismissed=true;render();return;}
   if(a==="chart:pt"){var ts=+el.getAttribute("data-ts"),w=+el.getAttribute("data-w"),av=el.getAttribute("data-avg");
     var r=document.getElementById("wl-readout");if(r)r.innerHTML='<b>'+r1(w)+'</b> '+state.settings.units+' · '+fmtFull(new Date(ts))+(av!=="null"?' · avg '+av:'');return;}
@@ -1270,6 +1278,7 @@ document.addEventListener("click",function(e){
   if(a==="ai:gen"){genSummary();return;}
   if(a==="sum:toggle"){state.sumOpen=(state.sumOpen===false);try{localStorage.setItem("wl_sumopen",state.sumOpen?"1":"0");}catch(e){}render();return;}
   if(a==="night:toggle"){state.nightOpen=(state.nightOpen===false);render();return;}
+  if(a==="diary:older"){state.diaryWeeks=(state.diaryWeeks||1)+1;renderDiary();return;}
   if(a==="night:gen"){genNightly();return;}
   if(a==="trend:mode"){state.trendMode=el.getAttribute("data-mode");state.trendOffset=0;render();return;}
   if(a==="trend:prev"){state.trendOffset=(state.trendOffset||0)+1;render();return;}
