@@ -32,6 +32,8 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
   padding:calc(20px + env(safe-area-inset-top,0px)) 20px 14px;position:sticky;top:0;
   background:linear-gradient(var(--bg),var(--bg) 78%,transparent);z-index:5;}
 .wl-eyebrow{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);font-weight:700;}
+.wl-avatar{width:38px;height:38px;border-radius:50%;background:var(--accent);color:#fff;border:2px solid transparent;font-weight:700;font-size:15px;font-family:var(--sans);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;padding:0;}
+.wl-avatar.on{border-color:var(--text);}
 .wl-title{font-size:26px;font-weight:800;margin:2px 0 0;letter-spacing:-.02em;}
 .wl-datechip{font-size:12px;color:var(--muted);font-family:var(--mono);}
 .wl-sync{font-size:9.5px;font-weight:700;font-family:var(--mono);padding:2px 8px;border-radius:20px;border:1px solid var(--line);color:var(--muted);text-transform:uppercase;letter-spacing:.04em;}
@@ -287,7 +289,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.76";
+var APP_BUILD="2026-07-14.77";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -324,7 +326,9 @@ var I={
  check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
  trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
  down:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
- up:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>'
+ up:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>',
+ train:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6.5 6.5 11 11M21 21l-1-1M3 3l1 1M18 22l4-4M2 6l4-4M3 10l7-7M14 21l7-7"/></svg>',
+ user:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
 };
 
 /* ---------------- storage ---------------- */
@@ -1158,6 +1162,14 @@ function themeGrid(){var cur=state.settings.theme||"ink";
   return Object.keys(THEMES).map(function(id){var t=THEMES[id];var on=id===cur;
     return '<button class="wl-theme'+(on?" on":"")+'" data-act="set:theme" data-theme="'+id+'"><span class="wl-theme-sw"><i style="background:'+t.v.bg+'"></i><i style="background:'+t.v.card+'"></i><i style="background:'+t.v.accent+'"></i><i style="background:'+t.v.good+'"></i></span><span class="wl-theme-name">'+t.label+(id==="ink"?" · current":"")+'</span>'+(on?'<span class="wl-theme-check">'+I.check.replace("<svg","<svg width=14 height=14")+'</span>':'')+'</button>';}).join("");
 }
+function view_train(){
+  var h='<div class="wl-stack">';
+  h+='<div class="wl-card" style="border:1px solid var(--accent)"><div class="wl-card-head"><span>Training</span></div>'+
+     '<div class="wl-hint">Cardio and weight-training logging is coming here. Sessions will be stored separately (their own sync file) and will auto-tag your Daily Log so your coach sees them.</div>'+
+     '<div class="wl-hint" style="margin-top:10px;color:var(--faint)">Next: log a cardio session — type, duration, zone/effort, and estimated calories.</div></div>';
+  h+='</div>';
+  return h;
+}
 function view_settings(){
   applyAutoMacros();
   var f=state.settings;var u=f.units;
@@ -1249,14 +1261,16 @@ function view_settings(){
 }
 
 /* ---------------- render ---------------- */
-var NAV=[["overview","Overview"],["calendar","Daily Log"],["weight","Trends"],["summary","Summary"],["settings","Settings"]];
+var NAV=[["overview","Overview"],["calendar","Daily Log"],["weight","Trends"],["summary","Summary"],["train","Train"]];
 function render(){
   clearPhotoURLs();
-  var title=state.view==="diary"?"Food Diary":(NAV.filter(function(n){return n[0]===state.view;})[0]||["","" ])[1];
-  var body=state.view==="overview"?view_overview():(state.view==="calendar"||state.view==="food")?view_calendar():state.view==="weight"?view_weight():state.view==="summary"?view_summary():state.view==="diary"?view_diary():view_settings();
+  var title=state.view==="settings"?"Settings":state.view==="diary"?"Food Diary":(NAV.filter(function(n){return n[0]===state.view;})[0]||["","" ])[1];
+  var body=state.view==="overview"?view_overview():(state.view==="calendar"||state.view==="food")?view_calendar():state.view==="weight"?view_weight():state.view==="summary"?view_summary():state.view==="diary"?view_diary():state.view==="train"?view_train():view_settings();
   var nav='<nav class="wl-nav">'+NAV.map(function(n){return '<button class="wl-navbtn '+(state.view===n[0]||(n[0]==="summary"&&state.view==="diary")?"on":"")+'" data-act="go" data-view="'+n[0]+'">'+I[n[0]]+'<span>'+n[1]+'</span></button>';}).join("")+'</nav>';
+  var _ini=(state.settings.name||"").trim().charAt(0).toUpperCase();
+  var avatar='<button class="wl-avatar'+(state.view==="settings"?" on":"")+'" data-act="go" data-view="settings" aria-label="Settings">'+(_ini||I.user.replace("<svg",'<svg width="18" height="18"'))+'</button>';
   var hdrRight='<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><div class="wl-datechip">'+fmtLong(new Date())+'</div>'+(syncOn()?'<div id="wl-sync" class="wl-sync '+syncState.s+'">'+syncLabel()+'</div>':'')+(syncOn()?'<div id="wl-synctime" class="wl-synctime">'+lastSyncText()+'</div>':'')+'</div>';
-  document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header"><div><div class="wl-eyebrow">Progress Tracker</div><h1 class="wl-title">'+title+'</h1></div>'+hdrRight+'</header><main class="wl-main">'+body+'</main>'+nav+'</div>';
+  document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header"><div><div class="wl-eyebrow">Progress Tracker</div><h1 class="wl-title">'+title+'</h1></div><div style="display:flex;align-items:center;gap:10px">'+hdrRight+avatar+'</div></header><main class="wl-main">'+body+'</main>'+nav+'</div>';
   if(state.view==="calendar")renderPhotos(state.selDate);
   if(state.view==="diary")renderDiary();
 }
