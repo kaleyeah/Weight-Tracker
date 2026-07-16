@@ -358,7 +358,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.107";
+var APP_BUILD="2026-07-14.108";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -1551,6 +1551,17 @@ function woOverlaysHTML(){var h="";
   if(state.woResume){var w=state.workout;h+='<div class="wl-confirm"><div class="wl-confirm-card"><div class="wl-confirm-msg" style="font-weight:700;margin-bottom:4px">'+esc((w&&w.name)||"Workout")+'</div><div class="wl-hint" style="margin-bottom:14px">You have a workout in progress.</div><button class="wl-btn wl-btn-primary wl-full" data-act="wo:resume">Resume workout</button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:endnow">End &amp; save</button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="wo:discardnow">Discard</button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:12px" data-act="wo:resumecancel">Cancel</button></div></div>';}
   if(state.noteEdit&&state.noteEdit.woEi!=null)h+='<div class="wl-confirm"><div class="wl-confirm-card">'+noteEditorHTML()+'</div></div>';
   return h;}
+function view_wtadd(){var h='<div class="wl-stack">';
+  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="go" data-view="train">‹</button><span class="wl-cal-title">Add weight training</span><span style="width:36px;display:inline-block"></span></div>';
+  var rts=state.training.routines||[];
+  h+='<div class="wl-card"><div class="wl-card-head"><span>Choose a routine</span></div>';
+  if(rts.length){rts.forEach(function(rt){var nEx=(rt.items||[]).length;h+='<button class="wl-exrow-main" data-act="rt:open" data-id="'+rt.id+'" style="width:100%;padding:13px 0;border-bottom:1px solid var(--line)"><span class="wl-exrow-name">'+esc(rt.name||"Untitled routine")+'</span><span class="wl-exrow-sub">'+nEx+' exercise'+(nEx===1?"":"s")+'</span></button>';});}
+  else h+='<div class="wl-hint">No routines yet — create one to get started.</div>';
+  h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="rt:new">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add new routine</button>';
+  h+='</div>';
+  h+='<button class="wl-btn wl-btn-ghost wl-full" data-act="go" data-view="exlib">Exercise library'+((state.training.exercises||[]).length?' <span class="wl-count">'+state.training.exercises.length+'</span>':'')+'</button>';
+  return h+'</div>';}
+function view_wtadd_end(){}
 function view_quicklog(){
   var lf=state.liftForm;var rt=lf&&getRoutine(lf.routineId);var h='<div class="wl-stack">';
   h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="lift:cancel">‹</button><span class="wl-cal-title">'+esc((rt&&rt.name)||"Weight training")+'</span><span style="width:36px;display:inline-block"></span></div>';
@@ -1609,13 +1620,8 @@ function view_train(){
   var lsess=((state.training.liftSessions||{})[d]||[]);
   if(lsess.length){lsess.forEach(function(s){var meta=[];meta.push((s.mode==="full"?"logged":"quick"));if(s.mins)meta.push(s.mins+" min");if(s.hr)meta.push("HR "+s.hr+(s.hrMax?"/"+s.hrMax:""));if(s.rpe)meta.push("RPE "+s.rpe);if(s.cal)meta.push("~"+s.cal+" cal");
     h+='<div class="wl-sess"><button class="wl-sess-main" data-act="lift:view" data-id="'+s.id+'"><span class="wl-sess-type">'+esc(s.name||"Weight training")+'</span><span class="wl-sess-meta">'+meta.join("  ·  ")+'</span></button><button class="wl-icon-btn" data-act="lift:del" data-id="'+s.id+'">'+I.trash.replace("<svg","<svg width=15 height=15")+'</button></div>';});}
-  h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:10px" data-act="wt:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add weight training</button>';
-  var rts=state.training.routines||[];
-  h+='<div class="wl-cf-label" style="margin:16px 0 6px">Routines</div>';
-  if(rts.length){rts.forEach(function(rt){var nEx=(rt.items||[]).length;h+='<button class="wl-exrow-main" data-act="rt:open" data-id="'+rt.id+'" style="width:100%;padding:12px 0;border-bottom:1px solid var(--line)"><span class="wl-exrow-name">'+esc(rt.name||"Untitled routine")+'</span><span class="wl-exrow-sub">'+nEx+' exercise'+(nEx===1?"":"s")+' · tap to start or edit</span></button>';});}
-  else h+='<div class="wl-hint">No routines yet.</div>';
-  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="rt:new">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add new routine</button>';
-  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="go" data-view="exlib">Exercise library'+((state.training.exercises||[]).length?' <span class="wl-count">'+state.training.exercises.length+'</span>':'')+'</button></div>';
+  else if(!state.workout){h+='<div class="wl-hint">No weight training logged for this day.</div>';}
+  h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:10px" data-act="wt:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add weight training</button></div>';
   h+=activityManageHTML();
   return h+'</div>';
 }
@@ -1711,8 +1717,8 @@ function confirmOverlayHTML(){var c=state.pendingConfirm;if(!c)return "";
   return '<div class="wl-confirm"><div class="wl-confirm-card"><div class="wl-confirm-msg">'+esc(c.message)+'</div><div class="wl-confirm-btns"><button class="wl-btn wl-btn-ghost wl-full" data-act="confirm:no">Cancel</button><button class="wl-btn wl-full" style="background:'+(c.danger?"var(--bad)":"var(--accent)")+';color:#fff;border:none" data-act="confirm:yes">'+esc(c.label)+'</button></div></div></div>';}
 function render(){
   clearPhotoURLs();
-  var title=state.view==="settings"?"Settings":state.view==="diary"?"Food Diary":state.view==="exlib"?"Exercise Library":state.view==="routine"?"Routine":state.view==="rlaunch"?"Routine":state.view==="quicklog"?"Quick log":state.view==="workout"?"Workout":(NAV.filter(function(n){return n[0]===state.view;})[0]||["","" ])[1];
-  var body=state.view==="overview"?view_overview():(state.view==="calendar"||state.view==="food")?view_calendar():state.view==="weight"?view_weight():state.view==="summary"?view_summary():state.view==="diary"?view_diary():state.view==="train"?view_train():state.view==="exlib"?view_exlib():state.view==="routine"?view_routine():state.view==="rlaunch"?view_rlaunch():state.view==="quicklog"?view_quicklog():state.view==="workout"?view_workout():state.view==="liftview"?view_liftview():view_settings();
+  var title=state.view==="settings"?"Settings":state.view==="diary"?"Food Diary":state.view==="exlib"?"Exercise Library":state.view==="routine"?"Routine":state.view==="rlaunch"?"Routine":state.view==="quicklog"?"Quick log":state.view==="workout"?"Workout":state.view==="wtadd"?"Add weight training":(NAV.filter(function(n){return n[0]===state.view;})[0]||["","" ])[1];
+  var body=state.view==="overview"?view_overview():(state.view==="calendar"||state.view==="food")?view_calendar():state.view==="weight"?view_weight():state.view==="summary"?view_summary():state.view==="diary"?view_diary():state.view==="train"?view_train():state.view==="exlib"?view_exlib():state.view==="routine"?view_routine():state.view==="rlaunch"?view_rlaunch():state.view==="quicklog"?view_quicklog():state.view==="workout"?view_workout():state.view==="liftview"?view_liftview():state.view==="wtadd"?view_wtadd():view_settings();
   var nav='<nav class="wl-nav">'+NAV.map(function(n){return '<button class="wl-navbtn '+(state.view===n[0]||(n[0]==="summary"&&state.view==="diary")?"on":"")+'" data-act="go" data-view="'+n[0]+'">'+I[n[0]]+'<span>'+n[1]+'</span></button>';}).join("")+'</nav>';
   var _ini=(state.settings.name||"").trim().charAt(0).toUpperCase();
   var avatar='<button class="wl-avatar'+(state.view==="settings"?" on":"")+'" data-act="go" data-view="settings" aria-label="Settings">'+(_ini||I.user.replace("<svg",'<svg width="18" height="18"'))+'</button>';
@@ -1801,7 +1807,7 @@ document.addEventListener("click",function(e){
   if(a==="lift:view"){state.liftViewDate=state.trainDate;state.liftViewId=el.getAttribute("data-id");state.view="liftview";render();return;}
   if(a==="lift:del"){var d=state.liftViewDate||state.trainDate;var sid=el.getAttribute("data-id");var arr=(state.training.liftSessions||{})[d]||[];var vic=arr.filter(function(s){return s.id===sid;})[0];askConfirm("Delete this "+((vic&&vic.name)||"workout")+" session? This can\u2019t be undone.",function(){var a2=((state.training.liftSessions||{})[d]||[]).filter(function(s){return s.id!==sid;});if(a2.length)state.training.liftSessions[d]=a2;else delete state.training.liftSessions[d];syncLiftTags(d);saveTraining();save();if(state.view==="liftview")state.view="train";},{label:"Delete"});return;}
   if(a==="lift:savedetail"){saveTraining();save();state.view="train";state.liftViewId=null;toast("Saved");render();return;}
-  if(a==="wt:add"){state.liftForm={routineId:null,id:null,date:state.trainDate||todayISO(),mins:"",hr:"",hrMax:"",cal:"",zone:2,rpe:"",notes:""};state.view="quicklog";render();return;}
+  if(a==="wt:add"){state.view="wtadd";render();return;}
   if(a==="wo:resumeask"){state.woResume=true;render();return;}
   if(a==="wo:resumecancel"){state.woResume=false;render();return;}
   if(a==="wo:resume"){state.woResume=false;state.view="workout";render();startWoTick();return;}
