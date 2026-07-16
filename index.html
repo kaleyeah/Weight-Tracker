@@ -354,7 +354,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.102";
+var APP_BUILD="2026-07-14.103";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -1439,22 +1439,24 @@ function buildWorkoutEntries(rt,bw){return (rt.items||[]).map(function(it){var e
   return {itemId:it.id,exerciseId:it.exerciseId,name:ex.name,muscle:ex.muscle,equipment:ex.equipment,bodyweight:!!ex.bodyweight,repLow:it.repLow,repHigh:it.repHigh,addedWt:num(it.weight)||0,notes:notes,sets:sets};
 }).filter(Boolean);}
 function rebuildEntryNotes(ei){var w=state.workout;if(!w)return;var en=w.entries[ei];if(!en)return;var rt=getRoutine(w.routineId);var it=rt&&rItem(rt,en.itemId);var ex=exById(en.exerciseId);var notes=[];if(ex)(ex.notes||[]).forEach(function(n){notes.push({text:n.text,pinned:true});});if(it)(it.notes||[]).forEach(function(n){notes.push({text:n.text,pinned:false});});en.notes=notes;saveWorkout();}
-function startWorkout(rt){var bw=currentBW();  state.workout={routineId:rt.id,name:rt.name||"Weight training",date:todayISO(),startTs:Date.now(),tState:"warmup",stateStartTs:Date.now(),warmupMs:0,workMs:0,restMs:0,bw:bw,entries:buildWorkoutEntries(rt,bw),finishing:false};
+function startWorkout(rt){var bw=currentBW();  state.workout={routineId:rt.id,name:rt.name||"Weight training",date:todayISO(),startTs:null,tState:"ready",stateStartTs:null,warmupMs:0,workMs:0,restMs:0,bw:bw,entries:buildWorkoutEntries(rt,bw),finishing:false,restHidden:false};
   state.setMenu=null;state.woPrompt=false;state.view="workout";saveWorkout();render();startWoTick();}
 function woTransition(ns){var w=state.workout;if(!w)return;var now=Date.now();var seg=now-w.stateStartTs;if(w.tState==="warmup")w.warmupMs+=seg;else if(w.tState==="working")w.workMs+=seg;else w.restMs+=seg;w.tState=ns;w.stateStartTs=now;saveWorkout();}
-function woBuckets(){var w=state.workout;if(!w)return null;var now=Date.now();var seg=now-w.stateStartTs;var b={warmup:w.warmupMs,work:w.workMs,rest:w.restMs};if(w.tState==="warmup")b.warmup+=seg;else if(w.tState==="working")b.work+=seg;else b.rest+=seg;b.total=b.warmup+b.work+b.rest;b.segMs=seg;return b;}
+function woBuckets(){var w=state.workout;if(!w)return null;if(w.tState==="ready"||!w.stateStartTs)return {warmup:0,work:0,rest:0,total:0,segMs:0};var now=Date.now();var seg=now-w.stateStartTs;var b={warmup:w.warmupMs,work:w.workMs,rest:w.restMs};if(w.tState==="warmup")b.warmup+=seg;else if(w.tState==="working")b.work+=seg;else b.rest+=seg;b.total=b.warmup+b.work+b.rest;b.segMs=seg;return b;}
 function fmtDur(ms){var s=Math.max(0,Math.floor(ms/1000));var h=Math.floor(s/3600);var m=Math.floor((s%3600)/60);var ss=s%60;return (h?h+":"+("0"+m).slice(-2):m)+":"+("0"+ss).slice(-2);}
 var woTimer=null;
-function startWoTick(){if(woTimer)clearInterval(woTimer);woTimer=setInterval(function(){if(!state.workout||state.view!=="workout"){return;}var b=woBuckets();var t=document.getElementById("wl-tb-total");if(t)t.textContent=fmtDur(b.total);var s=document.getElementById("wl-tb-seg");if(s){var w=state.workout;s.textContent=(w.tState==="warmup"?"Warmup":w.tState==="working"?"Working":"Resting")+" · "+fmtDur(b.segMs);}},1000);}
+function startWoTick(){if(woTimer)clearInterval(woTimer);woTimer=setInterval(function(){if(!state.workout||state.view!=="workout"){return;}var w=state.workout;var b=woBuckets();var t=document.getElementById("wl-tb-total");if(t)t.textContent=fmtDur(b.total);var s=document.getElementById("wl-tb-seg");if(s)s.textContent=(w.tState==="ready"?"Ready":w.tState==="warmup"?"Warmup":w.tState==="working"?"Working":"Resting")+(w.tState==="ready"?"":" · "+fmtDur(b.segMs));var rt=document.getElementById("wl-rest-time");if(rt&&w.tState==="resting")rt.textContent=fmtDur(b.segMs);},1000);}
 function setTargetIcon(reps,lo,hi){reps=num(reps);lo=num(lo);hi=num(hi);if(reps==null)return "";
   if(lo!=null&&reps<lo)return '<span class="wl-tgt" style="color:#ef4444">'+I.trenddn.replace("<svg","<svg width=18 height=18")+'</span>';
   if(hi!=null&&reps>hi)return '<span class="wl-tgt" style="color:#22c55e">'+I.trend.replace("<svg","<svg width=18 height=18")+'</span>';
   return '<span class="wl-tgt" style="color:#eab308">'+I.target.replace("<svg","<svg width=17 height=17")+'</span>';}
 function timerBarHTML(){var w=state.workout;var b=woBuckets();
-  var h='<div class="wl-timerbar"><div class="wl-tb-left"><div class="wl-tb-total" id="wl-tb-total">'+fmtDur(b.total)+'</div><div class="wl-tb-seg wl-tb-'+w.tState+'" id="wl-tb-seg">'+(w.tState==="warmup"?"Warmup":w.tState==="working"?"Working":"Resting")+' · '+fmtDur(b.segMs)+'</div></div><div class="wl-tb-btns">';
-  if(w.tState==="warmup")h+='<button class="wl-btn wl-btn-primary" data-act="wo:startroutine" style="padding:8px 14px">Start</button>';
-  else if(w.tState==="resting")h+='<button class="wl-btn wl-btn-ghost" data-act="wo:endrest" style="padding:8px 12px">End rest</button>';
-  h+='<button class="wl-btn wl-btn-primary" data-act="wo:finish" style="padding:8px 14px">Finish</button></div></div>';
+  var lbl=w.tState==="ready"?"Ready":w.tState==="warmup"?"Warmup":w.tState==="working"?"Working":"Resting";
+  var seg=w.tState==="resting"?' data-act="wo:restshow"':'';
+  var h='<div class="wl-timerbar"><div class="wl-tb-left"'+seg+'><div class="wl-tb-total" id="wl-tb-total">'+fmtDur(b.total)+'</div><div class="wl-tb-seg wl-tb-'+w.tState+'" id="wl-tb-seg">'+lbl+(w.tState==="ready"?"":' · '+fmtDur(b.segMs))+'</div></div><div class="wl-tb-btns">';
+  if(w.tState==="ready")h+='<button class="wl-btn wl-btn-primary" data-act="wo:begin" style="padding:9px 16px">Start</button>';
+  else if(w.tState==="warmup")h+='<button class="wl-btn wl-btn-primary" data-act="wo:startroutine" style="padding:9px 14px">End warmup</button>';
+  h+='</div></div>';
   return h;}
 function setRowHTML(en,ei,st,si){var done=st.status==="done",sk=st.status==="skipped";
   var h='<div class="wl-setgrid wl-setrow'+(done?" done":"")+(sk?" skipped":"")+'">';
@@ -1471,6 +1473,7 @@ function view_workout(){var w=state.workout;
   var h='<div class="wl-stack wl-workout">';
   h+='<div class="wl-cal-head" style="margin-bottom:2px"><span class="wl-cal-title" style="font-size:16px">'+esc(w.name)+'</span></div>';
   h+=timerBarHTML();
+  if(w.tState==="ready")h+='<div class="wl-hint" style="text-align:center;margin:2px 0 4px">Review your workout below, then tap <b>Start</b> — your warmup begins first. Tap <b>End warmup</b> when you\u2019re ready to lift.</div>';
   w.entries.forEach(function(en,ei){h+='<div class="wl-card" id="wo-ex-'+ei+'"><div style="margin-bottom:6px;display:flex;align-items:center;justify-content:space-between">'+muscleTagHTML(en.muscle||"other")+'<span style="display:inline-flex;gap:2px"><button class="wl-icon-btn" data-act="wo:hist" data-ei="'+ei+'">'+I.history.replace("<svg","<svg width=18 height=18")+'</button><button class="wl-icon-btn" data-act="wo:exmenu" data-ei="'+ei+'" style="font-size:20px">⋮</button></span></div>';
     h+='<div class="wl-exrow-name">'+esc(en.name)+'</div>';
     if(en.bodyweight)h+='<div class="wl-exrow-sub">Bodyweight @ <button class="wl-link" data-act="wo:bw" style="display:inline">'+(w.bw!=null?w.bw+" "+state.settings.units:"set weight")+'</button></div>';
@@ -1479,7 +1482,9 @@ function view_workout(){var w=state.workout;
     h+='<div class="wl-setgrid wl-sethead" style="margin-top:10px"><span></span><span>WEIGHT</span><span>REPS</span><span>RIR</span><span></span><span>LOG</span></div>';
     en.sets.forEach(function(st,si){h+=setRowHTML(en,ei,st,si);});
     h+='</div>';});
-  h+='<div style="height:20px"></div>';
+  if(w.tState!=="ready")h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:6px" data-act="wo:finish">End workout</button>';
+  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--faint)" data-act="wo:discard">Discard workout</button>';
+  h+='<div style="height:16px"></div>';
   return h+'</div>';}
 function finishSheetHTML(){var w=state.workout;var b=woBuckets();var ff=w.finishForm||{};
   var h='<div class="wl-stack">';
@@ -1538,6 +1543,8 @@ function woOverlaysHTML(){var h="";
       h+='<div style="margin:10px 0 4px">'+muscleTagHTML(m[0])+'</div>';
       items.forEach(function(e){h+='<button class="wl-exrow-main" data-act="wo:replacepick" data-eid="'+e.id+'" style="width:100%;padding:9px 0;border-bottom:1px solid var(--line)"><span class="wl-exrow-name">'+esc(e.name)+'</span></button>';});});
     h+='</div></div>';}
+  if(state.workout&&state.workout.tState==="resting"&&!state.workout.restHidden){var b=woBuckets();
+    h+='<div class="wl-confirm"><div class="wl-confirm-card" style="text-align:center"><div style="font-size:12px;color:var(--faint);text-transform:uppercase;letter-spacing:.1em;font-weight:800">Rest</div><div class="wl-tb-total" id="wl-rest-time" style="font-size:46px;margin:10px 0;color:#3b82f6">'+fmtDur(b.segMs)+'</div><button class="wl-btn wl-btn-primary wl-full" data-act="wo:endrest">Begin next set</button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:resthide">Keep resting · view log</button></div></div>';}
   if(state.noteEdit&&state.noteEdit.woEi!=null)h+='<div class="wl-confirm"><div class="wl-confirm-card">'+noteEditorHTML()+'</div></div>';
   return h;}
 function view_quicklog(){
@@ -1744,11 +1751,14 @@ document.addEventListener("click",function(e){
   if(a==="rt:open"){state.routineId=el.getAttribute("data-id");state.riPickOpen=false;state.noteEdit=null;state.view="rlaunch";render();return;}
   if(a==="rt:openedit"){state.routineId=el.getAttribute("data-id");state.riPickOpen=false;state.noteEdit=null;state.view="routine";render();return;}
   if(a==="wo:start"){var rt=getRoutine(el.getAttribute("data-id"));if(rt)startWorkout(rt);return;}
+  if(a==="wo:begin"){var w=state.workout;if(!w)return;w.tState="warmup";w.startTs=Date.now();w.stateStartTs=Date.now();saveWorkout();render();startWoTick();return;}
   if(a==="wo:startroutine"){woTransition("working");render();return;}
   if(a==="wo:endrest"){woTransition("working");render();return;}
+  if(a==="wo:resthide"){if(state.workout)state.workout.restHidden=true;render();return;}
+  if(a==="wo:restshow"){if(state.workout)state.workout.restHidden=false;render();return;}
   if(a==="wo:log"){var w=state.workout;if(!w)return;var ei=+el.getAttribute("data-ei"),si=+el.getAttribute("data-si");var stt=w.entries[ei].sets[si];
-    if(stt.status==="done"){askConfirm("Reopen this set? It goes back to unlogged, and time counts as working until you check it again.",function(){var w2=state.workout;if(!w2)return;var s2=w2.entries[ei].sets[si];s2.status="pending";if(w2.tState==="resting"){var now=Date.now();w2.workMs+=(now-w2.stateStartTs);w2.tState="working";w2.stateStartTs=now;}saveWorkout();},{label:"Reopen",danger:false});return;}
-    stt.status="done";if(w.tState==="warmup")woTransition("working");woTransition("resting");saveWorkout();render();return;}
+    if(stt.status==="done"){askConfirm("Reopen this set? It goes back to unlogged, and time counts as working until you check it again.",function(){var w2=state.workout;if(!w2)return;var s2=w2.entries[ei].sets[si];s2.status="pending";if(w2.tState==="resting"){var now=Date.now();w2.workMs+=(now-w2.stateStartTs);w2.tState="working";w2.stateStartTs=now;w2.restHidden=false;}saveWorkout();},{label:"Reopen",danger:false});return;}
+    stt.status="done";if(w.tState==="ready"){w.startTs=Date.now();w.stateStartTs=Date.now();w.tState="working";}else if(w.tState==="warmup"){woTransition("working");}woTransition("resting");w.restHidden=false;saveWorkout();render();return;}
   if(a==="wo:setmenu"){state.setMenu={ei:+el.getAttribute("data-ei"),si:+el.getAttribute("data-si")};render();return;}
   if(a==="wo:setmenu:close"){state.setMenu=null;render();return;}
   if(a==="wo:addset"){var w=state.workout,sm=state.setMenu;if(!w||!sm)return;var s0=w.entries[sm.ei].sets[sm.si];w.entries[sm.ei].sets.splice(sm.si+1,0,{weight:s0?s0.weight:"",reps:"",rir:"",status:"pending"});state.setMenu=null;saveWorkout();render();return;}
