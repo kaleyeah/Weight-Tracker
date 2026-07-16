@@ -262,6 +262,13 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 .wl-navbtn.on{color:var(--accent);}
 @media(max-width:420px){.wl-statrow{grid-template-columns:repeat(2,1fr);}.wl-bignum{font-size:36px;}.wl-navbtn{font-size:9px;}.wl-navbtn svg{width:19px;height:19px;}}
 .wl-photos{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.wl-mealadd{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;}
+.wl-meal-label{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:12px 0 6px;}
+.wl-meal-label:first-child{margin-top:2px;}
+.wl-diary-day{margin-bottom:0;}
+.wl-diary-dayhead{display:flex;align-items:baseline;justify-content:space-between;gap:8px;}
+.wl-diary-date{font-weight:700;font-size:15px;}
+.wl-diary-macros{font-size:12.5px;color:var(--text);margin-top:4px;padding-bottom:2px;border-bottom:1px solid var(--line);margin-bottom:4px;}
 .wl-photo{aspect-ratio:1;border-radius:10px;border:1px solid var(--line);background-size:cover;background-position:center;background-color:var(--bg2);padding:0;}
 .wl-lightbox{position:fixed;inset:0;background:rgba(0,0,0,.93);z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:calc(env(safe-area-inset-top,0px) + 14px) 14px calc(env(safe-area-inset-bottom,0px) + 14px);}
 .wl-lightbox img{max-width:100%;max-height:78vh;border-radius:10px;object-fit:contain;}
@@ -277,7 +284,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.73";
+var APP_BUILD="2026-07-14.75";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -997,9 +1004,13 @@ function view_calendar(){
   if(!_pre.length&&!_orph.length)h+='<div class="wl-hint">No activities yet — add some under Settings → Activities.</div>';
   h+='<button class="wl-link" style="margin-top:12px" data-act="go" data-view="settings">Manage activities in Settings →</button>';
   h+='</div>';
-  h+='<div class="wl-card"><div class="wl-card-head"><span>Notes &amp; photos</span></div>';
+  h+='<div class="wl-card"><div class="wl-card-head"><span>Notes</span></div>';
   h+='<textarea class="wl-note-input" placeholder="Any notes for the AI summary (feeling sick, feeling good, on vacation…)" style="width:100%;min-height:70px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:14px;padding:11px 12px;box-sizing:border-box;outline:none;resize:vertical">'+esc(state.notes[sel]||"")+'</textarea>';
-  h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:14px 0 8px">Photos</div><div id="wl-photos" class="wl-photos"><div class="wl-empty" style="padding:6px 0">Loading…</div></div><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="photo:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add photos</button>';
+  h+='</div>';
+  h+='<div class="wl-card"><div class="wl-card-head"><span>Food diary</span></div>';
+  h+='<div id="wl-photos"><div class="wl-empty" style="padding:6px 0">Loading…</div></div>';
+  h+='<div class="wl-mealadd">'+[["breakfast","Breakfast"],["lunch","Lunch"],["snack","Snack"],["dinner","Dinner"]].map(function(m){return '<button class="wl-btn wl-btn-ghost" data-act="photo:add" data-meal="'+m[0]+'">'+I.plus.replace("<svg","<svg width=14 height=14")+m[1]+'</button>';}).join("")+'</div>';
+  h+='<div class="wl-hint" style="margin-top:8px">📷 Kept on this device only — your food diary isn\u2019t synced or seen by the AI.</div>';
   h+='</div>';
   h+='<div id="wl-clearday">'+clearDayBtnHTML(sel)+'</div>';
   h+='<div class="wl-hint" style="margin-top:10px;text-align:center">Everything saves automatically. Tap the date above to switch days.</div></div>';
@@ -1036,6 +1047,7 @@ function view_summary(){
   days.forEach(function(r){var parts=[];if(r.calories!=null)parts.push(Math.round(r.calories)+" cal");if(r.steps!=null)parts.push(Math.round(r.steps)+" st");
     h+='<button class="wl-list-row wl-list-tap" data-act="sum:day" data-date="'+r.date+'"><span class="wl-list-date">'+r.dow.slice(0,3)+' '+(r.d.getMonth()+1)+'/'+r.d.getDate()+(r.activities.length?' · '+esc(r.activities.join(", ")):"")+'</span><span class="wl-list-val">'+(parts.join(" · ")||"—")+'</span></button>';});
   h+='</div></div>';
+  h+='<div class="wl-card"><button class="wl-btn wl-btn-primary wl-full" data-act="go" data-view="diary">📷 Food Diary</button><div class="wl-hint" style="margin-top:8px">A visual collage of your meal photos by day, with each day\u2019s calories and macros.</div></div>';
   h+='<div class="wl-card"><div class="wl-card-head"><span>Export</span></div><div class="wl-row"><button class="wl-btn wl-btn-primary wl-full" data-act="sum:exportweek">Export this week</button><button class="wl-btn wl-btn-ghost wl-full" data-act="sum:exportall">Export all</button></div><div class="wl-hint" style="margin-top:8px">CSV: Day, Date, Weight, Steps, Calories, Protein, Fat, Carbs, Activities.</div></div>';
   return h+'</div>';}
 function csvCell(v){v=(v==null?"":String(v));return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
@@ -1071,6 +1083,7 @@ function idb(){return new Promise(function(res,rej){
   r.onsuccess=function(){photoDB=r.result;res(photoDB);};r.onerror=function(){rej(r.error);};});}
 function idbAdd(rec){return idb().then(function(db){return new Promise(function(res,rej){var tx=db.transaction("photos","readwrite");tx.objectStore("photos").put(rec);tx.oncomplete=function(){res();};tx.onerror=function(){rej(tx.error);};});});}
 function idbByDate(date){return idb().then(function(db){return new Promise(function(res,rej){var out=[];var tx=db.transaction("photos","readonly");var rq=tx.objectStore("photos").index("date").openCursor(IDBKeyRange.only(date));rq.onsuccess=function(){var c=rq.result;if(c){out.push(c.value);c.continue();}else res(out.sort(function(a,b){return a.ts-b.ts;}));};rq.onerror=function(){rej(rq.error);};});});}
+function idbAll(){return idb().then(function(db){return new Promise(function(res,rej){var out=[];var tx=db.transaction("photos","readonly");var rq=tx.objectStore("photos").openCursor();rq.onsuccess=function(){var c=rq.result;if(c){out.push(c.value);c.continue();}else res(out);};rq.onerror=function(){rej(rq.error);};});});}
 function idbDelete(id){return idb().then(function(db){return new Promise(function(res,rej){var tx=db.transaction("photos","readwrite");tx.objectStore("photos").delete(id);tx.oncomplete=function(){res();};tx.onerror=function(){rej(tx.error);};});});}
 function idbClearAll(){return idb().then(function(db){return new Promise(function(res){var tx=db.transaction("photos","readwrite");tx.objectStore("photos").clear();tx.oncomplete=function(){res();};tx.onerror=function(){res();};});}).catch(function(){});}
 function processImage(file){return new Promise(function(res){
@@ -1084,18 +1097,54 @@ function processImage(file){return new Promise(function(res){
 function clearPhotoURLs(){photoURLs.forEach(function(u){try{URL.revokeObjectURL(u);}catch(e){}});photoURLs=[];photoMap={};}
 function renderPhotos(date){var host=document.getElementById("wl-photos");if(!host)return;
   idbByDate(date).then(function(list){var h2=document.getElementById("wl-photos");if(!h2)return;
-    if(!list.length){h2.innerHTML='<div class="wl-empty" style="padding:6px 0">No photos yet.</div>';return;}
-    var html="";list.forEach(function(p){var url=URL.createObjectURL(p.blob);photoURLs.push(url);photoMap[p.id]=url;
-      html+='<button class="wl-photo" data-act="photo:view" data-id="'+p.id+'" style="background-image:url('+url+')"></button>';});
+    if(!list.length){h2.innerHTML='<div class="wl-empty" style="padding:6px 0">No food photos yet — add a meal below.</div>';return;}
+    var MEALS=[["breakfast","Breakfast"],["lunch","Lunch"],["snack","Snack"],["dinner","Dinner"],["","Other"]];
+    var html="";
+    MEALS.forEach(function(m){var items=list.filter(function(p){return (p.meal||"")===m[0];});if(!items.length)return;
+      html+='<div class="wl-meal-label">'+m[1]+'</div><div class="wl-photos">';
+      items.forEach(function(p){var url=URL.createObjectURL(p.blob);photoURLs.push(url);photoMap[p.id]=url;
+        html+='<button class="wl-photo" data-act="photo:view" data-id="'+p.id+'" style="background-image:url('+url+')"></button>';});
+      html+='</div>';});
     h2.innerHTML=html;
   }).catch(function(){var h2=document.getElementById("wl-photos");if(h2)h2.innerHTML='<div class="wl-empty" style="padding:6px 0">Photos aren\u2019t available on this device.</div>';});}
+function view_diary(){
+  var h='<div class="wl-stack">';
+  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="go" data-view="summary">‹</button><span class="wl-cal-title">Food Diary</span><span style="width:36px;display:inline-block"></span></div>';
+  h+='<div class="wl-hint" style="text-align:center;margin:-4px 0 4px">📷 Your meals by day — kept on this device only, not synced or seen by the AI.</div>';
+  h+='<div id="wl-diary"><div class="wl-empty" style="padding:20px 0">Loading…</div></div>';
+  h+='</div>';
+  return h;
+}
+function renderDiary(){var host=document.getElementById("wl-diary");if(!host)return;
+  idbAll().then(function(all){var host2=document.getElementById("wl-diary");if(!host2)return;
+    if(!all.length){host2.innerHTML='<div class="wl-empty" style="padding:20px 0">No food photos yet. Open a day\u2019s Food diary to add meals.</div>';return;}
+    var byDate={};all.forEach(function(p){(byDate[p.date]=byDate[p.date]||[]).push(p);});
+    var dates=Object.keys(byDate);var wk=toISO(weekStartFor(0));
+    var cur=dates.filter(function(d){return d>=wk;}).sort();
+    var old=dates.filter(function(d){return d<wk;}).sort().reverse();
+    var ordered=cur.concat(old);
+    var MEALS=[["breakfast","Breakfast"],["lunch","Lunch"],["snack","Snack"],["dinner","Dinner"],["","Other"]];
+    var html="";
+    ordered.forEach(function(date){
+      var photos=byDate[date];var f=state.food[date]||{};
+      var cal=num(f.calories),p=num(f.protein),c=num(f.carbs),ft=num(f.fat);
+      html+='<div class="wl-card wl-diary-day"><div class="wl-diary-dayhead"><span class="wl-diary-date">'+fmtLong(parseISO(date))+(date===todayISO()?' · Today':'')+'</span></div>';
+      if(cal!=null||p!=null||c!=null||ft!=null){html+='<div class="wl-diary-macros">'+(cal!=null?'<b>'+Math.round(cal).toLocaleString()+'</b> cal':'<span style="color:var(--faint)">calories not logged</span>')+(p!=null?'  ·  P: '+p+'g':'')+(ft!=null?'  ·  F: '+ft+'g':'')+(c!=null?'  ·  C: '+c+'g':'')+'</div>';}
+      MEALS.forEach(function(m){var items=photos.filter(function(x){return (x.meal||"")===m[0];});if(!items.length)return;
+        html+='<div class="wl-meal-label">'+m[1]+'</div><div class="wl-photos">';
+        items.forEach(function(x){var url=URL.createObjectURL(x.blob);photoURLs.push(url);photoMap[x.id]=url;html+='<button class="wl-photo" data-act="photo:view" data-id="'+x.id+'" style="background-image:url('+url+')"></button>';});
+        html+='</div>';});
+      html+='</div>';
+    });
+    host2.innerHTML=html;
+  }).catch(function(){var host2=document.getElementById("wl-diary");if(host2)host2.innerHTML='<div class="wl-empty" style="padding:20px 0">Photos aren\u2019t available on this device.</div>';});}
 function openLightbox(id){var url=photoMap[id];if(!url)return;
   var ov=document.createElement("div");ov.className="wl-lightbox";
   ov.innerHTML='<img src="'+url+'"><div class="wl-lb-bar"><button class="wl-btn wl-btn-ghost" data-lb="close">Close</button><button class="wl-btn wl-btn-danger" data-lb="del" data-id="'+id+'">Delete</button></div>';
   ov.addEventListener("click",function(e){var b=e.target.closest("[data-lb]");
     if(!b){if(e.target===ov)document.body.removeChild(ov);return;}
     if(b.getAttribute("data-lb")==="close"){document.body.removeChild(ov);}
-    else if(window.confirm("Delete this photo?")){idbDelete(b.getAttribute("data-id")).then(function(){if(ov.parentNode)document.body.removeChild(ov);renderPhotos(state.selDate);});}});
+    else if(window.confirm("Delete this photo?")){idbDelete(b.getAttribute("data-id")).then(function(){if(ov.parentNode)document.body.removeChild(ov);if(state.view==="diary")renderDiary();else renderPhotos(state.selDate);});}});
   document.body.appendChild(ov);}
 function themeGrid(){var cur=state.settings.theme||"ink";
   return Object.keys(THEMES).map(function(id){var t=THEMES[id];var on=id===cur;
@@ -1195,12 +1244,13 @@ function view_settings(){
 var NAV=[["overview","Overview"],["calendar","Daily Log"],["weight","Trends"],["summary","Summary"],["settings","Settings"]];
 function render(){
   clearPhotoURLs();
-  var title=(NAV.filter(function(n){return n[0]===state.view;})[0]||["","" ])[1];
-  var body=state.view==="overview"?view_overview():(state.view==="calendar"||state.view==="food")?view_calendar():state.view==="weight"?view_weight():state.view==="summary"?view_summary():view_settings();
-  var nav='<nav class="wl-nav">'+NAV.map(function(n){return '<button class="wl-navbtn '+(state.view===n[0]?"on":"")+'" data-act="go" data-view="'+n[0]+'">'+I[n[0]]+'<span>'+n[1]+'</span></button>';}).join("")+'</nav>';
+  var title=state.view==="diary"?"Food Diary":(NAV.filter(function(n){return n[0]===state.view;})[0]||["","" ])[1];
+  var body=state.view==="overview"?view_overview():(state.view==="calendar"||state.view==="food")?view_calendar():state.view==="weight"?view_weight():state.view==="summary"?view_summary():state.view==="diary"?view_diary():view_settings();
+  var nav='<nav class="wl-nav">'+NAV.map(function(n){return '<button class="wl-navbtn '+(state.view===n[0]||(n[0]==="summary"&&state.view==="diary")?"on":"")+'" data-act="go" data-view="'+n[0]+'">'+I[n[0]]+'<span>'+n[1]+'</span></button>';}).join("")+'</nav>';
   var hdrRight='<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><div class="wl-datechip">'+fmtLong(new Date())+'</div>'+(syncOn()?'<div id="wl-sync" class="wl-sync '+syncState.s+'">'+syncLabel()+'</div>':'')+(syncOn()?'<div id="wl-synctime" class="wl-synctime">'+lastSyncText()+'</div>':'')+'</div>';
   document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header"><div><div class="wl-eyebrow">Progress Tracker</div><h1 class="wl-title">'+title+'</h1></div>'+hdrRight+'</header><main class="wl-main">'+body+'</main>'+nav+'</div>';
   if(state.view==="calendar")renderPhotos(state.selDate);
+  if(state.view==="diary")renderDiary();
 }
 
 /* ---------------- events ---------------- */
@@ -1224,7 +1274,7 @@ document.addEventListener("click",function(e){
   if(a==="trend:mode"){state.trendMode=el.getAttribute("data-mode");state.trendOffset=0;render();return;}
   if(a==="trend:prev"){state.trendOffset=(state.trendOffset||0)+1;render();return;}
   if(a==="trend:next"){state.trendOffset=Math.max(0,(state.trendOffset||0)-1);render();return;}
-  if(a==="photo:add"){document.getElementById("wl-photo-input").click();return;}
+  if(a==="photo:add"){state.pendingMeal=el.getAttribute("data-meal")||"";document.getElementById("wl-photo-input").click();return;}
   if(a==="photo:view"){openLightbox(el.getAttribute("data-id"));return;}
   if(a==="openday"){var od=el.getAttribute("data-date");state.selDate=od;var pd=parseISO(od);state.calY=pd.getFullYear();state.calM=pd.getMonth();state.view="calendar";render();return;}
   if(a==="day:clear"){var fdd=state.selDate;
@@ -1354,12 +1404,12 @@ document.getElementById("wl-import").addEventListener("change",function(e){
 });
 document.getElementById("wl-photo-input").addEventListener("change",function(e){
   var files=e.target.files;if(!files||!files.length){return;}
-  var date=state.selDate;var arr=Array.prototype.slice.call(files);e.target.value="";
+  var date=state.selDate;var arr=Array.prototype.slice.call(files);e.target.value="";var meal=state.pendingMeal||"";
   toast("Adding "+arr.length+" photo"+(arr.length>1?"s":"")+"…");
   var chain=Promise.resolve();
   arr.forEach(function(f){chain=chain.then(function(){return processImage(f).then(function(blob){
     var id=date+"-"+Date.now()+"-"+Math.random().toString(36).slice(2,7);
-    return idbAdd({id:id,date:date,blob:blob,ts:Date.now()+Math.random()});});});});
+    return idbAdd({id:id,date:date,blob:blob,ts:Date.now()+Math.random(),meal:meal});});});});
   chain.then(function(){if(state.view==="calendar"&&state.selDate===date)renderPhotos(date);toast("Photos saved");}).catch(function(){toast("Couldn't save photos");});
 });
 function backupJSON(){return JSON.stringify(payload(),null,2);}
