@@ -322,7 +322,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.91";
+var APP_BUILD="2026-07-14.94";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -1280,7 +1280,7 @@ function view_exlib(){
     MUSCLES.forEach(function(mm){var seeds=EXSEED.map(function(s,i){return {s:s,i:i};}).filter(function(x){return x.s.m===mm[0];});if(!seeds.length)return;
       h+='<div class="wl-card"><div style="margin-bottom:8px">'+muscleTagHTML(mm[0])+'</div><div class="wl-preset-list">';
       seeds.forEach(function(x){var added=(state.training.exercises||[]).some(function(e){return e.name.toLowerCase()===x.s.n.toLowerCase();});
-        h+='<button class="wl-achip'+(added?" on":"")+'" data-act="exseed:add" data-idx="'+x.i+'">'+(added?"✓ ":"＋ ")+esc(x.s.n)+'</button>';});
+        h+='<button class="wl-achip wl-seedchip'+(added?" on":"")+'" style="'+(added?'background:'+mm[2]+';border-color:'+mm[2]+';color:#fff':'border-color:'+mm[2]+';color:'+mm[2])+'" data-act="exseed:add" data-idx="'+x.i+'">'+(added?"✓ ":"＋ ")+esc(x.s.n)+'</button>';});
       h+='</div></div>';});
     h+='<button class="wl-btn wl-btn-primary wl-full" data-act="browse:close">Done</button>';
     return h+'</div>';
@@ -1477,7 +1477,10 @@ document.addEventListener("click",function(e){
   if(a==="tr:today"){state.trainDate=todayISO();state.cardioForm=null;render();return;}
   if(a==="browse:open"){state.browseOpen=true;state.exForm=null;render();return;}
   if(a==="browse:close"){state.browseOpen=false;render();return;}
-  if(a==="exseed:add"){var sd=EXSEED[+el.getAttribute("data-idx")];if(!sd)return;var xl=(state.training.exercises||[]);if(xl.some(function(e){return e.name.toLowerCase()===sd.n.toLowerCase();}))return;xl.push({id:"x-"+Date.now()+"-"+Math.random().toString(36).slice(2,6),name:sd.n,muscle:sd.m,equipment:sd.e||"",bodyweight:!!sd.bw,notes:[]});state.training.exercises=xl;saveTraining();render();return;}
+  if(a==="exseed:add"){var sd=EXSEED[+el.getAttribute("data-idx")];if(!sd)return;var xl=(state.training.exercises||[]);
+    var existing=xl.filter(function(e){return e.name.toLowerCase()===sd.n.toLowerCase();})[0];
+    if(existing){state.training.exercises=xl.filter(function(e){return e.id!==existing.id;});saveTraining();render();return;}
+    xl.push({id:"x-"+Date.now()+"-"+Math.random().toString(36).slice(2,6),name:sd.n,muscle:sd.m,equipment:sd.e||"",bodyweight:!!sd.bw,notes:[]});state.training.exercises=xl;saveTraining();render();return;}
   if(a==="ex:add"){state.exForm={id:null,name:"",muscle:"chest",equipment:"",bodyweight:false};render();return;}
   if(a==="ex:edit"){var xid=el.getAttribute("data-id");var xe=(state.training.exercises||[]).filter(function(e){return e.id===xid;})[0];if(xe)state.exForm={id:xe.id,name:xe.name,muscle:xe.muscle||"other",equipment:xe.equipment||"",bodyweight:!!xe.bodyweight};render();return;}
   if(a==="ex:cancel"){state.exForm=null;render();return;}
