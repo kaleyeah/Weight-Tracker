@@ -56,6 +56,7 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 .wl-mtag{padding:7px 12px;border-radius:14px;font-size:12px;font-weight:700;border:1.5px solid var(--mc);background:transparent;color:var(--text);letter-spacing:.02em;display:inline-flex;align-items:center;gap:5px;}
 .wl-mtag.on{background:var(--mc);color:#fff;border-color:var(--mc);}
 .wl-mtag-bars{letter-spacing:-2px;font-size:11px;opacity:.9;}
+.wl-chip-ic{display:inline-flex;justify-content:center;align-items:center;width:14px;flex:none;font-size:12px;}
 .wl-exrow{display:flex;align-items:center;gap:8px;padding:11px 0;border-bottom:1px solid var(--line);}
 .wl-exrow:last-child{border-bottom:none;}
 .wl-exrow-main{flex:1;text-align:left;background:none;border:none;color:inherit;padding:0;cursor:pointer;display:flex;flex-direction:column;gap:2px;font-family:var(--sans);}
@@ -322,7 +323,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.94";
+var APP_BUILD="2026-07-14.97";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -1247,17 +1248,13 @@ function trainingGoalsHTML(ws){var st=weekTrainingStats(ws);var f=state.settings
 var MUSCLES=[["chest","Chest","#d926b8"],["back","Back","#3aa0c9"],["shoulders","Shoulders","#a855f7"],["biceps","Biceps","#f59e0b"],["triceps","Triceps","#ec4899"],["quads","Quads","#22c55e"],["hamstrings","Hamstrings","#10b981"],["glutes","Glutes","#14b8a6"],["calves","Calves","#84cc16"],["core","Core","#eab308"],["forearms","Forearms","#f97316"],["other","Other","#9ca3af"]];
 function muscleInfo(k){for(var i=0;i<MUSCLES.length;i++)if(MUSCLES[i][0]===k)return {label:MUSCLES[i][1],color:MUSCLES[i][2]};return {label:"Other",color:"#9ca3af"};}
 var EXSEED=[
-{n:"Barbell Bench Press",m:"chest",e:"Barbell"},{n:"Smith Machine Bench Press",m:"chest",e:"Smith Machine"},{n:"Incline Dumbbell Press",m:"chest",e:"Dumbbell"},{n:"Dumbbell Press (Low Incline)",m:"chest",e:"Dumbbell"},{n:"Flat Dumbbell Press",m:"chest",e:"Dumbbell"},{n:"Machine Chest Press",m:"chest",e:"Machine"},{n:"Cable Fly",m:"chest",e:"Cable"},{n:"Pec Deck",m:"chest",e:"Machine"},{n:"Push-up",m:"chest",bw:true},
-{n:"Pull-up",m:"back",bw:true},{n:"Pull-up (Neutral Grip)",m:"back",bw:true},{n:"Lat Pulldown",m:"back",e:"Cable"},{n:"Seated Cable Row",m:"back",e:"Cable"},{n:"Barbell Row",m:"back",e:"Barbell"},{n:"Dumbbell Row",m:"back",e:"Dumbbell"},{n:"Chest-Supported Row",m:"back",e:"Machine"},{n:"T-Bar Row",m:"back",e:"Barbell"},{n:"Straight-Arm Pulldown",m:"back",e:"Cable"},
-{n:"Overhead Press",m:"shoulders",e:"Barbell"},{n:"Dumbbell Shoulder Press (Seated)",m:"shoulders",e:"Dumbbell"},{n:"Dumbbell Shoulder Press (Standing)",m:"shoulders",e:"Dumbbell"},{n:"Machine Shoulder Press",m:"shoulders",e:"Machine"},{n:"Dumbbell Lateral Raise",m:"shoulders",e:"Dumbbell"},{n:"Cable Lateral Raise",m:"shoulders",e:"Cable"},{n:"Rear Delt Fly",m:"shoulders",e:"Dumbbell"},{n:"Face Pull",m:"shoulders",e:"Cable"},
-{n:"Barbell Curl",m:"biceps",e:"Barbell"},{n:"Dumbbell Curl",m:"biceps",e:"Dumbbell"},{n:"Incline Dumbbell Curl",m:"biceps",e:"Dumbbell"},{n:"Hammer Curl",m:"biceps",e:"Dumbbell"},{n:"Cable Curl",m:"biceps",e:"Cable"},{n:"Preacher Curl",m:"biceps",e:"Machine"},
-{n:"Cable Overhead Triceps Extension (Rope)",m:"triceps",e:"Cable"},{n:"Triceps Pushdown (Rope)",m:"triceps",e:"Cable"},{n:"Skull Crusher",m:"triceps",e:"Barbell"},{n:"Overhead Dumbbell Extension",m:"triceps",e:"Dumbbell"},{n:"Close-Grip Bench Press",m:"triceps",e:"Barbell"},{n:"Dip",m:"triceps",bw:true},
-{n:"Barbell Back Squat",m:"quads",e:"Barbell"},{n:"Goblet Squat",m:"quads",e:"Dumbbell"},{n:"Leg Press",m:"quads",e:"Machine"},{n:"Hack Squat",m:"quads",e:"Machine"},{n:"Leg Extension",m:"quads",e:"Machine"},{n:"Bulgarian Split Squat",m:"quads",e:"Dumbbell"},{n:"Walking Lunge",m:"quads",e:"Dumbbell"},
-{n:"Romanian Deadlift",m:"hamstrings",e:"Barbell"},{n:"Romanian Deadlift (Smith Machine)",m:"hamstrings",e:"Smith Machine"},{n:"Dumbbell Romanian Deadlift",m:"hamstrings",e:"Dumbbell"},{n:"Lying Leg Curl",m:"hamstrings",e:"Machine"},{n:"Seated Leg Curl",m:"hamstrings",e:"Machine"},{n:"Good Morning",m:"hamstrings",e:"Barbell"},
-{n:"Hip Thrust",m:"glutes",e:"Barbell"},{n:"Glute Bridge",m:"glutes",bw:true},{n:"Cable Kickback",m:"glutes",e:"Cable"},{n:"Step-up",m:"glutes",e:"Dumbbell"},{n:"Reverse Lunge",m:"glutes",e:"Dumbbell"},
-{n:"Standing Calf Raise",m:"calves",e:"Machine"},{n:"Seated Calf Raise",m:"calves",e:"Machine"},{n:"Leg Press Calf Raise",m:"calves",e:"Machine"},
-{n:"Plank",m:"core",bw:true},{n:"Hanging Leg Raise",m:"core",bw:true},{n:"Cable Crunch",m:"core",e:"Cable"},{n:"Ab Wheel Rollout",m:"core",bw:true},{n:"Machine Crunch",m:"core",e:"Machine"},
-{n:"Wrist Curl",m:"forearms",e:"Barbell"},{n:"Reverse Curl",m:"forearms",e:"Barbell"},{n:"Farmer's Carry",m:"forearms",e:"Dumbbell"}
+{n:"Smith Machine Bench Press (Medium Grip)",m:"chest",e:"Smith Machine"},{n:"Smith Machine Press (Incline, Medium Grip)",m:"chest",e:"Smith Machine"},{n:"Dumbbell Press (Low Incline)",m:"chest",e:"Dumbbell"},{n:"Dip (Chest-Focused)",m:"chest",bw:true},
+{n:"Pullup (Parallel Grip)",m:"back",bw:true},{n:"Pullup (Neutral Grip)",m:"back",bw:true},{n:"Pullup (Wide Grip)",m:"back",bw:true},{n:"Pulldown (Normal Grip)",m:"back",e:"Cable"},{n:"Pulldown (Wide Grip)",m:"back",e:"Cable"},{n:"Seated Cable Row",m:"back",e:"Cable"},{n:"Dumbbell Row (2-Arm, Incline)",m:"back",e:"Dumbbell"},
+{n:"Dumbbell Shoulder Press (Seated)",m:"shoulders",e:"Dumbbell"},{n:"Dumbbell Shoulder Press (Standing)",m:"shoulders",e:"Dumbbell"},{n:"Dumbbell Lateral Raise",m:"shoulders",e:"Dumbbell"},{n:"Dumbbell Lateral Raise (Top Hold)",m:"shoulders",e:"Dumbbell"},
+{n:"Dumbbell Curl (2-Arm)",m:"biceps",e:"Dumbbell"},
+{n:"Cable Overhead Triceps Extension (Rope)",m:"triceps",e:"Cable"},{n:"Cable Triceps Pushdown (Rope)",m:"triceps",e:"Cable"},{n:"Cable Triceps Pushdown (Bar)",m:"triceps",e:"Cable"},
+{n:"Goblet Squat",m:"quads",e:"Dumbbell"},{n:"Smith Machine Squat (Feet Forward)",m:"quads",e:"Smith Machine"},
+{n:"Romanian Deadlift (Smith Machine)",m:"hamstrings",e:"Smith Machine"}
 ];
 function muscleTagHTML(k){var m=muscleInfo(k);return '<span class="wl-mtag on" style="--mc:'+m.color+'"><span class="wl-mtag-bars">▎▎▎</span>'+m.label.toUpperCase()+'</span>';}
 function exFormHTML(xf){
@@ -1277,10 +1274,11 @@ function view_exlib(){
   if(state.browseOpen){
     h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="browse:close">‹</button><span class="wl-cal-title">Common exercises</span><span style="width:36px;display:inline-block"></span></div>';
     h+='<div class="wl-hint" style="text-align:center;margin-bottom:4px">Tap to add to your library. Add what you use — you can edit or remove any of them afterward.</div>';
+    h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-bottom:4px" data-act="ex:seedall">Add all of these</button>';
     MUSCLES.forEach(function(mm){var seeds=EXSEED.map(function(s,i){return {s:s,i:i};}).filter(function(x){return x.s.m===mm[0];});if(!seeds.length)return;
       h+='<div class="wl-card"><div style="margin-bottom:8px">'+muscleTagHTML(mm[0])+'</div><div class="wl-preset-list">';
       seeds.forEach(function(x){var added=(state.training.exercises||[]).some(function(e){return e.name.toLowerCase()===x.s.n.toLowerCase();});
-        h+='<button class="wl-achip wl-seedchip'+(added?" on":"")+'" style="'+(added?'background:'+mm[2]+';border-color:'+mm[2]+';color:#fff':'border-color:'+mm[2]+';color:'+mm[2])+'" data-act="exseed:add" data-idx="'+x.i+'">'+(added?"✓ ":"＋ ")+esc(x.s.n)+'</button>';});
+        h+='<button class="wl-achip wl-seedchip'+(added?" on":"")+'" style="'+(added?'background:'+mm[2]+';border-color:'+mm[2]+';color:#fff':'border-color:'+mm[2]+';color:'+mm[2])+'" data-act="exseed:add" data-idx="'+x.i+'"><span class="wl-chip-ic">'+(added?"✓":"＋")+'</span>'+esc(x.s.n)+'</button>';});
       h+='</div></div>';});
     h+='<button class="wl-btn wl-btn-primary wl-full" data-act="browse:close">Done</button>';
     return h+'</div>';
@@ -1297,7 +1295,8 @@ function view_exlib(){
     h+='</div>';});}
   if(xf)h+=exFormHTML(xf);
   else{h+='<button class="wl-btn wl-btn-primary wl-full" data-act="ex:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add exercise</button>';
-    h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="browse:open">Browse common exercises</button>';}
+    h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="browse:open">Browse common exercises</button>';
+    if(exs.length)h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="ex:clearall">Clear all exercises</button>';}
   return h+'</div>';
 }
 function cardioFormHTML(cf){
@@ -1481,6 +1480,8 @@ document.addEventListener("click",function(e){
     var existing=xl.filter(function(e){return e.name.toLowerCase()===sd.n.toLowerCase();})[0];
     if(existing){state.training.exercises=xl.filter(function(e){return e.id!==existing.id;});saveTraining();render();return;}
     xl.push({id:"x-"+Date.now()+"-"+Math.random().toString(36).slice(2,6),name:sd.n,muscle:sd.m,equipment:sd.e||"",bodyweight:!!sd.bw,notes:[]});state.training.exercises=xl;saveTraining();render();return;}
+  if(a==="ex:seedall"){var xa=(state.training.exercises||[]);EXSEED.forEach(function(sd,ix){if(!xa.some(function(e){return e.name.toLowerCase()===sd.n.toLowerCase();}))xa.push({id:"x-"+Date.now()+"-"+ix+"-"+Math.random().toString(36).slice(2,6),name:sd.n,muscle:sd.m,equipment:sd.e||"",bodyweight:!!sd.bw,notes:[]});});state.training.exercises=xa;saveTraining();render();return;}
+  if(a==="ex:clearall"){if(!(state.training.exercises||[]).length)return;askConfirm("Remove ALL exercises from your library? You can re-add them from Browse.",function(){state.training.exercises=[];saveTraining();},{label:"Remove all"});return;}
   if(a==="ex:add"){state.exForm={id:null,name:"",muscle:"chest",equipment:"",bodyweight:false};render();return;}
   if(a==="ex:edit"){var xid=el.getAttribute("data-id");var xe=(state.training.exercises||[]).filter(function(e){return e.id===xid;})[0];if(xe)state.exForm={id:xe.id,name:xe.name,muscle:xe.muscle||"other",equipment:xe.equipment||"",bodyweight:!!xe.bodyweight};render();return;}
   if(a==="ex:cancel"){state.exForm=null;render();return;}
