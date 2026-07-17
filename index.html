@@ -17,7 +17,7 @@
   --text:#EDF1F7; --muted:#8791A3; --faint:#5A6474;
   --accent:#F5B544; --accent-dim:rgba(245,181,68,.14);
   --good:#5CD6A0; --bad:#F26D5B; --reg:#7C93F5;
-  --mac-p:#7E9CC2; --mac-c:#C2A06A; --mac-f:#A98CBF;
+  --mac-p:#A9C0DE; --mac-c:#7C9AC0; --mac-f:#566F92;
   --on-accent:#20160A; --on-good:#0C1A14;
   --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,system-ui,sans-serif;
   --mono:ui-monospace,'SF Mono','Cascadia Code',Menlo,Consolas,monospace;
@@ -114,6 +114,7 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 .wl-sync.saving,.wl-sync.syncing{color:var(--accent);border-color:rgba(245,181,68,.4);}
 .wl-sync.offline,.wl-sync.error{color:var(--bad);border-color:rgba(242,109,91,.4);}
 .wl-synctime{font-size:9px;font-family:var(--mono);color:var(--faint);}
+.wl-verchip{font-size:9px;font-family:var(--mono);color:var(--faint);letter-spacing:.02em;}
 .wl-ptr{position:fixed;top:calc(env(safe-area-inset-top,0px) + 8px);left:50%;transform:translateX(-50%) translateY(0);width:34px;height:34px;border-radius:50%;background:var(--card2);border:1px solid var(--line2);display:flex;align-items:center;justify-content:center;opacity:0;z-index:60;pointer-events:none;}
 .wl-ptr-ring{width:16px;height:16px;border-radius:50%;border:2px solid var(--faint);border-top-color:var(--accent);}
 .wl-ptr.ready .wl-ptr-ring{border-top-color:var(--good);}
@@ -387,6 +388,10 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 .wl-lightbox{position:fixed;inset:0;background:rgba(0,0,0,.93);z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:calc(env(safe-area-inset-top,0px) + 14px) 14px calc(env(safe-area-inset-bottom,0px) + 14px);}
 .wl-lightbox img{max-width:100%;max-height:78vh;border-radius:10px;object-fit:contain;}
 .wl-lb-bar{display:flex;gap:10px;margin-top:16px;}
+.wl-lb-nav{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:66px;border:none;background:rgba(0,0,0,.32);color:#fff;font-size:30px;font-family:var(--sans);border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;}
+.wl-lb-nav.prev{left:10px;}
+.wl-lb-nav.next{right:10px;}
+.wl-lb-count{position:absolute;top:calc(env(safe-area-inset-top,0px) + 16px);left:0;right:0;text-align:center;color:rgba(255,255,255,.85);font-size:13px;font-weight:700;letter-spacing:.05em;}
 </style>
 </head>
 <body>
@@ -398,7 +403,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.130";
+var APP_BUILD="2026-07-14.133";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -1136,7 +1141,7 @@ function dayBarHTML(){
       h+='<button class="wl-cell'+(isS?" sel":"")+(isT?" today":"")+'" data-act="cal:sel" data-date="'+iso+'"><span class="wl-cell-num">'+d+'</span>'+dayDots(iso)+'</button>';}
     h+='</div>';
   }
-  if(!isToday)h+='<div style="text-align:center;margin-top:'+(state.calOpen?"12px":"10px")+'"><button class="wl-jumptoday" data-act="opentoday">↩ Jump to today</button></div>';
+  if(!isToday)h+='<div style="text-align:center;margin-top:'+(state.calOpen?"12px":"10px")+'"><button class="wl-jumptoday" data-act="opentoday">Jump to today</button></div>';
   return h+'</div>';
 }
 function quickEntryHTML(){
@@ -1303,14 +1308,31 @@ function renderDiary(){var host=document.getElementById("wl-diary");if(!host)ret
     if(weeks.length>show)html+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:4px" data-act="diary:older">↓ Load older week</button>';
     host2.innerHTML=html;
   }).catch(function(){var host2=document.getElementById("wl-diary");if(host2)host2.innerHTML='<div class="wl-empty" style="padding:20px 0">Photos aren\u2019t available on this device.</div>';});}
-function openLightbox(id){var url=photoMap[id];if(!url)return;
+function openLightbox(id){
+  var ids=[].slice.call(document.querySelectorAll('[data-act="photo:view"]')).map(function(b){return b.getAttribute("data-id");});
+  if(ids.indexOf(id)<0)ids=[id];
   var ov=document.createElement("div");ov.className="wl-lightbox";
-  ov.innerHTML='<img src="'+url+'"><div class="wl-lb-bar"><button class="wl-btn wl-btn-ghost" data-lb="close">Close</button><button class="wl-btn wl-btn-danger" data-lb="del" data-id="'+id+'">Delete</button></div>';
+  ov.innerHTML='<div class="wl-lb-count"></div><button class="wl-lb-nav prev" data-lb="prev">‹</button><img class="wl-lb-img" alt=""><button class="wl-lb-nav next" data-lb="next">›</button><div class="wl-lb-bar"><button class="wl-btn wl-btn-ghost" data-lb="close">Close</button><button class="wl-btn wl-btn-danger" data-lb="del">Delete</button></div>';
+  var img=ov.querySelector(".wl-lb-img"),countEl=ov.querySelector(".wl-lb-count"),prevB=ov.querySelector(".wl-lb-nav.prev"),nextB=ov.querySelector(".wl-lb-nav.next");
+  var urls={},idx=Math.max(0,ids.indexOf(id)),dirty=false;
+  function show(){img.src=urls[ids[idx]]||"";countEl.textContent=ids.length>1?(idx+1)+" / "+ids.length:"";prevB.style.visibility=idx>0?"visible":"hidden";nextB.style.visibility=idx<ids.length-1?"visible":"hidden";}
+  function go(d){var ni=idx+d;if(ni<0||ni>=ids.length)return;idx=ni;show();}
+  function close(){document.removeEventListener("keydown",key);Object.keys(urls).forEach(function(k){try{URL.revokeObjectURL(urls[k]);}catch(e){}});if(ov.parentNode)document.body.removeChild(ov);if(dirty){if(state.view==="diary")renderDiary();else renderPhotosStrip(state.selDate);}}
+  function key(e){if(e.key==="ArrowLeft")go(-1);else if(e.key==="ArrowRight")go(1);else if(e.key==="Escape")close();}
+  document.addEventListener("keydown",key);
   ov.addEventListener("click",function(e){var b=e.target.closest("[data-lb]");
-    if(!b){if(e.target===ov)document.body.removeChild(ov);return;}
-    if(b.getAttribute("data-lb")==="close"){document.body.removeChild(ov);}
-    else{var pid=b.getAttribute("data-id");askConfirm("Delete this photo?",function(){idbDelete(pid).then(function(){if(ov.parentNode)document.body.removeChild(ov);if(state.view==="diary")renderDiary();else renderPhotos(state.selDate);});});}});
-  document.body.appendChild(ov);}
+    if(!b){if(e.target===ov)close();return;}
+    var act=b.getAttribute("data-lb");
+    if(act==="close")close();
+    else if(act==="prev")go(-1);
+    else if(act==="next")go(1);
+    else if(act==="del"){var pid=ids[idx];askConfirm("Delete this photo?",function(){idbDelete(pid).then(function(){dirty=true;try{URL.revokeObjectURL(urls[pid]);}catch(e){}delete urls[pid];ids.splice(idx,1);if(!ids.length){close();return;}if(idx>=ids.length)idx=ids.length-1;show();});});}});
+  var sx=0,sy=0;
+  ov.addEventListener("touchstart",function(e){if(!e.touches.length)return;sx=e.touches[0].clientX;sy=e.touches[0].clientY;},{passive:true});
+  ov.addEventListener("touchend",function(e){if(!e.changedTouches||!e.changedTouches.length)return;var dx=e.changedTouches[0].clientX-sx,dy=e.changedTouches[0].clientY-sy;if(Math.abs(dx)>45&&Math.abs(dx)>Math.abs(dy)+10){if(dx<0)go(1);else go(-1);}},{passive:true});
+  document.body.appendChild(ov);
+  idbAll().then(function(all){var map={};all.forEach(function(p){map[p.id]=p.blob;});ids=ids.filter(function(i){return map[i];});idx=Math.max(0,ids.indexOf(id));ids.forEach(function(i){urls[i]=URL.createObjectURL(map[i]);});if(!ids.length){close();return;}show();}).catch(function(){});
+}
 function themeGrid(){var cur=state.settings.theme||"ink";
   return Object.keys(THEMES).map(function(id){var t=THEMES[id];var on=id===cur;
     return '<button class="wl-theme'+(on?" on":"")+'" data-act="set:theme" data-theme="'+id+'"><span class="wl-theme-sw"><i style="background:'+t.v.bg+'"></i><i style="background:'+t.v.card+'"></i><i style="background:'+t.v.accent+'"></i><i style="background:'+t.v.good+'"></i></span><span class="wl-theme-name">'+t.label+(id==="ink"?" · current":"")+'</span>'+(on?'<span class="wl-theme-check">'+I.check.replace("<svg","<svg width=14 height=14")+'</span>':'')+'</button>';}).join("");
@@ -1799,7 +1821,7 @@ function render(){
   var body=state.view==="overview"?view_overview():(state.view==="food"||state.view==="calendar")?view_overview():state.view==="weight"?view_weight():state.view==="summary"?view_summary():state.view==="diary"?view_diary():state.view==="train"?view_train():state.view==="exlib"?view_exlib():state.view==="routine"?view_routine():state.view==="rlaunch"?view_rlaunch():state.view==="quicklog"?view_quicklog():state.view==="workout"?view_workout():state.view==="liftview"?view_liftview():state.view==="wtadd"?view_wtadd():view_settings();
   var nav='<nav class="wl-nav">'+NAV.map(function(n){return '<button class="wl-navbtn '+(state.view===n[0]||(n[0]==="overview"&&(state.view==="food"||state.view==="diary"))?"on":"")+'" data-act="go" data-view="'+n[0]+'">'+I[n[0]]+'<span>'+n[1]+'</span></button>';}).join("")+'</nav>';
   var avatar='<button class="wl-avatar'+(state.view==="settings"?" on":"")+'" data-act="go" data-view="settings" aria-label="Settings"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>';
-  var hdrRight='<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><div class="wl-datechip">'+fmtLong(new Date())+'</div>'+(syncOn()?'<div id="wl-sync" class="wl-sync '+syncState.s+'">'+syncLabel()+'</div>':'')+(syncOn()?'<div id="wl-synctime" class="wl-synctime">'+lastSyncText()+'</div>':'')+'</div>';
+  var hdrRight='<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">'+(syncOn()?'<div id="wl-sync" class="wl-sync '+syncState.s+'">'+syncLabel()+'</div><div id="wl-synctime" class="wl-synctime">'+lastSyncText()+'</div>':'')+'<div class="wl-verchip">v'+APP_BUILD+'</div></div>';
   document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header"><div><div class="wl-eyebrow">Progress Tracker</div><h1 class="wl-title">'+title+'</h1></div><div style="display:flex;align-items:center;gap:10px">'+hdrRight+avatar+'</div></header><main class="wl-main">'+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML();
   var hdr=document.querySelector(".wl-header");if(hdr)document.documentElement.style.setProperty("--headh",hdr.offsetHeight+"px");
   if(document.getElementById("wl-photostrip"))renderPhotosStrip(state.selDate);
