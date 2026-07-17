@@ -213,10 +213,15 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 .wl-cidot.ok{background:var(--good);}
 .wl-cidot.part{background:var(--accent);}
 .wl-cidot.miss{background:var(--bad);}
-.wl-byday-head{display:flex;justify-content:flex-end;padding:2px 2px 7px;font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);font-weight:600;}
-.wl-byday{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;background:none;border:none;border-top:1px solid var(--line);padding:9px 2px;font-family:var(--sans);cursor:pointer;text-align:left;}
-.wl-byday-name{font-size:13px;font-weight:700;color:var(--text);flex:none;}
-.wl-byday-v{font-size:11px;color:var(--muted);text-align:right;font-family:var(--mono);line-height:1.3;}
+.wl-byday-grid{width:100%;border-collapse:collapse;font-family:var(--mono);}
+.wl-byday-grid th,.wl-byday-grid td{padding:6px 2px;text-align:right;font-size:11px;white-space:nowrap;}
+.wl-byday-grid th{font-family:var(--sans);font-size:9px;text-transform:uppercase;letter-spacing:.03em;color:var(--faint);font-weight:700;border-bottom:1px solid var(--line2);}
+.wl-byday-grid td:first-child,.wl-byday-grid th:first-child{text-align:left;font-family:var(--sans);font-weight:700;font-size:11.5px;color:var(--text);}
+.wl-byday-grid tbody tr{border-bottom:1px solid var(--line);cursor:pointer;}
+.wl-byday-grid tbody tr:last-child{border-bottom:none;}
+.wl-byday-grid .mut{color:var(--faint);}
+.wl-stat-val.good{color:var(--good);}
+.wl-stat-val.bad{color:var(--bad);}
 .wl-stat-val span{font-size:10px;color:var(--muted);}
 
 .wl-row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;}
@@ -426,7 +431,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.148";
+var APP_BUILD="2026-07-14.149";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -1206,7 +1211,7 @@ function dayRow(d){var iso=toISO(d);var w=null;for(var i=0;i<state.weights.lengt
   var f=state.food[iso]||{};return {date:iso,dow:d.toLocaleDateString(undefined,{weekday:"long"}),d:d,weight:w,steps:num(state.steps[iso]),sleep:num(state.sleep[iso]),
     calories:num(f.calories),protein:num(f.protein),fat:num(f.fat),carbs:num(f.carbs),activities:normActs(iso).map(actLabel),note:state.notes[iso]||""};}
 function fnum(v){return v==null?"—":(Math.abs(v)>=1000?Math.round(v).toLocaleString():(v%1===0?String(v):String(r1(v))));}
-function avgStatF(label,disp,sub){return '<div class="wl-stat"><div class="wl-stat-label">'+label+'</div><div class="wl-stat-val">'+disp+'</div><div class="wl-stat-sub">'+(sub||"&nbsp;")+'</div></div>';}
+function avgStatF(label,disp,sub,color){return '<div class="wl-stat"><div class="wl-stat-label">'+label+'</div><div class="wl-stat-val'+(color?" "+color:"")+'">'+disp+'</div><div class="wl-stat-sub">'+(sub||"&nbsp;")+'</div></div>';}
 function sumStat(label,v,unit){
   if(label==="")return '<div class="wl-stat" style="visibility:hidden"></div>';
   var disp=v==null?"—":(Math.abs(v)>=1000?Math.round(v).toLocaleString():(v%1===0?String(v):String(r1(v))));
@@ -1232,19 +1237,21 @@ function view_summary(){
   h+='</div><div class="wl-cilegend"><span class="wl-cileg"><i class="wl-cidot ok"></i>Completed</span><span class="wl-cileg"><i class="wl-cidot part"></i>Partial</span><span class="wl-cileg"><i class="wl-cidot miss"></i>Missed</span></div></div>';
   h+='<div class="wl-card"><div class="wl-card-head"><span>Weekly Totals</span></div><div class="wl-statrow" style="grid-template-columns:repeat(3,1fr)">'+
     sumStat("Calories",tot.calories||null,"")+sumStat("Steps",tot.steps||null,"")+sumStat("Weigh-ins",wv.length,"")+
-    sumStat("Cardio min",ts.cardioZ2Mins||null,"")+sumStat("Lifting min",ts.liftMins||null,"")+sumStat("Cardio sessions",ts.cardioSessions||null,"")+'</div></div>';
+    sumStat("Cardio min",ts.cardioZ2Mins||null,"")+sumStat("Lifting min",ts.liftMins||null,"")+sumStat("Cardio sessions",ts.cardioZ2Sessions||null,"")+'</div></div>';
+  var avgCal=avg("calories"),avgStep=avg("steps"),avgProt=avg("protein"),avgFat=avg("fat"),avgCarb=avg("carbs");
+  var calOverGoal=(tCal!=null&&avgCal!=null&&avgCal>tCal);
+  function acol(has,red){return has?(red?"bad":"good"):"";}
   h+='<div class="wl-card"><div class="wl-card-head"><span>Averages <em>per logged day</em></span></div><div class="wl-statrow" style="grid-template-columns:repeat(3,1fr)">'+
-    avgStatF("Calories",fnum(avg("calories")),tCal!=null?"goal "+fnum(tCal):"")+
-    avgStatF("Steps",fnum(avg("steps")),tStep!=null?"goal "+fnum(tStep):"")+
-    avgStatF("Protein",avg("protein")!=null?fnum(avg("protein"))+"g":"—",tProt!=null?"goal "+tProt+"g":"")+
-    avgStatF("Fat",avg("fat")!=null?fnum(avg("fat"))+"g":"—",tFat!=null?"goal "+tFat+"g":"")+
-    avgStatF("Carbs",avg("carbs")!=null?fnum(avg("carbs"))+"g":"—",tCarb!=null?"goal "+tCarb+"g":"")+
-    avgStatF("Sleep",slAvg!=null?minToHM(slAvg):"—",tSleep!=null?"goal "+minToHM(tSleep):"")+'</div></div>';
-  h+='<div class="wl-card"><div class="wl-card-head"><span>By day</span><span class="wl-count">'+label+'</span></div><div class="wl-byday-head"><span>Sleep · Weight · Steps · Cal · P/F/C</span></div>';
-  days.forEach(function(r){var sl=num(state.sleep[r.date]);
-    var vals=[sl!=null?minToHM(sl):"–",r.weight!=null?r1(r.weight):"–",r.steps!=null?Math.round(r.steps).toLocaleString():"–",r.calories!=null?Math.round(r.calories).toLocaleString():"–","P"+(r.protein!=null?r.protein:"–")+" F"+(r.fat!=null?r.fat:"–")+" C"+(r.carbs!=null?r.carbs:"–")];
-    h+='<button class="wl-byday" data-act="sum:day" data-date="'+r.date+'"><span class="wl-byday-name">'+DAYFULL[r.d.getDay()]+'</span><span class="wl-byday-v">'+vals.join("  ·  ")+'</span></button>';});
-  h+='</div>';
+    avgStatF("Calories",fnum(avgCal),tCal!=null?"goal "+fnum(tCal):"",acol(tCal!=null&&avgCal!=null,avgCal>tCal))+
+    avgStatF("Steps",fnum(avgStep),tStep!=null?"goal "+fnum(tStep):"",acol(tStep!=null&&avgStep!=null,avgStep<tStep))+
+    avgStatF("Sleep",slAvg!=null?minToHM(slAvg):"—",tSleep!=null?"goal "+minToHM(tSleep):"",acol(tSleep!=null&&slAvg!=null,slAvg<tSleep))+
+    avgStatF("Protein",avgProt!=null?fnum(avgProt)+"g":"—",tProt!=null?"goal "+tProt+"g":"",acol(tProt!=null&&avgProt!=null,avgProt<tProt))+
+    avgStatF("Fat",avgFat!=null?fnum(avgFat)+"g":"—",tFat!=null?"goal "+tFat+"g":"",acol(tFat!=null&&avgFat!=null,avgFat>tFat&&calOverGoal))+
+    avgStatF("Carbs",avgCarb!=null?fnum(avgCarb)+"g":"—",tCarb!=null?"goal "+tCarb+"g":"",acol(tCarb!=null&&avgCarb!=null,avgCarb>tCarb&&calOverGoal))+'</div></div>';
+  h+='<div class="wl-card" style="padding:12px 10px"><div class="wl-card-head"><span>By day</span><span class="wl-count">'+label+'</span></div><table class="wl-byday-grid"><thead><tr><th>Day</th><th>Sleep</th><th>Wt</th><th>Steps</th><th>Cal</th><th>P</th><th>F</th><th>C</th></tr></thead><tbody>';
+  days.forEach(function(r){var sl=num(state.sleep[r.date]);function c(v){return v==null?'<span class="mut">–</span>':v;}
+    h+='<tr data-act="sum:day" data-date="'+r.date+'"><td>'+r.dow.slice(0,3)+'</td><td>'+c(sl!=null?minToHM(sl):null)+'</td><td>'+c(r.weight!=null?r1(r.weight):null)+'</td><td>'+c(r.steps!=null?Math.round(r.steps).toLocaleString():null)+'</td><td>'+c(r.calories!=null?Math.round(r.calories).toLocaleString():null)+'</td><td>'+c(r.protein)+'</td><td>'+c(r.fat)+'</td><td>'+c(r.carbs)+'</td></tr>';});
+  h+='</tbody></table></div>';
   h+='<div class="wl-card"><div class="wl-card-head"><span>Weekly training</span></div>'+trainingGoalsHTML(s)+'</div>';
   h+='<div class="wl-card"><button class="wl-btn wl-btn-primary wl-full" data-act="go" data-view="diary">📷 Food Diary</button><div class="wl-hint" style="margin-top:8px">A visual collage of your meal photos by day, with each day\u2019s calories and macros.</div></div>';
   h+='<div class="wl-card"><div class="wl-card-head"><span>Export</span></div><div class="wl-row"><button class="wl-btn wl-btn-primary wl-full" data-act="sum:exportweek">Export this week</button><button class="wl-btn wl-btn-ghost wl-full" data-act="sum:exportall">Export all</button></div><div class="wl-hint" style="margin-top:8px">CSV includes: Day, Date, Weight, Steps, Sleep, Calories, Protein, Fat, Carbs, Activities, and Notes.</div></div>';
@@ -1387,9 +1394,9 @@ function zoneAreaHTML(cf,pfx){pfx=pfx||"cf";var mx=effMaxHR();var hr=num(cf.hr);
   if(mx!=null&&hr!=null){var z=zoneFromHR(hr,mx);return '<div class="wl-cf-label">Zone</div><div class="wl-hint">From your avg HR: <b>Zone '+z+'</b> ('+Math.round(hr/mx*100)+'% of max '+mx+' bpm) — set automatically.</div>';}
   var label=mx!=null?'Zone <em>enter avg HR above to auto-detect</em>':'Zone';
   return '<div class="wl-cf-label">'+label+'</div><div class="wl-seg wl-seg-wide">'+[1,2,3,4,5].map(function(z){return '<button class="'+(cf.zone===z?"on":"")+'" data-act="'+pfx+':zone" data-zone="'+z+'">'+z+'</button>';}).join("")+'</div>';}
-function weekTrainingStats(ws){var out={cardioSessions:0,cardioMins:0,cardioZ2Mins:0,liftSessions:0,liftMins:0,totalMins:0};
+function weekTrainingStats(ws){var out={cardioSessions:0,cardioZ2Sessions:0,cardioMins:0,cardioZ2Mins:0,liftSessions:0,liftMins:0,totalMins:0};
   for(var i=0;i<7;i++){var iso=toISO(addDays(ws,i));
-    ((state.training.sessions||{})[iso]||[]).forEach(function(x){if(x.kind==="cardio"){out.cardioSessions++;var m=(num(x.mins)||0);out.cardioMins+=m;var z=num(x.zone);if(z==null||z>=2)out.cardioZ2Mins+=m;}});
+    ((state.training.sessions||{})[iso]||[]).forEach(function(x){if(x.kind==="cardio"){out.cardioSessions++;var m=(num(x.mins)||0);out.cardioMins+=m;var z=num(x.zone);if(z==null||z>=2){out.cardioZ2Mins+=m;out.cardioZ2Sessions++;}}});
     ((state.training.liftSessions||{})[iso]||[]).forEach(function(x){out.liftSessions++;out.liftMins+=(num(x.mins)||0);});}
   out.totalMins=out.cardioMins+out.liftMins;return out;}
 function goalBarHTML(label,val,goal,unit,soon){var pct=goal>0?Math.min(100,Math.round(val/goal*100)):0;var done=goal>0&&val>=goal;
