@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.157 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.158 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -442,7 +442,7 @@ html[data-theme="light"] .wl-daybar.off .wl-daybar-row .wl-datebtn{color:#AE7411
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.157";
+var APP_BUILD="2026-07-14.158";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -496,7 +496,7 @@ var MONO="ui-monospace,'SF Mono','Cascadia Code',Menlo,Consolas,monospace";
 var THEMES={
   dark:{label:"Dark",scheme:"dark",v:{bg:"#0F1218",bg2:"#141922",card:"#1A2029",card2:"#212836",line:"#2A3340",line2:"#333E4E",text:"#EDF1F7",muted:"#8791A3",faint:"#5A6474",accent:"#F5B544","accent-dim":"rgba(245,181,68,.14)",good:"#5CD6A0",bad:"#F26D5B",reg:"#7C93F5","on-accent":"#20160A","on-good":"#0C1A14","mac-p":"#A9C0DE","mac-c":"#7C9AC0","mac-f":"#566F92",sans:SANS,mono:MONO},
     chart:{grid:"#252D3A",axis:"#5A6474",actual:"#AEB7C7",actualLine:"#6B7688",avg:"#F5B544",reg:"#7C93F5",goal:"#5CD6A0"}},
-  light:{label:"Light",scheme:"light",v:{bg:"#F6F7FA",bg2:"#141922",card:"#1A2029",card2:"#212836",line:"#2A3340",line2:"#333E4E",text:"#EDF1F7",muted:"#8791A3",faint:"#5A6474",accent:"#F5B544","accent-dim":"rgba(245,181,68,.14)",good:"#5CD6A0",bad:"#F26D5B",reg:"#7C93F5","on-accent":"#20160A","on-good":"#0C1A14","mac-p":"#A9C0DE","mac-c":"#7C9AC0","mac-f":"#566F92",sans:SANS,mono:MONO},
+  light:{label:"Light",scheme:"light",v:{bg:"#E1E4EA",bg2:"#141922",card:"#1A2029",card2:"#212836",line:"#2A3340",line2:"#333E4E",text:"#EDF1F7",muted:"#8791A3",faint:"#5A6474",accent:"#F5B544","accent-dim":"rgba(245,181,68,.14)",good:"#5CD6A0",bad:"#F26D5B",reg:"#7C93F5","on-accent":"#20160A","on-good":"#0C1A14","mac-p":"#A9C0DE","mac-c":"#7C9AC0","mac-f":"#566F92",sans:SANS,mono:MONO},
     chart:{grid:"#252D3A",axis:"#5A6474",actual:"#AEB7C7",actualLine:"#6B7688",avg:"#F5B544",reg:"#7C93F5",goal:"#5CD6A0"}}};
 var CH=THEMES.dark.chart;
 function applyTheme(id){var t=THEMES[id]||THEMES.dark;var root=document.documentElement;root.setAttribute("data-theme",THEMES[id]?id:"dark");
