@@ -279,6 +279,10 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 .wl-achip.on.supp{background:#a855f7;color:#fff;}
 .wl-achip.on.rest{background:#6b7280;color:#fff;}
 .wl-achip.on.other{background:var(--faint);color:var(--bg);}
+.wl-btn-cardio{background:#3b82f6;color:#fff;}
+.wl-btn-lift{background:#22c55e;color:#fff;}
+.wl-btn-rest{background:#6b7280;color:#fff;}
+.wl-btn-supp{background:#a855f7;color:#fff;}
 .wl-cat-cardio{background:rgba(59,130,246,.15);color:#3b82f6;}
 .wl-cat-lifting{background:rgba(34,197,94,.15);color:#22c55e;}
 .wl-cat-supp{background:rgba(168,85,247,.15);color:#a855f7;}
@@ -407,7 +411,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.137";
+var APP_BUILD="2026-07-14.139";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -510,7 +514,7 @@ function dayDots(iso){var seen={},cats=[];
   return '';}
 var state={settings:Object.assign({},DEFAULT_SETTINGS),weights:[],food:{},workouts:{},steps:{},notes:{},sleep:{},weeklySummary:null,nightlySummary:null,presets:DEFAULT_PRESETS.slice(),
   view:"overview",calY:new Date().getFullYear(),calM:new Date().getMonth(),weekOffset:0,trendMode:"W",trendOffset:0,calOpen:false,sumOpen:true,nightOpen:true,genBusy:false,nightBusy:false,diaryWeeks:1,
-  training:{cardioTypes:DEFAULT_CARDIO_TYPES.slice(),sessions:{},exercises:[],routines:[],liftSessions:{}},cardioForm:null,manageOpen:false,actAddCat:null,exForm:null,routineId:null,riPickOpen:false,noteEdit:null,liftForm:null,workout:null,setMenu:null,woPrompt:false,bwEdit:false,histView:null,exMenu:null,woReplaceEi:null,liftViewId:null,liftViewDate:null,woResume:false,liftEdit:null,quickEntry:null,
+  training:{cardioTypes:DEFAULT_CARDIO_TYPES.slice(),sessions:{},exercises:[],routines:[],liftSessions:{}},cardioForm:null,manageOpen:false,actAddCat:null,actPick:null,exForm:null,routineId:null,riPickOpen:false,noteEdit:null,liftForm:null,workout:null,setMenu:null,woPrompt:false,bwEdit:false,histView:null,exMenu:null,woReplaceEi:null,liftViewId:null,liftViewDate:null,woResume:false,liftEdit:null,quickEntry:null,
   selDate:todayISO(),foodDate:todayISO(),alertDismissed:false,confirmReset:false};
 
 function load(){
@@ -1699,21 +1703,32 @@ function activityManageHTML(){
   }
   return h+'</div>';
 }
-function actCatCardHTML(cat,title,hint,date){
-  var pre=normPresets(),log=normActs(date);
+function actCatCardHTML(cat,title,date){
+  var log=normActs(date);var mine=[];log.forEach(function(a,i){if(a.cat===cat)mine.push({a:a,i:i});});
+  var btnClass=cat==="rest"?"wl-btn-rest":cat==="supp"?"wl-btn-supp":"wl-btn-primary";
+  var addLabel=cat==="rest"?"Add recovery":cat==="supp"?"Add supplement":"Add";
+  var noun=cat==="rest"?"recovery":"supplements";
+  var h='<div class="wl-card"><div class="wl-card-head"><span>'+title+(mine.length?' <span class="wl-count">'+mine.length+'</span>':'')+'</span></div>';
+  if(mine.length){h+='<div class="wl-preset-list">';mine.forEach(function(x){h+='<button class="wl-achip '+cat+' on" data-act="act:del" data-idx="'+x.i+'" data-date="'+date+'">'+esc(x.a.name||CATLABEL[cat])+' ✕</button>';});h+='</div>';}
+  else h+='<div class="wl-hint">No '+noun+' logged for this day.</div>';
+  h+='<button class="wl-btn '+btnClass+' wl-full" style="margin-top:10px" data-act="act:pick" data-cat="'+cat+'">'+I.plus.replace("<svg","<svg width=16 height=16")+addLabel+'</button>';
+  return h+'</div>';
+}
+function actPickHTML(){
+  var cat=state.actPick;if(!cat)return "";
+  var sel=state.selDate;var pre=normPresets(),log=normActs(sel);
   function onIdx(pr){for(var i=0;i<log.length;i++){if(log[i].name===pr.name&&log[i].cat===pr.cat)return i;}return -1;}
   var items=pre.map(function(p,i){return {p:p,i:i};}).filter(function(x){return x.p.cat===cat;}).sort(function(a,b){return (a.p.name||"").toLowerCase().localeCompare((b.p.name||"").toLowerCase());});
-  var loggedN=log.filter(function(a){return a.cat===cat;}).length;
-  var h='<div class="wl-card"><div class="wl-card-head"><span>'+title+(loggedN?' <span class="wl-count">'+loggedN+'</span>':'')+'</span></div>';
-  if(hint)h+='<div class="wl-hint" style="margin-bottom:10px">'+hint+'</div>';
+  var h='<div class="wl-confirm"><div class="wl-confirm-card">';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><div style="font-weight:800;font-size:17px">Add '+(cat==="rest"?"recovery":"supplement")+'</div><button class="wl-icon-btn" data-act="actpick:close">✕</button></div>';
+  h+='<div class="wl-hint" style="margin-bottom:14px">'+fmtLong(parseISO(sel))+(sel===todayISO()?" · Today":"")+' — tap to add or remove.</div>';
   h+='<div class="wl-preset-list">';
-  items.forEach(function(x){var on=onIdx(x.p)>=0;h+='<button class="wl-achip '+cat+(on?" on":"")+'" data-act="act:toggle" data-idx="'+x.i+'" data-date="'+date+'"><span class="wl-chip-ic">'+(on?"✓":"")+'</span>'+esc(x.p.name||CATLABEL[cat])+'</button>';});
+  items.forEach(function(x){var on=onIdx(x.p)>=0;h+='<button class="wl-achip '+cat+(on?" on":"")+'" data-act="act:toggle" data-idx="'+x.i+'" data-date="'+sel+'"><span class="wl-chip-ic">'+(on?"✓":"")+'</span>'+esc(x.p.name||CATLABEL[cat])+'</button>';});
   if(state.actAddCat===cat)h+='<span class="wl-mgchip '+cat+'"><input class="wl-mgchip-input" id="wl-addact-'+cat+'" placeholder="name…" autocomplete="off"><button class="wl-mgchip-x" data-act="act:addcat" data-cat="'+cat+'">✓</button></span>';
-  else h+='<button class="wl-achip other" data-act="act:addopen" data-cat="'+cat+'">＋ Add</button>';
+  else h+='<button class="wl-achip other" data-act="act:addopen" data-cat="'+cat+'">＋ Add new</button>';
   h+='</div>';
-  var orph=[];log.forEach(function(a,i){if(a.cat!==cat)return;var inP=false;for(var j=0;j<pre.length;j++){if(pre[j].name===a.name&&pre[j].cat===a.cat){inP=true;break;}}if(!inP)orph.push({a:a,i:i});});
-  if(orph.length){h+='<div class="wl-preset-list" style="margin-top:8px">';orph.forEach(function(x){h+='<button class="wl-achip '+cat+' on" data-act="act:del" data-idx="'+x.i+'" data-date="'+date+'">'+esc(x.a.name||CATLABEL[cat])+' ✕</button>';});h+='</div>';}
-  return h+'</div>';
+  h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:16px" data-act="actpick:close">Done</button>';
+  return h+'</div></div>';
 }
 function view_train(){
   var d=state.selDate;var cf=state.cardioForm;
@@ -1725,7 +1740,7 @@ function view_train(){
     h+='<div class="wl-sess"><button class="wl-sess-main" data-act="cardio:edit" data-id="'+s.id+'"><span class="wl-sess-type">'+esc(s.type||"Cardio")+'</span><span class="wl-sess-meta">'+meta.join("  ·  ")+'</span></button><button class="wl-icon-btn" data-act="cardio:del" data-id="'+s.id+'">'+I.trash.replace("<svg","<svg width=15 height=15")+'</button></div>';});
   }else if(!cf){h+='<div class="wl-hint">No cardio logged for this day.</div>';}
   if(cf&&cf.kind==="cardio")h+=cardioFormHTML(cf);
-  else h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:10px" data-act="cardio:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add cardio</button>';
+  else h+='<button class="wl-btn wl-btn-cardio wl-full" style="margin-top:10px" data-act="cardio:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add cardio</button>';
   h+='</div>';
   h+='<div class="wl-card"><div class="wl-card-head"><span>Weight training</span></div>';
   if(state.workout){var wp=state.workout.paused;h+='<button class="wl-inprogress'+(wp?" partial":"")+'" data-act="wo:resumeask"><span><span class="wl-ip-dot'+(wp?" pauseddot":"")+'"></span>'+esc(state.workout.name||"Workout")+'</span><span class="wl-ip-badge'+(wp?" partial":"")+'">'+(wp?"Partial ›":"In progress ›")+'</span></button>';}
@@ -1733,9 +1748,9 @@ function view_train(){
   if(lsess.length){lsess.forEach(function(s){var meta=[];meta.push((s.mode==="full"?"logged":"quick"));if(s.mins)meta.push(s.mins+" min");if(s.hr)meta.push("HR "+s.hr+(s.hrMax?"/"+s.hrMax:""));if(s.rpe)meta.push("RPE "+s.rpe);if(s.cal)meta.push("~"+s.cal+" cal");
     h+='<div class="wl-sess"><button class="wl-sess-main" data-act="lift:view" data-id="'+s.id+'"><span class="wl-sess-type">'+esc(s.name||"Weight training")+'</span><span class="wl-sess-meta">'+meta.join("  ·  ")+'</span></button><button class="wl-icon-btn" data-act="lift:del" data-id="'+s.id+'">'+I.trash.replace("<svg","<svg width=15 height=15")+'</button></div>';});}
   else if(!state.workout){h+='<div class="wl-hint">No weight training logged for this day.</div>';}
-  h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:10px" data-act="wt:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add weight training</button></div>';
-  h+=actCatCardHTML("rest","Recovery","Walks, mobility, stretching, sauna, rest days — tap to log for this day.",d);
-  h+=actCatCardHTML("supp","Supplements & meds","GLP-1, creatine, electrolytes, vitamins — tap to log for this day.",d);
+  h+='<button class="wl-btn wl-btn-lift wl-full" style="margin-top:10px" data-act="wt:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add weight training</button></div>';
+  h+=actCatCardHTML("rest","Recovery",d);
+  h+=actCatCardHTML("supp","Supplements & meds",d);
   return h+'</div>';
 }
 function view_settings(){
@@ -1836,7 +1851,7 @@ function render(){
   var nav='<nav class="wl-nav">'+NAV.map(function(n){return '<button class="wl-navbtn '+(state.view===n[0]||(n[0]==="overview"&&(state.view==="food"||state.view==="diary"))?"on":"")+'" data-act="go" data-view="'+n[0]+'">'+I[n[0]]+'<span>'+n[1]+'</span></button>';}).join("")+'</nav>';
   var avatar='<button class="wl-avatar'+(state.view==="settings"?" on":"")+'" data-act="go" data-view="settings" aria-label="Settings"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>';
   var hdrRight='<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">'+(syncOn()?'<div id="wl-sync" class="wl-sync '+syncState.s+'">'+syncLabel()+'</div><div id="wl-synctime" class="wl-synctime">'+lastSyncText()+'</div>':'')+'<div class="wl-verchip">v'+APP_BUILD+'</div></div>';
-  document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header"><div><div class="wl-eyebrow">Progress Tracker</div><h1 class="wl-title">'+title+'</h1></div><div style="display:flex;align-items:center;gap:10px">'+hdrRight+avatar+'</div></header><main class="wl-main">'+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML();
+  document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header"><div><div class="wl-eyebrow">Progress Tracker</div><h1 class="wl-title">'+title+'</h1></div><div style="display:flex;align-items:center;gap:10px">'+hdrRight+avatar+'</div></header><main class="wl-main">'+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML()+actPickHTML();
   var hdr=document.querySelector(".wl-header");if(hdr)document.documentElement.style.setProperty("--headh",hdr.offsetHeight+"px");
   if(document.getElementById("wl-photostrip"))renderPhotosStrip(state.selDate);
   if(state.view==="diary")renderDiary();
@@ -2016,6 +2031,8 @@ document.addEventListener("click",function(e){
   if(a==="day:prev"||a==="day:next"){var dd=parseISO(state.selDate);if(a==="day:next"&&state.selDate>=todayISO())return;dd.setDate(dd.getDate()+(a==="day:next"?1:-1));state.selDate=toISO(dd);state.calY=dd.getFullYear();state.calM=dd.getMonth();state.cardioForm=null;render();return;}
   if(a==="cal:overwrite"){var d=state.selDate;var e2=Object.assign({},state.food[d]||{});var p=num(e2.protein),c=num(e2.carbs),f=num(e2.fat);e2.calories=String(Math.round((p||0)*4+(c||0)*4+(f||0)*9));e2.calAuto=true;delete e2.calDismiss;state.food[d]=e2;save();render();return;}
   if(a==="cal:ignore"){var d2=state.selDate;var e3=Object.assign({},state.food[d2]||{});e3.calDismiss=true;state.food[d2]=e3;save();var n=document.getElementById("wl-calnotice");if(n)n.innerHTML="";return;}
+  if(a==="act:pick"){state.actPick=el.getAttribute("data-cat");state.actAddCat=null;render();return;}
+  if(a==="actpick:close"){state.actPick=null;state.actAddCat=null;render();return;}
   if(a==="act:toggle"){var d0=el.getAttribute("data-date")||state.selDate;var pr=normPresets()[+el.getAttribute("data-idx")];if(!pr)return;var list=normActs(d0);var found=-1;for(var i=0;i<list.length;i++){if(list[i].name===pr.name&&list[i].cat===pr.cat){found=i;break;}}if(found>=0)list.splice(found,1);else list.push({cat:pr.cat,name:pr.name});if(list.length)state.workouts[d0]=list;else delete state.workouts[d0];save();render();refreshClearBtn();return;}
   if(a==="act:del"){var d1=el.getAttribute("data-date")||state.selDate;var l1=normActs(d1);l1.splice(+el.getAttribute("data-idx"),1);if(l1.length)state.workouts[d1]=l1;else delete state.workouts[d1];save();render();refreshClearBtn();return;}
   if(a==="set:units"){var nu=el.getAttribute("data-units");var ou=state.settings.units;if(nu===ou)return;
