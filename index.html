@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.163 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.164 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -465,7 +465,7 @@ html[data-theme="light"] .wl-daybar.off .wl-daybar-row .wl-datebtn{color:#AE7411
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.163";
+var APP_BUILD="2026-07-14.164";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -1846,20 +1846,25 @@ function view_quicklog(){
   return h+'</div>';
 }
 function cardioFormHTML(cf){
-  var types=normPresets().filter(function(p){return p.cat==="cardio";}).map(function(p){return p.name;});
   var h='<div class="wl-cardioform">';
-  h+='<div class="wl-cf-label">Type</div><div class="wl-preset-list">';
-  types.forEach(function(t){h+='<button class="wl-achip cardio'+(cf.type===t?" on":"")+'" data-act="cf:type" data-type="'+esc(t)+'">'+(cf.type===t?"✓ ":"")+esc(t)+'</button>';});
-  h+='<button class="wl-achip other" data-act="cf:newtype-toggle">＋ New</button></div>';
-  if(cf.newOpen)h+='<div class="wl-row" style="margin-top:8px"><input class="wl-inline-input" id="wl-newcardio" placeholder="New cardio type (e.g. Stairmaster)"><button class="wl-btn wl-btn-ghost" data-act="cf:newtype">Add</button></div>';
-  h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Duration <em>min</em></span><input class="wl-cf-input wl-num" data-cf="mins" type="text" inputmode="numeric" placeholder="20" value="'+(cf.mins!=null?esc(String(cf.mins)):"")+'"></label><label class="wl-field"><span>Avg HR <em>bpm, optional</em></span><input class="wl-cf-input wl-num" data-cf="hr" type="text" inputmode="numeric" placeholder="—" value="'+(cf.hr!=null?esc(String(cf.hr)):"")+'"></label></div>';
-  h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Peak HR <em>bpm, optional</em></span><input class="wl-cf-input wl-num" data-cf="hrMax" type="text" inputmode="numeric" placeholder="—" value="'+(cf.hrMax!=null?esc(String(cf.hrMax)):"")+'"></label><label class="wl-field"><span>Est. calories <em>optional</em></span><input class="wl-cf-input wl-num" data-cf="cal" type="text" inputmode="numeric" placeholder="—" value="'+(cf.cal!=null?esc(String(cf.cal)):"")+'"></label></div>';
-  h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>RPE <em>1-10, optional</em></span><input class="wl-cf-input wl-num" data-cf="rpe" type="text" inputmode="numeric" placeholder="—" value="'+(cf.rpe!=null?esc(String(cf.rpe)):"")+'"></label><label class="wl-field" style="visibility:hidden"><span>.</span><input></label></div>';
+  h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div style="font-weight:800;font-size:16px">'+esc(cf.type||"Cardio")+'</div><button class="wl-link" data-act="cardio:repick">Change type</button></div>';
+  h+='<div class="wl-row"><label class="wl-field"><span>Duration <em>min</em></span><input class="wl-cf-input wl-num" data-cf="mins" type="text" inputmode="numeric" placeholder="20" value="'+(cf.mins!=null?esc(String(cf.mins)):"")+'"></label><label class="wl-field"><span>Avg HR <em>bpm, optional</em></span><input class="wl-cf-input wl-num" data-cf="hr" type="text" inputmode="numeric" placeholder="\u2014" value="'+(cf.hr!=null?esc(String(cf.hr)):"")+'"></label></div>';
+  h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Peak HR <em>bpm, optional</em></span><input class="wl-cf-input wl-num" data-cf="hrMax" type="text" inputmode="numeric" placeholder="\u2014" value="'+(cf.hrMax!=null?esc(String(cf.hrMax)):"")+'"></label><label class="wl-field"><span>Est. calories <em>optional</em></span><input class="wl-cf-input wl-num" data-cf="cal" type="text" inputmode="numeric" placeholder="\u2014" value="'+(cf.cal!=null?esc(String(cf.cal)):"")+'"></label></div>';
+  h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>RPE <em>1-10, optional</em></span><input class="wl-cf-input wl-num" data-cf="rpe" type="text" inputmode="numeric" placeholder="\u2014" value="'+(cf.rpe!=null?esc(String(cf.rpe)):"")+'"></label><label class="wl-field" style="visibility:hidden"><span>.</span><input></label></div>';
   h+='<div id="wl-zonearea" style="margin-top:12px">'+zoneAreaHTML(cf)+'</div>';
+  h+='<label class="wl-field wl-field-full" style="margin-top:12px"><span>Notes <em>optional</em></span><textarea class="wl-cf-input" data-cf="notes" placeholder="How it felt, incline, intervals \u2014 anything for your coach\u2026" style="width:100%;min-height:60px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:14px;padding:11px 12px;box-sizing:border-box;outline:none;resize:vertical">'+esc(cf.notes||"")+'</textarea></label>';
   h+='<div class="wl-row" style="margin-top:14px"><button class="wl-btn wl-btn-primary wl-full" data-act="cardio:save">'+(cf.id?"Save changes":"Log cardio")+'</button><button class="wl-btn wl-btn-ghost" data-act="cardio:cancel">Cancel</button></div>';
   return h+'</div>';
 }
-function activityManageHTML(){
+function cardioPickHTML(cf){var types=normPresets().filter(function(p){return p.cat==="cardio";}).map(function(p){return p.name;});
+  var h='<div class="wl-hint" style="margin-bottom:8px">Choose a cardio type:</div>';
+  if(types.length){h+='<div class="wl-rtlist">';types.forEach(function(t){h+='<button class="wl-rtrow" data-act="cardio:pick" data-type="'+esc(t)+'"><span class="wl-rtrow-info"><span class="wl-rtrow-name">'+esc(t)+'</span></span><span class="wl-rtrow-go">\u203a</span></button>';});h+='</div>';}
+  else h+='<div class="wl-hint">No cardio types yet \u2014 add one below.</div>';
+  if(cf.newOpen)h+='<div class="wl-row" style="margin-top:10px"><input class="wl-inline-input" id="wl-newcardio" placeholder="New cardio type (e.g. Stairmaster)"><button class="wl-btn wl-btn-ghost" data-act="cf:newtype">Add</button></div>';
+  else h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="cf:newtype-toggle">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add Cardio Type</button>';
+  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="cardio:cancel">Cancel</button>';
+  return h;
+}function activityManageHTML(){
   var op=state.manageOpen;
   var h='<div class="wl-card"><button class="wl-collapse-head" data-act="manage:toggle"><span>Manage activities</span><span class="wl-chevron'+(op?" open":"")+'">›</span></button>';
   if(op){h+='<div class="wl-collapse-body">';
@@ -1912,7 +1917,7 @@ function view_train(){
   if(sess.length){sess.forEach(function(s){var meta=[];meta.push(s.mins+" min");if(s.zone)meta.push("Zone "+s.zone);if(s.hr)meta.push("HR "+s.hr+(s.hrMax?"/"+s.hrMax:""));else if(s.hrMax)meta.push("peak "+s.hrMax);if(s.rpe)meta.push("RPE "+s.rpe);if(s.cal)meta.push("~"+s.cal+" cal");
     h+='<div class="wl-sess"><button class="wl-sess-main" data-act="cardio:edit" data-id="'+s.id+'"><span class="wl-sess-type">'+esc(s.type||"Cardio")+'</span><span class="wl-sess-meta">'+meta.join("  ·  ")+'</span></button><button class="wl-icon-btn" data-act="cardio:del" data-id="'+s.id+'">'+I.trash.replace("<svg","<svg width=15 height=15")+'</button></div>';});
   }else if(!cf){h+='<div class="wl-hint">No cardio logged for this day.</div>';}
-  if(cf&&cf.kind==="cardio")h+=cardioFormHTML(cf);
+  if(cf&&cf.kind==="cardio")h+=(cf.picking?cardioPickHTML(cf):cardioFormHTML(cf));
   else h+='<button class="wl-btn wl-btn-cardio wl-full" style="margin-top:10px" data-act="cardio:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add Cardio</button>';
   h+='</div>';
   h+='<div class="wl-card"><div class="wl-card-head"><span>Weight Training</span></div>';
@@ -2167,13 +2172,15 @@ document.addEventListener("click",function(e){
     else{if(list.some(function(e){return e.name.toLowerCase()===nm.toLowerCase();})){toast("That exercise already exists");return;}list.push({id:"x-"+Date.now()+"-"+Math.random().toString(36).slice(2,6),name:nm,muscle:xf.muscle||"other",equipment:(xf.equipment||"").trim(),bodyweight:!!xf.bodyweight,notes:[]});}
     state.training.exercises=list;saveTraining();state.exForm=null;toast("Saved");render();return;}
   if(a==="ex:del"){var did=el.getAttribute("data-id");var dex=(state.training.exercises||[]).filter(function(e){return e.id===did;})[0];if(!dex)return;askConfirm("Remove \""+dex.name+"\" from your library? This can\u2019t be undone.",function(){state.training.exercises=(state.training.exercises||[]).filter(function(e){return e.id!==did;});saveTraining();if(state.exForm&&state.exForm.id===did)state.exForm=null;});return;}
-  if(a==="cardio:add"){state.cardioForm={kind:"cardio",id:null,type:(normPresets().filter(function(p){return p.cat==="cardio";})[0]||{}).name||"",mins:"",zone:2,rpe:"",cal:"",hr:"",hrMax:"",newOpen:false};render();return;}
-  if(a==="cardio:edit"){var eid=el.getAttribute("data-id");var es=((state.training.sessions[state.selDate])||[]).filter(function(s){return s.id===eid;})[0];if(es)state.cardioForm={kind:"cardio",id:es.id,type:es.type,mins:es.mins,zone:es.zone||2,rpe:es.rpe!=null?es.rpe:"",cal:es.cal!=null?es.cal:"",hr:es.hr!=null?es.hr:"",hrMax:es.hrMax!=null?es.hrMax:"",newOpen:false};render();return;}
+  if(a==="cardio:add"){state.cardioForm={kind:"cardio",id:null,picking:true,type:"",mins:"",zone:2,rpe:"",cal:"",hr:"",hrMax:"",notes:"",newOpen:false};render();return;}
+  if(a==="cardio:edit"){var eid=el.getAttribute("data-id");var es=((state.training.sessions[state.selDate])||[]).filter(function(s){return s.id===eid;})[0];if(es)state.cardioForm={kind:"cardio",id:es.id,type:es.type,mins:es.mins,zone:es.zone||2,rpe:es.rpe!=null?es.rpe:"",cal:es.cal!=null?es.cal:"",hr:es.hr!=null?es.hr:"",hrMax:es.hrMax!=null?es.hrMax:"",notes:es.notes!=null?es.notes:"",picking:false,newOpen:false};render();return;}
+  if(a==="cardio:pick"){if(state.cardioForm){state.cardioForm.type=el.getAttribute("data-type");state.cardioForm.picking=false;}render();return;}
+  if(a==="cardio:repick"){if(state.cardioForm)state.cardioForm.picking=true;render();return;}
   if(a==="cardio:cancel"){state.cardioForm=null;render();return;}
   if(a==="cf:type"){if(state.cardioForm)state.cardioForm.type=el.getAttribute("data-type");render();return;}
   if(a==="cf:zone"){if(state.cardioForm)state.cardioForm.zone=+el.getAttribute("data-zone");render();return;}
   if(a==="cf:newtype-toggle"){if(state.cardioForm)state.cardioForm.newOpen=!state.cardioForm.newOpen;render();return;}
-  if(a==="cf:newtype"){var ni=document.getElementById("wl-newcardio");var nv=((ni&&ni.value)||"").trim();if(!nv)return;var prc=normPresets();if(!prc.some(function(p){return p.name.toLowerCase()===nv.toLowerCase()&&p.cat==="cardio";})){prc.push({name:nv,cat:"cardio"});state.presets=prc;save();}if(state.cardioForm){state.cardioForm.type=nv;state.cardioForm.newOpen=false;}render();return;}
+  if(a==="cf:newtype"){var ni=document.getElementById("wl-newcardio");var nv=((ni&&ni.value)||"").trim();if(!nv)return;var prc=normPresets();if(!prc.some(function(p){return p.name.toLowerCase()===nv.toLowerCase()&&p.cat==="cardio";})){prc.push({name:nv,cat:"cardio"});state.presets=prc;save();}if(state.cardioForm){state.cardioForm.type=nv;state.cardioForm.newOpen=false;state.cardioForm.picking=false;}render();return;}
   if(a==="manage:toggle"){state.manageOpen=!state.manageOpen;state.actAddCat=null;render();return;}
   if(a==="act:addopen"){state.actAddCat=el.getAttribute("data-cat");render();var _ai=document.getElementById("wl-addact-"+state.actAddCat);if(_ai)_ai.focus();return;}
   if(a==="act:addcat"){var ac=el.getAttribute("data-cat");var ai=document.getElementById("wl-addact-"+ac);var av=((ai&&ai.value)||"").trim();if(!av){state.actAddCat=null;render();return;}var prA=normPresets();if(!prA.some(function(p){return p.name.toLowerCase()===av.toLowerCase()&&p.cat===ac;})){prA.push({name:av,cat:ac});state.presets=prA;save();}state.actAddCat=null;render();return;}
@@ -2181,7 +2188,7 @@ document.addEventListener("click",function(e){
     if(!cf.type){toast("Pick a cardio type");return;}if(mins==null||mins<=0){toast("Enter a duration in minutes");return;}
     var d=state.selDate;var list=((state.training.sessions[d])||[]).slice();
     var mxh=effMaxHR(),hrv=num(cf.hr);var zone=(hrv!=null&&mxh!=null)?zoneFromHR(hrv,mxh):(cf.zone||null);
-    var sess={id:cf.id||("c-"+Date.now()+"-"+Math.random().toString(36).slice(2,6)),kind:"cardio",type:cf.type,mins:Math.round(mins),zone:zone,rpe:num(cf.rpe),cal:num(cf.cal),hr:num(cf.hr),hrMax:num(cf.hrMax),ts:Date.now()};
+    var sess={id:cf.id||("c-"+Date.now()+"-"+Math.random().toString(36).slice(2,6)),kind:"cardio",type:cf.type,mins:Math.round(mins),zone:zone,rpe:num(cf.rpe),cal:num(cf.cal),hr:num(cf.hr),hrMax:num(cf.hrMax),notes:(cf.notes||"").trim(),ts:Date.now()};
     if(cf.id){for(var i=0;i<list.length;i++){if(list[i].id===cf.id){list[i]=sess;break;}}}else list.push(sess);
     state.training.sessions[d]=list;syncCardioTags(d);saveTraining();save();state.cardioForm=null;toast("Cardio logged");render();return;}
   if(a==="cardio:del"){var did=el.getAttribute("data-id");var dd2=state.selDate;var sList=(state.training.sessions[dd2])||[];var victim=sList.filter(function(s){return s.id===did;})[0];askConfirm("Delete this "+((victim&&victim.type)||"cardio")+" session"+(victim&&victim.mins?" ("+victim.mins+" min)":"")+"? This can\u2019t be undone.",function(){var l2=((state.training.sessions[dd2])||[]).filter(function(s){return s.id!==did;});if(l2.length)state.training.sessions[dd2]=l2;else delete state.training.sessions[dd2];syncCardioTags(dd2);saveTraining();save();if(state.cardioForm&&state.cardioForm.id===did)state.cardioForm=null;});return;}
@@ -2482,4 +2489,3 @@ document.addEventListener("visibilitychange",function(){if(!document.hidden)chec
 </script>
 </body>
 </html>
-
