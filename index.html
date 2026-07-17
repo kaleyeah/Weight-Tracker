@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.167 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.168 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -379,6 +379,12 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 .wl-daybar-row{display:flex;align-items:center;justify-content:center;gap:2px;}
 .wl-daybar .wl-datebtn{flex:0 1 auto;font-size:14.5px;}
 .wl-daybar.off .wl-datebtn{color:var(--accent);}
+.wl-hnav-wrap{min-width:0;flex:1;}
+.wl-hnav{display:flex;align-items:center;gap:2px;min-width:0;}
+.wl-hnav-arw{width:30px;height:30px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--muted);font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0;flex:none;}
+.wl-hnav-lbl{display:flex;align-items:center;gap:7px;padding:5px 10px;border-radius:9px;background:none;border:none;color:var(--text);font-size:17px;font-weight:800;letter-spacing:-.01em;font-family:var(--sans);min-width:0;}
+.wl-hnav-lbl>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.wl-hnav.off .wl-hnav-lbl{color:var(--accent);}
 .wl-daydot{width:6px;height:6px;border-radius:50%;background:var(--good);display:inline-block;margin-right:7px;}
 .wl-jumptoday{background:var(--accent);color:#000;border:none;border-radius:20px;padding:5px 14px;font-weight:800;font-size:12px;font-family:var(--sans);cursor:pointer;}
 .wl-check{padding:4px 4px 6px;}
@@ -432,6 +438,9 @@ html[data-theme="light"] .wl-verchip,html[data-theme="light"] .wl-synctime,html[
 html[data-theme="light"] .wl-daybar-row .wl-datebtn{color:#151A21;}
 html[data-theme="light"] .wl-daybar-row .wl-icon-btn,html[data-theme="light"] .wl-daybar-row .wl-chevron{color:#5C6879;}
 html[data-theme="light"] .wl-daybar.off .wl-daybar-row .wl-datebtn{color:#AE7411;}
+html[data-theme="light"] .wl-hnav-lbl{color:#151A21;}
+html[data-theme="light"] .wl-hnav.off .wl-hnav-lbl{color:#AE7411;}
+html[data-theme="light"] .wl-hnav-arw{color:#5C6879;}
 .wl-photos{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
 .wl-photostrip-row{display:flex;gap:6px;overflow-x:auto;padding:2px 0 6px;-webkit-overflow-scrolling:touch;}
 .wl-photo-sm{width:52px;height:52px;flex:none;border-radius:8px;background-size:cover;background-position:center;border:1px solid var(--line);cursor:pointer;padding:0;}
@@ -465,7 +474,7 @@ html[data-theme="light"] .wl-daybar.off .wl-daybar-row .wl-datebtn{color:#AE7411
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.167";
+var APP_BUILD="2026-07-14.168";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -1156,7 +1165,7 @@ function view_weight(){
   var u=state.settings.units;var ctx=trendCtx();var off=state.trendOffset||0;var perLbl=ctx.gran==="month"?"/mo":"/day";
   var h='<div class="wl-stack">';
   h+='<div class="wl-card"><button class="wl-btn wl-btn-primary wl-full" data-act="go" data-view="photos">\ud83d\udcf7 Progress Photos</button><div class="wl-hint" style="margin-top:8px">Weekly Front, Left/Right Side, and Back photos \u2014 compare your change over time.</div></div>';
-  h+='<div class="wl-card"><div class="wl-seg wl-seg-wide" style="margin-bottom:10px">'+["W","M","6M"].map(function(m){return '<button class="'+(ctx.mode===m?"on":"")+'" data-act="trend:mode" data-mode="'+m+'">'+m+'</button>';}).join("")+'</div><div class="wl-cal-head"><button class="wl-icon-btn" data-act="trend:prev">‹</button><span class="wl-cal-title">'+ctx.label+'</span><button class="wl-icon-btn" data-act="trend:next"'+(off<=0?' style="opacity:.3"':'')+'>›</button></div></div>';
+  h+='<div class="wl-card"><div class="wl-seg wl-seg-wide">'+["W","M","6M"].map(function(m){return '<button class="'+(ctx.mode===m?"on":"")+'" data-act="trend:mode" data-mode="'+m+'">'+m+'</button>';}).join("")+'</div></div>';
   var sw=sortedWeights();var startISO=toISO(ctx.start),endISO=toISO(ctx.end);
   var rw=sw.filter(function(x){return x.date>=startISO&&x.date<=endISO;});
   var goal=num(state.settings.goalWeight);var wc=prepChart(rw);
@@ -1204,25 +1213,41 @@ function calNoticeHTML(iso){var e=state.food[iso];if(!e)return "";
   return '<div class="wl-calnote"><span>Macros total <b>'+mt.toLocaleString()+' cal</b>, but Calories says <b>'+Math.round(cal).toLocaleString()+'</b>.</span><span class="wl-calnote-actions"><button class="wl-calnote-btn" data-act="cal:overwrite">Overwrite</button><button class="wl-calnote-btn ghost" data-act="cal:ignore">Ignore</button></span></div>';}
 function dayBarHTML(){
   var sel=state.selDate;var isToday=sel===todayISO();var open=state.calOpen;
-  var lbl=isToday?('<span class="wl-daydot"></span>Today, '+parseISO(sel).toLocaleDateString(undefined,{month:"short",day:"numeric"})):fmtLong(parseISO(sel));
-  var h='<div class="wl-daybar'+(isToday?"":" off")+'"><div class="wl-daybar-row">';
-  if(!open)h+='<button class="wl-icon-btn" data-act="day:prev">‹</button>';
-  h+='<button class="wl-datebtn" data-act="cal:expand">'+lbl+'<span class="wl-chevron'+(open?" open":"")+'" style="font-size:15px;line-height:1;margin-left:4px">›</span></button>';
-  if(!open)h+='<button class="wl-icon-btn"'+(sel>=todayISO()?' style="opacity:.3"':'')+' data-act="day:next">›</button>';
-  h+='</div>';
-  var now=new Date();var curMonth=open&&state.calY===now.getFullYear()&&state.calM===now.getMonth();
-  if(!isToday&&!curMonth)h+='<div style="text-align:center;margin-top:6px"><button class="wl-jumptoday" data-act="opentoday">Jump to today</button></div>';
-  if(open){
-    var y=state.calY,m=state.calM;var dim=new Date(y,m+1,0).getDate();var lead=new Date(y,m,1).getDay();
-    h+='<div class="wl-card" style="margin-top:8px;padding:12px"><div class="wl-cal-head"><button class="wl-icon-btn" data-act="cal:prev">‹</button><span class="wl-cal-title">'+MONTHS[m]+' '+y+'</span><button class="wl-icon-btn" data-act="cal:next">›</button></div><div class="wl-cal-grid wl-cal-dow">';
+  var h='';
+  if(!isToday&&!open)h+='<div style="text-align:center;margin-bottom:8px"><button class="wl-jumptoday" data-act="opentoday">Jump to today</button></div>';
+  if(open){var y=state.calY,m=state.calM;var dim=new Date(y,m+1,0).getDate();var lead=new Date(y,m,1).getDay();
+    h+='<div class="wl-card" style="margin-bottom:8px;padding:12px"><div class="wl-cal-grid wl-cal-dow">';
     WEEKDAYS.forEach(function(dw){h+='<div class="wl-dow">'+dw+'</div>';});h+='</div><div class="wl-cal-grid">';
     for(var i=0;i<lead;i++)h+='<div class="wl-cell empty"></div>';
     for(var d=1;d<=dim;d++){var iso=toISO(new Date(y,m,d));var isT=iso===todayISO();var isS=iso===sel;
       h+='<button class="wl-cell'+(isS?" sel":"")+(isT?" today":"")+'" data-act="cal:sel" data-date="'+iso+'"><span class="wl-cell-num">'+d+'</span>'+dayDots(iso)+'</button>';}
-    h+='</div></div>';
-  }
-  return h+'</div>';
+    h+='</div></div>';}
+  return h;
 }
+function headerNav(){var v=state.view;
+  if(v==="overview"||v==="food"||v==="calendar"||v==="train"){
+    var sel=state.selDate;var isToday=sel===todayISO();var open=state.calOpen;
+    var lbl=open?(MONTHS[state.calM]+' '+state.calY):(isToday?('Today, '+parseISO(sel).toLocaleDateString(undefined,{month:"short",day:"numeric"})):fmtLong(parseISO(sel)));
+    var h='<div class="wl-hnav'+((!isToday&&!open)?" off":"")+'">';
+    h+='<button class="wl-hnav-arw" data-act="'+(open?"cal:prev":"day:prev")+'">‹</button>';
+    h+='<button class="wl-hnav-lbl" data-act="cal:expand">'+((isToday&&!open)?'<span class="wl-daydot"></span>':'')+'<span>'+lbl+'</span></button>';
+    h+='<button class="wl-hnav-arw"'+((!open&&sel>=todayISO())?' style="opacity:.3"':'')+' data-act="'+(open?"cal:next":"day:next")+'">›</button>';
+    return h+'</div>';}
+  if(v==="summary"){var s0=weekStartFor(state.weekOffset),e0=new Date(s0);e0.setDate(s0.getDate()+6);var isThis=state.weekOffset===0;
+    var h='<div class="wl-hnav'+(isThis?"":" off")+'">';
+    h+='<button class="wl-hnav-arw" data-act="sum:prev">‹</button>';
+    h+='<button class="wl-hnav-lbl" data-act="sum:tocur"><span>'+fmtShort(s0)+' – '+fmtShort(e0)+'</span></button>';
+    h+='<button class="wl-hnav-arw"'+(isThis?' style="opacity:.3"':'')+' data-act="sum:next">›</button>';
+    return h+'</div>';}
+  if(v==="weight"){var ctx=trendCtx();var o2=state.trendOffset||0;
+    var h='<div class="wl-hnav'+(o2<=0?"":" off")+'">';
+    h+='<button class="wl-hnav-arw" data-act="trend:prev">‹</button>';
+    h+='<button class="wl-hnav-lbl" data-act="trend:tocur"><span>'+ctx.label+'</span></button>';
+    h+='<button class="wl-hnav-arw"'+(o2<=0?' style="opacity:.3"':'')+' data-act="trend:next">›</button>';
+    return h+'</div>';}
+  return '';
+}
+
 function quickEntryHTML(){
   var sec=state.quickEntry;if(!sec)return "";
   var sel=state.selDate;var u=state.settings.units;
@@ -1272,7 +1297,7 @@ function view_summary(){
   var slAvg=slv.length?Math.round(slv.reduce(function(a,b){return a+b;},0)/slv.length):null;
   var ts=weekTrainingStats(s);var _tI=todayISO();
   var tCal=num(state.settings.targetCalories),tStep=num(state.settings.stepsGoal),tProt=num(state.settings.targetProtein),tFat=num(state.settings.targetFat),tCarb=num(state.settings.targetCarbs),tSleep=sleepGoalMin();
-  var h='<div class="wl-stack"><div class="wl-daybar"><div class="wl-daybar-row"><button class="wl-icon-btn" data-act="sum:prev">‹</button><span class="wl-datebtn" style="cursor:default">'+label+(isThis?' · This week':'')+'</span><button class="wl-icon-btn"'+(isThis?' style="opacity:.3"':'')+' data-act="sum:next">›</button></div></div>';
+  var h='<div class="wl-stack">';
   var _prevWv=weekDays(state.weekOffset+1).map(dayRow).filter(function(r){return r.weight!=null;}).map(function(r){return r.weight;});
   var _thisAvg=wv.length?wv.reduce(function(a,b){return a+b;},0)/wv.length:null;
   var _lastAvg=_prevWv.length?_prevWv.reduce(function(a,b){return a+b;},0)/_prevWv.length:null;
@@ -2045,7 +2070,7 @@ function render(){
   var nav='<nav class="wl-nav">'+NAV.map(function(n){return '<button class="wl-navbtn '+(state.view===n[0]||(n[0]==="overview"&&(state.view==="food"||state.view==="diary"))||(n[0]==="weight"&&state.view==="photos")?"on":"")+'" data-act="go" data-view="'+n[0]+'">'+I[n[0]]+'<span>'+n[1]+'</span></button>';}).join("")+'</nav>';
   var avatar='<button class="wl-avatar'+(state.view==="settings"?" on":"")+'" data-act="go" data-view="settings" aria-label="Settings"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>';
   var hdrRight='<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">'+(syncOn()?'<div id="wl-sync" class="wl-sync '+syncState.s+'">'+syncLabel()+'</div><div id="wl-synctime" class="wl-synctime">'+lastSyncText()+'</div>':'')+'</div>';
-  document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header"><div>'+(title?'<div class="wl-eyebrow">Progress Tracker</div><h1 class="wl-title">'+title+'</h1>':'')+'</div><div style="display:flex;align-items:center;gap:10px">'+hdrRight+avatar+'</div></header><main class="wl-main">'+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML()+actPickHTML();
+  document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header"><div class="wl-hnav-wrap">'+headerNav()+'</div><div style="display:flex;align-items:center;gap:10px">'+hdrRight+avatar+'</div></header><main class="wl-main">'+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML()+actPickHTML();
   var hdr=document.querySelector(".wl-header");if(hdr)document.documentElement.style.setProperty("--headh",hdr.offsetHeight+"px");
   if(document.getElementById("wl-photostrip"))renderPhotosStrip(state.selDate);
   if(state.view==="diary")renderDiary();
@@ -2208,6 +2233,7 @@ document.addEventListener("click",function(e){
   if(a==="cardio:del"){var did=el.getAttribute("data-id");var dd2=state.selDate;var sList=(state.training.sessions[dd2])||[];var victim=sList.filter(function(s){return s.id===did;})[0];askConfirm("Delete this "+((victim&&victim.type)||"cardio")+" session"+(victim&&victim.mins?" ("+victim.mins+" min)":"")+"? This can\u2019t be undone.",function(){var l2=((state.training.sessions[dd2])||[]).filter(function(s){return s.id!==did;});if(l2.length)state.training.sessions[dd2]=l2;else delete state.training.sessions[dd2];syncCardioTags(dd2);saveTraining();save();if(state.cardioForm&&state.cardioForm.id===did)state.cardioForm=null;});return;}
   if(a==="night:gen"){genNightly();return;}
   if(a==="trend:mode"){state.trendMode=el.getAttribute("data-mode");state.trendOffset=0;render();return;}
+  if(a==="trend:tocur"){state.trendOffset=0;render();return;}
   if(a==="trend:prev"){state.trendOffset=(state.trendOffset||0)+1;render();return;}
   if(a==="trend:next"){state.trendOffset=Math.max(0,(state.trendOffset||0)-1);render();return;}
   if(a==="photo:add"){state.pendingMeal=el.getAttribute("data-meal")||"";state.pendingPose=null;document.getElementById("wl-photo-input").click();return;}
@@ -2224,7 +2250,7 @@ document.addEventListener("click",function(e){
     return;}
   if(a==="cal:prev"){state.calM--;if(state.calM<0){state.calM=11;state.calY--;}render();return;}
   if(a==="cal:next"){state.calM++;if(state.calM>11){state.calM=0;state.calY++;}render();return;}
-  if(a==="cal:sel"){state.selDate=el.getAttribute("data-date");var cd=parseISO(state.selDate);state.calY=cd.getFullYear();state.calM=cd.getMonth();render();return;}
+  if(a==="cal:sel"){state.selDate=el.getAttribute("data-date");var cd=parseISO(state.selDate);state.calY=cd.getFullYear();state.calM=cd.getMonth();state.calOpen=false;try{localStorage.setItem("wl_calopen","0");}catch(e){}render();return;}
   if(a==="cal:expand"){state.calOpen=!state.calOpen;try{localStorage.setItem("wl_calopen",state.calOpen?"1":"0");}catch(e){}if(state.calOpen){var pd=parseISO(state.selDate);state.calY=pd.getFullYear();state.calM=pd.getMonth();}render();return;}
   if(a==="day:prev"||a==="day:next"){var dd=parseISO(state.selDate);if(a==="day:next"&&state.selDate>=todayISO())return;dd.setDate(dd.getDate()+(a==="day:next"?1:-1));state.selDate=toISO(dd);state.calY=dd.getFullYear();state.calM=dd.getMonth();state.cardioForm=null;render();return;}
   if(a==="cal:overwrite"){var d=state.selDate;var e2=Object.assign({},state.food[d]||{});var p=num(e2.protein),c=num(e2.carbs),f=num(e2.fat);e2.calories=String(Math.round((p||0)*4+(c||0)*4+(f||0)*9));e2.calAuto=true;delete e2.calDismiss;state.food[d]=e2;save();render();return;}
@@ -2284,6 +2310,7 @@ document.addEventListener("click",function(e){
     setSyncCfg({token:cfg.token,repo:cfg.repo||DEFAULT_REPO,branch:cfg.branch||DEFAULT_BRANCH,uid:cfg.uid||"owner"});
     ghSha=null;connData={};state.syncPasteOpen=false;render();toast("Setup applied");autoSync();}catch(e){toast("Couldn't read that setup");}return;}
   if(a==="app:update"){updateApp();return;}
+  if(a==="sum:tocur"){state.weekOffset=0;render();return;}
   if(a==="sum:prev"){state.weekOffset--;render();return;}
   if(a==="sum:next"){if(state.weekOffset<0){state.weekOffset++;render();}return;}
   if(a==="sum:day"){var sdd=el.getAttribute("data-date");state.selDate=sdd;var sp=parseISO(sdd);state.calY=sp.getFullYear();state.calM=sp.getMonth();state.view="overview";render();return;}
