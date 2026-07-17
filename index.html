@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.162 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.163 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -207,6 +207,16 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 .wl-prrow-name{font-size:14px;font-weight:600;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .wl-prrow-val{font-size:13px;font-weight:700;color:var(--accent);font-family:var(--mono);text-align:right;flex:none;white-space:nowrap;}
 .wl-prrow-e{display:block;font-size:10.5px;font-weight:600;color:var(--muted);font-family:var(--sans);}
+.wl-poserow{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+.wl-poseslot{display:flex;flex-direction:column;align-items:center;gap:5px;}
+.wl-poseimg,.wl-poseadd{width:100%;aspect-ratio:3/4;border-radius:10px;background-size:cover;background-position:center;background-color:var(--bg2);border:1px solid var(--line);cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;}
+.wl-poseadd{border-style:dashed;color:var(--muted);}
+.wl-poseadd span{font-size:22px;line-height:1;}
+.wl-poselbl{font-size:10px;color:var(--muted);font-weight:600;text-align:center;line-height:1.1;}
+.wl-posetimeline{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch;}
+.wl-tlitem{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:4px;}
+.wl-tlimg{width:84px;aspect-ratio:3/4;border-radius:9px;background-size:cover;background-position:center;background-color:var(--bg2);border:1px solid var(--line);cursor:pointer;padding:0;}
+.wl-tllbl{font-size:10px;color:var(--muted);font-weight:600;}
 
 .wl-chart{width:100%;height:auto;display:block;touch-action:manipulation;}
 .wl-chart text{font-family:var(--mono);}
@@ -455,7 +465,7 @@ html[data-theme="light"] .wl-daybar.off .wl-daybar-row .wl-datebtn{color:#AE7411
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.162";
+var APP_BUILD="2026-07-14.163";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -1004,6 +1014,7 @@ function view_overview(){
   }
   h+='</div>';
   }
+  if(_ciDay)h+='<div class="wl-card"><button class="wl-btn wl-btn-primary wl-full" data-act="go" data-view="photos">\ud83d\udcf7 This Week\u2019s Progress Photos</button><div class="wl-hint" style="margin-top:8px">Check-in day \u2014 capture Front, Left Side, Right Side, and Back to track your visible progress.</div></div>';
   h+=dayBarHTML();
   h+=todayChecklistHTML(state.selDate);
   h+=activitySummaryHTML(state.selDate);
@@ -1136,6 +1147,7 @@ function buildBars(bk,goal,higherBetter){
 function view_weight(){
   var u=state.settings.units;var ctx=trendCtx();var off=state.trendOffset||0;var perLbl=ctx.gran==="month"?"/mo":"/day";
   var h='<div class="wl-stack">';
+  h+='<div class="wl-card"><button class="wl-btn wl-btn-primary wl-full" data-act="go" data-view="photos">\ud83d\udcf7 Progress Photos</button><div class="wl-hint" style="margin-top:8px">Weekly Front, Left/Right Side, and Back photos \u2014 compare your change over time.</div></div>';
   h+='<div class="wl-card"><div class="wl-seg wl-seg-wide" style="margin-bottom:10px">'+["W","M","6M"].map(function(m){return '<button class="'+(ctx.mode===m?"on":"")+'" data-act="trend:mode" data-mode="'+m+'">'+m+'</button>';}).join("")+'</div><div class="wl-cal-head"><button class="wl-icon-btn" data-act="trend:prev">‹</button><span class="wl-cal-title">'+ctx.label+'</span><button class="wl-icon-btn" data-act="trend:next"'+(off<=0?' style="opacity:.3"':'')+'>›</button></div></div>';
   var sw=sortedWeights();var startISO=toISO(ctx.start),endISO=toISO(ctx.end);
   var rw=sw.filter(function(x){return x.date>=startISO&&x.date<=endISO;});
@@ -1350,8 +1362,33 @@ function processImage(file){return new Promise(function(res){
     img.onerror=function(){URL.revokeObjectURL(url);res(file);};img.src=url;
   }catch(e){res(file);}});}
 function clearPhotoURLs(){photoURLs.forEach(function(u){try{URL.revokeObjectURL(u);}catch(e){}});photoURLs=[];photoMap={};}
+var POSES=[["front","Front"],["left","Left Side"],["right","Right Side"],["back","Back"]];
+function view_photos(){
+  var h='<div class="wl-stack">';
+  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="go" data-view="weight">\u2039</button><span class="wl-cal-title">Progress Photos</span><span style="width:36px;display:inline-block"></span></div>';
+  h+='<div class="wl-card"><div class="wl-card-head"><span>This Week</span><span class="wl-count">'+fmtShort(weekStartFor(0))+'</span></div><div id="wl-progweek" class="wl-poserow"><div class="wl-hint">Loading\u2026</div></div><div class="wl-hint" style="margin-top:10px">Tap a slot to add or retake. Photos stay on this device only \u2014 never synced or seen by the coach.</div></div>';
+  h+='<div id="wl-progtimeline"></div>';
+  return h+'</div>';
+}
+function renderProgressPhotos(){clearPhotoURLs();var curWk=toISO(weekStartFor(0));
+  idbAll().then(function(all){var progs=all.filter(function(p){return p.kind==="progress";});
+    var host=document.getElementById("wl-progweek");
+    if(host){var html="";POSES.forEach(function(ps){var found=progs.filter(function(p){return p.week===curWk&&p.pose===ps[0];})[0];
+      if(found){var url=URL.createObjectURL(found.blob);photoURLs.push(url);html+='<div class="wl-poseslot"><button class="wl-poseimg" data-act="photo:view" data-id="'+found.id+'" style="background-image:url('+url+')"></button><span class="wl-poselbl">'+ps[1]+'</span></div>';}
+      else{html+='<div class="wl-poseslot"><button class="wl-poseadd" data-act="pphoto:add" data-pose="'+ps[0]+'"><span>\uff0b</span></button><span class="wl-poselbl">'+ps[1]+'</span></div>';}});
+      host.innerHTML=html;}
+    var tl=document.getElementById("wl-progtimeline");
+    if(tl){var html2="";var any=false;POSES.forEach(function(ps){var items=progs.filter(function(p){return p.pose===ps[0];}).sort(function(a,b){return (a.week||a.date||"")<(b.week||b.date||"")?-1:1;});
+      if(!items.length)return;any=true;
+      html2+='<div class="wl-card"><div class="wl-card-head"><span>'+ps[1]+'</span><span class="wl-count">'+items.length+'</span></div><div class="wl-posetimeline">';
+      items.forEach(function(p){var url=URL.createObjectURL(p.blob);photoURLs.push(url);html2+='<div class="wl-tlitem"><button class="wl-tlimg" data-act="photo:view" data-id="'+p.id+'" style="background-image:url('+url+')"></button><span class="wl-tllbl">'+fmtShort(parseISO(p.week||p.date))+'</span></div>';});
+      html2+='</div></div>';});
+      if(!any)html2='<div class="wl-card"><div class="wl-hint">No progress photos yet. Add your first set above \u2014 then each week\u2019s photos line up here by pose so you can see the change over time.</div></div>';
+      tl.innerHTML=html2;}
+  }).catch(function(){});
+}
 function renderPhotosStrip(date){var host=document.getElementById("wl-photostrip");if(!host)return;
-  idbByDate(date).then(function(list){var h2=document.getElementById("wl-photostrip");if(!h2)return;clearPhotoURLs();
+  idbByDate(date).then(function(list){var h2=document.getElementById("wl-photostrip");if(!h2)return;clearPhotoURLs();list=list.filter(function(p){return p.kind!=="progress";});
     if(!list.length){h2.innerHTML='<div class="wl-hint" style="padding:0 0 8px">No meals added yet today.</div>';return;}
     var html='<div class="wl-photostrip-row">';
     list.slice(0,6).forEach(function(p){var url=URL.createObjectURL(p.blob);photoURLs.push(url);photoMap[p.id]=url;html+='<button class="wl-photo-sm" data-act="photo:view" data-id="'+p.id+'" style="background-image:url('+url+')"></button>';});
@@ -1359,7 +1396,7 @@ function renderPhotosStrip(date){var host=document.getElementById("wl-photostrip
     html+='</div>';h2.innerHTML=html;
   }).catch(function(){var h2=document.getElementById("wl-photostrip");if(h2)h2.innerHTML='';});}
 function renderPhotos(date){var host=document.getElementById("wl-photos");if(!host)return;
-  idbByDate(date).then(function(list){var h2=document.getElementById("wl-photos");if(!h2)return;
+  idbByDate(date).then(function(list){var h2=document.getElementById("wl-photos");if(!h2)return;list=list.filter(function(p){return p.kind!=="progress";});
     clearPhotoURLs();
     if(!list.length){h2.innerHTML='<div class="wl-empty" style="padding:6px 0">No food photos yet — add a meal below.</div>';return;}
     var MEALS=[["breakfast","Breakfast"],["lunch","Lunch"],["snack","Snack"],["dinner","Dinner"],["","Other"]];
@@ -1381,7 +1418,7 @@ function view_diary(){
 }
 function weekStartOf(iso){var ws=parseInt(state.settings.weekStart,10)||0;var d=parseISO(iso);var diff=(d.getDay()-ws+7)%7;d.setDate(d.getDate()-diff);d.setHours(0,0,0,0);return d;}
 function renderDiary(){var host=document.getElementById("wl-diary");if(!host)return;
-  idbAll().then(function(all){var host2=document.getElementById("wl-diary");if(!host2)return;
+  idbAll().then(function(all){all=all.filter(function(p){return p.kind!=="progress";});var host2=document.getElementById("wl-diary");if(!host2)return;
     clearPhotoURLs();
     if(!all.length){host2.innerHTML='<div class="wl-empty" style="padding:20px 0">No food photos yet. Open a day\u2019s Food diary to add meals.</div>';return;}
     var byDate={};all.forEach(function(p){(byDate[p.date]=byDate[p.date]||[]).push(p);});
@@ -1416,7 +1453,8 @@ function openLightbox(id){
   var urls={},idx=Math.max(0,ids.indexOf(id)),dirty=false;
   function show(){img.src=urls[ids[idx]]||"";countEl.textContent=ids.length>1?(idx+1)+" / "+ids.length:"";prevB.style.visibility=idx>0?"visible":"hidden";nextB.style.visibility=idx<ids.length-1?"visible":"hidden";}
   function go(d){var ni=idx+d;if(ni<0||ni>=ids.length)return;idx=ni;show();}
-  function close(){document.removeEventListener("keydown",key);Object.keys(urls).forEach(function(k){try{URL.revokeObjectURL(urls[k]);}catch(e){}});if(ov.parentNode)document.body.removeChild(ov);if(dirty){if(state.view==="diary")renderDiary();else renderPhotosStrip(state.selDate);}}
+  function close(){document.removeEventListener("keydown",key);Object.keys(urls).forEach(function(k){try{URL.revokeObjectURL(urls[k]);}catch(e){}});if(ov.parentNode)document.body.removeChild(ov);if(dirty){if(state.view==="diary")renderDiary();
+  if(state.view==="photos")renderProgressPhotos();else renderPhotosStrip(state.selDate);}}
   function key(e){if(e.key==="ArrowLeft")go(-1);else if(e.key==="ArrowRight")go(1);else if(e.key==="Escape")close();}
   document.addEventListener("keydown",key);
   ov.addEventListener("click",function(e){var b=e.target.closest("[data-lb]");
@@ -1983,15 +2021,16 @@ function confirmOverlayHTML(){var c=state.pendingConfirm;if(!c)return "";
   return '<div class="wl-confirm"><div class="wl-confirm-card"><div class="wl-confirm-msg">'+esc(c.message)+'</div><div class="wl-confirm-btns"><button class="wl-btn wl-btn-ghost wl-full" data-act="confirm:no">Cancel</button><button class="wl-btn wl-full" style="background:'+(c.danger?"var(--bad)":"var(--accent)")+';color:#fff;border:none" data-act="confirm:yes">'+esc(c.label)+'</button></div></div></div>';}
 function render(){
   clearPhotoURLs();
-  var title=state.view==="settings"?"Settings":state.view==="diary"?"Food Diary":state.view==="exlib"?"":state.view==="routine"?"":state.view==="rlaunch"?"":state.view==="quicklog"?"Quick log":state.view==="workout"?"Workout":state.view==="wtadd"?"":(NAV.filter(function(n){return n[0]===state.view;})[0]||["","" ])[1];
-  var body=state.view==="overview"?view_overview():(state.view==="food"||state.view==="calendar")?view_overview():state.view==="weight"?view_weight():state.view==="summary"?view_summary():state.view==="diary"?view_diary():state.view==="train"?view_train():state.view==="exlib"?view_exlib():state.view==="routine"?view_routine():state.view==="rlaunch"?view_rlaunch():state.view==="quicklog"?view_quicklog():state.view==="workout"?view_workout():state.view==="liftview"?view_liftview():state.view==="wtadd"?view_wtadd():view_settings();
-  var nav='<nav class="wl-nav">'+NAV.map(function(n){return '<button class="wl-navbtn '+(state.view===n[0]||(n[0]==="overview"&&(state.view==="food"||state.view==="diary"))?"on":"")+'" data-act="go" data-view="'+n[0]+'">'+I[n[0]]+'<span>'+n[1]+'</span></button>';}).join("")+'</nav>';
+  var title=state.view==="settings"?"Settings":state.view==="diary"?"Food Diary":state.view==="exlib"?"":state.view==="routine"?"":state.view==="rlaunch"?"":state.view==="quicklog"?"Quick log":state.view==="workout"?"Workout":state.view==="wtadd"?"":state.view==="photos"?"":(NAV.filter(function(n){return n[0]===state.view;})[0]||["","" ])[1];
+  var body=state.view==="overview"?view_overview():(state.view==="food"||state.view==="calendar")?view_overview():state.view==="weight"?view_weight():state.view==="summary"?view_summary():state.view==="diary"?view_diary():state.view==="train"?view_train():state.view==="exlib"?view_exlib():state.view==="routine"?view_routine():state.view==="rlaunch"?view_rlaunch():state.view==="quicklog"?view_quicklog():state.view==="workout"?view_workout():state.view==="liftview"?view_liftview():state.view==="wtadd"?view_wtadd():state.view==="photos"?view_photos():view_settings();
+  var nav='<nav class="wl-nav">'+NAV.map(function(n){return '<button class="wl-navbtn '+(state.view===n[0]||(n[0]==="overview"&&(state.view==="food"||state.view==="diary"))||(n[0]==="weight"&&state.view==="photos")?"on":"")+'" data-act="go" data-view="'+n[0]+'">'+I[n[0]]+'<span>'+n[1]+'</span></button>';}).join("")+'</nav>';
   var avatar='<button class="wl-avatar'+(state.view==="settings"?" on":"")+'" data-act="go" data-view="settings" aria-label="Settings"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>';
   var hdrRight='<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">'+(syncOn()?'<div id="wl-sync" class="wl-sync '+syncState.s+'">'+syncLabel()+'</div><div id="wl-synctime" class="wl-synctime">'+lastSyncText()+'</div>':'')+'<div class="wl-verchip">v'+APP_BUILD+'</div></div>';
   document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header"><div><div class="wl-eyebrow">Progress Tracker</div><h1 class="wl-title">'+title+'</h1></div><div style="display:flex;align-items:center;gap:10px">'+hdrRight+avatar+'</div></header><main class="wl-main">'+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML()+actPickHTML();
   var hdr=document.querySelector(".wl-header");if(hdr)document.documentElement.style.setProperty("--headh",hdr.offsetHeight+"px");
   if(document.getElementById("wl-photostrip"))renderPhotosStrip(state.selDate);
   if(state.view==="diary")renderDiary();
+  if(state.view==="photos")renderProgressPhotos();
 }
 
 /* ---------------- events ---------------- */
@@ -2150,7 +2189,8 @@ document.addEventListener("click",function(e){
   if(a==="trend:mode"){state.trendMode=el.getAttribute("data-mode");state.trendOffset=0;render();return;}
   if(a==="trend:prev"){state.trendOffset=(state.trendOffset||0)+1;render();return;}
   if(a==="trend:next"){state.trendOffset=Math.max(0,(state.trendOffset||0)-1);render();return;}
-  if(a==="photo:add"){state.pendingMeal=el.getAttribute("data-meal")||"";document.getElementById("wl-photo-input").click();return;}
+  if(a==="photo:add"){state.pendingMeal=el.getAttribute("data-meal")||"";state.pendingPose=null;document.getElementById("wl-photo-input").click();return;}
+  if(a==="pphoto:add"){state.pendingPose=el.getAttribute("data-pose");state.pendingProgWeek=toISO(weekStartFor(0));state.pendingMeal=null;document.getElementById("wl-photo-input").click();return;}
   if(a==="photo:view"){openLightbox(el.getAttribute("data-id"));return;}
   if(a==="openday"){var od=el.getAttribute("data-date");state.selDate=od;var pd=parseISO(od);state.calY=pd.getFullYear();state.calM=pd.getMonth();state.view="overview";render();return;}
   if(a==="day:clear"){var fdd=state.selDate;
@@ -2158,7 +2198,7 @@ document.addEventListener("click",function(e){
       delete state.food[fdd];delete state.steps[fdd];delete state.sleep[fdd];delete state.workouts[fdd];delete state.notes[fdd];
       state.weights=state.weights.filter(function(x){return x.date!==fdd;});
       save();toast("Day cleared");
-      try{idbByDate(fdd).then(function(list){var t=list.map(function(p){return idbDelete(p.id);});Promise.all(t).then(function(){if(state.selDate===fdd)renderPhotos(fdd);});});}catch(e){}
+      try{idbByDate(fdd).then(function(list){list=list.filter(function(p){return p.kind!=="progress";});var t=list.map(function(p){return idbDelete(p.id);});Promise.all(t).then(function(){if(state.selDate===fdd)renderPhotos(fdd);});});}catch(e){}
     },{label:"Clear day"});
     return;}
   if(a==="cal:prev"){state.calM--;if(state.calM<0){state.calM=11;state.calY--;}render();return;}
@@ -2298,6 +2338,8 @@ document.getElementById("wl-import").addEventListener("change",function(e){
 });
 document.getElementById("wl-photo-input").addEventListener("change",function(e){
   var files=e.target.files;if(!files||!files.length){return;}
+  if(state.pendingPose){var _pf=files[0];var _pose=state.pendingPose;var _wk=state.pendingProgWeek||toISO(weekStartFor(0));e.target.value="";state.pendingPose=null;toast("Adding photo\u2026");
+    processImage(_pf).then(function(blob){idbAll().then(function(all){var old=all.filter(function(p){return p.kind==="progress"&&p.week===_wk&&p.pose===_pose;});Promise.all(old.map(function(p){return idbDelete(p.id);})).then(function(){idbAdd({id:"prog-"+_wk+"-"+_pose+"-"+Date.now(),date:_wk,week:_wk,pose:_pose,kind:"progress",blob:blob,ts:Date.now()+Math.random()}).then(function(){toast("Photo saved");if(state.view==="photos")renderProgressPhotos();else render();});});});});return;}
   var date=state.selDate;var arr=Array.prototype.slice.call(files);e.target.value="";var meal=state.pendingMeal||"";
   toast("Adding "+arr.length+" photo"+(arr.length>1?"s":"")+"…");
   var chain=Promise.resolve();
@@ -2440,3 +2482,4 @@ document.addEventListener("visibilitychange",function(){if(!document.hidden)chec
 </script>
 </body>
 </html>
+
