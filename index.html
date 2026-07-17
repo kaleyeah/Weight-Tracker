@@ -407,7 +407,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.136";
+var APP_BUILD="2026-07-14.137";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -883,15 +883,16 @@ function ckCalories(sel){
   var has=cal!=null||p!=null||cb!=null||ft!=null;
   if(!has)return '<button class="wl-ck-row" data-act="dl:open" data-sec="calories"><span class="wl-ck-l"><span class="wl-ck-ic miss">!</span><span class="wl-ck-lab">Calories</span></span><span class="wl-ck-val empty">Add</span><span class="wl-ck-go">›</span></button>';
   var tg=num(state.settings.targetCalories);
-  var tCarb=num(state.settings.targetCarbs),tFat=num(state.settings.targetFat);
+  var tCarb=num(state.settings.targetCarbs),tFat=num(state.settings.targetFat),tProt=num(state.settings.targetProtein);
   var calOver=(tg!=null&&cal!=null&&cal>tg);
   var carbOver=calOver&&(tCarb!=null&&cb!=null&&cb>tCarb);
   var fatOver=calOver&&(tFat!=null&&ft!=null&&ft>tFat);
+  var protLow=(tProt!=null&&p!=null&&p<tProt*0.9);
   var h='<button class="wl-ck-row col" data-act="dl:open" data-sec="calories"><div class="wl-ck-top"><span class="wl-ck-l"><span class="wl-ck-ic done">✓</span><span class="wl-ck-lab">Calories</span></span><span class="wl-ck-val"'+(calOver?' style="color:var(--bad)"':'')+'>'+(cal!=null?Math.round(cal).toLocaleString():"—")+(tg!=null?' <span style="color:var(--faint);font-weight:600">/ '+tg.toLocaleString()+'</span>':'')+'</span><span class="wl-ck-go">›</span></div>';
   if(p!=null||cb!=null||ft!=null){var P=(p||0)*4,C=(cb||0)*4,F=(ft||0)*9;var tot=(P+C+F)||1;
-    var cCol=carbOver?"var(--bad)":"var(--mac-c)",fCol=fatOver?"var(--bad)":"var(--mac-f)";
-    h+='<div class="wl-mbar"><i style="width:'+(P/tot*100)+'%;background:var(--mac-p)"></i><i style="width:'+(C/tot*100)+'%;background:'+cCol+'"></i><i style="width:'+(F/tot*100)+'%;background:'+fCol+'"></i></div>';
-    h+='<div class="wl-mlegend"><div class="wl-mseg"><div class="k" style="color:var(--mac-p)">Protein</div><div class="v">'+(p!=null?p+"g":"—")+'</div></div><div class="wl-mseg"><div class="k" style="color:'+cCol+'">Carbs</div><div class="v"'+(carbOver?' style="color:var(--bad)"':'')+'>'+(cb!=null?cb+"g":"—")+'</div></div><div class="wl-mseg"><div class="k" style="color:'+fCol+'">Fat</div><div class="v"'+(fatOver?' style="color:var(--bad)"':'')+'>'+(ft!=null?ft+"g":"—")+'</div></div></div>';}
+    var pCol=protLow?"var(--bad)":"var(--mac-p)",cCol=carbOver?"var(--bad)":"var(--mac-c)",fCol=fatOver?"var(--bad)":"var(--mac-f)";
+    h+='<div class="wl-mbar"><i style="width:'+(P/tot*100)+'%;background:'+pCol+'"></i><i style="width:'+(C/tot*100)+'%;background:'+cCol+'"></i><i style="width:'+(F/tot*100)+'%;background:'+fCol+'"></i></div>';
+    h+='<div class="wl-mlegend"><div class="wl-mseg"><div class="k" style="color:'+pCol+'">Protein</div><div class="v"'+(protLow?' style="color:var(--bad)"':'')+'>'+(p!=null?p+"g":"—")+'</div></div><div class="wl-mseg"><div class="k" style="color:'+cCol+'">Carbs</div><div class="v"'+(carbOver?' style="color:var(--bad)"':'')+'>'+(cb!=null?cb+"g":"—")+'</div></div><div class="wl-mseg"><div class="k" style="color:'+fCol+'">Fat</div><div class="v"'+(fatOver?' style="color:var(--bad)"':'')+'>'+(ft!=null?ft+"g":"—")+'</div></div></div>';}
   return h+'</button>';
 }
 function ckNotes(sel){
