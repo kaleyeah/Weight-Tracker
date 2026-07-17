@@ -394,7 +394,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.126";
+var APP_BUILD="2026-07-14.127";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -914,10 +914,7 @@ function view_overview(){
   if(start!=null&&goal!=null&&current!=null&&start!==goal){progress=(start-current)/(start-goal);progress=Math.max(0,Math.min(1,progress));}
   var c=prepChart();var fc=computeForecasts(current,goal,c.slope);
   var miss=missingDays();var todayMiss=miss.indexOf(todayISO())>=0;var past=miss.filter(function(d){return d!==todayISO();});
-  var u=state.settings.units;var tf=state.food[todayISO()]||{};
-  var tCal=num(tf.calories),tSteps=num(state.steps[todayISO()]),tSleep=num(state.sleep[todayISO()]),twt=null;
-  for(var _i=0;_i<state.weights.length;_i++){if(state.weights[_i].date===todayISO()){twt=state.weights[_i].weight;break;}}
-  var tw=state.workouts[todayISO()]||[];
+  var u=state.settings.units;
   var h='<div class="wl-stack">';
   h+=dayBarHTML();
   h+=todayChecklistHTML(state.selDate);
@@ -1018,10 +1015,6 @@ function connectionsHTML(){var list=connectionList();
   list.forEach(function(uid){var nm=(connData[uid]&&connData[uid].settings&&connData[uid].settings.name)||"Pending…";
     h+='<div class="wl-preset-manage-row">'+I.check.replace("<svg","<svg width=14 height=14")+'<span>'+esc(nm)+'</span><button class="wl-icon-btn" data-act="conn:remove" data-uid="'+uid+'">✕</button></div>';});
   return h;
-}
-function todayRow(icon,label,val){
-  var dot=val!=null?"good":"bad";
-  return '<button class="wl-today-row" data-act="opentoday"><span class="wl-dot '+dot+'"></span>'+icon.replace("<svg","<svg width=16 height=16")+'<span class="wl-today-label">'+label+'</span><span class="wl-today-val">'+(val!=null?val:(label==="Activity"?"None logged":"Not logged"))+'</span></button>';
 }
 function fcCell(label,sub,fc,stalledMsg){
   var h='<div class="wl-fc"><div class="wl-fc-label">'+label+'</div><div class="wl-fc-sub">'+sub+'</div>';
@@ -1185,55 +1178,6 @@ function quickEntryHTML(){
   h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:16px" data-act="qe:close">Done</button>';
   return h+'</div></div>';
 }
-function view_calendar(){
-  var y=state.calY,m=state.calM;var first=new Date(y,m,1);var dim=new Date(y,m+1,0).getDate();var lead=first.getDay();
-  var sel=state.selDate;var u=state.settings.units;
-  var wmap={};state.weights.forEach(function(x){wmap[x.date]=x.weight;});
-  function dayHasData(iso){var f=state.food[iso];return !!((state.workouts[iso]&&state.workouts[iso].length)||wmap[iso]!=null||num(state.steps[iso])!=null||num(state.sleep[iso])!=null||(f&&(num(f.calories)!=null||num(f.protein)!=null||num(f.carbs)!=null||num(f.fat)!=null)));}
-  var h='<div class="wl-stack">'+dayBarHTML();
-  var e=state.food[sel]||{};
-  var t={calories:num(state.settings.targetCalories),protein:num(state.settings.targetProtein),carbs:num(state.settings.targetCarbs),fat:num(state.settings.targetFat)};
-  var hasT=Object.keys(t).some(function(k){return t[k]!=null;});
-  h+='<div class="wl-card" id="dl-weight"><div class="wl-card-head"><span>Weight</span></div>';
-  h+='<label class="wl-field wl-field-full"><span>Weight <em>'+u+'</em></span><input class="wl-daywt-input wl-num" type="text" inputmode="decimal" placeholder="—" value="'+(wmap[sel]!=null?wmap[sel]:"")+'"></label>';
-  h+='</div>';
-  h+='<div class="wl-card" id="dl-steps"><div class="wl-card-head"><span>Steps</span></div>';
-  h+='<label class="wl-field wl-field-full"><span>Steps</span><input class="wl-steps-input wl-num" data-int="1" type="text" inputmode="numeric" placeholder="—" value="'+(state.steps[sel]!=null?state.steps[sel]:"")+'"></label>';
-  h+='</div>';
-  h+='<div class="wl-card" id="dl-calories"><div class="wl-card-head"><span>Calories &amp; macros</span></div>';
-  h+='<div class="wl-macro3">';
-  [["protein","Protein","g"],["fat","Fat","g"],["carbs","Carbs","g"]].forEach(function(f){var val=e[f[0]]!=null?e[f[0]]:"";
-    h+='<label class="wl-field"><span>'+f[1]+' <em>'+f[2]+'</em></span><input class="wl-food-input wl-num" data-food="'+f[0]+'" type="text" inputmode="decimal" placeholder="0" value="'+val+'">';
-    if(hasT&&t[f[0]]!=null)h+='<div class="wl-tbar" id="bar-'+f[0]+'">'+barInner(num(val),t[f[0]])+'</div>';
-    h+='</label>';});
-  h+='</div>';
-  var _cval=e.calories!=null?e.calories:"";
-  h+='<label class="wl-field wl-field-full" style="margin-top:14px"><span>Total Calories <em>cal</em></span><input class="wl-food-input wl-num" data-food="calories" type="text" inputmode="decimal" placeholder="0" value="'+_cval+'">';
-  if(hasT&&t.calories!=null)h+='<div class="wl-tbar" id="bar-calories">'+barInner(num(_cval),t.calories)+'</div>';
-  h+='</label>';
-  h+='<div id="wl-calnotice">'+calNoticeHTML(sel)+'</div>';
-  h+='</div>';
-  h+='<div class="wl-card" id="dl-sleep"><div class="wl-card-head"><span>Total sleep <em>last night</em></span></div>';
-  h+='<div class="wl-row"><label class="wl-field"><span>Hours</span><input class="wl-num wl-sleep-h" data-int="1" type="text" inputmode="numeric" placeholder="—" value="'+(state.sleep[sel]!=null?Math.floor(state.sleep[sel]/60):"")+'"></label><label class="wl-field"><span>Minutes</span><input class="wl-num wl-sleep-m" data-int="1" type="text" inputmode="numeric" placeholder="—" value="'+(state.sleep[sel]!=null?state.sleep[sel]%60:"")+'"></label></div>';
-  h+='</div>';
-  h+='<div class="wl-card" id="dl-notes"><div class="wl-card-head"><span>Notes</span></div>';
-  h+='<textarea class="wl-note-input" placeholder="Any notes for the AI summary (feeling sick, feeling good, on vacation…)" style="width:100%;min-height:70px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:14px;padding:11px 12px;box-sizing:border-box;outline:none;resize:vertical">'+esc(state.notes[sel]||"")+'</textarea>';
-  h+='</div>';
-  h+='<div class="wl-card"><div class="wl-card-head"><span>Activity</span></div>';
-  var _log=normActs(sel);
-  if(_log.length){h+='<div class="wl-preset-list">';_log.forEach(function(a){h+='<span class="wl-achip '+a.cat+' on" style="cursor:default">'+esc(a.name||CATLABEL[a.cat])+'</span>';});h+='</div>';}
-  else h+='<div class="wl-hint">No activity logged for this day.</div>';
-  h+='<button class="wl-link" style="margin-top:12px" data-act="go" data-view="train">Log activity in the Activity tab →</button>';
-  h+='</div>';
-  h+='<div class="wl-card"><div class="wl-card-head"><span>Food diary</span></div>';
-  h+='<div id="wl-photos"><div class="wl-empty" style="padding:6px 0">Loading…</div></div>';
-  h+='<div class="wl-mealadd">'+[["breakfast","Breakfast"],["lunch","Lunch"],["snack","Snack"],["dinner","Dinner"]].map(function(m){return '<button class="wl-btn wl-btn-ghost" data-act="photo:add" data-meal="'+m[0]+'">'+I.plus.replace("<svg","<svg width=14 height=14")+m[1]+'</button>';}).join("")+'</div>';
-  h+='<div class="wl-hint" style="margin-top:8px">📷 Kept on this device only — your food diary isn\u2019t synced or seen by the AI.</div>';
-  h+='</div>';
-  h+='<div id="wl-clearday">'+clearDayBtnHTML(sel)+'</div>';
-  h+='<div class="wl-hint" style="margin-top:10px;text-align:center">Everything saves automatically. Tap the date above to switch days.</div></div>';
-  return h;
-}
 function weekStartFor(offset){var ws=parseInt(state.settings.weekStart,10)||0;var d=new Date();d.setHours(0,0,0,0);var diff=(d.getDay()-ws+7)%7;d.setDate(d.getDate()-diff+offset*7);return d;}
 function weekDays(offset){var s=weekStartFor(offset),arr=[];for(var i=0;i<7;i++){var dd=new Date(s);dd.setDate(s.getDate()+i);arr.push(dd);}return arr;}
 function dayRow(d){var iso=toISO(d);var w=null;for(var i=0;i<state.weights.length;i++){if(state.weights[i].date===iso){w=state.weights[i].weight;break;}}
@@ -1316,6 +1260,7 @@ function processImage(file){return new Promise(function(res){
 function clearPhotoURLs(){photoURLs.forEach(function(u){try{URL.revokeObjectURL(u);}catch(e){}});photoURLs=[];photoMap={};}
 function renderPhotos(date){var host=document.getElementById("wl-photos");if(!host)return;
   idbByDate(date).then(function(list){var h2=document.getElementById("wl-photos");if(!h2)return;
+    clearPhotoURLs();
     if(!list.length){h2.innerHTML='<div class="wl-empty" style="padding:6px 0">No food photos yet — add a meal below.</div>';return;}
     var MEALS=[["breakfast","Breakfast"],["lunch","Lunch"],["snack","Snack"],["dinner","Dinner"],["","Other"]];
     var html="";
@@ -1326,15 +1271,6 @@ function renderPhotos(date){var host=document.getElementById("wl-photos");if(!ho
       html+='</div>';});
     h2.innerHTML=html;
   }).catch(function(){var h2=document.getElementById("wl-photos");if(h2)h2.innerHTML='<div class="wl-empty" style="padding:6px 0">Photos aren\u2019t available on this device.</div>';});}
-function view_fooddiary(){
-  var h='<div class="wl-stack">'+dayBarHTML();
-  h+='<div class="wl-card"><div class="wl-card-head"><span>Food diary</span><button class="wl-link" data-act="go" data-view="diary">Browse all →</button></div>';
-  h+='<div id="wl-photos"><div class="wl-empty" style="padding:6px 0">Loading…</div></div>';
-  h+='<div class="wl-mealadd">'+[["breakfast","Breakfast"],["lunch","Lunch"],["snack","Snack"],["dinner","Dinner"]].map(function(m){return '<button class="wl-btn wl-btn-ghost" data-act="photo:add" data-meal="'+m[0]+'">'+I.plus.replace("<svg","<svg width=14 height=14")+m[1]+'</button>';}).join("")+'</div>';
-  h+='<div class="wl-hint" style="margin-top:8px">📷 Kept on this device only — your food diary isn\u2019t synced or seen by the AI.</div>';
-  h+='</div>';
-  return h+'</div>';
-}
 function view_diary(){
   var h='<div class="wl-stack">';
   h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="go" data-view="overview">‹</button><span class="wl-cal-title">Food Diary</span><span style="width:36px;display:inline-block"></span></div>';
@@ -1837,7 +1773,7 @@ function view_settings(){
     (isOwner()?'<div class="wl-row" style="margin-top:12px"><button class="wl-btn wl-btn-primary wl-full" data-act="invite:create">Create invite code</button></div>':'')+'<div class="wl-row" style="margin-top:8px"><button class="wl-btn wl-btn-ghost wl-full" data-act="invite:open">'+(isOwner()?'Enter a code (join someone)':'Enter an invite code')+'</button></div>'+
     (state.inviteCode?'<div class="wl-hint" style="margin-top:10px">Send this code to the person you\u2019re adding, then have them tap <b>Enter a code</b> on their device:</div><textarea readonly onclick="this.select()" style="width:100%;min-height:76px;margin-top:6px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--mono);font-size:11px;padding:10px;box-sizing:border-box;outline:none">'+esc(state.inviteCode)+'</textarea><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:6px" data-act="invite:copy">Copy code</button>':'')+
     (state.joinOpen?'<textarea id="wl-joincode" placeholder="Paste the invite code you were sent" style="width:100%;min-height:76px;margin-top:10px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--mono);font-size:11px;padding:10px;box-sizing:border-box;outline:none"></textarea><div class="wl-row" style="margin-top:6px"><button class="wl-btn wl-btn-ghost wl-full" data-act="invite:joincancel">Cancel</button><button class="wl-btn wl-btn-primary wl-full" data-act="invite:join">Join</button></div>':'')+
-    (isOwner()?'<div class="wl-hint" style="margin-top:10px">Add people by <b>invite code</b>. Each person gets their own private space tied to that code — it can\u2019t be switched or overwritten from another device. Your <b>activities and macros stay private</b>; only weight-loss progress is shared, on the Overview.</div><div class="wl-hint">Note: everyone shares one repo &amp; token, so this is trust-based separation (fine for family) rather than a hard wall.</div>':'<div class="wl-hint" style="margin-top:10px">This name shows on your progress card for whoever you\u2019re sharing with. Your weigh-ins, activities, and macros are your own.</div>')
+    (isOwner()?'<div class="wl-hint" style="margin-top:10px">Add people by <b>invite code</b>. Each person gets their own private space tied to that code — it can\u2019t be switched or overwritten from another device. Your <b>activities and macros stay private</b>; only weight-loss progress is shared, on the Home tab.</div><div class="wl-hint">Note: everyone shares one repo &amp; token, so this is trust-based separation (fine for family) rather than a hard wall.</div>':'<div class="wl-hint" style="margin-top:10px">This name shows on your progress card for whoever you\u2019re sharing with. Your weigh-ins, activities, and macros are your own.</div>')
     ):'')+'</div>';
   if(isOwner())
   h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="backup"><span>Backup &amp; transfer</span><span class="wl-chevron'+(op.backup?" open":"")+'">›</span></button>'+(op.backup?('<div class="wl-collapse-body">'+
@@ -1866,7 +1802,6 @@ function render(){
   var title=state.view==="settings"?"Settings":state.view==="diary"?"Food Diary":state.view==="exlib"?"Exercise Library":state.view==="routine"?"Routine":state.view==="rlaunch"?"Routine":state.view==="quicklog"?"Quick log":state.view==="workout"?"Workout":state.view==="wtadd"?"Add weight training":(NAV.filter(function(n){return n[0]===state.view;})[0]||["","" ])[1];
   var body=state.view==="overview"?view_overview():(state.view==="food"||state.view==="calendar")?view_overview():state.view==="weight"?view_weight():state.view==="summary"?view_summary():state.view==="diary"?view_diary():state.view==="train"?view_train():state.view==="exlib"?view_exlib():state.view==="routine"?view_routine():state.view==="rlaunch"?view_rlaunch():state.view==="quicklog"?view_quicklog():state.view==="workout"?view_workout():state.view==="liftview"?view_liftview():state.view==="wtadd"?view_wtadd():view_settings();
   var nav='<nav class="wl-nav">'+NAV.map(function(n){return '<button class="wl-navbtn '+(state.view===n[0]||(n[0]==="overview"&&(state.view==="food"||state.view==="diary"))?"on":"")+'" data-act="go" data-view="'+n[0]+'">'+I[n[0]]+'<span>'+n[1]+'</span></button>';}).join("")+'</nav>';
-  var _ini=(state.settings.name||"").trim().charAt(0).toUpperCase();
   var avatar='<button class="wl-avatar'+(state.view==="settings"?" on":"")+'" data-act="go" data-view="settings" aria-label="Settings"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>';
   var hdrRight='<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><div class="wl-datechip">'+fmtLong(new Date())+'</div>'+(syncOn()?'<div id="wl-sync" class="wl-sync '+syncState.s+'">'+syncLabel()+'</div>':'')+(syncOn()?'<div id="wl-synctime" class="wl-synctime">'+lastSyncText()+'</div>':'')+'</div>';
   document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header"><div><div class="wl-eyebrow">Progress Tracker</div><h1 class="wl-title">'+title+'</h1></div><div style="display:flex;align-items:center;gap:10px">'+hdrRight+avatar+'</div></header><main class="wl-main">'+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML();
@@ -2081,7 +2016,7 @@ document.addEventListener("click",function(e){
     state.settings=Object.assign({},DEFAULT_SETTINGS,{connections:inv.from?[inv.from]:[]});
     ghSha=null;connData={};state.joinOpen=false;state.inviteCode=null;markDirty(true);save();applyTheme(state.settings.theme||"ink");autoSync();toast("Joined"+(inv.fromName?" · connected to "+inv.fromName:""));
     },{label:"Join",danger:false});return;}
-  if(a==="conn:remove"){var ru=el.getAttribute("data-uid");askConfirm("Stop sharing with this person on your Overview?",function(){state.settings.connections=(state.settings.connections||[]).filter(function(x){return x!==ru;});delete connData[ru];save();},{label:"Stop sharing"});return;}
+  if(a==="conn:remove"){var ru=el.getAttribute("data-uid");askConfirm("Stop sharing with this person on your Home tab?",function(){state.settings.connections=(state.settings.connections||[]).filter(function(x){return x!==ru;});delete connData[ru];save();},{label:"Stop sharing"});return;}
   if(a==="reminder:add"){var ti=document.getElementById("wl-remind-time");var tv=(ti&&ti.value)||"19:00";state.settings.reminderTime=tv;save();shareOrDownload("activity-reminder.ics","text/calendar",reminderICS(tv));return;}
   if(a==="set:ttype"){state.settings.targetType=el.getAttribute("data-type");save();render();return;}
   if(a==="export"){exportData();return;}
