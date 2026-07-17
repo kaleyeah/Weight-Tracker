@@ -347,6 +347,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 .wl-mseg{flex:1;}
 .wl-mseg .k{font-size:10px;text-transform:uppercase;letter-spacing:.05em;font-weight:700;white-space:nowrap;line-height:1.2;}
 .wl-mseg .v{font-size:14px;font-weight:800;color:var(--text);margin-top:2px;line-height:1.1;white-space:nowrap;}
+#dl-weight,#dl-sleep,#dl-calories,#dl-notes{scroll-margin-top:calc(var(--headh,70px) + 14px);}
 .wl-ai-summary{font-size:13.5px;line-height:1.55;color:var(--text);}
 .wl-update-banner{position:fixed;top:0;left:0;right:0;z-index:120;display:flex;align-items:center;justify-content:center;gap:12px;background:var(--accent);color:var(--on-accent);font-weight:700;font-size:13px;padding:calc(env(safe-area-inset-top,0px) + 10px) 14px 10px;box-shadow:0 4px 16px rgba(0,0,0,.4);}
 .wl-applied-banner{position:fixed;top:0;left:0;right:0;z-index:3000;display:flex;align-items:center;justify-content:space-between;gap:12px;background:#2563eb;color:#fff;font-family:var(--sans);font-weight:600;font-size:14px;padding:calc(env(safe-area-inset-top,0px) + 13px) 18px 13px;box-shadow:0 6px 20px rgba(0,0,0,.4);transform:translateY(-130%);transition:transform .32s cubic-bezier(.2,.8,.2,1),opacity .25s ease;touch-action:none;}
@@ -393,7 +394,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.121";
+var APP_BUILD="2026-07-14.122";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -1848,7 +1849,7 @@ document.addEventListener("click",function(e){
   if(a==="weight:del"){var dd=el.getAttribute("data-date");askConfirm("Delete this weigh-in?",function(){state.weights=state.weights.filter(function(x){return x.date!==dd;});save();});return;}
   if(a==="food:pick"){state.selDate=el.getAttribute("data-date");state.view="calendar";render();return;}
   if(a==="dl:openfull"){state.view="calendar";state.scrollTo=null;render();window.scrollTo(0,0);return;}
-  if(a==="dl:open"){var _sec=el.getAttribute("data-sec");if(_sec==="steps")_sec="weight";state.view="calendar";render();var _t=document.getElementById("dl-"+_sec);if(_t)_t.scrollIntoView({behavior:"smooth",block:"start"});return;}
+  if(a==="dl:open"){var _sec=el.getAttribute("data-sec");if(_sec==="steps")_sec="weight";state.view="calendar";render();var _t=document.getElementById("dl-"+_sec);if(_t)requestAnimationFrame(function(){_t.scrollIntoView({behavior:"smooth",block:"start"});});return;}
   if(a==="opentoday"){state.selDate=todayISO();state.calY=new Date().getFullYear();state.calM=new Date().getMonth();state.cardioForm=null;render();return;}
   if(a==="ai:copy"){copyText(weeklyAIText(),"Copied your week — paste into your AI to generate");return;}
   if(a==="ai:gen"){genSummary();return;}
