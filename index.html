@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.168 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.171 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>Weight Tracker</title>
+<title>Compound</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="mobile-web-app-capable" content="yes" />
@@ -379,7 +379,10 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 .wl-daybar-row{display:flex;align-items:center;justify-content:center;gap:2px;}
 .wl-daybar .wl-datebtn{flex:0 1 auto;font-size:14.5px;}
 .wl-daybar.off .wl-datebtn{color:var(--accent);}
-.wl-hnav-wrap{min-width:0;flex:1;}
+.wl-hnav-wrap{min-width:0;flex:1;display:flex;flex-direction:column;gap:3px;align-items:flex-start;}
+.wl-brandrow{display:flex;align-items:center;gap:6px;}
+.wl-mark{display:flex;line-height:0;flex:none;}
+.wl-brandword{font-weight:900;letter-spacing:.2em;font-size:17px;color:var(--text);}
 .wl-hnav{display:flex;align-items:center;gap:2px;min-width:0;}
 .wl-hnav-arw{width:30px;height:30px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--muted);font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0;flex:none;}
 .wl-hnav-lbl{display:flex;align-items:center;gap:7px;padding:5px 10px;border-radius:9px;background:none;border:none;color:var(--text);font-size:17px;font-weight:800;letter-spacing:-.01em;font-family:var(--sans);min-width:0;}
@@ -434,6 +437,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 @media(max-width:420px){.wl-statrow{grid-template-columns:repeat(2,1fr);}.wl-bignum{font-size:36px;}.wl-navbtn{font-size:9px;}.wl-navbtn svg{width:19px;height:19px;}}
 html[data-theme="light"] .wl-title{color:#151A21;}
 html[data-theme="light"] .wl-eyebrow{color:#AE7411;}
+html[data-theme="light"] .wl-brandword{color:#151A21;}
 html[data-theme="light"] .wl-verchip,html[data-theme="light"] .wl-synctime,html[data-theme="light"] .wl-sync{color:#5C6879;}
 html[data-theme="light"] .wl-daybar-row .wl-datebtn{color:#151A21;}
 html[data-theme="light"] .wl-daybar-row .wl-icon-btn,html[data-theme="light"] .wl-daybar-row .wl-chevron{color:#5C6879;}
@@ -441,6 +445,7 @@ html[data-theme="light"] .wl-daybar.off .wl-daybar-row .wl-datebtn{color:#AE7411
 html[data-theme="light"] .wl-hnav-lbl{color:#151A21;}
 html[data-theme="light"] .wl-hnav.off .wl-hnav-lbl{color:#AE7411;}
 html[data-theme="light"] .wl-hnav-arw{color:#5C6879;}
+html[data-theme="light"] .wl-eyebrow{color:#AE7411;}
 .wl-photos{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
 .wl-photostrip-row{display:flex;gap:6px;overflow-x:auto;padding:2px 0 6px;-webkit-overflow-scrolling:touch;}
 .wl-photo-sm{width:52px;height:52px;flex:none;border-radius:8px;background-size:cover;background-position:center;border:1px solid var(--line);cursor:pointer;padding:0;}
@@ -474,7 +479,8 @@ html[data-theme="light"] .wl-hnav-arw{color:#5C6879;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.168";
+var APP_BUILD="2026-07-14.171";
+var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="34" y="26" width="32" height="12" rx="5" fill="#7C93F5"/><rect x="26" y="44" width="48" height="12" rx="5" fill="#9FB0C9"/><rect x="16" y="62" width="68" height="14" rx="5" fill="#F5B544"/></svg>';
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -2054,7 +2060,7 @@ function view_settings(){
   if(!state.confirmReset)h+='<button class="wl-btn wl-btn-danger wl-full" data-act="reset:ask">'+I.trash.replace("<svg","<svg width=16 height=16")+'Erase all data</button>';
   else h+='<div class="wl-hint">This permanently deletes every weigh-in, food entry, step count, activity, and setting. This can\'t be undone.</div><div class="wl-row"><button class="wl-btn wl-btn-ghost wl-full" data-act="reset:cancel">Cancel</button><button class="wl-btn wl-btn-danger wl-full" data-act="reset:do">Yes, erase everything</button></div>';
   h+='</div>';
-  h+='<div style="text-align:center;color:var(--faint);font-size:11px;padding:16px 0 4px;letter-spacing:.02em">Progress Tracker · version '+APP_BUILD+'</div>';
+  h+='<div style="text-align:center;padding:26px 0 8px">'+'<div style="display:inline-flex;align-items:center;gap:9px">'+BRANDMARK.replace("width=\"18\" height=\"18\"","width=\"26\" height=\"26\"")+'<span class="wl-brandword">COMPOUND</span></div>'+'<div style="color:var(--faint);font-size:10px;margin-top:9px;letter-spacing:.22em;text-transform:uppercase">Strength · in reps · over years</div>'+'<div style="color:var(--faint);font-size:11px;margin-top:5px;letter-spacing:.02em;font-family:var(--mono)">v'+APP_BUILD+'</div></div>';
   return h+'</div>';
 }
 
@@ -2070,7 +2076,8 @@ function render(){
   var nav='<nav class="wl-nav">'+NAV.map(function(n){return '<button class="wl-navbtn '+(state.view===n[0]||(n[0]==="overview"&&(state.view==="food"||state.view==="diary"))||(n[0]==="weight"&&state.view==="photos")?"on":"")+'" data-act="go" data-view="'+n[0]+'">'+I[n[0]]+'<span>'+n[1]+'</span></button>';}).join("")+'</nav>';
   var avatar='<button class="wl-avatar'+(state.view==="settings"?" on":"")+'" data-act="go" data-view="settings" aria-label="Settings"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>';
   var hdrRight='<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">'+(syncOn()?'<div id="wl-sync" class="wl-sync '+syncState.s+'">'+syncLabel()+'</div><div id="wl-synctime" class="wl-synctime">'+lastSyncText()+'</div>':'')+'</div>';
-  document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header"><div class="wl-hnav-wrap">'+headerNav()+'</div><div style="display:flex;align-items:center;gap:10px">'+hdrRight+avatar+'</div></header><main class="wl-main">'+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML()+actPickHTML();
+  var _navH=headerNav();var _brand='<span class="wl-mark">'+BRANDMARK+'</span>';var hdrLeft=_navH?('<div class="wl-brandrow">'+_brand+'<span class="wl-eyebrow">'+title+'</span></div>'+_navH):(title?'<div class="wl-brandrow">'+_brand+'<span class="wl-eyebrow">Compound</span></div><h1 class="wl-title">'+title+'</h1>':'');
+  document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header"><div class="wl-hnav-wrap">'+hdrLeft+'</div><div style="display:flex;align-items:center;gap:10px">'+hdrRight+avatar+'</div></header><main class="wl-main">'+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML()+actPickHTML();
   var hdr=document.querySelector(".wl-header");if(hdr)document.documentElement.style.setProperty("--headh",hdr.offsetHeight+"px");
   if(document.getElementById("wl-photostrip"))renderPhotosStrip(state.selDate);
   if(state.view==="diary")renderDiary();
@@ -2475,18 +2482,18 @@ function makeIcon(){
   try{var cv=document.createElement("canvas");cv.width=180;cv.height=180;var x=cv.getContext("2d");
     var g=x.createLinearGradient(0,0,180,180);g.addColorStop(0,"#212836");g.addColorStop(1,"#10131A");
     x.fillStyle=g;x.fillRect(0,0,180,180);
-    x.strokeStyle="#5CD6A0";x.setLineDash([6,6]);x.lineWidth=3;x.beginPath();x.moveTo(28,138);x.lineTo(152,138);x.stroke();x.setLineDash([]);
-    var pts=[[30,50],[58,72],[86,64],[112,96],[140,88],[150,116]];
-    x.strokeStyle="#F5B544";x.lineWidth=8;x.lineJoin="round";x.lineCap="round";x.beginPath();
-    pts.forEach(function(p,i){i?x.lineTo(p[0],p[1]):x.moveTo(p[0],p[1]);});x.stroke();
-    x.fillStyle="#F7C56E";pts.forEach(function(p){x.beginPath();x.arc(p[0],p[1],6,0,7);x.fill();});
+    function rr(bx,by,bw,bh,br){x.beginPath();x.moveTo(bx+br,by);x.arcTo(bx+bw,by,bx+bw,by+bh,br);x.arcTo(bx+bw,by+bh,bx,by+bh,br);x.arcTo(bx,by+bh,bx,by,br);x.arcTo(bx,by,bx+bw,by,br);x.closePath();x.fill();}
+    x.fillStyle="#7C93F5";rr(61,47,58,22,9);
+    x.fillStyle="#9FB0C9";rr(47,79,86,22,9);
+    x.fillStyle="#F5B544";rr(29,111,122,25,9);
     var data=cv.toDataURL("image/png");
     var link=document.createElement("link");link.rel="apple-touch-icon";link.href=data;document.head.appendChild(link);
     var fav=document.createElement("link");fav.rel="icon";fav.href=data;document.head.appendChild(fav);
-    var man={name:"Weight Tracker",short_name:"Weight",start_url:".",display:"standalone",background_color:"#0F1218",theme_color:"#0F1218",icons:[{src:data,sizes:"180x180",type:"image/png"},{src:data,sizes:"512x512",type:"image/png"}]};
+    var man={name:"Compound",short_name:"Compound",start_url:".",display:"standalone",background_color:"#0F1218",theme_color:"#0F1218",icons:[{src:data,sizes:"180x180",type:"image/png"},{src:data,sizes:"512x512",type:"image/png"}]};
     var ml=document.createElement("link");ml.rel="manifest";ml.href="data:application/manifest+json,"+encodeURIComponent(JSON.stringify(man));document.head.appendChild(ml);
   }catch(e){}
 }
+
 
 /* ---------------- init ---------------- */
 load();loadTraining();loadWorkout();ensureIdentity();if(migrateOrphanLiftTags())save();applyTheme(state.settings.theme||"dark");makeIcon();if(state.workout)state.view="train";render();autoSync();if(state.workout)startWoTick();
