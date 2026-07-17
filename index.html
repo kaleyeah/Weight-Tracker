@@ -369,6 +369,9 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 .wl-navbtn.on{color:var(--accent);}
 @media(max-width:420px){.wl-statrow{grid-template-columns:repeat(2,1fr);}.wl-bignum{font-size:36px;}.wl-navbtn{font-size:9px;}.wl-navbtn svg{width:19px;height:19px;}}
 .wl-photos{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.wl-photostrip-row{display:flex;gap:6px;overflow-x:auto;padding:2px 0 6px;-webkit-overflow-scrolling:touch;}
+.wl-photo-sm{width:52px;height:52px;flex:none;border-radius:8px;background-size:cover;background-position:center;border:1px solid var(--line);cursor:pointer;padding:0;}
+.wl-photo-more{width:52px;height:52px;flex:none;border-radius:8px;background:var(--bg2);border:1px solid var(--line);color:var(--muted);font-weight:800;font-size:13px;cursor:pointer;}
 .wl-mealadd{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;}
 .wl-meal-label{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:12px 0 6px;}
 .wl-meal-label:first-child{margin-top:2px;}
@@ -394,7 +397,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.127";
+var APP_BUILD="2026-07-14.129";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -905,25 +908,8 @@ function activitySummaryHTML(sel){
   return h+'</div>';
 }
 function view_overview(){
-  var sw=sortedWeights();var start=num(state.settings.startingWeight),goal=num(state.settings.goalWeight);
-  var current=sw.length?sw[sw.length-1].weight:start;
-  var configured=start!=null&&goal!=null;
-  var lost=(start!=null&&current!=null)?start-current:null;
-  var toGo=(goal!=null&&current!=null)?current-goal:null;
-  var progress=null;
-  if(start!=null&&goal!=null&&current!=null&&start!==goal){progress=(start-current)/(start-goal);progress=Math.max(0,Math.min(1,progress));}
-  var c=prepChart();var fc=computeForecasts(current,goal,c.slope);
-  var miss=missingDays();var todayMiss=miss.indexOf(todayISO())>=0;var past=miss.filter(function(d){return d!==todayISO();});
   var u=state.settings.units;
   var h='<div class="wl-stack">';
-  h+=dayBarHTML();
-  h+=todayChecklistHTML(state.selDate);
-  h+=activitySummaryHTML(state.selDate);
-  h+='<div class="wl-card"><div class="wl-card-head"><span>Food diary</span><button class="wl-link" data-act="go" data-view="diary">Browse all →</button></div>';
-  h+='<div id="wl-photos"><div class="wl-empty" style="padding:6px 0">Loading…</div></div>';
-  h+='<div class="wl-mealadd">'+[["breakfast","Breakfast"],["lunch","Lunch"],["snack","Snack"],["dinner","Dinner"]].map(function(m){return '<button class="wl-btn wl-btn-ghost" data-act="photo:add" data-meal="'+m[0]+'">'+I.plus.replace("<svg","<svg width=14 height=14")+m[1]+'</button>';}).join("")+'</div>';
-  h+='<div class="wl-hint" style="margin-top:8px">📷 Kept on this device only — your food diary isn\u2019t synced or seen by the AI.</div>';
-  h+='</div>';
   var _wk=toISO(weekStartFor(0));var _sum=(state.weeklySummary&&state.weeklySummary.week===_wk&&state.weeklySummary.text)?state.weeklySummary.text:null;
   var _ciDay=(new Date().getDay()===(parseInt(state.settings.weekStart,10)||0));
   if(_sum){try{var _seen=localStorage.getItem("wl_sumseen");if(state.weeklySummary.week!==_seen){state.sumOpen=true;localStorage.setItem("wl_sumseen",state.weeklySummary.week);localStorage.setItem("wl_sumopen","1");}}catch(e){}}
@@ -939,6 +925,9 @@ function view_overview(){
   }
   h+='</div>';
   }
+  h+=dayBarHTML();
+  h+=todayChecklistHTML(state.selDate);
+  h+=activitySummaryHTML(state.selDate);
   h+='<div class="wl-card">';
   if(state.nightBusy){
     h+='<div class="wl-card-head"><span>Today\u2019s recap</span></div><div class="wl-hint">⏳ Completing today… generating your recap (about a minute). It\u2019ll appear here when ready.</div>';
@@ -960,31 +949,12 @@ function view_overview(){
     }
   }
   h+='</div>';
-  if(configured){
-    h+='<div class="wl-card wl-hero"><div class="wl-hero-top"><div><div class="wl-mini-label">Current</div><div class="wl-bignum">'+(current!=null?r1(current):"—")+'<span class="wl-unit">'+u+'</span></div></div>';
-    if(lost!=null)h+='<div class="wl-change '+(lost>=0?"good":"bad")+'">'+(lost>=0?I.down:I.up)+(lost>=0?"Lost ":"Gained ")+Math.abs(r1(lost))+' '+u+'</div>';
-    h+='</div><div class="wl-progress-track"><div class="wl-progress-fill" style="width:'+((progress||0)*100)+'%"></div>'+(progress!=null?'<div class="wl-progress-marker" style="left:'+(progress*100)+'%"></div>':'')+'</div><div class="wl-progress-ends"><span><b>'+r1(start)+'</b> start</span><span class="wl-togo">'+(toGo!=null&&toGo>0?r1(toGo)+" "+u+" to go":"Goal reached")+'</span><span><b>'+r1(goal)+'</b> goal</span></div></div>';
-    h+='<div class="wl-card"><div class="wl-card-head"><span>Forecast to goal</span></div>';
-    if(fc.done)h+='<div class="wl-empty">You\'re at or below your goal weight. Nice work.</div>';
-    else{h+='<div class="wl-forecast-grid">'+fcCell("At your target",state.settings.targetType==="percent_bw_per_week"?state.settings.targetValue+"% / week":state.settings.targetValue+" "+u+" / week",fc.target,"")+
-      fcCell("At your current pace",(fc.observed&&fc.observed.rate!=null)?r1(fc.observed.rate)+" "+u+" / week":"based on your data",fc.observed,"Not enough downward trend yet — keep logging weigh-ins.")+'</div>';}
-    h+='</div>';
-  }
-  if(c.data.length)h+='<div class="wl-card"><div class="wl-card-head"><span>Weight trend</span><button class="wl-link" data-act="go" data-view="weight">Details →</button></div>'+buildChart(c,goal,u,true)+'</div>';
-  var bmv=bmr();
-  if(bmv!=null){var mnt=maintenanceCals(),mode=strategyMode(),calc=targetIntake(),manual=num(state.settings.targetCalories);
-    var big=manual!=null?manual:calc;
-    var slabel=mode==="gain"?"Suggested to gain":mode==="maintain"?"Maintenance":"Suggested to lose";
-    h+='<div class="wl-card"><div class="wl-card-head"><span>Calorie target <span class="wl-count" style="margin-left:6px">'+(mode==="gain"?"Gain":mode==="maintain"?"Maintain":"Lose")+'</span></span><button class="wl-link" data-act="go" data-view="settings">Edit →</button></div>';
-    h+='<div class="wl-bignum" style="font-size:30px">'+big.toLocaleString()+'<span class="wl-unit">cal/day</span></div>';
-    var info=(manual!=null?"Your target":slabel)+' · Maintenance ~'+mnt.toLocaleString()+' · BMR ~'+bmv.toLocaleString();
-    if(manual!=null&&calc!=null&&calc!==mnt)info+=' · Calculated ~'+calc.toLocaleString();
-    var sp=suggestedProteinG();if(sp!=null)info+=' · protein ~'+sp+'g';
-    h+='<div class="wl-hint" style="margin-top:4px">'+info+'</div>';
-    if(manual==null&&calc!=null&&calc<1200)h+='<div class="wl-hint" style="color:var(--bad)">That\u2019s under ~1200 cal/day — consider a gentler weekly goal.</div>';
-    h+='</div>';}
+  h+='<div class="wl-card"><div class="wl-card-head"><span>Food diary</span><button class="wl-link" data-act="go" data-view="diary">Browse all →</button></div>';
+  h+='<div id="wl-photostrip"></div>';
+  h+='<div class="wl-mealadd">'+[["breakfast","Breakfast"],["lunch","Lunch"],["snack","Snack"],["dinner","Dinner"]].map(function(m){return '<button class="wl-btn wl-btn-ghost" data-act="photo:add" data-meal="'+m[0]+'">'+I.plus.replace("<svg","<svg width=14 height=14")+m[1]+'</button>';}).join("")+'</div>';
+  h+='<div class="wl-hint" style="margin-top:8px">📷 Kept on this device only — not synced or seen by the AI.</div>';
+  h+='</div>';
   h+=connectionCards();
-  if(past.length){h+='<div class="wl-card"><div class="wl-card-head"><span>Missed days this week</span></div><div class="wl-chips">';past.slice().sort().forEach(function(d){h+='<button class="wl-chip warn" data-act="openday" data-date="'+d+'">'+parseISO(d).toLocaleDateString(undefined,{weekday:"short"})+'</button>';});h+='</div></div>';}
   h+='</div>';return h;
 }
 function connectionCards(){
@@ -1090,6 +1060,22 @@ function buildBars(bk,goal,higherBetter){
 function view_weight(){
   var u=state.settings.units;var ctx=trendCtx();var off=state.trendOffset||0;var perLbl=ctx.gran==="month"?"/mo":"/day";
   var h='<div class="wl-stack">';
+  var _sw=sortedWeights();var _start=num(state.settings.startingWeight),_goal=num(state.settings.goalWeight);
+  var _cur=_sw.length?_sw[_sw.length-1].weight:_start;
+  var _lost=(_start!=null&&_cur!=null)?_start-_cur:null;
+  var _toGo=(_goal!=null&&_cur!=null)?_cur-_goal:null;
+  var _prog=null;if(_start!=null&&_goal!=null&&_cur!=null&&_start!==_goal){_prog=Math.max(0,Math.min(1,(_start-_cur)/(_start-_goal)));}
+  var _cAll=prepChart();var _fc=computeForecasts(_cur,_goal,_cAll.slope);
+  if(_start!=null&&_goal!=null){
+    h+='<div class="wl-card wl-hero"><div class="wl-hero-top"><div><div class="wl-mini-label">Current</div><div class="wl-bignum">'+(_cur!=null?r1(_cur):"—")+'<span class="wl-unit">'+u+'</span></div></div>';
+    if(_lost!=null)h+='<div class="wl-change '+(_lost>=0?"good":"bad")+'">'+(_lost>=0?I.down:I.up)+(_lost>=0?"Lost ":"Gained ")+Math.abs(r1(_lost))+' '+u+'</div>';
+    h+='</div><div class="wl-progress-track"><div class="wl-progress-fill" style="width:'+((_prog||0)*100)+'%"></div>'+(_prog!=null?'<div class="wl-progress-marker" style="left:'+(_prog*100)+'%"></div>':'')+'</div><div class="wl-progress-ends"><span><b>'+r1(_start)+'</b> start</span><span class="wl-togo">'+(_toGo!=null&&_toGo>0?r1(_toGo)+" "+u+" to go":"Goal reached")+'</span><span><b>'+r1(_goal)+'</b> goal</span></div></div>';
+    h+='<div class="wl-card"><div class="wl-card-head"><span>Forecast to goal</span></div>';
+    if(_fc.done)h+='<div class="wl-empty">You\'re at or below your goal weight. Nice work.</div>';
+    else{h+='<div class="wl-forecast-grid">'+fcCell("At your target",state.settings.targetType==="percent_bw_per_week"?state.settings.targetValue+"% / week":state.settings.targetValue+" "+u+" / week",_fc.target,"")+
+      fcCell("At your current pace",(_fc.observed&&_fc.observed.rate!=null)?r1(_fc.observed.rate)+" "+u+" / week":"based on your data",_fc.observed,"Not enough downward trend yet — keep logging weigh-ins.")+'</div>';}
+    h+='</div>';
+  }
   h+='<div class="wl-card"><div class="wl-seg wl-seg-wide" style="margin-bottom:10px">'+["W","M","6M"].map(function(m){return '<button class="'+(ctx.mode===m?"on":"")+'" data-act="trend:mode" data-mode="'+m+'">'+m+'</button>';}).join("")+'</div><div class="wl-cal-head"><button class="wl-icon-btn" data-act="trend:prev">‹</button><span class="wl-cal-title">'+ctx.label+'</span><button class="wl-icon-btn" data-act="trend:next"'+(off<=0?' style="opacity:.3"':'')+'>›</button></div></div>';
   var sw=sortedWeights();var startISO=toISO(ctx.start),endISO=toISO(ctx.end);
   var rw=sw.filter(function(x){return x.date>=startISO&&x.date<=endISO;});
@@ -1199,6 +1185,8 @@ function view_summary(){
   var slv=days.map(function(r){return num(state.sleep[r.date]);}).filter(function(x){return x!=null;});
   var slAvg=slv.length?Math.round(slv.reduce(function(a,b){return a+b;},0)/slv.length):null;
   var h='<div class="wl-stack"><div class="wl-card"><div class="wl-cal-head"><button class="wl-icon-btn" data-act="sum:prev">‹</button><span class="wl-cal-title">'+label+(isThis?" · This week":"")+'</span><button class="wl-icon-btn" data-act="sum:next"'+(isThis?' style="opacity:.3"':'')+'>›</button></div><div class="wl-hint">'+DAYFULL[parseInt(state.settings.weekStart,10)||0]+' through '+DAYFULL[((parseInt(state.settings.weekStart,10)||0)+6)%7]+'.</div></div>';
+  var _missed=days.filter(function(r){return r.date<todayISO()&&!dayHasAny(r.date);}).map(function(r){return r.date;});
+  if(_missed.length){h+='<div class="wl-card"><div class="wl-card-head"><span>Missed days</span></div><div class="wl-chips">';_missed.sort().forEach(function(d){h+='<button class="wl-chip warn" data-act="openday" data-date="'+d+'">'+parseISO(d).toLocaleDateString(undefined,{weekday:"short"})+'</button>';});h+='</div><div class="wl-hint" style="margin-top:8px">Tap a day to fill it in on Home.</div></div>';}
   h+='<div class="wl-card"><div class="wl-card-head"><span>Weekly Totals</span></div><div class="wl-statrow" style="grid-template-columns:repeat(3,1fr)">'+
     sumStat("Calories",tot.calories||null,"")+sumStat("Steps",tot.steps||null,"")+sumStat("Weigh-ins",wv.length,"")+
     sumStat("Protein",tot.protein||null,"g")+sumStat("Fat",tot.fat||null,"g")+sumStat("Carbs",tot.carbs||null,"g")+'</div></div>';
@@ -1258,6 +1246,14 @@ function processImage(file){return new Promise(function(res){
     img.onerror=function(){URL.revokeObjectURL(url);res(file);};img.src=url;
   }catch(e){res(file);}});}
 function clearPhotoURLs(){photoURLs.forEach(function(u){try{URL.revokeObjectURL(u);}catch(e){}});photoURLs=[];photoMap={};}
+function renderPhotosStrip(date){var host=document.getElementById("wl-photostrip");if(!host)return;
+  idbByDate(date).then(function(list){var h2=document.getElementById("wl-photostrip");if(!h2)return;clearPhotoURLs();
+    if(!list.length){h2.innerHTML='<div class="wl-hint" style="padding:0 0 8px">No meals added yet today.</div>';return;}
+    var html='<div class="wl-photostrip-row">';
+    list.slice(0,6).forEach(function(p){var url=URL.createObjectURL(p.blob);photoURLs.push(url);photoMap[p.id]=url;html+='<button class="wl-photo-sm" data-act="photo:view" data-id="'+p.id+'" style="background-image:url('+url+')"></button>';});
+    if(list.length>6)html+='<button class="wl-photo-more" data-act="go" data-view="diary">+'+(list.length-6)+'</button>';
+    html+='</div>';h2.innerHTML=html;
+  }).catch(function(){var h2=document.getElementById("wl-photostrip");if(h2)h2.innerHTML='';});}
 function renderPhotos(date){var host=document.getElementById("wl-photos");if(!host)return;
   idbByDate(date).then(function(list){var h2=document.getElementById("wl-photos");if(!h2)return;
     clearPhotoURLs();
@@ -1806,7 +1802,7 @@ function render(){
   var hdrRight='<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><div class="wl-datechip">'+fmtLong(new Date())+'</div>'+(syncOn()?'<div id="wl-sync" class="wl-sync '+syncState.s+'">'+syncLabel()+'</div>':'')+(syncOn()?'<div id="wl-synctime" class="wl-synctime">'+lastSyncText()+'</div>':'')+'</div>';
   document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header"><div><div class="wl-eyebrow">Progress Tracker</div><h1 class="wl-title">'+title+'</h1></div><div style="display:flex;align-items:center;gap:10px">'+hdrRight+avatar+'</div></header><main class="wl-main">'+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML();
   var hdr=document.querySelector(".wl-header");if(hdr)document.documentElement.style.setProperty("--headh",hdr.offsetHeight+"px");
-  if(document.getElementById("wl-photos"))renderPhotos(state.selDate);
+  if(document.getElementById("wl-photostrip"))renderPhotosStrip(state.selDate);
   if(state.view==="diary")renderDiary();
 }
 
@@ -2118,7 +2114,7 @@ document.getElementById("wl-photo-input").addEventListener("change",function(e){
   arr.forEach(function(f){chain=chain.then(function(){return processImage(f).then(function(blob){
     var id=date+"-"+Date.now()+"-"+Math.random().toString(36).slice(2,7);
     return idbAdd({id:id,date:date,blob:blob,ts:Date.now()+Math.random(),meal:meal});});});});
-  chain.then(function(){if(document.getElementById("wl-photos")&&state.selDate===date)renderPhotos(date);toast("Photos saved");}).catch(function(){toast("Couldn't save photos");});
+  chain.then(function(){if(document.getElementById("wl-photostrip")&&state.selDate===date)renderPhotosStrip(date);toast("Photos saved");}).catch(function(){toast("Couldn't save photos");});
 });
 function backupJSON(){return JSON.stringify(payload(),null,2);}
 function applyImport(text){
