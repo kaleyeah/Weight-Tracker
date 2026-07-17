@@ -17,6 +17,7 @@
   --text:#EDF1F7; --muted:#8791A3; --faint:#5A6474;
   --accent:#F5B544; --accent-dim:rgba(245,181,68,.14);
   --good:#5CD6A0; --bad:#F26D5B; --reg:#7C93F5;
+  --mac-p:#7E9CC2; --mac-c:#C2A06A; --mac-f:#A98CBF;
   --on-accent:#20160A; --on-good:#0C1A14;
   --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,system-ui,sans-serif;
   --mono:ui-monospace,'SF Mono','Cascadia Code',Menlo,Consolas,monospace;
@@ -397,7 +398,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.129";
+var APP_BUILD="2026-07-14.130";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -875,8 +876,8 @@ function ckCalories(sel){
   var tg=num(state.settings.targetCalories);
   var h='<button class="wl-ck-row col" data-act="dl:open" data-sec="calories"><div class="wl-ck-top"><span class="wl-ck-l"><span class="wl-ck-ic done">✓</span><span class="wl-ck-lab">Calories</span></span><span class="wl-ck-val">'+(cal!=null?Math.round(cal).toLocaleString():"—")+(tg!=null?' <span style="color:var(--faint);font-weight:600">/ '+tg.toLocaleString()+'</span>':'')+'</span><span class="wl-ck-go">›</span></div>';
   if(p!=null||cb!=null||ft!=null){var P=(p||0)*4,C=(cb||0)*4,F=(ft||0)*9;var tot=(P+C+F)||1;
-    h+='<div class="wl-mbar"><i style="width:'+(P/tot*100)+'%;background:var(--good)"></i><i style="width:'+(C/tot*100)+'%;background:#6FA8FF"></i><i style="width:'+(F/tot*100)+'%;background:#C77DFF"></i></div>';
-    h+='<div class="wl-mlegend"><div class="wl-mseg"><div class="k" style="color:var(--good)">Protein</div><div class="v">'+(p!=null?p+"g":"—")+'</div></div><div class="wl-mseg"><div class="k" style="color:#6FA8FF">Carbs</div><div class="v">'+(cb!=null?cb+"g":"—")+'</div></div><div class="wl-mseg"><div class="k" style="color:#C77DFF">Fat</div><div class="v">'+(ft!=null?ft+"g":"—")+'</div></div></div>';}
+    h+='<div class="wl-mbar"><i style="width:'+(P/tot*100)+'%;background:var(--mac-p)"></i><i style="width:'+(C/tot*100)+'%;background:var(--mac-c)"></i><i style="width:'+(F/tot*100)+'%;background:var(--mac-f)"></i></div>';
+    h+='<div class="wl-mlegend"><div class="wl-mseg"><div class="k" style="color:var(--mac-p)">Protein</div><div class="v">'+(p!=null?p+"g":"—")+'</div></div><div class="wl-mseg"><div class="k" style="color:var(--mac-c)">Carbs</div><div class="v">'+(cb!=null?cb+"g":"—")+'</div></div><div class="wl-mseg"><div class="k" style="color:var(--mac-f)">Fat</div><div class="v">'+(ft!=null?ft+"g":"—")+'</div></div></div>';}
   return h+'</button>';
 }
 function ckNotes(sel){
@@ -892,7 +893,6 @@ function todayChecklistHTML(sel){
   var hasCal=num(f.calories)!=null||num(f.protein)!=null||num(f.carbs)!=null||num(f.fat)!=null;
   var done=(wt!=null?1:0)+(steps!=null?1:0)+(hasCal?1:0)+(sleep!=null?1:0);
   var h='<div class="wl-card wl-check"><div class="wl-ck-head"><span class="wl-ck-title">'+(sel===todayISO()?"Today":"This day")+'\u2019s log</span><span class="wl-ck-cnt">'+done+' of 4 done</span></div>';
-  h+='<div class="wl-ck-meter"><i style="width:'+(done/4*100)+'%"></i></div>';
   h+=ckRow(wt!=null,"Weight",wt!=null?(r1(wt)+" "+u):"Add","weight",false);
   h+=ckRow(steps!=null,"Steps",steps!=null?Math.round(steps).toLocaleString():"Add","steps",false);
   h+=ckCalories(sel);
@@ -1821,7 +1821,7 @@ document.addEventListener("click",function(e){
   if(a==="weight:del"){var dd=el.getAttribute("data-date");askConfirm("Delete this weigh-in?",function(){state.weights=state.weights.filter(function(x){return x.date!==dd;});save();});return;}
   if(a==="food:pick"){state.selDate=el.getAttribute("data-date");state.view="food";render();return;}
   if(a==="dl:open"){state.quickEntry=el.getAttribute("data-sec");render();var _f=document.querySelector(".wl-confirm-card input,.wl-confirm-card textarea");if(_f)_f.focus();return;}
-  if(a==="qe:close"){state.quickEntry=null;render();return;}
+  if(a==="qe:close"){state.quickEntry=null;render();window.scrollTo(0,0);return;}
   if(a==="opentoday"){state.selDate=todayISO();state.calY=new Date().getFullYear();state.calM=new Date().getMonth();state.cardioForm=null;render();return;}
   if(a==="ai:copy"){copyText(weeklyAIText(),"Copied your week — paste into your AI to generate");return;}
   if(a==="ai:gen"){genSummary();return;}
