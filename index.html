@@ -32,8 +32,8 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
   padding:calc(20px + env(safe-area-inset-top,0px)) 20px 14px;position:sticky;top:0;
   background:linear-gradient(var(--bg),var(--bg) 78%,transparent);z-index:5;}
 .wl-eyebrow{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);font-weight:700;}
-.wl-avatar{width:38px;height:38px;border-radius:50%;background:var(--accent);color:#fff;border:2px solid transparent;font-weight:700;font-size:15px;font-family:var(--sans);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;padding:0;}
-.wl-avatar.on{border-color:var(--text);}
+.wl-avatar{width:38px;height:38px;border-radius:11px;background:var(--card);color:var(--muted);border:1px solid var(--line);font-family:var(--sans);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;padding:0;}
+.wl-avatar.on{border-color:var(--accent);color:var(--accent);}
 .wl-req{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;background:var(--bad);color:#fff;padding:3px 7px;border-radius:6px;margin-left:8px;vertical-align:middle;}
 .wl-confirm{position:fixed;inset:0;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;z-index:2000;padding:24px;}
 .wl-confirm-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;max-width:360px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.5);}
@@ -394,7 +394,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.124";
+var APP_BUILD="2026-07-14.126";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -921,8 +921,12 @@ function view_overview(){
   var h='<div class="wl-stack">';
   h+=dayBarHTML();
   h+=todayChecklistHTML(state.selDate);
-  h+='<button class="wl-btn wl-btn-primary wl-full" data-act="dl:openfull">Open full day log</button>';
   h+=activitySummaryHTML(state.selDate);
+  h+='<div class="wl-card"><div class="wl-card-head"><span>Food diary</span><button class="wl-link" data-act="go" data-view="diary">Browse all →</button></div>';
+  h+='<div id="wl-photos"><div class="wl-empty" style="padding:6px 0">Loading…</div></div>';
+  h+='<div class="wl-mealadd">'+[["breakfast","Breakfast"],["lunch","Lunch"],["snack","Snack"],["dinner","Dinner"]].map(function(m){return '<button class="wl-btn wl-btn-ghost" data-act="photo:add" data-meal="'+m[0]+'">'+I.plus.replace("<svg","<svg width=14 height=14")+m[1]+'</button>';}).join("")+'</div>';
+  h+='<div class="wl-hint" style="margin-top:8px">📷 Kept on this device only — your food diary isn\u2019t synced or seen by the AI.</div>';
+  h+='</div>';
   var _wk=toISO(weekStartFor(0));var _sum=(state.weeklySummary&&state.weeklySummary.week===_wk&&state.weeklySummary.text)?state.weeklySummary.text:null;
   var _ciDay=(new Date().getDay()===(parseInt(state.settings.weekStart,10)||0));
   if(_sum){try{var _seen=localStorage.getItem("wl_sumseen");if(state.weeklySummary.week!==_seen){state.sumOpen=true;localStorage.setItem("wl_sumseen",state.weeklySummary.week);localStorage.setItem("wl_sumopen","1");}}catch(e){}}
@@ -1121,7 +1125,7 @@ function view_weight(){
   h+='<div class="wl-hint" style="margin-bottom:6px"><b>Average '+(slavg!=null?minToHM(slavg):"—")+'</b>'+(sgm!=null?' · goal '+minToHM(sgm):"")+'</div>';
   h+=buildSleepChart(slbk,sgm);
   h+='</div>';
-  h+='<div class="wl-card" style="padding:13px 16px"><button class="wl-link" data-act="opentoday">+ Log or edit in the Daily Log →</button></div>';
+  h+='<div class="wl-card" style="padding:13px 16px"><button class="wl-link" data-act="go" data-view="overview">+ Log or edit on the Home tab →</button></div>';
   return h+'</div>';
 }
 function stat(l,v,u){return '<div class="wl-stat"><div class="wl-stat-label">'+l+'</div><div class="wl-stat-val">'+v+'<span>'+(v!=="—"?" "+u:"")+'</span></div></div>';}
@@ -1322,9 +1326,18 @@ function renderPhotos(date){var host=document.getElementById("wl-photos");if(!ho
       html+='</div>';});
     h2.innerHTML=html;
   }).catch(function(){var h2=document.getElementById("wl-photos");if(h2)h2.innerHTML='<div class="wl-empty" style="padding:6px 0">Photos aren\u2019t available on this device.</div>';});}
+function view_fooddiary(){
+  var h='<div class="wl-stack">'+dayBarHTML();
+  h+='<div class="wl-card"><div class="wl-card-head"><span>Food diary</span><button class="wl-link" data-act="go" data-view="diary">Browse all →</button></div>';
+  h+='<div id="wl-photos"><div class="wl-empty" style="padding:6px 0">Loading…</div></div>';
+  h+='<div class="wl-mealadd">'+[["breakfast","Breakfast"],["lunch","Lunch"],["snack","Snack"],["dinner","Dinner"]].map(function(m){return '<button class="wl-btn wl-btn-ghost" data-act="photo:add" data-meal="'+m[0]+'">'+I.plus.replace("<svg","<svg width=14 height=14")+m[1]+'</button>';}).join("")+'</div>';
+  h+='<div class="wl-hint" style="margin-top:8px">📷 Kept on this device only — your food diary isn\u2019t synced or seen by the AI.</div>';
+  h+='</div>';
+  return h+'</div>';
+}
 function view_diary(){
   var h='<div class="wl-stack">';
-  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="go" data-view="summary">‹</button><span class="wl-cal-title">Food Diary</span><span style="width:36px;display:inline-block"></span></div>';
+  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="go" data-view="overview">‹</button><span class="wl-cal-title">Food Diary</span><span style="width:36px;display:inline-block"></span></div>';
   h+='<div class="wl-hint" style="text-align:center;margin:-4px 0 4px">📷 Your meals by day — kept on this device only, not synced or seen by the AI.</div>';
   h+='<div id="wl-diary"><div class="wl-empty" style="padding:20px 0">Loading…</div></div>';
   h+='</div>';
@@ -1844,21 +1857,21 @@ function view_settings(){
 }
 
 /* ---------------- render ---------------- */
-var NAV=[["overview","Overview"],["calendar","Daily Log"],["weight","Trends"],["summary","Summary"],["train","Activity"]];
+var NAV=[["overview","Home"],["train","Activity"],["weight","Progress"],["summary","Summary"]];
 function askConfirm(message,fn,opts){opts=opts||{};state.pendingConfirm={message:message,fn:fn,danger:opts.danger!==false,label:opts.label||"Delete"};render();}
 function confirmOverlayHTML(){var c=state.pendingConfirm;if(!c)return "";
   return '<div class="wl-confirm"><div class="wl-confirm-card"><div class="wl-confirm-msg">'+esc(c.message)+'</div><div class="wl-confirm-btns"><button class="wl-btn wl-btn-ghost wl-full" data-act="confirm:no">Cancel</button><button class="wl-btn wl-full" style="background:'+(c.danger?"var(--bad)":"var(--accent)")+';color:#fff;border:none" data-act="confirm:yes">'+esc(c.label)+'</button></div></div></div>';}
 function render(){
   clearPhotoURLs();
   var title=state.view==="settings"?"Settings":state.view==="diary"?"Food Diary":state.view==="exlib"?"Exercise Library":state.view==="routine"?"Routine":state.view==="rlaunch"?"Routine":state.view==="quicklog"?"Quick log":state.view==="workout"?"Workout":state.view==="wtadd"?"Add weight training":(NAV.filter(function(n){return n[0]===state.view;})[0]||["","" ])[1];
-  var body=state.view==="overview"?view_overview():(state.view==="calendar"||state.view==="food")?view_calendar():state.view==="weight"?view_weight():state.view==="summary"?view_summary():state.view==="diary"?view_diary():state.view==="train"?view_train():state.view==="exlib"?view_exlib():state.view==="routine"?view_routine():state.view==="rlaunch"?view_rlaunch():state.view==="quicklog"?view_quicklog():state.view==="workout"?view_workout():state.view==="liftview"?view_liftview():state.view==="wtadd"?view_wtadd():view_settings();
-  var nav='<nav class="wl-nav">'+NAV.map(function(n){return '<button class="wl-navbtn '+(state.view===n[0]||(n[0]==="summary"&&state.view==="diary")?"on":"")+'" data-act="go" data-view="'+n[0]+'">'+I[n[0]]+'<span>'+n[1]+'</span></button>';}).join("")+'</nav>';
+  var body=state.view==="overview"?view_overview():(state.view==="food"||state.view==="calendar")?view_overview():state.view==="weight"?view_weight():state.view==="summary"?view_summary():state.view==="diary"?view_diary():state.view==="train"?view_train():state.view==="exlib"?view_exlib():state.view==="routine"?view_routine():state.view==="rlaunch"?view_rlaunch():state.view==="quicklog"?view_quicklog():state.view==="workout"?view_workout():state.view==="liftview"?view_liftview():state.view==="wtadd"?view_wtadd():view_settings();
+  var nav='<nav class="wl-nav">'+NAV.map(function(n){return '<button class="wl-navbtn '+(state.view===n[0]||(n[0]==="overview"&&(state.view==="food"||state.view==="diary"))?"on":"")+'" data-act="go" data-view="'+n[0]+'">'+I[n[0]]+'<span>'+n[1]+'</span></button>';}).join("")+'</nav>';
   var _ini=(state.settings.name||"").trim().charAt(0).toUpperCase();
-  var avatar='<button class="wl-avatar'+(state.view==="settings"?" on":"")+'" data-act="go" data-view="settings" aria-label="Settings">'+(_ini||I.user.replace("<svg",'<svg width="18" height="18"'))+'</button>';
+  var avatar='<button class="wl-avatar'+(state.view==="settings"?" on":"")+'" data-act="go" data-view="settings" aria-label="Settings"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>';
   var hdrRight='<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><div class="wl-datechip">'+fmtLong(new Date())+'</div>'+(syncOn()?'<div id="wl-sync" class="wl-sync '+syncState.s+'">'+syncLabel()+'</div>':'')+(syncOn()?'<div id="wl-synctime" class="wl-synctime">'+lastSyncText()+'</div>':'')+'</div>';
   document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header"><div><div class="wl-eyebrow">Progress Tracker</div><h1 class="wl-title">'+title+'</h1></div><div style="display:flex;align-items:center;gap:10px">'+hdrRight+avatar+'</div></header><main class="wl-main">'+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML();
   var hdr=document.querySelector(".wl-header");if(hdr)document.documentElement.style.setProperty("--headh",hdr.offsetHeight+"px");
-  if(state.view==="calendar")renderPhotos(state.selDate);
+  if(document.getElementById("wl-photos"))renderPhotos(state.selDate);
   if(state.view==="diary")renderDiary();
 }
 
@@ -1875,8 +1888,7 @@ document.addEventListener("click",function(e){
   if(a==="weight:add"){var dt=document.getElementById("wl-wdate").value,vv=num(document.getElementById("wl-wval").value);
     if(vv==null){toast("Enter a weight");return;}state.weights=state.weights.filter(function(x){return x.date!==dt;});state.weights.push({date:dt,weight:vv});save();render();return;}
   if(a==="weight:del"){var dd=el.getAttribute("data-date");askConfirm("Delete this weigh-in?",function(){state.weights=state.weights.filter(function(x){return x.date!==dd;});save();});return;}
-  if(a==="food:pick"){state.selDate=el.getAttribute("data-date");state.view="calendar";render();return;}
-  if(a==="dl:openfull"){state.view="calendar";render();window.scrollTo(0,0);return;}
+  if(a==="food:pick"){state.selDate=el.getAttribute("data-date");state.view="food";render();return;}
   if(a==="dl:open"){state.quickEntry=el.getAttribute("data-sec");render();var _f=document.querySelector(".wl-confirm-card input,.wl-confirm-card textarea");if(_f)_f.focus();return;}
   if(a==="qe:close"){state.quickEntry=null;render();return;}
   if(a==="opentoday"){state.selDate=todayISO();state.calY=new Date().getFullYear();state.calM=new Date().getMonth();state.cardioForm=null;render();return;}
@@ -2021,7 +2033,7 @@ document.addEventListener("click",function(e){
   if(a==="trend:next"){state.trendOffset=Math.max(0,(state.trendOffset||0)-1);render();return;}
   if(a==="photo:add"){state.pendingMeal=el.getAttribute("data-meal")||"";document.getElementById("wl-photo-input").click();return;}
   if(a==="photo:view"){openLightbox(el.getAttribute("data-id"));return;}
-  if(a==="openday"){var od=el.getAttribute("data-date");state.selDate=od;var pd=parseISO(od);state.calY=pd.getFullYear();state.calM=pd.getMonth();state.view="calendar";render();return;}
+  if(a==="openday"){var od=el.getAttribute("data-date");state.selDate=od;var pd=parseISO(od);state.calY=pd.getFullYear();state.calM=pd.getMonth();state.view="overview";render();return;}
   if(a==="day:clear"){var fdd=state.selDate;
     askConfirm("Clear ALL entries for this day — weight, steps, sleep, calories, macros, activities, note, and photos? This can\u2019t be undone.",function(){
       delete state.food[fdd];delete state.steps[fdd];delete state.sleep[fdd];delete state.workouts[fdd];delete state.notes[fdd];
@@ -2092,7 +2104,7 @@ document.addEventListener("click",function(e){
   if(a==="app:update"){updateApp();return;}
   if(a==="sum:prev"){state.weekOffset--;render();return;}
   if(a==="sum:next"){if(state.weekOffset<0){state.weekOffset++;render();}return;}
-  if(a==="sum:day"){var sdd=el.getAttribute("data-date");state.selDate=sdd;var sp=parseISO(sdd);state.calY=sp.getFullYear();state.calM=sp.getMonth();state.view="calendar";render();return;}
+  if(a==="sum:day"){var sdd=el.getAttribute("data-date");state.selDate=sdd;var sp=parseISO(sdd);state.calY=sp.getFullYear();state.calM=sp.getMonth();state.view="overview";render();return;}
   if(a==="sum:exportweek"){exportWeekCSV();return;}
   if(a==="sum:exportall"){exportAllCSV();return;}
   if(a==="reset:ask"){state.confirmReset=true;render();return;}
@@ -2171,7 +2183,7 @@ document.getElementById("wl-photo-input").addEventListener("change",function(e){
   arr.forEach(function(f){chain=chain.then(function(){return processImage(f).then(function(blob){
     var id=date+"-"+Date.now()+"-"+Math.random().toString(36).slice(2,7);
     return idbAdd({id:id,date:date,blob:blob,ts:Date.now()+Math.random(),meal:meal});});});});
-  chain.then(function(){if(state.view==="calendar"&&state.selDate===date)renderPhotos(date);toast("Photos saved");}).catch(function(){toast("Couldn't save photos");});
+  chain.then(function(){if(document.getElementById("wl-photos")&&state.selDate===date)renderPhotos(date);toast("Photos saved");}).catch(function(){toast("Couldn't save photos");});
 });
 function backupJSON(){return JSON.stringify(payload(),null,2);}
 function applyImport(text){
