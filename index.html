@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.175 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.176 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -470,7 +470,7 @@ html[data-theme="light"] .wl-brandword{color:#151A21;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.175";
+var APP_BUILD="2026-07-14.176";
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="34" y="26" width="32" height="12" rx="5" fill="#7C93F5"/><rect x="26" y="44" width="48" height="12" rx="5" fill="#9FB0C9"/><rect x="16" y="62" width="68" height="14" rx="5" fill="#F5B544"/></svg>';
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
@@ -574,7 +574,7 @@ function dayDots(iso){var seen={},cats=[];
   if(cats.length)return '<span class="wl-cell-dots">'+cats.map(function(c){return '<i class="dot-'+c+'"></i>';}).join("")+'</span>';
   if(dayHasAny(iso))return '<span class="wl-cell-dots"><i class="dot-data"></i></span>';
   return '';}
-var state={settings:Object.assign({},DEFAULT_SETTINGS),weights:[],food:{},workouts:{},steps:{},notes:{},sleep:{},weeklySummary:null,nightlySummary:null,presets:DEFAULT_PRESETS.slice(),
+var state={settings:Object.assign({},DEFAULT_SETTINGS),weights:[],food:{},workouts:{},steps:{},notes:{},sleep:{},bodyfat:{},waist:{},weeklySummary:null,nightlySummary:null,presets:DEFAULT_PRESETS.slice(),
   view:"overview",calY:new Date().getFullYear(),calM:new Date().getMonth(),weekOffset:0,trendMode:"W",trendOffset:0,calOpen:false,sumOpen:true,nightOpen:true,genBusy:false,nightBusy:false,diaryWeeks:1,
   training:{cardioTypes:DEFAULT_CARDIO_TYPES.slice(),sessions:{},exercises:[],routines:[],liftSessions:{}},cardioForm:null,manageOpen:false,actAddCat:null,actPick:null,exForm:null,routineId:null,riPickOpen:false,noteEdit:null,liftForm:null,workout:null,setMenu:null,woPrompt:false,bwEdit:false,histView:null,exMenu:null,woReplaceEi:null,liftViewId:null,liftViewDate:null,woResume:false,liftEdit:null,quickEntry:null,
   selDate:todayISO(),foodDate:todayISO(),alertDismissed:false,confirmReset:false,skips:{}};
@@ -583,7 +583,7 @@ function load(){
   try{var raw=localStorage.getItem(KEY);if(raw){var d=JSON.parse(raw);
     state.settings=Object.assign({},DEFAULT_SETTINGS,d.settings||{});
     state.weights=Array.isArray(d.weights)?d.weights:[];
-    state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;
+    state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.bodyfat=d.bodyfat||{};state.waist=d.waist||{};state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;
     state.presets=(Array.isArray(d.presets)&&d.presets.length)?d.presets:DEFAULT_PRESETS.slice();state.skips=d.skips||{};
   }}catch(e){}
   if(state.settings.macroAuto===undefined&&(num(state.settings.targetProtein)!=null||num(state.settings.targetCarbs)!=null||num(state.settings.targetFat)!=null))state.settings.macroAuto=false;
@@ -594,7 +594,7 @@ function load(){
   try{state.sumOpen=localStorage.getItem("wl_sumopen")!=="0";}catch(e){}
   try{state.calOpen=localStorage.getItem("wl_calopen")==="1";}catch(e){}
 }
-function payload(){return {settings:state.settings,weights:state.weights,food:state.food,workouts:state.workouts,steps:state.steps,notes:state.notes,sleep:state.sleep,weeklySummary:state.weeklySummary,nightlySummary:state.nightlySummary,presets:state.presets,skips:state.skips};}
+function payload(){return {settings:state.settings,weights:state.weights,food:state.food,workouts:state.workouts,steps:state.steps,notes:state.notes,sleep:state.sleep,bodyfat:state.bodyfat,waist:state.waist,weeklySummary:state.weeklySummary,nightlySummary:state.nightlySummary,presets:state.presets,skips:state.skips};}
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(payload()));}catch(e){toast("Couldn't save — storage full or blocked");}}
 function save(){saveLocal();scheduleCloudPush();}
 
@@ -653,7 +653,7 @@ function cloudGet(cb){var c=syncCfg();if(!syncOn()){cb&&cb(null,"not configured"
 function applyCloud(d){if(!d)return;
   state.settings=Object.assign({},DEFAULT_SETTINGS,d.settings||{});
   state.weights=Array.isArray(d.weights)?d.weights:[];
-  state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;
+  state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.bodyfat=d.bodyfat||{};state.waist=d.waist||{};state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;
   state.presets=(Array.isArray(d.presets)&&d.presets.length)?d.presets:DEFAULT_PRESETS.slice();
   if(state.settings.macroAuto===undefined&&(num(state.settings.targetProtein)!=null||num(state.settings.targetCarbs)!=null||num(state.settings.targetFat)!=null))state.settings.macroAuto=false;
   if(state.settings.calTargetAuto===undefined&&num(state.settings.targetCalories)!=null)state.settings.calTargetAuto=false;
@@ -1171,6 +1171,12 @@ function view_weight(){
   if(wc.data.length)h+=buildChart(wc,goal,u,true,ctx.start.getTime(),ctx.end.getTime());
   else h+='<div class="wl-empty">No weigh-ins in this period.</div>';
   h+='</div>';
+  [["Body fat",state.bodyfat,"%"],["Waist",state.waist,(u==="kg"?"cm":"in")]].forEach(function(bc){
+    var arr=Object.keys(bc[1]||{}).map(function(d){return {date:d,weight:num(bc[1][d])};}).filter(function(x){return x.weight!=null&&x.date>=startISO&&x.date<=endISO;}).sort(function(a,b){return a.date.localeCompare(b.date);});
+    if(!arr.length)return;var cc=prepChart(arr);var chg=arr.length>=2?(arr[arr.length-1].weight-arr[0].weight):null;
+    h+='<div class="wl-card"><div class="wl-card-head"><span>'+bc[0]+'</span></div>';
+    h+='<div class="wl-hint" style="margin-bottom:6px"><b>Change '+(chg!=null?(chg<=0?"\u25bc ":"\u25b2 ")+Math.abs(r1(chg))+" "+bc[2]:"\u2014")+'</b> \u00b7 latest '+r1(arr[arr.length-1].weight)+" "+bc[2]+'</div>';
+    h+=buildChart(cc,null,bc[2],true,ctx.start.getTime(),ctx.end.getTime());h+='</div>';});
   var stepMap={};Object.keys(state.steps).forEach(function(d){var v=num(state.steps[d]);if(v!=null)stepMap[d]=v;});
   var sbk=bucketValues(stepMap);var savg=bucketAvg(sbk);
   h+='<div class="wl-card"><div class="wl-card-head"><span>Steps</span></div>';
@@ -1253,7 +1259,7 @@ function quickEntryHTML(){
   var t={calories:num(state.settings.targetCalories),protein:num(state.settings.targetProtein),carbs:num(state.settings.targetCarbs),fat:num(state.settings.targetFat)};
   var hasT=Object.keys(t).some(function(k){return t[k]!=null;});
   var body='';
-  if(sec==="weight"){var _wsk=isSkip(sel,"weight");body='<label class="wl-field wl-field-full"><span>Weight <em>'+u+'</em></span><input class="wl-daywt-input wl-num" type="text" inputmode="decimal" placeholder="'+(_wsk?"skipped":"—")+'" value="'+(wmap[sel]!=null?wmap[sel]:"")+'"></label>';body+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="skip:weight">'+(_wsk?"Un-skip — I’ll log a weight":"No scale today — skip weight")+'</button>';if(_wsk)body+='<div class="wl-hint" style="margin-top:8px">Marked skipped for this day. Add a note (e.g. “on vacation”) so your coach knows why.</div>';}
+  if(sec==="weight"){var _wsk=isSkip(sel,"weight");body='<label class="wl-field wl-field-full"><span>Weight <em>'+u+'</em></span><input class="wl-daywt-input wl-num" type="text" inputmode="decimal" placeholder="'+(_wsk?"skipped":"—")+'" value="'+(wmap[sel]!=null?wmap[sel]:"")+'"></label>';var waistU=u==="kg"?"cm":"in";body+='<div class="wl-row" style="margin-top:10px"><label class="wl-field"><span>Body fat <em>%</em></span><input class="wl-bf-input wl-num" type="text" inputmode="decimal" placeholder="\u2014" value="'+(state.bodyfat[sel]!=null?state.bodyfat[sel]:"")+'"></label><label class="wl-field"><span>Waist <em>'+waistU+'</em></span><input class="wl-waist-input wl-num" type="text" inputmode="decimal" placeholder="\u2014" value="'+(state.waist[sel]!=null?state.waist[sel]:"")+'"></label></div>';body+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="skip:weight">'+(_wsk?"Un-skip — I’ll log a weight":"No scale today — skip weight")+'</button>';if(_wsk)body+='<div class="wl-hint" style="margin-top:8px">Marked skipped for this day. Add a note (e.g. “on vacation”) so your coach knows why.</div>';}
   else if(sec==="steps")body='<label class="wl-field wl-field-full"><span>Steps</span><input class="wl-steps-input wl-num" data-int="1" type="text" inputmode="numeric" placeholder="—" value="'+(state.steps[sel]!=null?state.steps[sel]:"")+'"></label>';
   else if(sec==="sleep")body='<div class="wl-row"><label class="wl-field"><span>Hours</span><input class="wl-num wl-sleep-h" data-int="1" type="text" inputmode="numeric" placeholder="—" value="'+(state.sleep[sel]!=null?Math.floor(state.sleep[sel]/60):"")+'"></label><label class="wl-field"><span>Minutes</span><input class="wl-num wl-sleep-m" data-int="1" type="text" inputmode="numeric" placeholder="—" value="'+(state.sleep[sel]!=null?state.sleep[sel]%60:"")+'"></label></div>';
   else if(sec==="calories"){body='<div class="wl-macro3">';
@@ -2011,7 +2017,7 @@ function view_settings(){
     if(alOpen)h+='<div class="wl-optlist">'+ALEVELS.map(function(x){var on=alSel===x[0];return '<button class="wl-opt'+(on?" on":"")+'" data-act="set:activity" data-level="'+x[0]+'"><span>'+x[1]+'</span>'+(on?'<span class="wl-opt-ck">'+I.check.replace("<svg","<svg width=15 height=15")+'</span>':'')+'</button>';}).join("")+'</div>';
     else h+='<button class="wl-opt on" data-act="al:change"><span>'+alLabel(alSel)+'</span><span style="color:var(--accent);font-size:13px;font-weight:600">Change</span></button>';
     h+='<div class="wl-hint" style="margin-top:12px"><span id="wl-calread">'+calSummaryHTML()+'</span> <span style="color:var(--faint)">(Mifflin–St Jeor · info only)</span></div>';
-    h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:16px 0 8px">Strategy</div><div class="wl-seg wl-seg-wide">'+[["lose","Lose weight"],["maintain","Maintain"],["gain","Gain weight"]].map(function(x){return '<button class="'+(strategyMode()===x[0]?"on":"")+'" data-act="set:strategy" data-strat="'+x[0]+'">'+x[1]+'</button>';}).join("")+'</div>';
+    h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:16px 0 8px">Strategy</div><div class="wl-seg wl-seg-wide">'+[["lose","Fat Loss"],["maintain","Maintenance"],["gain","Lean Bulk"]].map(function(x){return '<button class="'+(strategyMode()===x[0]?"on":"")+'" data-act="set:strategy" data-strat="'+x[0]+'">'+x[1]+'</button>';}).join("")+'</div>';
     h+='<div class="wl-hint" style="margin-top:8px">'+(strategyMode()==="gain"?"Targets a surplus — protein stays high to build muscle.":strategyMode()==="maintain"?"Targets maintenance — protein stays high to hold muscle.":"Targets a deficit — protein stays high to protect muscle.")+'</div>';
     if(strategyMode()!=="maintain"){var gain=strategyMode()==="gain";
       h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:16px 0 8px">Weekly '+(gain?"gain":"loss")+' target</div><div class="wl-row" style="align-items:flex-end"><label class="wl-field" style="flex:1"><span>'+(f.targetType==="percent_bw_per_week"?"% / week":u+" / week")+'</span><input class="wl-num" type="text" inputmode="decimal" data-set="targetValue" value="'+esc(f.targetValue)+'" placeholder="—"></label><div class="wl-seg" style="flex:1.25"><button class="'+(f.targetType==="lbs_per_week"?"on":"")+'" data-act="set:ttype" data-type="lbs_per_week">'+u+'/wk</button><button class="'+(f.targetType==="percent_bw_per_week"?"on":"")+'" data-act="set:ttype" data-type="percent_bw_per_week">% BW/wk</button></div></div><div class="wl-hint">'+(f.targetType==="percent_bw_per_week"?"e.g. 1 = "+(gain?"gain":"lose")+" 1% of bodyweight/week.":"e.g. 1 = "+(gain?"gain":"lose")+" 1 "+u+"/week (0.5–1 common).")+'</div>';}
@@ -2256,7 +2262,7 @@ document.addEventListener("click",function(e){
   if(a==="openday"){var od=el.getAttribute("data-date");state.selDate=od;var pd=parseISO(od);state.calY=pd.getFullYear();state.calM=pd.getMonth();state.view="overview";render();return;}
   if(a==="day:clear"){var fdd=state.selDate;
     askConfirm("Clear ALL entries for this day — weight, steps, sleep, calories, macros, activities, note, and photos? This can\u2019t be undone.",function(){
-      delete state.food[fdd];delete state.steps[fdd];delete state.sleep[fdd];delete state.workouts[fdd];delete state.notes[fdd];
+      delete state.food[fdd];delete state.steps[fdd];delete state.sleep[fdd];delete state.workouts[fdd];delete state.notes[fdd];delete state.bodyfat[fdd];delete state.waist[fdd];
       state.weights=state.weights.filter(function(x){return x.date!==fdd;});
       save();toast("Day cleared");
       try{idbByDate(fdd).then(function(list){list=list.filter(function(p){return p.kind!=="progress";});var t=list.map(function(p){return idbDelete(p.id);});Promise.all(t).then(function(){if(state.selDate===fdd)renderPhotos(fdd);});});}catch(e){}
@@ -2382,6 +2388,8 @@ document.addEventListener("input",function(e){
     var sd=state.selDate;var sv=el.value;if(num(sv)!=null)state.steps[sd]=num(sv);else delete state.steps[sd];save();refreshClearBtn();return;}
   if(el.classList&&el.classList.contains("wl-daywt-input")){
     var wd=state.selDate;var wvv=num(el.value);state.weights=state.weights.filter(function(x){return x.date!==wd;});if(wvv!=null){state.weights.push({date:wd,weight:wvv});setSkip(wd,"weight",false);}save();refreshClearBtn();return;}
+  if(el.classList&&el.classList.contains("wl-bf-input")){var bd=state.selDate;var bv=num(el.value);if(bv!=null)state.bodyfat[bd]=bv;else delete state.bodyfat[bd];save();refreshClearBtn();return;}
+  if(el.classList&&el.classList.contains("wl-waist-input")){var wad=state.selDate;var wav=num(el.value);if(wav!=null)state.waist[wad]=wav;else delete state.waist[wad];save();refreshClearBtn();return;}
 });
 function sanityWarn(el){
   if(!el||!el.classList)return;var v=num(el.value);if(v==null)return;
@@ -2435,7 +2443,7 @@ function applyImport(text){
   askConfirm("Replace all data on this device with this backup? Current entries will be overwritten.",function(){
   state.settings=Object.assign({},DEFAULT_SETTINGS,d.settings||{});
   state.weights=Array.isArray(d.weights)?d.weights:[];
-  state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;
+  state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.bodyfat=d.bodyfat||{};state.waist=d.waist||{};state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;
   state.presets=(Array.isArray(d.presets)&&d.presets.length)?d.presets:DEFAULT_PRESETS.slice();
   state.pasteOpen=false;state.view="overview";applyTheme(state.settings.theme||"dark");save();toast("Data restored");
   },{label:"Replace",danger:false});
