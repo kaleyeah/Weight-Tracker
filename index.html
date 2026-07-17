@@ -411,7 +411,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.139";
+var APP_BUILD="2026-07-14.141";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -513,7 +513,7 @@ function dayDots(iso){var seen={},cats=[];
   if(dayHasAny(iso))return '<span class="wl-cell-dots"><i class="dot-data"></i></span>';
   return '';}
 var state={settings:Object.assign({},DEFAULT_SETTINGS),weights:[],food:{},workouts:{},steps:{},notes:{},sleep:{},weeklySummary:null,nightlySummary:null,presets:DEFAULT_PRESETS.slice(),
-  view:"overview",calY:new Date().getFullYear(),calM:new Date().getMonth(),weekOffset:0,trendMode:"W",trendOffset:0,calOpen:false,sumOpen:true,nightOpen:true,genBusy:false,nightBusy:false,diaryWeeks:1,
+  view:"overview",calY:new Date().getFullYear(),calM:new Date().getMonth(),weekOffset:0,trendMode:"W",trendOffset:0,calOpen:false,sumOpen:true,nightOpen:true,genBusy:false,nightBusy:false,diaryWeeks:1,diaryOffset:0,
   training:{cardioTypes:DEFAULT_CARDIO_TYPES.slice(),sessions:{},exercises:[],routines:[],liftSessions:{}},cardioForm:null,manageOpen:false,actAddCat:null,actPick:null,exForm:null,routineId:null,riPickOpen:false,noteEdit:null,liftForm:null,workout:null,setMenu:null,woPrompt:false,bwEdit:false,histView:null,exMenu:null,woReplaceEi:null,liftViewId:null,liftViewDate:null,woResume:false,liftEdit:null,quickEntry:null,
   selDate:todayISO(),foodDate:todayISO(),alertDismissed:false,confirmReset:false};
 
@@ -879,7 +879,7 @@ function weeklyAIText(){
   return L.join("\n");
 }
 function ckRow(done,label,val,sec,optional){
-  var ic=done?'<span class="wl-ck-ic done">✓</span>':(optional?'<span class="wl-ck-ic opt">◦</span>':'<span class="wl-ck-ic miss">!</span>');
+  var ic=done?'<span class="wl-ck-ic"></span>':(optional?'<span class="wl-ck-ic opt">◦</span>':'<span class="wl-ck-ic miss">!</span>');
   return '<button class="wl-ck-row" data-act="dl:open" data-sec="'+sec+'"><span class="wl-ck-l">'+ic+'<span class="wl-ck-lab">'+label+'</span></span><span class="wl-ck-val'+(done?"":" empty")+'">'+esc(val)+'</span><span class="wl-ck-go">›</span></button>';
 }
 function ckCalories(sel){
@@ -892,7 +892,7 @@ function ckCalories(sel){
   var carbOver=calOver&&(tCarb!=null&&cb!=null&&cb>tCarb);
   var fatOver=calOver&&(tFat!=null&&ft!=null&&ft>tFat);
   var protLow=(tProt!=null&&p!=null&&p<tProt*0.9);
-  var h='<button class="wl-ck-row col" data-act="dl:open" data-sec="calories"><div class="wl-ck-top"><span class="wl-ck-l"><span class="wl-ck-ic done">✓</span><span class="wl-ck-lab">Calories</span></span><span class="wl-ck-val"'+(calOver?' style="color:var(--bad)"':'')+'>'+(cal!=null?Math.round(cal).toLocaleString():"—")+(tg!=null?' <span style="color:var(--faint);font-weight:600">/ '+tg.toLocaleString()+'</span>':'')+'</span><span class="wl-ck-go">›</span></div>';
+  var h='<button class="wl-ck-row col" data-act="dl:open" data-sec="calories"><div class="wl-ck-top"><span class="wl-ck-l"><span class="wl-ck-ic"></span><span class="wl-ck-lab">Calories</span></span><span class="wl-ck-val"'+(calOver?' style="color:var(--bad)"':'')+'>'+(cal!=null?Math.round(cal).toLocaleString():"—")+(tg!=null?' <span style="color:var(--faint);font-weight:600">/ '+tg.toLocaleString()+'</span>':'')+'</span><span class="wl-ck-go">›</span></div>';
   if(p!=null||cb!=null||ft!=null){var P=(p||0)*4,C=(cb||0)*4,F=(ft||0)*9;var tot=(P+C+F)||1;
     var pCol=protLow?"var(--bad)":"var(--mac-p)",cCol=carbOver?"var(--bad)":"var(--mac-c)",fCol=fatOver?"var(--bad)":"var(--mac-f)";
     h+='<div class="wl-mbar"><i style="width:'+(P/tot*100)+'%;background:'+pCol+'"></i><i style="width:'+(C/tot*100)+'%;background:'+cCol+'"></i><i style="width:'+(F/tot*100)+'%;background:'+fCol+'"></i></div>';
@@ -902,7 +902,7 @@ function ckCalories(sel){
 function ckNotes(sel){
   var note=(state.notes[sel]||"").trim();
   if(note){var snip=note.length>58?note.slice(0,58)+"…":note;
-    return '<button class="wl-ck-row" data-act="dl:open" data-sec="notes"><span class="wl-ck-l"><span class="wl-ck-ic done">✓</span><span class="wl-ck-lab">Notes</span></span><span class="wl-ck-note">'+esc(snip)+'</span><span class="wl-ck-go">›</span></button>';}
+    return '<button class="wl-ck-row" data-act="dl:open" data-sec="notes"><span class="wl-ck-l"><span class="wl-ck-ic"></span><span class="wl-ck-lab">Notes</span></span><span class="wl-ck-note">'+esc(snip)+'</span><span class="wl-ck-go">›</span></button>';}
   return '<button class="wl-ck-row" data-act="dl:open" data-sec="notes"><span class="wl-ck-l"><span class="wl-ck-ic opt">◦</span><span class="wl-ck-lab">Notes</span></span><span class="wl-ck-val empty">Optional</span><span class="wl-ck-go">›</span></button>';
 }
 function todayChecklistHTML(sel){
@@ -1291,39 +1291,35 @@ function renderPhotos(date){var host=document.getElementById("wl-photos");if(!ho
     h2.innerHTML=html;
   }).catch(function(){var h2=document.getElementById("wl-photos");if(h2)h2.innerHTML='<div class="wl-empty" style="padding:6px 0">Photos aren\u2019t available on this device.</div>';});}
 function view_diary(){
+  var off=state.diaryOffset||0;var ws=weekStartFor(off),we=addDays(ws,6);
   var h='<div class="wl-stack">';
   h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="go" data-view="overview">‹</button><span class="wl-cal-title">Food Diary</span><span style="width:36px;display:inline-block"></span></div>';
   h+='<div class="wl-hint" style="text-align:center;margin:-4px 0 4px">📷 Your meals by day — kept on this device only, not synced or seen by the AI.</div>';
+  h+='<div class="wl-card"><div class="wl-cal-head"><button class="wl-icon-btn" data-act="diary:prev">‹</button><span class="wl-cal-title">'+fmtShort(ws)+' – '+fmtShort(we)+(off===0?" · This week":"")+'</span><button class="wl-icon-btn"'+(off<=0?' style="opacity:.3"':'')+' data-act="diary:next">›</button></div></div>';
   h+='<div id="wl-diary"><div class="wl-empty" style="padding:20px 0">Loading…</div></div>';
   h+='</div>';
   return h;
 }
 function weekStartOf(iso){var ws=parseInt(state.settings.weekStart,10)||0;var d=parseISO(iso);var diff=(d.getDay()-ws+7)%7;d.setDate(d.getDate()-diff);d.setHours(0,0,0,0);return d;}
 function renderDiary(){var host=document.getElementById("wl-diary");if(!host)return;
+  var off=state.diaryOffset||0;var ws=weekStartFor(off);
   idbAll().then(function(all){var host2=document.getElementById("wl-diary");if(!host2)return;
     clearPhotoURLs();
-    if(!all.length){host2.innerHTML='<div class="wl-empty" style="padding:20px 0">No food photos yet. Open a day\u2019s Food diary to add meals.</div>';return;}
     var byDate={};all.forEach(function(p){(byDate[p.date]=byDate[p.date]||[]).push(p);});
-    var weekSet={};Object.keys(byDate).forEach(function(d){weekSet[toISO(weekStartOf(d))]=true;});
-    var weeks=Object.keys(weekSet).sort().reverse();
-    var show=Math.min(state.diaryWeeks||1,weeks.length);var shown=weeks.slice(0,show);
     var MEALS=[["breakfast","Breakfast"],["lunch","Lunch"],["snack","Snack"],["dinner","Dinner"],["","Other"]];
-    var html="";
-    shown.forEach(function(wkISO){var ws0=parseISO(wkISO),we=addDays(ws0,6);
-      html+='<div class="wl-diary-weekhead">'+fmtShort(ws0)+' – '+fmtShort(we)+(toISO(weekStartFor(0))===wkISO?' · This week':'')+'</div>';
-      for(var i=0;i<7;i++){var dISO=toISO(addDays(ws0,i));var photos=byDate[dISO];if(!photos)continue;
-        var f=state.food[dISO]||{};var cal=num(f.calories),p=num(f.protein),c=num(f.carbs),ft=num(f.fat);
-        html+='<div class="wl-card wl-diary-day"><div class="wl-diary-dayhead"><span class="wl-diary-date">'+fmtLong(parseISO(dISO))+(dISO===todayISO()?' · Today':'')+'</span></div>';
-        if(cal!=null||p!=null||c!=null||ft!=null){html+='<div class="wl-diary-macros">'+(cal!=null?'<b>'+Math.round(cal).toLocaleString()+'</b> cal':'<span style="color:var(--faint)">calories not logged</span>')+(p!=null?'  ·  P: '+p+'g':'')+(ft!=null?'  ·  F: '+ft+'g':'')+(c!=null?'  ·  C: '+c+'g':'')+'</div>';
-          var mc=(p||0)*4+(c||0)*4+(ft||0)*9;if((p!=null||c!=null||ft!=null)&&cal!=null&&Math.abs(cal-mc)>2)html+='<div class="wl-diary-partial">⚠️ Partial log — macros don\u2019t total the calories</div>';}
-        MEALS.forEach(function(m){var items=photos.filter(function(x){return (x.meal||"")===m[0];});if(!items.length)return;
-          html+='<div class="wl-meal-label">'+m[1]+'</div><div class="wl-photos">';
-          items.forEach(function(x){var url=URL.createObjectURL(x.blob);photoURLs.push(url);photoMap[x.id]=url;html+='<button class="wl-photo" data-act="photo:view" data-id="'+x.id+'" style="background-image:url('+url+')"></button>';});
-          html+='</div>';});
-        html+='</div>';
-      }
-    });
-    if(weeks.length>show)html+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:4px" data-act="diary:older">↓ Load older week</button>';
+    var html="",any=false;
+    for(var i=0;i<7;i++){var dISO=toISO(addDays(ws,i));var photos=byDate[dISO];if(!photos)continue;any=true;
+      var f=state.food[dISO]||{};var cal=num(f.calories),p=num(f.protein),c=num(f.carbs),ft=num(f.fat);
+      html+='<div class="wl-card wl-diary-day"><div class="wl-diary-dayhead"><span class="wl-diary-date">'+fmtLong(parseISO(dISO))+(dISO===todayISO()?' · Today':'')+'</span></div>';
+      if(cal!=null||p!=null||c!=null||ft!=null){html+='<div class="wl-diary-macros">'+(cal!=null?'<b>'+Math.round(cal).toLocaleString()+'</b> cal':'<span style="color:var(--faint)">calories not logged</span>')+(p!=null?'  ·  P: '+p+'g':'')+(ft!=null?'  ·  F: '+ft+'g':'')+(c!=null?'  ·  C: '+c+'g':'')+'</div>';
+        var mc=(p||0)*4+(c||0)*4+(ft||0)*9;if((p!=null||c!=null||ft!=null)&&cal!=null&&Math.abs(cal-mc)>2)html+='<div class="wl-diary-partial">⚠️ Partial log — macros don\u2019t total the calories</div>';}
+      MEALS.forEach(function(m){var items=photos.filter(function(x){return (x.meal||"")===m[0];});if(!items.length)return;
+        html+='<div class="wl-meal-label">'+m[1]+'</div><div class="wl-photos">';
+        items.forEach(function(x){var url=URL.createObjectURL(x.blob);photoURLs.push(url);photoMap[x.id]=url;html+='<button class="wl-photo" data-act="photo:view" data-id="'+x.id+'" style="background-image:url('+url+')"></button>';});
+        html+='</div>';});
+      html+='</div>';
+    }
+    if(!any)html='<div class="wl-empty" style="padding:24px 0">No meals photographed this week.</div>';
     host2.innerHTML=html;
   }).catch(function(){var host2=document.getElementById("wl-diary");if(host2)host2.innerHTML='<div class="wl-empty" style="padding:20px 0">Photos aren\u2019t available on this device.</div>';});}
 function openLightbox(id){
@@ -1861,7 +1857,7 @@ function render(){
 function toast(msg){var t=document.getElementById("wl-toast");t.textContent=msg;t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(function(){t.classList.remove("show");},1600);}
 document.addEventListener("click",function(e){
   var el=e.target.closest("[data-act]");if(!el)return;var a=el.getAttribute("data-act");
-  if(a==="go"){state.view=el.getAttribute("data-view");if(state.view==="diary")state.diaryWeeks=1;state.alertDismissed=false;state.confirmReset=false;state.pasteOpen=false;state.syncPasteOpen=false;state.inviteCode=null;state.joinOpen=false;render();return;}
+  if(a==="go"){state.view=el.getAttribute("data-view");if(state.view==="diary")state.diaryOffset=0;state.alertDismissed=false;state.confirmReset=false;state.pasteOpen=false;state.syncPasteOpen=false;state.inviteCode=null;state.joinOpen=false;render();return;}
   if(a==="confirm:yes"){var pc=state.pendingConfirm;state.pendingConfirm=null;if(pc&&pc.fn)pc.fn();render();return;}
   if(a==="confirm:no"){state.pendingConfirm=null;render();return;}
   if(a==="alert:dismiss"){state.alertDismissed=true;render();return;}
@@ -1878,7 +1874,8 @@ document.addEventListener("click",function(e){
   if(a==="ai:gen"){genSummary();return;}
   if(a==="sum:toggle"){state.sumOpen=(state.sumOpen===false);try{localStorage.setItem("wl_sumopen",state.sumOpen?"1":"0");}catch(e){}render();return;}
   if(a==="night:toggle"){state.nightOpen=(state.nightOpen===false);render();return;}
-  if(a==="diary:older"){state.diaryWeeks=(state.diaryWeeks||1)+1;renderDiary();return;}
+  if(a==="diary:prev"){state.diaryOffset=(state.diaryOffset||0)+1;render();return;}
+  if(a==="diary:next"){state.diaryOffset=Math.max(0,(state.diaryOffset||0)-1);render();return;}
   if(a==="tr:prev"||a==="tr:next"||a==="tr:today"){return;}
   if(a==="browse:open"){state.browseOpen=true;state.exForm=null;render();return;}
   if(a==="browse:close"){state.browseOpen=false;render();return;}
