@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.155 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.156 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -436,7 +436,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.155";
+var APP_BUILD="2026-07-14.156";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -484,20 +484,16 @@ var I={
 /* ---------------- storage ---------------- */
 var KEY="wl_v1";
 var DEFAULT_SETTINGS={units:"lbs",startingWeight:"",startDate:todayISO(),goalWeight:"",
-  targetType:"lbs_per_week",targetValue:"1",targetCalories:"",targetProtein:"",targetCarbs:"",targetFat:"",theme:"ink",name:"",reminderTime:"19:00",connections:[],sex:"",age:"",heightFt:"",heightIn:"",activityLevel:"",stepsGoal:"",sleepGoal:"",weekStart:"0",strategy:"lose"};
+  targetType:"lbs_per_week",targetValue:"1",targetCalories:"",targetProtein:"",targetCarbs:"",targetFat:"",theme:"dark",name:"",reminderTime:"19:00",connections:[],sex:"",age:"",heightFt:"",heightIn:"",activityLevel:"",stepsGoal:"",sleepGoal:"",weekStart:"0",strategy:"lose"};
 var SANS="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,system-ui,sans-serif";
 var MONO="ui-monospace,'SF Mono','Cascadia Code',Menlo,Consolas,monospace";
 var THEMES={
-  ink:{label:"Ink",scheme:"dark",v:{bg:"#0F1218",bg2:"#141922",card:"#1A2029",card2:"#212836",line:"#2A3340",line2:"#333E4E",text:"#EDF1F7",muted:"#8791A3",faint:"#5A6474",accent:"#F5B544","accent-dim":"rgba(245,181,68,.14)",good:"#5CD6A0",bad:"#F26D5B",reg:"#7C93F5","on-accent":"#20160A","on-good":"#0C1A14",sans:SANS,mono:MONO},
+  dark:{label:"Dark",scheme:"dark",v:{bg:"#0F1218",bg2:"#141922",card:"#1A2029",card2:"#212836",line:"#2A3340",line2:"#333E4E",text:"#EDF1F7",muted:"#8791A3",faint:"#5A6474",accent:"#F5B544","accent-dim":"rgba(245,181,68,.14)",good:"#5CD6A0",bad:"#F26D5B",reg:"#7C93F5","on-accent":"#20160A","on-good":"#0C1A14","mac-p":"#A9C0DE","mac-c":"#7C9AC0","mac-f":"#566F92",sans:SANS,mono:MONO},
     chart:{grid:"#252D3A",axis:"#5A6474",actual:"#AEB7C7",actualLine:"#6B7688",avg:"#F5B544",reg:"#7C93F5",goal:"#5CD6A0"}},
-  clinic:{label:"Clinic",scheme:"light",v:{bg:"#F6F8FB",bg2:"#EEF2F7",card:"#FFFFFF",card2:"#F1F5F9",line:"#E4EAF1",line2:"#D6DEE8",text:"#0E1726",muted:"#64718A",faint:"#97A2B4",accent:"#0E7C7B","accent-dim":"rgba(14,124,123,.12)",good:"#1FA87D",bad:"#D8544A",reg:"#3E68C9","on-accent":"#FFFFFF","on-good":"#FFFFFF",sans:"'Manrope',"+SANS,mono:MONO},
-    chart:{grid:"#E4EAF1",axis:"#97A2B4",actual:"#64718A",actualLine:"#B7C0CE",avg:"#0E7C7B",reg:"#3E68C9",goal:"#1FA87D"}},
-  momentum:{label:"Momentum",scheme:"dark",v:{bg:"#111318",bg2:"#171A20",card:"#191C22",card2:"#21252D",line:"#262B34",line2:"#333A45",text:"#F3F5F8",muted:"#8B95A4",faint:"#5C6675",accent:"#FF5D2E","accent-dim":"rgba(255,93,46,.14)",good:"#46D39E",bad:"#FF4D6D",reg:"#6EA8FF","on-accent":"#180A06","on-good":"#0A1A13",sans:"'Barlow',"+SANS,mono:"'Barlow Semi Condensed','Barlow',"+SANS},
-    chart:{grid:"#262B34",axis:"#5C6675",actual:"#AEB7C7",actualLine:"#6B7688",avg:"#FF5D2E",reg:"#6EA8FF",goal:"#46D39E"}},
-  bloom:{label:"Bloom",scheme:"light",v:{bg:"#F5F3FB",bg2:"#ECE8F6",card:"#FFFFFF",card2:"#F3F0FB",line:"#ECE8F6",line2:"#DED7F0",text:"#241D3A",muted:"#7A7295",faint:"#A79FBE",accent:"#6C5CE7","accent-dim":"rgba(108,92,231,.12)",good:"#1FA87D",bad:"#E0567A",reg:"#8B7DF0","on-accent":"#FFFFFF","on-good":"#FFFFFF",sans:"'Nunito',"+SANS,mono:MONO},
-    chart:{grid:"#ECE8F6",axis:"#A79FBE",actual:"#7A7295",actualLine:"#C9C2DB",avg:"#6C5CE7",reg:"#8B7DF0",goal:"#1FA87D"}}};
-var CH=THEMES.ink.chart;
-function applyTheme(id){var t=THEMES[id]||THEMES.ink;var root=document.documentElement;
+  light:{label:"Light",scheme:"light",v:{bg:"#F4F6F9",bg2:"#E9EDF2",card:"#FFFFFF",card2:"#F0F3F7",line:"#E2E7EE",line2:"#D2DAE3",text:"#151A21",muted:"#5C6879",faint:"#98A2B0",accent:"#B57A12","accent-dim":"rgba(181,122,18,.12)",good:"#1E9E73",bad:"#D2544A",reg:"#4763C8","on-accent":"#FFFFFF","on-good":"#FFFFFF","mac-p":"#5E7CA6","mac-c":"#46648C","mac-f":"#324E76",sans:SANS,mono:MONO},
+    chart:{grid:"#E2E7EE",axis:"#98A2B0",actual:"#5C6879",actualLine:"#C2CAD5",avg:"#B57A12",reg:"#4763C8",goal:"#1E9E73"}}};
+var CH=THEMES.dark.chart;
+function applyTheme(id){var t=THEMES[id]||THEMES.dark;var root=document.documentElement;
   for(var k in t.v){root.style.setProperty("--"+k,t.v[k]);}
   root.style.colorScheme=t.scheme;CH=t.chart;
   var meta=document.querySelector('meta[name="theme-color"]');if(meta)meta.setAttribute("content",t.v.bg);}
@@ -540,23 +536,24 @@ function dayDots(iso){var seen={},cats=[];
 var state={settings:Object.assign({},DEFAULT_SETTINGS),weights:[],food:{},workouts:{},steps:{},notes:{},sleep:{},weeklySummary:null,nightlySummary:null,presets:DEFAULT_PRESETS.slice(),
   view:"overview",calY:new Date().getFullYear(),calM:new Date().getMonth(),weekOffset:0,trendMode:"W",trendOffset:0,calOpen:false,sumOpen:true,nightOpen:true,genBusy:false,nightBusy:false,diaryWeeks:1,
   training:{cardioTypes:DEFAULT_CARDIO_TYPES.slice(),sessions:{},exercises:[],routines:[],liftSessions:{}},cardioForm:null,manageOpen:false,actAddCat:null,actPick:null,exForm:null,routineId:null,riPickOpen:false,noteEdit:null,liftForm:null,workout:null,setMenu:null,woPrompt:false,bwEdit:false,histView:null,exMenu:null,woReplaceEi:null,liftViewId:null,liftViewDate:null,woResume:false,liftEdit:null,quickEntry:null,
-  selDate:todayISO(),foodDate:todayISO(),alertDismissed:false,confirmReset:false};
+  selDate:todayISO(),foodDate:todayISO(),alertDismissed:false,confirmReset:false,skips:{}};
 
 function load(){
   try{var raw=localStorage.getItem(KEY);if(raw){var d=JSON.parse(raw);
     state.settings=Object.assign({},DEFAULT_SETTINGS,d.settings||{});
     state.weights=Array.isArray(d.weights)?d.weights:[];
     state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;
-    state.presets=(Array.isArray(d.presets)&&d.presets.length)?d.presets:DEFAULT_PRESETS.slice();
+    state.presets=(Array.isArray(d.presets)&&d.presets.length)?d.presets:DEFAULT_PRESETS.slice();state.skips=d.skips||{};
   }}catch(e){}
   if(state.settings.macroAuto===undefined&&(num(state.settings.targetProtein)!=null||num(state.settings.targetCarbs)!=null||num(state.settings.targetFat)!=null))state.settings.macroAuto=false;
   if(state.settings.calTargetAuto===undefined&&num(state.settings.targetCalories)!=null)state.settings.calTargetAuto=false;
   applyAutoMacros();
+  if(!THEMES[state.settings.theme])state.settings.theme=(state.settings.theme==="clinic"||state.settings.theme==="bloom")?"light":"dark";
   if((state.settings.cardioMinGoal==null||state.settings.cardioMinGoal==="")&&num(state.settings.exerciseMinGoal)!=null)state.settings.cardioMinGoal=state.settings.exerciseMinGoal;
   try{state.sumOpen=localStorage.getItem("wl_sumopen")!=="0";}catch(e){}
   try{state.calOpen=localStorage.getItem("wl_calopen")==="1";}catch(e){}
 }
-function payload(){return {settings:state.settings,weights:state.weights,food:state.food,workouts:state.workouts,steps:state.steps,notes:state.notes,sleep:state.sleep,weeklySummary:state.weeklySummary,nightlySummary:state.nightlySummary,presets:state.presets};}
+function payload(){return {settings:state.settings,weights:state.weights,food:state.food,workouts:state.workouts,steps:state.steps,notes:state.notes,sleep:state.sleep,weeklySummary:state.weeklySummary,nightlySummary:state.nightlySummary,presets:state.presets,skips:state.skips};}
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(payload()));}catch(e){toast("Couldn't save — storage full or blocked");}}
 function save(){saveLocal();scheduleCloudPush();}
 
@@ -620,7 +617,7 @@ function applyCloud(d){if(!d)return;
   if(state.settings.macroAuto===undefined&&(num(state.settings.targetProtein)!=null||num(state.settings.targetCarbs)!=null||num(state.settings.targetFat)!=null))state.settings.macroAuto=false;
   if(state.settings.calTargetAuto===undefined&&num(state.settings.targetCalories)!=null)state.settings.calTargetAuto=false;
   applyAutoMacros();
-  saveLocal();markDirty(false);applyTheme(state.settings.theme||"ink");}
+  saveLocal();markDirty(false);applyTheme(state.settings.theme||"dark");}
 function cloudPull(manual,done){setSync("syncing");cloudGet(function(d,err){
   if(err){setSync(err==="offline"?"offline":"error",err==="auth"?"bad token or repo access":"");if(manual)toast(err==="offline"?"No connection":err==="auth"?"Check token & repo":"Couldn't pull");done&&done();return;}
   applyCloud(d);setLastSync();setSync("ok");render();pullConnections();if(manual)toast("Pulled from GitHub");done&&done();});}
@@ -708,8 +705,10 @@ function genSummary(){var c=syncCfg();
     else toast("Still working — it will appear here shortly");
     render();})
   .catch(function(e){state.genBusy=false;render();toast(e.message||"Couldn't generate");});}
+function isSkip(date,field){return !!(state.skips&&state.skips[date]&&state.skips[date][field]);}
+function setSkip(date,field,on){state.skips=state.skips||{};if(on){state.skips[date]=state.skips[date]||{};state.skips[date][field]=1;}else if(state.skips[date]){delete state.skips[date][field];if(!Object.keys(state.skips[date]).length)delete state.skips[date];}}
 function dayMissing(sel){sel=sel||state.selDate;var miss=[];
-  if(!state.weights.some(function(x){return x.date===sel;}))miss.push("weight");
+  if(!state.weights.some(function(x){return x.date===sel;})&&!isSkip(sel,"weight"))miss.push("weight");
   if(num(state.steps[sel])==null)miss.push("steps");
   if(num(state.sleep[sel])==null)miss.push("sleep");
   var f=state.food[sel]||{};if(num(f.calories)==null&&num(f.protein)==null&&num(f.carbs)==null&&num(f.fat)==null)miss.push("calories");
@@ -931,14 +930,16 @@ function ckNotes(sel){
     return '<button class="wl-ck-row" data-act="dl:open" data-sec="notes"><span class="wl-ck-l"><span class="wl-ck-ic"></span><span class="wl-ck-lab">Notes</span></span><span class="wl-ck-note">'+esc(snip)+'</span><span class="wl-ck-go">›</span></button>';}
   return '<button class="wl-ck-row" data-act="dl:open" data-sec="notes"><span class="wl-ck-l"><span class="wl-ck-ic opt">◦</span><span class="wl-ck-lab">Notes</span></span><span class="wl-ck-val empty">Optional</span><span class="wl-ck-go">›</span></button>';
 }
+function ckRowSkip(label,val,sec){return '<button class="wl-ck-row" data-act="dl:open" data-sec="'+sec+'"><span class="wl-ck-l"><span class="wl-ck-ic"></span><span class="wl-ck-lab">'+label+'</span></span><span class="wl-ck-val" style="color:var(--faint);font-style:italic">'+val+'</span><span class="wl-ck-go">›</span></button>';}
 function todayChecklistHTML(sel){
   var u=state.settings.units;var f=state.food[sel]||{};
   var wt=null;for(var i=0;i<state.weights.length;i++){if(state.weights[i].date===sel){wt=state.weights[i].weight;break;}}
   var steps=num(state.steps[sel]),sleep=num(state.sleep[sel]);
   var hasCal=num(f.calories)!=null||num(f.protein)!=null||num(f.carbs)!=null||num(f.fat)!=null;
-  var done=(wt!=null?1:0)+(steps!=null?1:0)+(hasCal?1:0)+(sleep!=null?1:0);
+  var wSkip=isSkip(sel,"weight");
+  var done=((wt!=null||wSkip)?1:0)+(steps!=null?1:0)+(hasCal?1:0)+(sleep!=null?1:0);
   var h='<div class="wl-card wl-check"><div class="wl-ck-head"><span class="wl-ck-title">'+(sel===todayISO()?"Today":"This day")+'\u2019s Check-in</span><span class="wl-ck-cnt">'+done+' of 4 done</span></div>';
-  h+=ckRow(wt!=null,"Weight",wt!=null?(r1(wt)+" "+u):"Add","weight",false);
+  h+=(wt!=null)?ckRow(true,"Weight",r1(wt)+" "+u,"weight",false):(wSkip?ckRowSkip("Weight","Skipped","weight"):ckRow(false,"Weight","Add","weight",false));
   h+=ckRow(steps!=null,"Steps",steps!=null?Math.round(steps).toLocaleString():"Add","steps",false);
   h+=ckCalories(sel);
   h+=ckRow(sleep!=null,"Sleep",sleep!=null?minToHM(sleep):"Add","sleep",false);
@@ -1192,7 +1193,7 @@ function quickEntryHTML(){
   var t={calories:num(state.settings.targetCalories),protein:num(state.settings.targetProtein),carbs:num(state.settings.targetCarbs),fat:num(state.settings.targetFat)};
   var hasT=Object.keys(t).some(function(k){return t[k]!=null;});
   var body='';
-  if(sec==="weight")body='<label class="wl-field wl-field-full"><span>Weight <em>'+u+'</em></span><input class="wl-daywt-input wl-num" type="text" inputmode="decimal" placeholder="—" value="'+(wmap[sel]!=null?wmap[sel]:"")+'"></label>';
+  if(sec==="weight"){var _wsk=isSkip(sel,"weight");body='<label class="wl-field wl-field-full"><span>Weight <em>'+u+'</em></span><input class="wl-daywt-input wl-num" type="text" inputmode="decimal" placeholder="'+(_wsk?"skipped":"—")+'" value="'+(wmap[sel]!=null?wmap[sel]:"")+'"></label>';body+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="skip:weight">'+(_wsk?"Un-skip — I’ll log a weight":"No scale today — skip weight")+'</button>';if(_wsk)body+='<div class="wl-hint" style="margin-top:8px">Marked skipped for this day. Add a note (e.g. “on vacation”) so your coach knows why.</div>';}
   else if(sec==="steps")body='<label class="wl-field wl-field-full"><span>Steps</span><input class="wl-steps-input wl-num" data-int="1" type="text" inputmode="numeric" placeholder="—" value="'+(state.steps[sel]!=null?state.steps[sel]:"")+'"></label>';
   else if(sec==="sleep")body='<div class="wl-row"><label class="wl-field"><span>Hours</span><input class="wl-num wl-sleep-h" data-int="1" type="text" inputmode="numeric" placeholder="—" value="'+(state.sleep[sel]!=null?Math.floor(state.sleep[sel]/60):"")+'"></label><label class="wl-field"><span>Minutes</span><input class="wl-num wl-sleep-m" data-int="1" type="text" inputmode="numeric" placeholder="—" value="'+(state.sleep[sel]!=null?state.sleep[sel]%60:"")+'"></label></div>';
   else if(sec==="calories"){body='<div class="wl-macro3">';
@@ -1282,8 +1283,7 @@ function view_summary(){
       cl(mv(ff,function(v){return v;}),(tFat!=null&&ff!=null)?((ff>tFat&&calOverD)?"bad":"good"):"")+
       cl(mv(cc,function(v){return v;}),(tCarb!=null&&cc!=null)?((cc>tCarb&&calOverD)?"bad":"good"):"")+
       '</tr>';});
-  h+='</tbody></table></div>';
-  h+='<div class="wl-card"><button class="wl-btn wl-btn-primary wl-full" data-act="sum:exportweek">Export this week</button><div class="wl-hint" style="margin-top:8px">CSV of this week — every logged metric, training, and notes.</div></div>';
+  h+='</tbody></table><button class="wl-btn wl-btn-primary wl-full" style="margin-top:14px" data-act="sum:exportweek">Export this week</button><div class="wl-hint" style="margin-top:8px">CSV of this week — every logged metric, training, and notes.</div></div>';
   h+='<div class="wl-card"><button class="wl-btn wl-btn-primary wl-full" data-act="go" data-view="diary">📷 Food Diary</button><div class="wl-hint" style="margin-top:8px">A visual collage of your meal photos by day, with each day\u2019s calories and macros.</div></div>';
   return h+'</div>';}
 function csvCell(v){v=(v==null?"":String(v));return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
@@ -1413,9 +1413,9 @@ function openLightbox(id){
   document.body.appendChild(ov);
   idbAll().then(function(all){var map={};all.forEach(function(p){map[p.id]=p.blob;});ids=ids.filter(function(i){return map[i];});idx=Math.max(0,ids.indexOf(id));ids.forEach(function(i){urls[i]=URL.createObjectURL(map[i]);});if(!ids.length){close();return;}show();}).catch(function(){});
 }
-function themeGrid(){var cur=state.settings.theme||"ink";
+function themeGrid(){var cur=state.settings.theme||"dark";
   return Object.keys(THEMES).map(function(id){var t=THEMES[id];var on=id===cur;
-    return '<button class="wl-theme'+(on?" on":"")+'" data-act="set:theme" data-theme="'+id+'"><span class="wl-theme-sw"><i style="background:'+t.v.bg+'"></i><i style="background:'+t.v.card+'"></i><i style="background:'+t.v.accent+'"></i><i style="background:'+t.v.good+'"></i></span><span class="wl-theme-name">'+t.label+(id==="ink"?" · current":"")+'</span>'+(on?'<span class="wl-theme-check">'+I.check.replace("<svg","<svg width=14 height=14")+'</span>':'')+'</button>';}).join("");
+    return '<button class="wl-theme'+(on?" on":"")+'" data-act="set:theme" data-theme="'+id+'"><span class="wl-theme-sw"><i style="background:'+t.v.bg+'"></i><i style="background:'+t.v.card+'"></i><i style="background:'+t.v.accent+'"></i><i style="background:'+t.v.good+'"></i></span><span class="wl-theme-name">'+t.label+" mode"+'</span>'+(on?'<span class="wl-theme-check">'+I.check.replace("<svg","<svg width=14 height=14")+'</span>':'')+'</button>';}).join("");
 }
 function zoneFromHR(hr,mx){if(hr==null||mx==null||mx<=0)return null;var p=hr/mx;if(p<0.60)return 1;if(p<0.70)return 2;if(p<0.80)return 3;if(p<0.90)return 4;return 5;}
 function estMaxHR(){var age=num(state.settings.age);if(age==null)return null;return Math.round(208-0.7*age);}
@@ -1902,7 +1902,7 @@ function view_settings(){
     '<label class="wl-field wl-field-full"><span>Remind me to log at</span><input type="time" id="wl-remind-time" value="'+esc(f.reminderTime||"19:00")+'"></label>'+
     '<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="reminder:add">'+I.calendar.replace("<svg","<svg width=16 height=16")+'Add reminder to Calendar</button>'+
     '<div class="wl-hint" style="margin-top:10px">Tap <b>Add reminder to Calendar</b>, then choose <b>Add All</b> — this creates a daily repeating reminder in your Calendar that notifies you even when the app is closed. (iPhone &amp; iPad don\u2019t let a web app send its own scheduled notifications, so this uses your Calendar instead.) To change the time, pick a new one and add it again, then delete the old event.</div></div>'):'')+'</div>';
-  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="theme"><span>Theme</span><span class="wl-chevron'+(op.theme?" open":"")+'">›</span></button>'+(op.theme?('<div class="wl-collapse-body"><div class="wl-theme-grid">'+themeGrid()+'</div></div>'):'')+'</div>';
+  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="theme"><span>Appearance</span><span class="wl-chevron'+(op.theme?" open":"")+'">›</span></button>'+(op.theme?('<div class="wl-collapse-body"><div class="wl-theme-grid">'+themeGrid()+'</div></div>'):'')+'</div>';
   h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="exportdata"><span>Export data</span><span class="wl-chevron'+(op.exportdata?" open":"")+'">›</span></button>'+(op.exportdata?('<div class="wl-collapse-body"><button class="wl-btn wl-btn-primary wl-full" data-act="sum:exportall">Export all data</button><div class="wl-hint" style="margin-top:8px">CSV of your full history — every logged metric, training, and notes.</div></div>'):'')+'</div>';
   var sc=syncCfg();
   if(isOwner()){
@@ -1972,6 +1972,7 @@ document.addEventListener("click",function(e){
   if(a==="weight:del"){var dd=el.getAttribute("data-date");askConfirm("Delete this weigh-in?",function(){state.weights=state.weights.filter(function(x){return x.date!==dd;});save();});return;}
   if(a==="food:pick"){state.selDate=el.getAttribute("data-date");state.view="food";render();return;}
   if(a==="dl:open"){state.quickEntry=el.getAttribute("data-sec");render();var _f=document.querySelector(".wl-confirm-card input,.wl-confirm-card textarea");if(_f)_f.focus();return;}
+  if(a==="skip:weight"){var sd=state.selDate;var on=!isSkip(sd,"weight");setSkip(sd,"weight",on);if(on)state.weights=state.weights.filter(function(x){return x.date!==sd;});save();render();return;}
   if(a==="qe:close"){state.quickEntry=null;render();window.scrollTo(0,0);return;}
   if(a==="opentoday"){state.selDate=todayISO();state.calY=new Date().getFullYear();state.calM=new Date().getMonth();state.cardioForm=null;render();return;}
   if(a==="ai:copy"){copyText(weeklyAIText(),"Copied your week — paste into your AI to generate");return;}
@@ -2162,7 +2163,7 @@ document.addEventListener("click",function(e){
     setSyncCfg({token:inv.t,repo:inv.r||DEFAULT_REPO,branch:inv.b||DEFAULT_BRANCH,uid:inv.u});
     state.weights=[];state.food={};state.workouts={};state.steps={};state.notes={};state.sleep={};state.weeklySummary=null;state.nightlySummary=null;state.presets=[];
     state.settings=Object.assign({},DEFAULT_SETTINGS,{connections:inv.from?[inv.from]:[]});
-    ghSha=null;connData={};state.joinOpen=false;state.inviteCode=null;markDirty(true);save();applyTheme(state.settings.theme||"ink");autoSync();toast("Joined"+(inv.fromName?" · connected to "+inv.fromName:""));
+    ghSha=null;connData={};state.joinOpen=false;state.inviteCode=null;markDirty(true);save();applyTheme(state.settings.theme||"dark");autoSync();toast("Joined"+(inv.fromName?" · connected to "+inv.fromName:""));
     },{label:"Join",danger:false});return;}
   if(a==="conn:remove"){var ru=el.getAttribute("data-uid");askConfirm("Stop sharing with this person on your Home tab?",function(){state.settings.connections=(state.settings.connections||[]).filter(function(x){return x!==ru;});delete connData[ru];save();},{label:"Stop sharing"});return;}
   if(a==="reminder:add"){var ti=document.getElementById("wl-remind-time");var tv=(ti&&ti.value)||"19:00";state.settings.reminderTime=tv;save();shareOrDownload("activity-reminder.ics","text/calendar",reminderICS(tv));return;}
@@ -2241,7 +2242,7 @@ document.addEventListener("input",function(e){
   if(el.classList&&el.classList.contains("wl-steps-input")){
     var sd=state.selDate;var sv=el.value;if(num(sv)!=null)state.steps[sd]=num(sv);else delete state.steps[sd];save();refreshClearBtn();return;}
   if(el.classList&&el.classList.contains("wl-daywt-input")){
-    var wd=state.selDate;var wvv=num(el.value);state.weights=state.weights.filter(function(x){return x.date!==wd;});if(wvv!=null)state.weights.push({date:wd,weight:wvv});save();refreshClearBtn();return;}
+    var wd=state.selDate;var wvv=num(el.value);state.weights=state.weights.filter(function(x){return x.date!==wd;});if(wvv!=null){state.weights.push({date:wd,weight:wvv});setSkip(wd,"weight",false);}save();refreshClearBtn();return;}
 });
 function sanityWarn(el){
   if(!el||!el.classList)return;var v=num(el.value);if(v==null)return;
@@ -2277,7 +2278,7 @@ function applyImport(text){
   state.weights=Array.isArray(d.weights)?d.weights:[];
   state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;
   state.presets=(Array.isArray(d.presets)&&d.presets.length)?d.presets:DEFAULT_PRESETS.slice();
-  state.pasteOpen=false;state.view="overview";applyTheme(state.settings.theme||"ink");save();toast("Data restored");
+  state.pasteOpen=false;state.view="overview";applyTheme(state.settings.theme||"dark");save();toast("Data restored");
   },{label:"Replace",danger:false});
 }
 function exportData(){
@@ -2361,7 +2362,7 @@ function makeIcon(){
 }
 
 /* ---------------- init ---------------- */
-load();loadTraining();loadWorkout();ensureIdentity();applyTheme(state.settings.theme||"ink");makeIcon();if(state.workout)state.view="train";render();autoSync();if(state.workout)startWoTick();
+load();loadTraining();loadWorkout();ensureIdentity();applyTheme(state.settings.theme||"dark");makeIcon();if(state.workout)state.view="train";render();autoSync();if(state.workout)startWoTick();
 try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(e){}
 try{
   var wlraw=localStorage.getItem("wl_announced")||"";
