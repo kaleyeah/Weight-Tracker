@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.171 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.172 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -479,7 +479,7 @@ html[data-theme="light"] .wl-eyebrow{color:#AE7411;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.171";
+var APP_BUILD="2026-07-14.172";
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="34" y="26" width="32" height="12" rx="5" fill="#7C93F5"/><rect x="26" y="44" width="48" height="12" rx="5" fill="#9FB0C9"/><rect x="16" y="62" width="68" height="14" rx="5" fill="#F5B544"/></svg>';
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
@@ -889,23 +889,22 @@ function missingDays(){var list=[];var ws=parseInt(state.settings.weekStart,10)|
     if(empty)list.push(iso);}return list;}
 
 /* ---------------- chart (svg) ---------------- */
-function buildChart(c,goal,unit,compact){
+function buildChart(c,goal,unit,compact,rmin,rmax){
   var data=c.data;if(!data.length)return '<div class="wl-empty">No weigh-ins yet. Add your first one to see the chart.</div>';
   var W=340,H=compact?150:200,padL=34,padR=12,padT=14,padB=22;
   var ys=[];data.forEach(function(d){ys.push(d.weight);if(d.avg!=null)ys.push(d.avg);if(d.reg!=null)ys.push(d.reg);});
   if(goal!=null)ys.push(goal);
   var mn=Math.min.apply(null,ys),mx=Math.max.apply(null,ys);var padY=Math.max(1,(mx-mn)*0.14);
   var yMin=Math.floor(mn-padY),yMax=Math.ceil(mx+padY);if(yMin===yMax){yMax=yMin+2;}
-  var xMin=data[0].ts,xMax=data[data.length-1].ts;if(xMin===xMax){xMin-=DAY;xMax+=DAY;}
+  var xMin=(rmin!=null)?rmin:data[0].ts,xMax=(rmax!=null)?rmax:data[data.length-1].ts;if(xMin>data[0].ts)xMin=data[0].ts;if(xMax<data[data.length-1].ts)xMax=data[data.length-1].ts;if(xMin===xMax){xMin-=DAY;xMax+=DAY;}
   function sx(t){return padL+(t-xMin)/(xMax-xMin)*(W-padL-padR);}
   function sy(w){return (H-padB)-(w-yMin)/(yMax-yMin)*(H-padT-padB);}
   var s='<svg class="wl-chart" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" style="height:'+H+'px">';
   for(var i=0;i<=4;i++){var yv=yMin+(yMax-yMin)*i/4;var y=sy(yv);
     s+='<line x1="'+padL+'" y1="'+y+'" x2="'+(W-padR)+'" y2="'+y+'" stroke="'+CH.grid+'" stroke-dasharray="2 4"/>';
     s+='<text x="'+(padL-5)+'" y="'+(y+3)+'" fill="'+CH.axis+'" font-size="9" text-anchor="end">'+Math.round(yv)+'</text>';}
-  [data[0],data[Math.floor((data.length-1)/2)],data[data.length-1]].forEach(function(d,k){
-    var anchor=k===0?"start":k===2?"end":"middle";
-    s+='<text x="'+sx(d.ts)+'" y="'+(H-6)+'" fill="'+CH.axis+'" font-size="9" text-anchor="'+anchor+'">'+fmtShort(new Date(d.ts))+'</text>';});
+  [[xMin,"start"],[(xMin+xMax)/2,"middle"],[xMax,"end"]].forEach(function(pr){
+    s+='<text x="'+sx(pr[0])+'" y="'+(H-6)+'" fill="'+CH.axis+'" font-size="9" text-anchor="'+pr[1]+'">'+fmtShort(new Date(pr[0]))+'</text>';});
   if(goal!=null){var gy=sy(goal);s+='<line x1="'+padL+'" y1="'+gy+'" x2="'+(W-padR)+'" y2="'+gy+'" stroke="'+CH.goal+'" stroke-width="1.3" stroke-dasharray="5 4"/>';
     s+='<text x="'+(W-padR)+'" y="'+(gy-4)+'" fill="'+CH.goal+'" font-size="9" text-anchor="end">Goal '+r1(goal)+'</text>';}
   if(c.slope!=null){var r0=sy(c.slope*xMin+c.intercept),r1e=sy(c.slope*xMax+c.intercept);
@@ -1178,7 +1177,7 @@ function view_weight(){
   var wchg=rw.length>=2?(rw[rw.length-1].weight-rw[0].weight):null;
   h+='<div class="wl-card"><div class="wl-card-head"><span>Weight</span></div>';
   h+='<div class="wl-hint" style="margin-bottom:6px"><b>Change '+(wchg!=null?(wchg<=0?"▼ ":"▲ ")+Math.abs(r1(wchg))+" "+u:"—")+'</b>'+(rw.length?' · latest '+r1(rw[rw.length-1].weight)+" "+u:"")+'</div>';
-  if(wc.data.length)h+=buildChart(wc,goal,u,true);
+  if(wc.data.length)h+=buildChart(wc,goal,u,true,ctx.start.getTime(),ctx.end.getTime());
   else h+='<div class="wl-empty">No weigh-ins in this period.</div>';
   h+='</div>';
   var stepMap={};Object.keys(state.steps).forEach(function(d){var v=num(state.steps[d]);if(v!=null)stepMap[d]=v;});
@@ -2537,3 +2536,4 @@ document.addEventListener("visibilitychange",function(){if(!document.hidden)chec
 </script>
 </body>
 </html>
+l
