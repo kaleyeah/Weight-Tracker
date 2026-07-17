@@ -189,8 +189,9 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 .wl-cichips{gap:7px;}
 .wl-cichip{font-size:12px;font-weight:700;border-radius:9px;padding:7px 0;width:44px;text-align:center;border:1px solid var(--line);background:none;font-family:var(--sans);cursor:pointer;color:var(--muted);}
 .wl-cichip.ok{color:var(--good);border-color:var(--good);background:rgba(92,214,160,.12);}
+.wl-cichip.prog{color:var(--good);border-color:var(--good);background:none;}
+.wl-cichip.part{color:var(--accent);border-color:var(--accent);background:rgba(245,181,68,.12);}
 .wl-cichip.miss{color:var(--bad);border-color:var(--bad);background:rgba(242,109,91,.12);}
-.wl-cichip.today{color:var(--accent);border-color:var(--accent);}
 .wl-cichip.fut{color:var(--faint);opacity:.5;}
 
 .wl-chart{width:100%;height:auto;display:block;touch-action:manipulation;}
@@ -205,6 +206,17 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 .wl-stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px 8px;text-align:center;}
 .wl-stat-label{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);font-weight:600;}
 .wl-stat-val{font-family:var(--mono);font-size:16px;font-weight:600;margin-top:4px;}
+.wl-stat-sub{font-size:10px;color:var(--faint);margin-top:3px;}
+.wl-cilegend{display:flex;gap:16px;margin-top:11px;}
+.wl-cileg{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);}
+.wl-cidot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:none;}
+.wl-cidot.ok{background:var(--good);}
+.wl-cidot.part{background:var(--accent);}
+.wl-cidot.miss{background:var(--bad);}
+.wl-byday-head{display:flex;justify-content:flex-end;padding:2px 2px 7px;font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);font-weight:600;}
+.wl-byday{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;background:none;border:none;border-top:1px solid var(--line);padding:9px 2px;font-family:var(--sans);cursor:pointer;text-align:left;}
+.wl-byday-name{font-size:13px;font-weight:700;color:var(--text);flex:none;}
+.wl-byday-v{font-size:11px;color:var(--muted);text-align:right;font-family:var(--mono);line-height:1.3;}
 .wl-stat-val span{font-size:10px;color:var(--muted);}
 
 .wl-row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;}
@@ -414,7 +426,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.146";
+var APP_BUILD="2026-07-14.148";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -1193,6 +1205,8 @@ function weekDays(offset){var s=weekStartFor(offset),arr=[];for(var i=0;i<7;i++)
 function dayRow(d){var iso=toISO(d);var w=null;for(var i=0;i<state.weights.length;i++){if(state.weights[i].date===iso){w=state.weights[i].weight;break;}}
   var f=state.food[iso]||{};return {date:iso,dow:d.toLocaleDateString(undefined,{weekday:"long"}),d:d,weight:w,steps:num(state.steps[iso]),sleep:num(state.sleep[iso]),
     calories:num(f.calories),protein:num(f.protein),fat:num(f.fat),carbs:num(f.carbs),activities:normActs(iso).map(actLabel),note:state.notes[iso]||""};}
+function fnum(v){return v==null?"—":(Math.abs(v)>=1000?Math.round(v).toLocaleString():(v%1===0?String(v):String(r1(v))));}
+function avgStatF(label,disp,sub){return '<div class="wl-stat"><div class="wl-stat-label">'+label+'</div><div class="wl-stat-val">'+disp+'</div><div class="wl-stat-sub">'+(sub||"&nbsp;")+'</div></div>';}
 function sumStat(label,v,unit){
   if(label==="")return '<div class="wl-stat" style="visibility:hidden"></div>';
   var disp=v==null?"—":(Math.abs(v)>=1000?Math.round(v).toLocaleString():(v%1===0?String(v):String(r1(v))));
@@ -1200,34 +1214,40 @@ function sumStat(label,v,unit){
 function view_summary(){
   var days=weekDays(state.weekOffset).map(dayRow);
   var s=weekStartFor(state.weekOffset),e=new Date(s);e.setDate(s.getDate()+6);
-  var isThis=state.weekOffset===0;var label=fmtShort(s)+" – "+fmtShort(e);
+  var isThis=state.weekOffset===0;var label=fmtShort(s)+" – "+fmtShort(e);var u=state.settings.units;
   var metrics=["steps","calories","protein","fat","carbs"];var tot={},cnt={};
   metrics.forEach(function(k){tot[k]=0;cnt[k]=0;days.forEach(function(r){if(r[k]!=null){tot[k]+=r[k];cnt[k]++;}});});
   function avg(k){return cnt[k]?tot[k]/cnt[k]:null;}
   var wv=days.filter(function(r){return r.weight!=null;}).map(function(r){return r.weight;});
-  var wAvg=wv.length?wv.reduce(function(a,b){return a+b;},0)/wv.length:null;
   var slv=days.map(function(r){return num(state.sleep[r.date]);}).filter(function(x){return x!=null;});
   var slAvg=slv.length?Math.round(slv.reduce(function(a,b){return a+b;},0)/slv.length):null;
-  var h='<div class="wl-stack"><div class="wl-card"><div class="wl-cal-head"><button class="wl-icon-btn" data-act="sum:prev">‹</button><span class="wl-cal-title">'+label+(isThis?" · This week":"")+'</span><button class="wl-icon-btn" data-act="sum:next"'+(isThis?' style="opacity:.3"':'')+'>›</button></div><div class="wl-hint">'+DAYFULL[parseInt(state.settings.weekStart,10)||0]+' through '+DAYFULL[((parseInt(state.settings.weekStart,10)||0)+6)%7]+'.</div></div>';
-  var _tI=todayISO();
+  var ts=weekTrainingStats(s);var _tI=todayISO();
+  var tCal=num(state.settings.targetCalories),tStep=num(state.settings.stepsGoal),tProt=num(state.settings.targetProtein),tFat=num(state.settings.targetFat),tCarb=num(state.settings.targetCarbs),tSleep=sleepGoalMin();
+  var h='<div class="wl-stack"><div class="wl-daybar"><div class="wl-daybar-row"><button class="wl-icon-btn" data-act="sum:prev">‹</button><span class="wl-datebtn" style="cursor:default">'+label+(isThis?' · This week':'')+'</span><button class="wl-icon-btn"'+(isThis?' style="opacity:.3"':'')+' data-act="sum:next">›</button></div></div>';
   h+='<div class="wl-card"><div class="wl-card-head"><span>Completed Check-ins</span></div><div class="wl-chips wl-cichips">';
   days.forEach(function(r){var dISO=r.date;var dow=parseISO(dISO).toLocaleDateString(undefined,{weekday:"short"});
-    var cls;if(dISO>_tI)cls="fut";else if(dayMissing(dISO).length===0)cls="ok";else if(dISO<_tI)cls="miss";else cls="today";
+    if(dISO>_tI){h+='<span class="wl-cichip fut">'+dow+'</span>';return;}
+    var missN=dayMissing(dISO).length;var cls=missN===0?"ok":(dISO===_tI?"prog":(missN<4?"part":"miss"));
     h+='<button class="wl-cichip '+cls+'" data-act="openday" data-date="'+dISO+'">'+dow+'</button>';});
-  h+='</div><div class="wl-hint" style="margin-top:8px">Green = all four logged · Red = missed · tap a day to fill it in.</div></div>';
+  h+='</div><div class="wl-cilegend"><span class="wl-cileg"><i class="wl-cidot ok"></i>Completed</span><span class="wl-cileg"><i class="wl-cidot part"></i>Partial</span><span class="wl-cileg"><i class="wl-cidot miss"></i>Missed</span></div></div>';
   h+='<div class="wl-card"><div class="wl-card-head"><span>Weekly Totals</span></div><div class="wl-statrow" style="grid-template-columns:repeat(3,1fr)">'+
     sumStat("Calories",tot.calories||null,"")+sumStat("Steps",tot.steps||null,"")+sumStat("Weigh-ins",wv.length,"")+
-    sumStat("Protein",tot.protein||null,"g")+sumStat("Fat",tot.fat||null,"g")+sumStat("Carbs",tot.carbs||null,"g")+'</div></div>';
+    sumStat("Cardio min",ts.cardioZ2Mins||null,"")+sumStat("Lifting min",ts.liftMins||null,"")+sumStat("Cardio sessions",ts.cardioSessions||null,"")+'</div></div>';
   h+='<div class="wl-card"><div class="wl-card-head"><span>Averages <em>per logged day</em></span></div><div class="wl-statrow" style="grid-template-columns:repeat(3,1fr)">'+
-    sumStat("Calories",avg("calories"),"")+sumStat("Steps",avg("steps"),"")+sumStat("Weight avg",wAvg!=null?r1(wAvg):null,state.settings.units)+
-    sumStat("Protein",avg("protein"),"g")+sumStat("Fat",avg("fat"),"g")+sumStat("Carbs",avg("carbs"),"g")+'<div class="wl-stat"><div class="wl-stat-label">Sleep avg</div><div class="wl-stat-val">'+(slAvg!=null?minToHM(slAvg):"—")+'</div></div>'+'</div></div>';
-  h+='<div class="wl-card"><div class="wl-card-head"><span>By day</span></div><div class="wl-list">';
-  days.forEach(function(r){var parts=[];if(r.calories!=null)parts.push(Math.round(r.calories)+" cal");if(r.steps!=null)parts.push(Math.round(r.steps)+" st");
-    h+='<button class="wl-list-row wl-list-tap" data-act="sum:day" data-date="'+r.date+'"><span class="wl-list-date">'+r.dow.slice(0,3)+' '+(r.d.getMonth()+1)+'/'+r.d.getDate()+(r.activities.length?' · '+esc(r.activities.join(", ")):"")+'</span><span class="wl-list-val">'+(parts.join(" · ")||"—")+'</span></button>';});
-  h+='</div></div>';
+    avgStatF("Calories",fnum(avg("calories")),tCal!=null?"goal "+fnum(tCal):"")+
+    avgStatF("Steps",fnum(avg("steps")),tStep!=null?"goal "+fnum(tStep):"")+
+    avgStatF("Protein",avg("protein")!=null?fnum(avg("protein"))+"g":"—",tProt!=null?"goal "+tProt+"g":"")+
+    avgStatF("Fat",avg("fat")!=null?fnum(avg("fat"))+"g":"—",tFat!=null?"goal "+tFat+"g":"")+
+    avgStatF("Carbs",avg("carbs")!=null?fnum(avg("carbs"))+"g":"—",tCarb!=null?"goal "+tCarb+"g":"")+
+    avgStatF("Sleep",slAvg!=null?minToHM(slAvg):"—",tSleep!=null?"goal "+minToHM(tSleep):"")+'</div></div>';
+  h+='<div class="wl-card"><div class="wl-card-head"><span>By day</span><span class="wl-count">'+label+'</span></div><div class="wl-byday-head"><span>Sleep · Weight · Steps · Cal · P/F/C</span></div>';
+  days.forEach(function(r){var sl=num(state.sleep[r.date]);
+    var vals=[sl!=null?minToHM(sl):"–",r.weight!=null?r1(r.weight):"–",r.steps!=null?Math.round(r.steps).toLocaleString():"–",r.calories!=null?Math.round(r.calories).toLocaleString():"–","P"+(r.protein!=null?r.protein:"–")+" F"+(r.fat!=null?r.fat:"–")+" C"+(r.carbs!=null?r.carbs:"–")];
+    h+='<button class="wl-byday" data-act="sum:day" data-date="'+r.date+'"><span class="wl-byday-name">'+DAYFULL[r.d.getDay()]+'</span><span class="wl-byday-v">'+vals.join("  ·  ")+'</span></button>';});
+  h+='</div>';
   h+='<div class="wl-card"><div class="wl-card-head"><span>Weekly training</span></div>'+trainingGoalsHTML(s)+'</div>';
   h+='<div class="wl-card"><button class="wl-btn wl-btn-primary wl-full" data-act="go" data-view="diary">📷 Food Diary</button><div class="wl-hint" style="margin-top:8px">A visual collage of your meal photos by day, with each day\u2019s calories and macros.</div></div>';
-  h+='<div class="wl-card"><div class="wl-card-head"><span>Export</span></div><div class="wl-row"><button class="wl-btn wl-btn-primary wl-full" data-act="sum:exportweek">Export this week</button><button class="wl-btn wl-btn-ghost wl-full" data-act="sum:exportall">Export all</button></div><div class="wl-hint" style="margin-top:8px">CSV: Day, Date, Weight, Steps, Calories, Protein, Fat, Carbs, Activities.</div></div>';
+  h+='<div class="wl-card"><div class="wl-card-head"><span>Export</span></div><div class="wl-row"><button class="wl-btn wl-btn-primary wl-full" data-act="sum:exportweek">Export this week</button><button class="wl-btn wl-btn-ghost wl-full" data-act="sum:exportall">Export all</button></div><div class="wl-hint" style="margin-top:8px">CSV includes: Day, Date, Weight, Steps, Sleep, Calories, Protein, Fat, Carbs, Activities, and Notes.</div></div>';
   return h+'</div>';}
 function csvCell(v){v=(v==null?"":String(v));return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
 function mdyy(iso){var d=parseISO(iso);return (d.getMonth()+1)+"/"+d.getDate()+"/"+String(d.getFullYear()).slice(-2);}
