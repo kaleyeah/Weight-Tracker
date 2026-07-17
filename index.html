@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.174 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.175 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="apple-mobile-web-app-title" content="Weight" />
+<meta name="apple-mobile-web-app-title" content="Compound" />
 <meta name="theme-color" content="#0F1218" />
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Barlow+Semi+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600&family=Nunito:wght@400;600;700;800&display=swap');
@@ -435,17 +435,8 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 .wl-navbtn svg{width:20px;height:20px;}
 .wl-navbtn.on{color:var(--accent);}
 @media(max-width:420px){.wl-statrow{grid-template-columns:repeat(2,1fr);}.wl-bignum{font-size:36px;}.wl-navbtn{font-size:9px;}.wl-navbtn svg{width:19px;height:19px;}}
-html[data-theme="light"] .wl-title{color:#151A21;}
-html[data-theme="light"] .wl-eyebrow{color:#AE7411;}
+html[data-theme="light"] .wl-header{background:#0F1218;}
 html[data-theme="light"] .wl-brandword{color:#151A21;}
-html[data-theme="light"] .wl-verchip,html[data-theme="light"] .wl-synctime,html[data-theme="light"] .wl-sync{color:#5C6879;}
-html[data-theme="light"] .wl-daybar-row .wl-datebtn{color:#151A21;}
-html[data-theme="light"] .wl-daybar-row .wl-icon-btn,html[data-theme="light"] .wl-daybar-row .wl-chevron{color:#5C6879;}
-html[data-theme="light"] .wl-daybar.off .wl-daybar-row .wl-datebtn{color:#AE7411;}
-html[data-theme="light"] .wl-hnav-lbl{color:#151A21;}
-html[data-theme="light"] .wl-hnav.off .wl-hnav-lbl{color:#AE7411;}
-html[data-theme="light"] .wl-hnav-arw{color:#5C6879;}
-html[data-theme="light"] .wl-eyebrow{color:#AE7411;}
 .wl-photos{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
 .wl-photostrip-row{display:flex;gap:6px;overflow-x:auto;padding:2px 0 6px;-webkit-overflow-scrolling:touch;}
 .wl-photo-sm{width:52px;height:52px;flex:none;border-radius:8px;background-size:cover;background-position:center;border:1px solid var(--line);cursor:pointer;padding:0;}
@@ -479,7 +470,7 @@ html[data-theme="light"] .wl-eyebrow{color:#AE7411;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.174";
+var APP_BUILD="2026-07-14.175";
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="34" y="26" width="32" height="12" rx="5" fill="#7C93F5"/><rect x="26" y="44" width="48" height="12" rx="5" fill="#9FB0C9"/><rect x="16" y="62" width="68" height="14" rx="5" fill="#F5B544"/></svg>';
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
