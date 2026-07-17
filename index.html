@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.161 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.162 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -201,6 +201,12 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 .wl-rtrow-name{font-size:15px;font-weight:700;color:var(--text);}
 .wl-rtrow-sub{font-size:12px;color:var(--muted);}
 .wl-rtrow-go{color:var(--faint);font-size:20px;flex:none;}
+.wl-prlist{display:flex;flex-direction:column;}
+.wl-prrow{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:9px 0;border-top:1px solid var(--line);}
+.wl-prrow:first-child{border-top:none;}
+.wl-prrow-name{font-size:14px;font-weight:600;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.wl-prrow-val{font-size:13px;font-weight:700;color:var(--accent);font-family:var(--mono);text-align:right;flex:none;white-space:nowrap;}
+.wl-prrow-e{display:block;font-size:10.5px;font-weight:600;color:var(--muted);font-family:var(--sans);}
 
 .wl-chart{width:100%;height:auto;display:block;touch-action:manipulation;}
 .wl-chart text{font-family:var(--mono);}
@@ -449,7 +455,7 @@ html[data-theme="light"] .wl-daybar.off .wl-daybar-row .wl-datebtn{color:#AE7411
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.161";
+var APP_BUILD="2026-07-14.162";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -1698,6 +1704,23 @@ function analyzeSession(date,sessId){var arr=(state.training.liftSessions||{})[d
     }
   });
   return {prs:prs,progress:progress};}
+function allTimeBests(){var ls=state.training.liftSessions||{};var map={};
+  Object.keys(ls).forEach(function(d){(ls[d]||[]).forEach(function(s){(s.entries||[]).forEach(function(en){
+    (en.sets||[]).forEach(function(st){if(st.status==="skipped")return;var w=num(st.weight),r=num(st.reps);if(w==null||r==null||r<1)return;
+      var k=en.exerciseId||en.name;var m=map[k];if(!m){m=map[k]={exId:en.exerciseId,name:en.name,bestW:null,bestWr:null,bestE:null};}
+      m.name=en.name;
+      if(m.bestW==null||w>m.bestW){m.bestW=w;m.bestWr=r;}else if(w===m.bestW&&r>(m.bestWr||0)){m.bestWr=r;}
+      var e=e1rm(w,r);if(e!=null&&(m.bestE==null||e>m.bestE))m.bestE=e;});});});});
+  var arr=[];for(var k in map)arr.push(map[k]);
+  arr.sort(function(a,b){return (b.bestE||0)-(a.bestE||0);});
+  return arr;}
+function prSummaryHTML(){var bests=allTimeBests();if(!bests.length)return "";var u=state.settings.units;
+  var h='<div class="wl-card"><div class="wl-card-head"><span>Personal Records</span><span class="wl-count">'+bests.length+'</span></div><div class="wl-prlist">';
+  bests.forEach(function(b){var ex=b.exId?exById(b.exId):null;var bw=ex&&ex.bodyweight;var main,sub="";
+    if(bw){main=(b.bestW>0?("BW +"+b.bestW+" "+u):"BW")+" \u00d7 "+b.bestWr;}
+    else{main=b.bestW+" "+u+" \u00d7 "+b.bestWr;if(b.bestE!=null)sub="est. 1RM "+Math.round(b.bestE)+" "+u;}
+    h+='<div class="wl-prrow"><span class="wl-prrow-name">'+esc(b.name)+'</span><span class="wl-prrow-val">'+esc(main)+(sub?'<span class="wl-prrow-e">'+esc(sub)+'</span>':'')+'</span></div>';});
+  return h+'</div></div>';}
 function view_liftview(){var s=getLiftSession();var u=state.settings.units;var mode=state.liftEdit;var h='<div class="wl-stack">';
   if(!s){h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="lift:back">‹</button><span class="wl-cal-title">Session</span></div><div class="wl-card"><div class="wl-hint">Session not found.</div></div>';return h+'</div>';}
   if(mode==="summary"){
@@ -1861,6 +1884,7 @@ function view_train(){
     h+='<div class="wl-sess"><button class="wl-sess-main" data-act="lift:view" data-id="'+s.id+'"><span class="wl-sess-type">'+esc(s.name||"Weight training")+'</span><span class="wl-sess-meta">'+meta.join("  ·  ")+'</span></button><button class="wl-icon-btn" data-act="lift:del" data-id="'+s.id+'">'+I.trash.replace("<svg","<svg width=15 height=15")+'</button></div>';});}
   else if(!state.workout){h+='<div class="wl-hint">No weight training logged for this day.</div>';}
   h+='<button class="wl-btn wl-btn-lift wl-full" style="margin-top:10px" data-act="wt:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add Weight Training</button></div>';
+  h+=prSummaryHTML();
   h+=actCatCardHTML("rest","Recovery",d);
   h+=actCatCardHTML("supp","Supplements & Meds",d);
   return h+'</div>';
