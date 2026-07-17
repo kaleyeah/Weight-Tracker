@@ -319,10 +319,14 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 .wl-daypick{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;}
 .wl-day{padding:9px 0;border:1px solid var(--line);border-radius:9px;background:var(--bg2);color:var(--text);font-size:12px;font-weight:700;font-family:var(--sans);}
 .wl-day.on{background:var(--accent);color:var(--on-accent);border-color:var(--accent);}
-.wl-datebtn{flex:1;background:none;border:none;color:var(--text);font-size:15px;font-weight:700;font-family:var(--sans);display:flex;align-items:center;justify-content:center;gap:4px;padding:6px 4px;min-width:0;}
-.wl-daybar.off{border-color:var(--accent);background:rgba(245,181,68,.08);}
+.wl-datebtn{background:none;border:none;color:var(--text);font-size:15px;font-weight:700;font-family:var(--sans);display:flex;align-items:center;justify-content:center;gap:4px;padding:6px 4px;min-width:0;}
+.wl-daybar{margin-bottom:2px;}
+.wl-daybar-row{display:flex;align-items:center;justify-content:center;gap:2px;}
+.wl-daybar .wl-datebtn{flex:0 1 auto;font-size:14.5px;}
+.wl-daybar.off .wl-datebtn{color:var(--accent);}
+.wl-daydot{width:6px;height:6px;border-radius:50%;background:var(--good);display:inline-block;margin-right:7px;}
 .wl-today-pill{font-size:9px;font-weight:800;letter-spacing:.05em;color:var(--good);border:1px solid var(--good);border-radius:20px;padding:1px 7px;margin-left:8px;}
-.wl-jumptoday{background:var(--accent);color:#000;border:none;border-radius:20px;padding:6px 15px;font-weight:800;font-size:12px;font-family:var(--sans);cursor:pointer;}
+.wl-jumptoday{background:var(--accent);color:#000;border:none;border-radius:20px;padding:5px 14px;font-weight:800;font-size:12px;font-family:var(--sans);cursor:pointer;}
 .wl-check{padding:4px 4px 6px;}
 .wl-ck-head{display:flex;justify-content:space-between;align-items:center;padding:9px 12px 5px;}
 .wl-ck-title{font-size:12px;letter-spacing:.03em;text-transform:uppercase;color:var(--muted);font-weight:700;}
@@ -403,7 +407,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.133";
+var APP_BUILD="2026-07-14.135";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -1128,20 +1132,24 @@ function calNoticeHTML(iso){var e=state.food[iso];if(!e)return "";
   if(Math.abs(cal-mt)<=2||e.calDismiss)return "";
   return '<div class="wl-calnote"><span>Macros total <b>'+mt.toLocaleString()+' cal</b>, but Calories says <b>'+Math.round(cal).toLocaleString()+'</b>.</span><span class="wl-calnote-actions"><button class="wl-calnote-btn" data-act="cal:overwrite">Overwrite</button><button class="wl-calnote-btn ghost" data-act="cal:ignore">Ignore</button></span></div>';}
 function dayBarHTML(){
-  var sel=state.selDate;var isToday=sel===todayISO();
-  var h='<div class="wl-card wl-daybar'+(isToday?"":" off")+'"><div class="wl-cal-head"><button class="wl-icon-btn" data-act="day:prev">‹</button>';
-  h+='<button class="wl-datebtn" data-act="cal:expand">'+(isToday?'Today · ':'')+fmtLong(parseISO(sel))+(isToday?'<span class="wl-today-pill">TODAY</span>':'')+'<span class="wl-chevron'+(state.calOpen?" open":"")+'" style="font-size:16px;line-height:1;margin-left:7px">›</span></button>';
-  h+='<button class="wl-icon-btn"'+(sel>=todayISO()?' style="opacity:.3"':'')+' data-act="day:next">›</button></div>';
-  if(state.calOpen){
+  var sel=state.selDate;var isToday=sel===todayISO();var open=state.calOpen;
+  var lbl=isToday?('<span class="wl-daydot"></span>Today, '+parseISO(sel).toLocaleDateString(undefined,{month:"short",day:"numeric"})):fmtLong(parseISO(sel));
+  var h='<div class="wl-daybar'+(isToday?"":" off")+'"><div class="wl-daybar-row">';
+  if(!open)h+='<button class="wl-icon-btn" data-act="day:prev">‹</button>';
+  h+='<button class="wl-datebtn" data-act="cal:expand">'+lbl+'<span class="wl-chevron'+(open?" open":"")+'" style="font-size:15px;line-height:1;margin-left:4px">›</span></button>';
+  if(!open)h+='<button class="wl-icon-btn"'+(sel>=todayISO()?' style="opacity:.3"':'')+' data-act="day:next">›</button>';
+  h+='</div>';
+  var now=new Date();var curMonth=open&&state.calY===now.getFullYear()&&state.calM===now.getMonth();
+  if(!isToday&&!curMonth)h+='<div style="text-align:center;margin-top:6px"><button class="wl-jumptoday" data-act="opentoday">Jump to today</button></div>';
+  if(open){
     var y=state.calY,m=state.calM;var dim=new Date(y,m+1,0).getDate();var lead=new Date(y,m,1).getDay();
-    h+='<div class="wl-cal-head" style="margin-top:12px"><button class="wl-icon-btn" data-act="cal:prev">‹</button><span class="wl-cal-title">'+MONTHS[m]+' '+y+'</span><button class="wl-icon-btn" data-act="cal:next">›</button></div><div class="wl-cal-grid wl-cal-dow">';
+    h+='<div class="wl-card" style="margin-top:8px;padding:12px"><div class="wl-cal-head"><button class="wl-icon-btn" data-act="cal:prev">‹</button><span class="wl-cal-title">'+MONTHS[m]+' '+y+'</span><button class="wl-icon-btn" data-act="cal:next">›</button></div><div class="wl-cal-grid wl-cal-dow">';
     WEEKDAYS.forEach(function(dw){h+='<div class="wl-dow">'+dw+'</div>';});h+='</div><div class="wl-cal-grid">';
     for(var i=0;i<lead;i++)h+='<div class="wl-cell empty"></div>';
     for(var d=1;d<=dim;d++){var iso=toISO(new Date(y,m,d));var isT=iso===todayISO();var isS=iso===sel;
       h+='<button class="wl-cell'+(isS?" sel":"")+(isT?" today":"")+'" data-act="cal:sel" data-date="'+iso+'"><span class="wl-cell-num">'+d+'</span>'+dayDots(iso)+'</button>';}
-    h+='</div>';
+    h+='</div></div>';
   }
-  if(!isToday)h+='<div style="text-align:center;margin-top:'+(state.calOpen?"12px":"10px")+'"><button class="wl-jumptoday" data-act="opentoday">Jump to today</button></div>';
   return h+'</div>';
 }
 function quickEntryHTML(){
