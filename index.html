@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.160 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.161 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -194,6 +194,13 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 .wl-cichip.part{color:var(--accent);border-color:var(--accent);background:rgba(245,181,68,.12);}
 .wl-cichip.miss{color:var(--bad);border-color:var(--bad);background:rgba(242,109,91,.12);}
 .wl-cichip.fut{color:var(--faint);opacity:.5;}
+.wl-rtlist{display:flex;flex-direction:column;}
+.wl-rtrow{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;background:none;border:none;border-top:1px solid var(--line);padding:13px 2px;font-family:var(--sans);cursor:pointer;text-align:left;}
+.wl-rtrow:first-child{border-top:none;}
+.wl-rtrow-info{display:flex;flex-direction:column;gap:2px;min-width:0;}
+.wl-rtrow-name{font-size:15px;font-weight:700;color:var(--text);}
+.wl-rtrow-sub{font-size:12px;color:var(--muted);}
+.wl-rtrow-go{color:var(--faint);font-size:20px;flex:none;}
 
 .wl-chart{width:100%;height:auto;display:block;touch-action:manipulation;}
 .wl-chart text{font-family:var(--mono);}
@@ -442,7 +449,7 @@ html[data-theme="light"] .wl-daybar.off .wl-daybar-row .wl-datebtn{color:#AE7411
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.160";
+var APP_BUILD="2026-07-14.161";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -1457,23 +1464,23 @@ var EXSEED=[
 ];
 function muscleTagHTML(k){var m=muscleInfo(k);return '<span class="wl-mtag on" style="--mc:'+m.color+'"><span class="wl-mtag-bars">▎▎▎</span>'+m.label.toUpperCase()+'</span>';}
 function exFormHTML(xf){
-  var h='<div class="wl-card" style="border:1px solid var(--accent)"><div class="wl-card-head"><span>'+(xf.id?"Edit exercise":"New exercise")+'</span></div>';
+  var h='<div class="wl-card" style="border:1px solid var(--accent)"><div class="wl-card-head"><span>'+(xf.id?"Edit Exercise":"New Exercise")+'</span></div>';
   h+='<label class="wl-field wl-field-full"><span>Name</span><input class="wl-ex-input" data-xf="name" type="text" placeholder="e.g. Smith Machine Bench Press" value="'+esc(xf.name||"")+'"></label>';
-  h+='<div class="wl-cf-label" style="margin-top:14px">Muscle group</div><div class="wl-preset-list">'+MUSCLES.map(function(m){return '<button class="wl-mtag'+(xf.muscle===m[0]?" on":"")+'" data-act="ex:muscle" data-muscle="'+m[0]+'" style="--mc:'+m[2]+'">'+m[1]+'</button>';}).join("")+'</div>';
+  h+='<div class="wl-cf-label" style="margin-top:14px">Muscle Group</div><div class="wl-preset-list">'+MUSCLES.map(function(m){return '<button class="wl-mtag'+(xf.muscle===m[0]?" on":"")+'" data-act="ex:muscle" data-muscle="'+m[0]+'" style="--mc:'+m[2]+'">'+m[1]+'</button>';}).join("")+'</div>';
   h+='<label class="wl-field wl-field-full" style="margin-top:14px"><span>Equipment <em>optional</em></span><input class="wl-ex-input" data-xf="equipment" type="text" placeholder="e.g. Dumbbell, Cable, Smith Machine" value="'+esc(xf.equipment||"")+'"></label>';
-  h+='<div style="margin-top:12px"><button class="wl-achip'+(xf.bodyweight?" on":"")+'" data-act="ex:bw">'+(xf.bodyweight?"✓ ":"")+'Bodyweight exercise</button></div>';
+  h+='<div style="margin-top:12px"><button class="wl-achip'+(xf.bodyweight?" on":"")+'" data-act="ex:bw">'+(xf.bodyweight?"✓ ":"")+'Bodyweight Exercise</button></div>';
   h+='<div class="wl-hint" style="margin-top:6px">Turn on for pull-ups, dips, etc. — sets will use your bodyweight (plus any added load) when logging.</div>';
-  h+='<div class="wl-row" style="margin-top:14px"><button class="wl-btn wl-btn-primary wl-full" data-act="ex:save">'+(xf.id?"Save changes":"Add exercise")+'</button><button class="wl-btn wl-btn-ghost" data-act="ex:cancel">Cancel</button></div>';
-  if(xf.id)h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px;color:var(--bad);border-color:var(--bad)" data-act="ex:del" data-id="'+xf.id+'">'+I.trash.replace("<svg","<svg width=15 height=15")+'Delete exercise</button>';
+  h+='<div class="wl-row" style="margin-top:14px"><button class="wl-btn wl-btn-primary wl-full" data-act="ex:save">'+(xf.id?"Save Changes":"Add Exercise")+'</button><button class="wl-btn wl-btn-ghost" data-act="ex:cancel">Cancel</button></div>';
+  if(xf.id)h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px;color:var(--bad);border-color:var(--bad)" data-act="ex:del" data-id="'+xf.id+'">'+I.trash.replace("<svg","<svg width=15 height=15")+'Delete Exercise</button>';
   return h+'</div>';
 }
 function view_exlib(){
   var xf=state.exForm;
   var h='<div class="wl-stack">';
   if(state.browseOpen){
-    h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="browse:close">‹</button><span class="wl-cal-title">Common exercises</span><span style="width:36px;display:inline-block"></span></div>';
+    h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="browse:close">‹</button><span class="wl-cal-title">Common Exercises</span><span style="width:36px;display:inline-block"></span></div>';
     h+='<div class="wl-hint" style="text-align:center;margin-bottom:4px">Tap to add to your library. Add what you use — you can edit or remove any of them afterward.</div>';
-    h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-bottom:4px" data-act="ex:seedall">Add all of these</button>';
+    h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-bottom:4px" data-act="ex:seedall">Add All of These</button>';
     MUSCLES.forEach(function(mm){var seeds=EXSEED.map(function(s,i){return {s:s,i:i};}).filter(function(x){return x.s.m===mm[0];});if(!seeds.length)return;
       h+='<div class="wl-card"><div style="margin-bottom:8px">'+muscleTagHTML(mm[0])+'</div><div class="wl-preset-list">';
       seeds.forEach(function(x){var added=(state.training.exercises||[]).some(function(e){return e.name.toLowerCase()===x.s.n.toLowerCase();});
@@ -1482,7 +1489,7 @@ function view_exlib(){
     h+='<button class="wl-btn wl-btn-primary wl-full" data-act="browse:close">Done</button>';
     return h+'</div>';
   }
-  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="go" data-view="train">‹</button><span class="wl-cal-title">Exercise Library</span><span style="width:36px;display:inline-block"></span></div>';
+  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="go" data-view="'+(state.exlibFrom||"train")+'">‹</button><span class="wl-cal-title">Exercise Library</span><span style="width:36px;display:inline-block"></span></div>';
   var exs=state.training.exercises||[];
   if(!exs.length&&!xf)h+='<div class="wl-card"><div class="wl-hint">No exercises yet. Tap <b>Browse common exercises</b> to add popular ones fast, or <b>Add exercise</b> to enter your own.</div></div>';
   if(exs.length){MUSCLES.forEach(function(m){
@@ -1493,9 +1500,9 @@ function view_exlib(){
       h+='<div class="wl-exrow"><button class="wl-exrow-main" data-act="ex:edit" data-id="'+x.e.id+'"><span class="wl-exrow-name">'+esc(x.e.name)+'</span>'+(sub.length?'<span class="wl-exrow-sub">'+sub.join(" · ")+'</span>':'')+'</button><button class="wl-exrow-del" data-act="ex:del" data-id="'+x.e.id+'">'+I.trash.replace("<svg","<svg width=17 height=17")+'</button></div>';});
     h+='</div>';});}
   if(xf)h+=exFormHTML(xf);
-  else{h+='<button class="wl-btn wl-btn-primary wl-full" data-act="ex:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add exercise</button>';
-    h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="browse:open">Browse common exercises</button>';
-    if(exs.length)h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="ex:clearall">Clear all exercises</button>';}
+  else{h+='<button class="wl-btn wl-btn-primary wl-full" data-act="ex:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add Exercise</button>';
+    h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="browse:open">Browse Common Exercises</button>';
+    if(exs.length)h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="ex:clearall">Clear All Exercises</button>';}
   return h+'</div>';
 }
 function exById(id){return (state.training.exercises||[]).filter(function(e){return e.id===id;})[0];}
@@ -1527,7 +1534,7 @@ function routineItemHTML(rt,it,idx){
 }
 function routinePickHTML(rt){
   var h='<div class="wl-stack">';
-  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="ri:pickclose">‹</button><span class="wl-cal-title">Add exercise</span><span style="width:36px;display:inline-block"></span></div>';
+  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="ri:pickclose">‹</button><span class="wl-cal-title">Add Exercise</span><span style="width:36px;display:inline-block"></span></div>';
   var exs=state.training.exercises||[];
   if(!exs.length)h+='<div class="wl-card"><div class="wl-hint">Your library is empty. <button class="wl-link" data-act="go" data-view="exlib">Add exercises first</button>.</div></div>';
   MUSCLES.forEach(function(m){var items=exs.filter(function(e){return (e.muscle||"other")===m[0];}).sort(function(a,b){return (a.name||"").toLowerCase().localeCompare((b.name||"").toLowerCase());});
@@ -1544,13 +1551,14 @@ function view_routine(){
   var h='<div class="wl-stack">';
   if(!rt){h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="go" data-view="train">‹</button><span class="wl-cal-title">Routine</span></div><div class="wl-card"><div class="wl-hint">Routine not found.</div></div>';return h+'</div>';}
   if(state.riPickOpen)return routinePickHTML(rt);
-  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="rt:save">‹</button><span class="wl-cal-title">Edit routine</span><span style="width:36px;display:inline-block"></span></div>';
-  h+='<div class="wl-card"><label class="wl-field wl-field-full"><span>Routine name</span><input class="wl-rt-name" type="text" value="'+esc(rt.name||"")+'" placeholder="e.g. Day 1 – Push"></label></div>';
+  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="rt:save">‹</button><span class="wl-cal-title">Edit Routine</span><span style="width:36px;display:inline-block"></span></div>';
+  h+='<div class="wl-card"><label class="wl-field wl-field-full"><span>Routine Name</span><input class="wl-rt-name" type="text" value="'+esc(rt.name||"")+'" placeholder="e.g. Day 1 – Push"></label></div>';
   if(!(rt.items||[]).length)h+='<div class="wl-card"><div class="wl-hint">No exercises yet. Add them from your library below — they\u2019ll group by muscle automatically.</div></div>';
   (rt.items||[]).forEach(function(it,idx){h+=routineItemHTML(rt,it,idx);});
-  h+='<button class="wl-btn wl-btn-ghost wl-full" data-act="ri:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add exercise</button>';
-  h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:8px" data-act="rt:save">'+I.check.replace("<svg","<svg width=16 height=16")+'Save routine</button>';
-  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="rt:del" data-id="'+rt.id+'">Delete routine</button>';
+  h+='<button class="wl-btn wl-btn-ghost wl-full" data-act="ri:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add Exercise</button>';
+  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="go" data-view="exlib">Exercise Library'+((state.training.exercises||[]).length?' <span class="wl-count">'+(state.training.exercises||[]).length+'</span>':'')+'</button>';
+  h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:8px" data-act="rt:save">'+I.check.replace("<svg","<svg width=16 height=16")+'Save Routine</button>';
+  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="rt:del" data-id="'+rt.id+'">Delete Routine</button>';
   return h+'</div>';
 }
 function routinePreviewHTML(rt){var h='';
@@ -1564,9 +1572,9 @@ function view_rlaunch(){
   if(!rt){h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="go" data-view="train">‹</button><span class="wl-cal-title">Routine</span></div>';return h+'</div>';}
   h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="go" data-view="train">‹</button><span class="wl-cal-title">'+esc(rt.name||"Routine")+'</span><span style="width:36px;display:inline-block"></span></div>';
   h+='<div class="wl-card">'+(rt.items&&rt.items.length?routinePreviewHTML(rt):'<div class="wl-hint">No exercises in this routine yet.</div>')+'</div>';
-  if(rt.items&&rt.items.length)h+='<button class="wl-btn wl-btn-primary wl-full" data-act="wo:start" data-id="'+rt.id+'">▶ Start workout</button>';
-  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:quick" data-id="'+rt.id+'">Quick log <em style="color:var(--faint);font-style:normal">— just the summary</em></button>';
-  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="rt:openedit" data-id="'+rt.id+'">Edit routine</button>';
+  if(rt.items&&rt.items.length)h+='<button class="wl-btn wl-btn-primary wl-full" data-act="wo:start" data-id="'+rt.id+'">▶ Start Workout</button>';
+  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:quick" data-id="'+rt.id+'">Quick Log <em style="color:var(--faint);font-style:normal">— just the summary</em></button>';
+  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="rt:openedit" data-id="'+rt.id+'">Edit Routine</button>';
   return h+'</div>';
 }
 function liftFormHTML(lf){
@@ -1760,14 +1768,13 @@ function woOverlaysHTML(){var h="";
   if(state.noteEdit&&state.noteEdit.woEi!=null)h+='<div class="wl-confirm"><div class="wl-confirm-card">'+noteEditorHTML()+'</div></div>';
   return h;}
 function view_wtadd(){var h='<div class="wl-stack">';
-  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="go" data-view="train">‹</button><span class="wl-cal-title">Add weight training</span><span style="width:36px;display:inline-block"></span></div>';
+  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="go" data-view="train">‹</button><span class="wl-cal-title">Add Weight Training</span><span style="width:36px;display:inline-block"></span></div>';
   var rts=state.training.routines||[];
-  h+='<div class="wl-card"><div class="wl-card-head"><span>Choose a routine</span></div>';
-  if(rts.length){rts.forEach(function(rt){var nEx=(rt.items||[]).length;h+='<button class="wl-exrow-main" data-act="rt:open" data-id="'+rt.id+'" style="width:100%;padding:13px 0;border-bottom:1px solid var(--line)"><span class="wl-exrow-name">'+esc(rt.name||"Untitled routine")+'</span><span class="wl-exrow-sub">'+nEx+' exercise'+(nEx===1?"":"s")+'</span></button>';});}
+  h+='<div class="wl-card"><div class="wl-card-head"><span>Routines'+(rts.length?' <span class="wl-count">'+rts.length+'</span>':'')+'</span></div>';
+  if(rts.length){h+='<div class="wl-rtlist">';rts.forEach(function(rt){var nEx=(rt.items||[]).length;h+='<button class="wl-rtrow" data-act="rt:open" data-id="'+rt.id+'"><span class="wl-rtrow-info"><span class="wl-rtrow-name">'+esc(rt.name||"Untitled Routine")+'</span><span class="wl-rtrow-sub">'+nEx+' exercise'+(nEx===1?"":"s")+'</span></span><span class="wl-rtrow-go">›</span></button>';});h+='</div>';}
   else h+='<div class="wl-hint">No routines yet — create one to get started.</div>';
-  h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="rt:new">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add new routine</button>';
+  h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="rt:new">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add New Routine</button>';
   h+='</div>';
-  h+='<button class="wl-btn wl-btn-ghost wl-full" data-act="go" data-view="exlib">Exercise library'+((state.training.exercises||[]).length?' <span class="wl-count">'+state.training.exercises.length+'</span>':'')+'</button>';
   return h+'</div>';}
 function view_wtadd_end(){}
 function view_quicklog(){
@@ -1952,7 +1959,7 @@ function confirmOverlayHTML(){var c=state.pendingConfirm;if(!c)return "";
   return '<div class="wl-confirm"><div class="wl-confirm-card"><div class="wl-confirm-msg">'+esc(c.message)+'</div><div class="wl-confirm-btns"><button class="wl-btn wl-btn-ghost wl-full" data-act="confirm:no">Cancel</button><button class="wl-btn wl-full" style="background:'+(c.danger?"var(--bad)":"var(--accent)")+';color:#fff;border:none" data-act="confirm:yes">'+esc(c.label)+'</button></div></div></div>';}
 function render(){
   clearPhotoURLs();
-  var title=state.view==="settings"?"Settings":state.view==="diary"?"Food Diary":state.view==="exlib"?"Exercise Library":state.view==="routine"?"Routine":state.view==="rlaunch"?"Routine":state.view==="quicklog"?"Quick log":state.view==="workout"?"Workout":state.view==="wtadd"?"Add weight training":(NAV.filter(function(n){return n[0]===state.view;})[0]||["","" ])[1];
+  var title=state.view==="settings"?"Settings":state.view==="diary"?"Food Diary":state.view==="exlib"?"":state.view==="routine"?"":state.view==="rlaunch"?"":state.view==="quicklog"?"Quick log":state.view==="workout"?"Workout":state.view==="wtadd"?"":(NAV.filter(function(n){return n[0]===state.view;})[0]||["","" ])[1];
   var body=state.view==="overview"?view_overview():(state.view==="food"||state.view==="calendar")?view_overview():state.view==="weight"?view_weight():state.view==="summary"?view_summary():state.view==="diary"?view_diary():state.view==="train"?view_train():state.view==="exlib"?view_exlib():state.view==="routine"?view_routine():state.view==="rlaunch"?view_rlaunch():state.view==="quicklog"?view_quicklog():state.view==="workout"?view_workout():state.view==="liftview"?view_liftview():state.view==="wtadd"?view_wtadd():view_settings();
   var nav='<nav class="wl-nav">'+NAV.map(function(n){return '<button class="wl-navbtn '+(state.view===n[0]||(n[0]==="overview"&&(state.view==="food"||state.view==="diary"))?"on":"")+'" data-act="go" data-view="'+n[0]+'">'+I[n[0]]+'<span>'+n[1]+'</span></button>';}).join("")+'</nav>';
   var avatar='<button class="wl-avatar'+(state.view==="settings"?" on":"")+'" data-act="go" data-view="settings" aria-label="Settings"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>';
@@ -1967,7 +1974,7 @@ function render(){
 function toast(msg){var t=document.getElementById("wl-toast");t.textContent=msg;t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(function(){t.classList.remove("show");},1600);}
 document.addEventListener("click",function(e){
   var el=e.target.closest("[data-act]");if(!el)return;var a=el.getAttribute("data-act");
-  if(a==="go"){state.view=el.getAttribute("data-view");if(state.view==="diary")state.diaryWeeks=1;if(state.view==="settings"){state.open={};state.manageOpen=false;}state.alertDismissed=false;state.confirmReset=false;state.pasteOpen=false;state.syncPasteOpen=false;state.inviteCode=null;state.joinOpen=false;render();return;}
+  if(a==="go"){var _gv=el.getAttribute("data-view");if(_gv==="exlib"&&state.view!=="exlib")state.exlibFrom=state.view;state.view=_gv;if(state.view==="diary")state.diaryWeeks=1;if(state.view==="settings"){state.open={};state.manageOpen=false;}state.alertDismissed=false;state.confirmReset=false;state.pasteOpen=false;state.syncPasteOpen=false;state.inviteCode=null;state.joinOpen=false;render();return;}
   if(a==="confirm:yes"){var pc=state.pendingConfirm;state.pendingConfirm=null;if(pc&&pc.fn)pc.fn();render();return;}
   if(a==="confirm:no"){state.pendingConfirm=null;render();return;}
   if(a==="alert:dismiss"){state.alertDismissed=true;render();return;}
