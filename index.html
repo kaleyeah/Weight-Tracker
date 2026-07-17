@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.153 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.154 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -436,7 +436,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.153";
+var APP_BUILD="2026-07-14.154";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -955,6 +955,20 @@ function activitySummaryHTML(sel){
 function view_overview(){
   var u=state.settings.units;
   var h='<div class="wl-stack">';
+  var _hsw=sortedWeights(),_hstart=num(state.settings.startingWeight),_hgoal=num(state.settings.goalWeight);
+  var _hcur=_hsw.length?_hsw[_hsw.length-1].weight:_hstart;
+  var _hlost=(_hstart!=null&&_hcur!=null)?_hstart-_hcur:null;
+  var _htoGo=(_hgoal!=null&&_hcur!=null)?_hcur-_hgoal:null;
+  var _hprog=null;if(_hstart!=null&&_hgoal!=null&&_hcur!=null&&_hstart!==_hgoal){_hprog=Math.max(0,Math.min(1,(_hstart-_hcur)/(_hstart-_hgoal)));}
+  if(_hstart!=null&&_hgoal!=null){var _hcAll=prepChart(),_hfc=computeForecasts(_hcur,_hgoal,_hcAll.slope);
+    h+='<div class="wl-card wl-hero"><div class="wl-hero-top"><div><div class="wl-mini-label">Current</div><div class="wl-bignum">'+(_hcur!=null?r1(_hcur):"\u2014")+'<span class="wl-unit">'+u+'</span></div></div>';
+    if(_hlost!=null)h+='<div class="wl-change '+(_hlost>=0?"good":"bad")+'">'+(_hlost>=0?I.down:I.up)+(_hlost>=0?"Lost ":"Gained ")+Math.abs(r1(_hlost))+' '+u+'</div>';
+    h+='</div><div class="wl-progress-track"><div class="wl-progress-fill" style="width:'+((_hprog||0)*100)+'%"></div>'+(_hprog!=null?'<div class="wl-progress-marker" style="left:'+(_hprog*100)+'%"></div>':'')+'</div><div class="wl-progress-ends"><span><b>'+r1(_hstart)+'</b> start</span><span class="wl-togo">'+(_htoGo!=null&&_htoGo>0?r1(_htoGo)+" "+u+" to go":"Goal reached")+'</span><span><b>'+r1(_hgoal)+'</b> goal</span></div></div>';
+    h+='<div class="wl-card"><div class="wl-card-head"><span>Forecast to goal</span></div>';
+    if(_hfc.done)h+='<div class="wl-empty">You\u2019re at or below your goal weight. Nice work.</div>';
+    else{h+='<div class="wl-forecast-grid">'+fcCell("At your target",state.settings.targetType==="percent_bw_per_week"?state.settings.targetValue+"% / week":state.settings.targetValue+" "+u+" / week",_hfc.target,"")+fcCell("At your current pace",(_hfc.observed&&_hfc.observed.rate!=null)?r1(_hfc.observed.rate)+" "+u+" / week":"based on your data",_hfc.observed,"Not enough downward trend yet \u2014 keep logging weigh-ins.")+'</div>';}
+    h+='</div>';
+  }
   var _wk=toISO(weekStartFor(0));var _sum=(state.weeklySummary&&state.weeklySummary.week===_wk&&state.weeklySummary.text)?state.weeklySummary.text:null;
   var _ciDay=(new Date().getDay()===(parseInt(state.settings.weekStart,10)||0));
   if(_sum){try{var _seen=localStorage.getItem("wl_sumseen");if(state.weeklySummary.week!==_seen){state.sumOpen=true;localStorage.setItem("wl_sumseen",state.weeklySummary.week);localStorage.setItem("wl_sumopen","1");}}catch(e){}}
@@ -1102,22 +1116,6 @@ function buildBars(bk,goal,higherBetter){
 function view_weight(){
   var u=state.settings.units;var ctx=trendCtx();var off=state.trendOffset||0;var perLbl=ctx.gran==="month"?"/mo":"/day";
   var h='<div class="wl-stack">';
-  var _sw=sortedWeights();var _start=num(state.settings.startingWeight),_goal=num(state.settings.goalWeight);
-  var _cur=_sw.length?_sw[_sw.length-1].weight:_start;
-  var _lost=(_start!=null&&_cur!=null)?_start-_cur:null;
-  var _toGo=(_goal!=null&&_cur!=null)?_cur-_goal:null;
-  var _prog=null;if(_start!=null&&_goal!=null&&_cur!=null&&_start!==_goal){_prog=Math.max(0,Math.min(1,(_start-_cur)/(_start-_goal)));}
-  var _cAll=prepChart();var _fc=computeForecasts(_cur,_goal,_cAll.slope);
-  if(_start!=null&&_goal!=null){
-    h+='<div class="wl-card wl-hero"><div class="wl-hero-top"><div><div class="wl-mini-label">Current</div><div class="wl-bignum">'+(_cur!=null?r1(_cur):"—")+'<span class="wl-unit">'+u+'</span></div></div>';
-    if(_lost!=null)h+='<div class="wl-change '+(_lost>=0?"good":"bad")+'">'+(_lost>=0?I.down:I.up)+(_lost>=0?"Lost ":"Gained ")+Math.abs(r1(_lost))+' '+u+'</div>';
-    h+='</div><div class="wl-progress-track"><div class="wl-progress-fill" style="width:'+((_prog||0)*100)+'%"></div>'+(_prog!=null?'<div class="wl-progress-marker" style="left:'+(_prog*100)+'%"></div>':'')+'</div><div class="wl-progress-ends"><span><b>'+r1(_start)+'</b> start</span><span class="wl-togo">'+(_toGo!=null&&_toGo>0?r1(_toGo)+" "+u+" to go":"Goal reached")+'</span><span><b>'+r1(_goal)+'</b> goal</span></div></div>';
-    h+='<div class="wl-card"><div class="wl-card-head"><span>Forecast to goal</span></div>';
-    if(_fc.done)h+='<div class="wl-empty">You\'re at or below your goal weight. Nice work.</div>';
-    else{h+='<div class="wl-forecast-grid">'+fcCell("At your target",state.settings.targetType==="percent_bw_per_week"?state.settings.targetValue+"% / week":state.settings.targetValue+" "+u+" / week",_fc.target,"")+
-      fcCell("At your current pace",(_fc.observed&&_fc.observed.rate!=null)?r1(_fc.observed.rate)+" "+u+" / week":"based on your data",_fc.observed,"Not enough downward trend yet — keep logging weigh-ins.")+'</div>';}
-    h+='</div>';
-  }
   h+='<div class="wl-card"><div class="wl-seg wl-seg-wide" style="margin-bottom:10px">'+["W","M","6M"].map(function(m){return '<button class="'+(ctx.mode===m?"on":"")+'" data-act="trend:mode" data-mode="'+m+'">'+m+'</button>';}).join("")+'</div><div class="wl-cal-head"><button class="wl-icon-btn" data-act="trend:prev">‹</button><span class="wl-cal-title">'+ctx.label+'</span><button class="wl-icon-btn" data-act="trend:next"'+(off<=0?' style="opacity:.3"':'')+'>›</button></div></div>';
   var sw=sortedWeights();var startISO=toISO(ctx.start),endISO=toISO(ctx.end);
   var rw=sw.filter(function(x){return x.date>=startISO&&x.date<=endISO;});
@@ -1235,6 +1233,19 @@ function view_summary(){
   var ts=weekTrainingStats(s);var _tI=todayISO();
   var tCal=num(state.settings.targetCalories),tStep=num(state.settings.stepsGoal),tProt=num(state.settings.targetProtein),tFat=num(state.settings.targetFat),tCarb=num(state.settings.targetCarbs),tSleep=sleepGoalMin();
   var h='<div class="wl-stack"><div class="wl-daybar"><div class="wl-daybar-row"><button class="wl-icon-btn" data-act="sum:prev">‹</button><span class="wl-datebtn" style="cursor:default">'+label+(isThis?' · This week':'')+'</span><button class="wl-icon-btn"'+(isThis?' style="opacity:.3"':'')+' data-act="sum:next">›</button></div></div>';
+  var _prevWv=weekDays(state.weekOffset+1).map(dayRow).filter(function(r){return r.weight!=null;}).map(function(r){return r.weight;});
+  var _thisAvg=wv.length?wv.reduce(function(a,b){return a+b;},0)/wv.length:null;
+  var _lastAvg=_prevWv.length?_prevWv.reduce(function(a,b){return a+b;},0)/_prevWv.length:null;
+  var _wChg=(_thisAvg!=null&&_lastAvg!=null)?_thisAvg-_lastAvg:null;
+  h+='<div class="wl-card"><div class="wl-card-head"><span>This week\u2019s weight</span></div>';
+  if(_thisAvg==null)h+='<div class="wl-hint">No weigh-ins logged this week.</div>';
+  else{var _mThr=(u==="kg"?0.1:0.2);
+    h+='<div class="wl-hero-top" style="margin-bottom:'+(_wChg!=null?"10px":"0")+'"><div><div class="wl-mini-label">Weekly average</div><div class="wl-bignum" style="font-size:30px">'+r1(_thisAvg)+'<span class="wl-unit">'+u+'</span></div></div>';
+    if(_wChg!=null){var _mnt=Math.abs(_wChg)<_mThr,_lostW=_wChg<0;h+='<div class="wl-change '+(_mnt?"":(_lostW?"good":"bad"))+'">'+(_mnt?"":(_lostW?I.down:I.up))+(_mnt?"Maintained":((_lostW?"Lost ":"Gained ")+Math.abs(r1(_wChg))+" "+u))+'</div>';}
+    h+='</div>';
+    if(_wChg!=null)h+='<div class="wl-hint">vs last week\u2019s average of '+r1(_lastAvg)+' '+u+'</div>';
+    else h+='<div class="wl-hint">Log weigh-ins next week to see your week-over-week change.</div>';}
+  h+='</div>';
   h+='<div class="wl-card"><div class="wl-card-head"><span>Completed Check-ins</span></div><div class="wl-chips wl-cichips">';
   days.forEach(function(r){var dISO=r.date;var dow=parseISO(dISO).toLocaleDateString(undefined,{weekday:"short"});
     if(dISO>_tI){h+='<span class="wl-cichip fut">'+dow+'</span>';return;}
