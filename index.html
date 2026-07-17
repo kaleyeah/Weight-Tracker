@@ -321,6 +321,32 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 .wl-daybar.off{border-color:var(--accent);background:rgba(245,181,68,.08);}
 .wl-today-pill{font-size:9px;font-weight:800;letter-spacing:.05em;color:var(--good);border:1px solid var(--good);border-radius:20px;padding:1px 7px;margin-left:8px;}
 .wl-jumptoday{background:var(--accent);color:#000;border:none;border-radius:20px;padding:6px 15px;font-weight:800;font-size:12px;font-family:var(--sans);cursor:pointer;}
+.wl-check{padding:4px 4px 6px;}
+.wl-ck-head{display:flex;justify-content:space-between;align-items:center;padding:9px 12px 5px;}
+.wl-ck-title{font-size:12px;letter-spacing:.03em;text-transform:uppercase;color:var(--muted);font-weight:700;}
+.wl-ck-cnt{font-size:11px;color:var(--faint);font-weight:600;}
+.wl-ck-meter{height:5px;border-radius:4px;background:var(--bg2);margin:0 12px 4px;overflow:hidden;}
+.wl-ck-meter > i{display:block;height:100%;background:var(--good);border-radius:4px;transition:width .3s ease;}
+.wl-ck-row{display:flex;align-items:center;gap:11px;width:100%;background:none;border:none;border-top:1px solid var(--line);padding:11px 12px;font-family:var(--sans);color:var(--text);cursor:pointer;text-align:left;}
+.wl-ck-row.col{flex-direction:column;align-items:stretch;gap:9px;}
+.wl-ck-top{display:flex;align-items:center;gap:11px;}
+.wl-ck-l{display:flex;align-items:center;gap:11px;flex:none;}
+.wl-ck-ic{width:20px;height:20px;border-radius:6px;flex:none;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;}
+.wl-ck-ic.done{background:rgba(92,214,160,.16);color:var(--good);}
+.wl-ck-ic.miss{background:rgba(242,109,91,.15);color:var(--bad);}
+.wl-ck-ic.opt{background:var(--bg2);color:var(--faint);}
+.wl-ck-lab{font-size:14px;font-weight:600;}
+.wl-ck-val{font-size:14px;flex:1;text-align:right;}
+.wl-ck-val.empty{color:var(--accent);font-weight:700;}
+.wl-ck-note{flex:1;text-align:right;font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.wl-ck-go{color:var(--faint);font-size:16px;flex:none;}
+.wl-ck-top .wl-ck-val{flex:1;}
+.wl-mbar{display:flex;height:8px;border-radius:5px;overflow:hidden;background:var(--bg2);}
+.wl-mbar i{display:block;height:100%;}
+.wl-mlegend{display:flex;text-align:center;}
+.wl-mseg{flex:1;}
+.wl-mseg .k{font-size:10px;text-transform:uppercase;letter-spacing:.05em;font-weight:700;white-space:nowrap;line-height:1.2;}
+.wl-mseg .v{font-size:14px;font-weight:800;color:var(--text);margin-top:2px;line-height:1.1;white-space:nowrap;}
 .wl-ai-summary{font-size:13.5px;line-height:1.55;color:var(--text);}
 .wl-update-banner{position:fixed;top:0;left:0;right:0;z-index:120;display:flex;align-items:center;justify-content:center;gap:12px;background:var(--accent);color:var(--on-accent);font-weight:700;font-size:13px;padding:calc(env(safe-area-inset-top,0px) + 10px) 14px 10px;box-shadow:0 4px 16px rgba(0,0,0,.4);}
 .wl-applied-banner{position:fixed;top:0;left:0;right:0;z-index:3000;display:flex;align-items:center;justify-content:space-between;gap:12px;background:#2563eb;color:#fff;font-family:var(--sans);font-weight:600;font-size:14px;padding:calc(env(safe-area-inset-top,0px) + 13px) 18px 13px;box-shadow:0 6px 20px rgba(0,0,0,.4);transform:translateY(-130%);transition:transform .32s cubic-bezier(.2,.8,.2,1),opacity .25s ease;touch-action:none;}
@@ -367,7 +393,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.120";
+var APP_BUILD="2026-07-14.121";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -834,6 +860,49 @@ function weeklyAIText(){
   L.push("Please give a short, encouraging but honest weekly check-in: what went well, one or two things to watch, and one concrete suggestion for next week. Keep it motivating and practical — no medical advice or diagnosis.");
   return L.join("\n");
 }
+function ckRow(done,label,val,sec,optional){
+  var ic=done?'<span class="wl-ck-ic done">✓</span>':(optional?'<span class="wl-ck-ic opt">◦</span>':'<span class="wl-ck-ic miss">!</span>');
+  return '<button class="wl-ck-row" data-act="dl:open" data-sec="'+sec+'"><span class="wl-ck-l">'+ic+'<span class="wl-ck-lab">'+label+'</span></span><span class="wl-ck-val'+(done?"":" empty")+'">'+esc(val)+'</span><span class="wl-ck-go">›</span></button>';
+}
+function ckCalories(sel){
+  var f=state.food[sel]||{};var cal=num(f.calories),p=num(f.protein),cb=num(f.carbs),ft=num(f.fat);
+  var has=cal!=null||p!=null||cb!=null||ft!=null;
+  if(!has)return '<button class="wl-ck-row" data-act="dl:open" data-sec="calories"><span class="wl-ck-l"><span class="wl-ck-ic miss">!</span><span class="wl-ck-lab">Calories</span></span><span class="wl-ck-val empty">Add</span><span class="wl-ck-go">›</span></button>';
+  var tg=num(state.settings.targetCalories);
+  var h='<button class="wl-ck-row col" data-act="dl:open" data-sec="calories"><div class="wl-ck-top"><span class="wl-ck-l"><span class="wl-ck-ic done">✓</span><span class="wl-ck-lab">Calories</span></span><span class="wl-ck-val">'+(cal!=null?Math.round(cal).toLocaleString():"—")+(tg!=null?' <span style="color:var(--faint);font-weight:600">/ '+tg.toLocaleString()+'</span>':'')+'</span><span class="wl-ck-go">›</span></div>';
+  if(p!=null||cb!=null||ft!=null){var P=(p||0)*4,C=(cb||0)*4,F=(ft||0)*9;var tot=(P+C+F)||1;
+    h+='<div class="wl-mbar"><i style="width:'+(P/tot*100)+'%;background:var(--good)"></i><i style="width:'+(C/tot*100)+'%;background:#6FA8FF"></i><i style="width:'+(F/tot*100)+'%;background:#C77DFF"></i></div>';
+    h+='<div class="wl-mlegend"><div class="wl-mseg"><div class="k" style="color:var(--good)">Protein</div><div class="v">'+(p!=null?p+"g":"—")+'</div></div><div class="wl-mseg"><div class="k" style="color:#6FA8FF">Carbs</div><div class="v">'+(cb!=null?cb+"g":"—")+'</div></div><div class="wl-mseg"><div class="k" style="color:#C77DFF">Fat</div><div class="v">'+(ft!=null?ft+"g":"—")+'</div></div></div>';}
+  return h+'</button>';
+}
+function ckNotes(sel){
+  var note=(state.notes[sel]||"").trim();
+  if(note){var snip=note.length>58?note.slice(0,58)+"…":note;
+    return '<button class="wl-ck-row" data-act="dl:open" data-sec="notes"><span class="wl-ck-l"><span class="wl-ck-ic done">✓</span><span class="wl-ck-lab">Notes</span></span><span class="wl-ck-note">'+esc(snip)+'</span><span class="wl-ck-go">›</span></button>';}
+  return '<button class="wl-ck-row" data-act="dl:open" data-sec="notes"><span class="wl-ck-l"><span class="wl-ck-ic opt">◦</span><span class="wl-ck-lab">Notes</span></span><span class="wl-ck-val empty">Optional</span><span class="wl-ck-go">›</span></button>';
+}
+function todayChecklistHTML(sel){
+  var u=state.settings.units;var f=state.food[sel]||{};
+  var wt=null;for(var i=0;i<state.weights.length;i++){if(state.weights[i].date===sel){wt=state.weights[i].weight;break;}}
+  var steps=num(state.steps[sel]),sleep=num(state.sleep[sel]);
+  var hasCal=num(f.calories)!=null||num(f.protein)!=null||num(f.carbs)!=null||num(f.fat)!=null;
+  var done=(wt!=null?1:0)+(steps!=null?1:0)+(hasCal?1:0)+(sleep!=null?1:0);
+  var h='<div class="wl-card wl-check"><div class="wl-ck-head"><span class="wl-ck-title">'+(sel===todayISO()?"Today":"This day")+'\u2019s log</span><span class="wl-ck-cnt">'+done+' of 4 done</span></div>';
+  h+='<div class="wl-ck-meter"><i style="width:'+(done/4*100)+'%"></i></div>';
+  h+=ckRow(wt!=null,"Weight",wt!=null?(r1(wt)+" "+u):"Add","weight",false);
+  h+=ckRow(steps!=null,"Steps",steps!=null?Math.round(steps).toLocaleString():"Add","steps",false);
+  h+=ckCalories(sel);
+  h+=ckRow(sleep!=null,"Sleep",sleep!=null?minToHM(sleep):"Add","sleep",false);
+  h+=ckNotes(sel);
+  return h+'</div>';
+}
+function activitySummaryHTML(sel){
+  var log=normActs(sel);
+  var h='<div class="wl-card"><div class="wl-card-head"><span>Activity</span><button class="wl-link" data-act="go" data-view="train">Activity tab →</button></div>';
+  if(log.length){h+='<div class="wl-preset-list" style="padding-top:2px">';log.forEach(function(a){h+='<span class="wl-achip '+a.cat+' on" style="cursor:default">'+esc(a.name||CATLABEL[a.cat])+'</span>';});h+='</div>';}
+  else h+='<div class="wl-hint">No activity logged. Add cardio, lifting, recovery, or supplements from the Activity tab.</div>';
+  return h+'</div>';
+}
 function view_overview(){
   var sw=sortedWeights();var start=num(state.settings.startingWeight),goal=num(state.settings.goalWeight);
   var current=sw.length?sw[sw.length-1].weight:start;
@@ -849,6 +918,10 @@ function view_overview(){
   for(var _i=0;_i<state.weights.length;_i++){if(state.weights[_i].date===todayISO()){twt=state.weights[_i].weight;break;}}
   var tw=state.workouts[todayISO()]||[];
   var h='<div class="wl-stack">';
+  h+=dayBarHTML();
+  h+=todayChecklistHTML(state.selDate);
+  h+='<button class="wl-btn wl-btn-primary wl-full" data-act="dl:openfull">Open full day log</button>';
+  h+=activitySummaryHTML(state.selDate);
   var _wk=toISO(weekStartFor(0));var _sum=(state.weeklySummary&&state.weeklySummary.week===_wk&&state.weeklySummary.text)?state.weeklySummary.text:null;
   var _ciDay=(new Date().getDay()===(parseInt(state.settings.weekStart,10)||0));
   if(_sum){try{var _seen=localStorage.getItem("wl_sumseen");if(state.weeklySummary.week!==_seen){state.sumOpen=true;localStorage.setItem("wl_sumseen",state.weeklySummary.week);localStorage.setItem("wl_sumopen","1");}}catch(e){}}
@@ -908,13 +981,6 @@ function view_overview(){
     h+='<div class="wl-hint" style="margin-top:4px">'+info+'</div>';
     if(manual==null&&calc!=null&&calc<1200)h+='<div class="wl-hint" style="color:var(--bad)">That\u2019s under ~1200 cal/day — consider a gentler weekly goal.</div>';
     h+='</div>';}
-  h+='<div class="wl-card"><div class="wl-card-head"><span>Today</span></div><div class="wl-today">'+
-    todayRow('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9c-1-1.2-2.5-1.7-4-1.3C5.5 8.4 4 10.7 4.7 13.7c.6 2.6 2.4 5.3 4.3 6.4 1 .6 2 .6 3 0 .5-.3.5-.3 1 0 1 .6 2 .6 3 0 1.9-1.1 3.7-3.8 4.3-6.4.7-3-.8-5.3-3.3-6-1.5-.4-3 .1-4 1.3z"/><path d="M12 9V6c0-1.4 1.1-2.6 2.5-2.8"/></svg>',"Calories",tCal!=null?(Math.round(tCal)+" cal"):null)+
-    todayRow('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 15.5V13c0-.6.4-1 1-1h2l2-2.5c.4-.5 1-.6 1.5-.3l1.5 1c.4.3.6.7.6 1.2v.3c0 .8.6 1.5 1.4 1.6l4.6.9c1.2.2 2 1.2 2 2.4v.2a1.5 1.5 0 0 1-1.5 1.5H4.5A1.5 1.5 0 0 1 3 18.5z"/><path d="M7 12.5l1 1M10 11l1 1"/></svg>',"Steps",tSteps!=null?(Math.round(tSteps).toLocaleString()+" steps"):null)+
-    todayRow('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>',"Sleep",tSleep!=null?minToHM(tSleep):null)+
-    todayRow('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="12" cy="12" r="3"/><path d="M12 12l1.6-1.6"/></svg>',"Weight",twt!=null?(r1(twt)+" "+u):null)+
-    todayRow(I.dumbbell,"Activity",tw.length?esc(tw.join(", ")):null)+
-    '</div></div>';
   h+=connectionCards();
   if(past.length){h+='<div class="wl-card"><div class="wl-card-head"><span>Missed days this week</span></div><div class="wl-chips">';past.slice().sort().forEach(function(d){h+='<button class="wl-chip warn" data-act="openday" data-date="'+d+'">'+parseISO(d).toLocaleDateString(undefined,{weekday:"short"})+'</button>';});h+='</div></div>';}
   h+='</div>';return h;
@@ -1098,13 +1164,13 @@ function view_calendar(){
   var e=state.food[sel]||{};
   var t={calories:num(state.settings.targetCalories),protein:num(state.settings.targetProtein),carbs:num(state.settings.targetCarbs),fat:num(state.settings.targetFat)};
   var hasT=Object.keys(t).some(function(k){return t[k]!=null;});
-  h+='<div class="wl-card"><div class="wl-card-head"><span>Weight &amp; steps</span></div>';
+  h+='<div class="wl-card" id="dl-weight"><div class="wl-card-head"><span>Weight &amp; steps</span></div>';
   h+='<div class="wl-row"><label class="wl-field"><span>Weight <em>'+u+'</em></span><input class="wl-daywt-input wl-num" type="text" inputmode="decimal" placeholder="—" value="'+(wmap[sel]!=null?wmap[sel]:"")+'"></label><label class="wl-field"><span>Steps</span><input class="wl-steps-input wl-num" data-int="1" type="text" inputmode="numeric" placeholder="—" value="'+(state.steps[sel]!=null?state.steps[sel]:"")+'"></label></div>';
   h+='</div>';
-  h+='<div class="wl-card"><div class="wl-card-head"><span>Total sleep <em>last night</em></span></div>';
+  h+='<div class="wl-card" id="dl-sleep"><div class="wl-card-head"><span>Total sleep <em>last night</em></span></div>';
   h+='<div class="wl-row"><label class="wl-field"><span>Hours</span><input class="wl-num wl-sleep-h" data-int="1" type="text" inputmode="numeric" placeholder="—" value="'+(state.sleep[sel]!=null?Math.floor(state.sleep[sel]/60):"")+'"></label><label class="wl-field"><span>Minutes</span><input class="wl-num wl-sleep-m" data-int="1" type="text" inputmode="numeric" placeholder="—" value="'+(state.sleep[sel]!=null?state.sleep[sel]%60:"")+'"></label></div>';
   h+='</div>';
-  h+='<div class="wl-card"><div class="wl-card-head"><span>Calories &amp; macros</span></div>';
+  h+='<div class="wl-card" id="dl-calories"><div class="wl-card-head"><span>Calories &amp; macros</span></div>';
   h+='<div class="wl-macro3">';
   [["protein","Protein","g"],["fat","Fat","g"],["carbs","Carbs","g"]].forEach(function(f){var val=e[f[0]]!=null?e[f[0]]:"";
     h+='<label class="wl-field"><span>'+f[1]+' <em>'+f[2]+'</em></span><input class="wl-food-input wl-num" data-food="'+f[0]+'" type="text" inputmode="decimal" placeholder="0" value="'+val+'">';
@@ -1123,7 +1189,7 @@ function view_calendar(){
   else h+='<div class="wl-hint">No activity logged for this day.</div>';
   h+='<button class="wl-link" style="margin-top:12px" data-act="go" data-view="train">Log activity in the Activity tab →</button>';
   h+='</div>';
-  h+='<div class="wl-card"><div class="wl-card-head"><span>Notes</span></div>';
+  h+='<div class="wl-card" id="dl-notes"><div class="wl-card-head"><span>Notes</span></div>';
   h+='<textarea class="wl-note-input" placeholder="Any notes for the AI summary (feeling sick, feeling good, on vacation…)" style="width:100%;min-height:70px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:14px;padding:11px 12px;box-sizing:border-box;outline:none;resize:vertical">'+esc(state.notes[sel]||"")+'</textarea>';
   h+='</div>';
   h+='<div class="wl-card"><div class="wl-card-head"><span>Food diary</span></div>';
@@ -1781,6 +1847,8 @@ document.addEventListener("click",function(e){
     if(vv==null){toast("Enter a weight");return;}state.weights=state.weights.filter(function(x){return x.date!==dt;});state.weights.push({date:dt,weight:vv});save();render();return;}
   if(a==="weight:del"){var dd=el.getAttribute("data-date");askConfirm("Delete this weigh-in?",function(){state.weights=state.weights.filter(function(x){return x.date!==dd;});save();});return;}
   if(a==="food:pick"){state.selDate=el.getAttribute("data-date");state.view="calendar";render();return;}
+  if(a==="dl:openfull"){state.view="calendar";state.scrollTo=null;render();window.scrollTo(0,0);return;}
+  if(a==="dl:open"){var _sec=el.getAttribute("data-sec");if(_sec==="steps")_sec="weight";state.view="calendar";render();var _t=document.getElementById("dl-"+_sec);if(_t)_t.scrollIntoView({behavior:"smooth",block:"start"});return;}
   if(a==="opentoday"){state.selDate=todayISO();state.calY=new Date().getFullYear();state.calM=new Date().getMonth();state.cardioForm=null;render();return;}
   if(a==="ai:copy"){copyText(weeklyAIText(),"Copied your week — paste into your AI to generate");return;}
   if(a==="ai:gen"){genSummary();return;}
