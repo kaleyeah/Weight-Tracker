@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.165 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.166 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -465,7 +465,7 @@ html[data-theme="light"] .wl-daybar.off .wl-daybar-row .wl-datebtn{color:#AE7411
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.165";
+var APP_BUILD="2026-07-14.166";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -554,6 +554,12 @@ function syncLiftTags(date){var kept=normActs(date).filter(function(a){return !(
   var names={};((state.training.liftSessions||{})[date]||[]).forEach(function(s){names[s.name||"Weight training"]=1;});
   Object.keys(names).forEach(function(nm){if(!kept.some(function(a){return a.cat==="lifting"&&a.name===nm;}))kept.push({cat:"lifting",name:nm,auto:true});});
   if(kept.length)state.workouts[date]=kept;else delete state.workouts[date];}
+function migrateOrphanLiftTags(){var changed=false;var ls=(state.training&&state.training.liftSessions)||{};
+  Object.keys(state.workouts||{}).forEach(function(d){var arr=state.workouts[d];if(!Array.isArray(arr))return;
+    var sn={};((ls[d]||[])).forEach(function(x){sn[x.name||"Weight training"]=1;});
+    var filt=arr.filter(function(a){var c=(a&&a.cat)||catFromName(a&&a.name)||"other";if(c!=="lifting")return true;return !!sn[(a&&a.name)||""];});
+    if(filt.length!==arr.length){changed=true;if(filt.length)state.workouts[d]=filt;else delete state.workouts[d];}});
+  return changed;}
 function actLabel(a){return a.name?(CATLABEL[a.cat]+": "+a.name):CATLABEL[a.cat];}
 function normPresets(){var raw=state.presets;if(!Array.isArray(raw))return [];
   return raw.map(function(p){if(typeof p==="string")return {name:p,cat:catFromName(p)};return {name:(p&&p.name)||"",cat:(p&&p.cat)||catFromName(p&&p.name)||"other"};});}
@@ -2454,7 +2460,7 @@ function makeIcon(){
 }
 
 /* ---------------- init ---------------- */
-load();loadTraining();loadWorkout();ensureIdentity();applyTheme(state.settings.theme||"dark");makeIcon();if(state.workout)state.view="train";render();autoSync();if(state.workout)startWoTick();
+load();loadTraining();loadWorkout();ensureIdentity();if(migrateOrphanLiftTags())save();applyTheme(state.settings.theme||"dark");makeIcon();if(state.workout)state.view="train";render();autoSync();if(state.workout)startWoTick();
 try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(e){}
 try{
   var wlraw=localStorage.getItem("wl_announced")||"";
