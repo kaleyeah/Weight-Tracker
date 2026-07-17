@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.173 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.174 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -479,7 +479,7 @@ html[data-theme="light"] .wl-eyebrow{color:#AE7411;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.173";
+var APP_BUILD="2026-07-14.174";
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="34" y="26" width="32" height="12" rx="5" fill="#7C93F5"/><rect x="26" y="44" width="48" height="12" rx="5" fill="#9FB0C9"/><rect x="16" y="62" width="68" height="14" rx="5" fill="#F5B544"/></svg>';
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
@@ -2394,10 +2394,28 @@ document.addEventListener("input",function(e){
 });
 function sanityWarn(el){
   if(!el||!el.classList)return;var v=num(el.value);if(v==null)return;
-  if(el.classList.contains("wl-daywt-input")){var u=state.settings.units;var lo=u==="kg"?23:50,hi=u==="kg"?450:1000;if(v<lo||v>hi)toast("That weight looks off ("+v+" "+u+") — double-check it.");}
-  else if(el.classList.contains("wl-food-input")&&el.getAttribute("data-food")==="calories"){if(v>10000)toast("That\u2019s a lot of calories ("+Math.round(v).toLocaleString()+") — double-check.");}
-  else if(el.getAttribute&&el.getAttribute("data-set")==="targetCalories"){if(v>10000)toast("That calorie target looks high — double-check.");}
+  var u=state.settings.units;var wlo=u==="kg"?23:50,whi=u==="kg"?450:1000;
+  var n=Math.round(v).toLocaleString();
+  if(el.classList.contains("wl-daywt-input")){if(v<wlo||v>whi)toast("That weight looks off ("+v+" "+u+") \u2014 double-check it.");return;}
+  if(el.classList.contains("wl-steps-input")){if(v>60000)toast("That\u2019s a lot of steps ("+n+") \u2014 double-check.");return;}
+  if(el.classList.contains("wl-sleep-h")||el.classList.contains("wl-goalsleep-h")){if(v>16)toast("That\u2019s a lot of sleep ("+v+"h) \u2014 double-check.");return;}
+  if(el.classList.contains("wl-sleep-m")||el.classList.contains("wl-goalsleep-m")){if(v>59)toast("Minutes should be under 60 \u2014 put the rest in the hours field.");return;}
+  if(el.classList.contains("wl-food-input")){var fd=el.getAttribute("data-food");
+    if(fd==="calories"){if(v>10000)toast("That\u2019s a lot of calories ("+n+") \u2014 double-check.");}
+    else if(fd==="protein"){if(v>500)toast("That\u2019s a lot of protein ("+n+"g) \u2014 double-check.");}
+    else if(fd==="carbs"){if(v>1200)toast("That\u2019s a lot of carbs ("+n+"g) \u2014 double-check.");}
+    else if(fd==="fat"){if(v>500)toast("That\u2019s a lot of fat ("+n+"g) \u2014 double-check.");}
+    return;}
+  var ds=el.getAttribute&&el.getAttribute("data-set");if(!ds)return;
+  if(ds==="targetCalories"){if(v>10000)toast("That calorie target looks high \u2014 double-check.");}
+  else if(ds==="startingWeight"||ds==="goalWeight"){if(v<wlo||v>whi)toast("That weight looks off ("+v+" "+u+") \u2014 double-check it.");}
+  else if(ds==="age"){if(v<13||v>100)toast("That age looks off ("+v+") \u2014 double-check.");}
+  else if(ds==="stepsGoal"){if(v>40000)toast("That steps goal looks high \u2014 double-check.");}
+  else if(ds==="targetProtein"){if(v>400)toast("That protein target looks high \u2014 double-check.");}
+  else if(ds==="cardioMinGoal"){if(v>1200)toast("That cardio goal looks high (minutes/week) \u2014 double-check.");}
+  else if(ds==="maxHR"){if(v<120||v>230)toast("That max heart rate looks off ("+v+") \u2014 double-check.");}
 }
+
 document.addEventListener("change",function(e){var el=e.target;sanityWarn(el);
   if(el&&el.hasAttribute&&el.hasAttribute("data-set")){state.settings[el.getAttribute("data-set")]=el.value;save();var ce=document.getElementById("wl-calread");if(ce)ce.innerHTML=calSummaryHTML();var mp=document.getElementById("wl-macropct");if(mp)mp.innerHTML=macroPctHTML();}
 });
