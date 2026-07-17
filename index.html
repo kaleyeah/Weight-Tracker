@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.166 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.167 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -32,7 +32,7 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
   padding-bottom:calc(80px + env(safe-area-inset-bottom,0px));}
 .wl-header{display:flex;align-items:flex-end;justify-content:space-between;
   padding:calc(20px + env(safe-area-inset-top,0px)) 20px 14px;position:sticky;top:0;
-  background:linear-gradient(var(--bg),var(--bg) 78%,transparent);z-index:5;}
+  background:var(--bg);z-index:5;}
 .wl-eyebrow{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);font-weight:700;}
 .wl-avatar{width:38px;height:38px;border-radius:11px;background:var(--card);color:var(--muted);border:1px solid var(--line);font-family:var(--sans);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;padding:0;}
 .wl-avatar.on{border-color:var(--accent);color:var(--accent);}
@@ -465,7 +465,7 @@ html[data-theme="light"] .wl-daybar.off .wl-daybar-row .wl-datebtn{color:#AE7411
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.166";
+var APP_BUILD="2026-07-14.167";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
@@ -952,11 +952,13 @@ function ckCalories(sel){
   var carbOver=calOver&&(tCarb!=null&&cb!=null&&cb>tCarb);
   var fatOver=calOver&&(tFat!=null&&ft!=null&&ft>tFat);
   var protLow=(tProt!=null&&p!=null&&p<tProt*0.9);
-  var h='<button class="wl-ck-row col" data-act="dl:open" data-sec="calories"><div class="wl-ck-top"><span class="wl-ck-l"><span class="wl-ck-ic"></span><span class="wl-ck-lab">Calories</span></span><span class="wl-ck-val"'+(calOver?' style="color:var(--bad)"':'')+'>'+(cal!=null?Math.round(cal).toLocaleString():"—")+(tg!=null?' <span style="color:var(--faint);font-weight:600">/ '+tg.toLocaleString()+'</span>':'')+'</span><span class="wl-ck-go">›</span></div>';
+  var calWayOver=(tg!=null&&cal!=null&&cal>tg*1.15);
+  var calStyle=calWayOver?' style="color:var(--bad)"':(calOver?' style="color:var(--accent)"':'');
+  var h='<button class="wl-ck-row col" data-act="dl:open" data-sec="calories"><div class="wl-ck-top"><span class="wl-ck-l"><span class="wl-ck-ic"></span><span class="wl-ck-lab">Calories</span></span><span class="wl-ck-val"'+calStyle+'>'+(cal!=null?Math.round(cal).toLocaleString():"—")+(tg!=null?' <span style="color:var(--faint);font-weight:600">/ '+tg.toLocaleString()+'</span>':'')+'</span><span class="wl-ck-go">›</span></div>';
   if(p!=null||cb!=null||ft!=null){var P=(p||0)*4,C=(cb||0)*4,F=(ft||0)*9;var tot=(P+C+F)||1;
-    var pCol=protLow?"var(--bad)":"var(--mac-p)",cCol=carbOver?"var(--bad)":"var(--mac-c)",fCol=fatOver?"var(--bad)":"var(--mac-f)";
+    var pCol=protLow?"var(--bad)":"var(--mac-p)",cCol=carbOver?"var(--accent)":"var(--mac-c)",fCol=fatOver?"var(--accent)":"var(--mac-f)";
     h+='<div class="wl-mbar"><i style="width:'+(P/tot*100)+'%;background:'+pCol+'"></i><i style="width:'+(C/tot*100)+'%;background:'+cCol+'"></i><i style="width:'+(F/tot*100)+'%;background:'+fCol+'"></i></div>';
-    h+='<div class="wl-mlegend"><div class="wl-mseg"><div class="k" style="color:'+pCol+'">Protein</div><div class="v"'+(protLow?' style="color:var(--bad)"':'')+'>'+(p!=null?p+"g":"—")+'</div></div><div class="wl-mseg"><div class="k" style="color:'+cCol+'">Carbs</div><div class="v"'+(carbOver?' style="color:var(--bad)"':'')+'>'+(cb!=null?cb+"g":"—")+'</div></div><div class="wl-mseg"><div class="k" style="color:'+fCol+'">Fat</div><div class="v"'+(fatOver?' style="color:var(--bad)"':'')+'>'+(ft!=null?ft+"g":"—")+'</div></div></div>';}
+    h+='<div class="wl-mlegend"><div class="wl-mseg"><div class="k" style="color:'+pCol+'">Protein</div><div class="v"'+(protLow?' style="color:var(--bad)"':'')+'>'+(p!=null?p+"g":"—")+'</div></div><div class="wl-mseg"><div class="k" style="color:'+cCol+'">Carbs</div><div class="v"'+(carbOver?' style="color:var(--accent)"':'')+'>'+(cb!=null?cb+"g":"—")+'</div></div><div class="wl-mseg"><div class="k" style="color:'+fCol+'">Fat</div><div class="v"'+(fatOver?' style="color:var(--accent)"':'')+'>'+(ft!=null?ft+"g":"—")+'</div></div></div>';}
   return h+'</button>';
 }
 function ckNotes(sel){
@@ -2042,8 +2044,8 @@ function render(){
   var body=state.view==="overview"?view_overview():(state.view==="food"||state.view==="calendar")?view_overview():state.view==="weight"?view_weight():state.view==="summary"?view_summary():state.view==="diary"?view_diary():state.view==="train"?view_train():state.view==="exlib"?view_exlib():state.view==="routine"?view_routine():state.view==="rlaunch"?view_rlaunch():state.view==="quicklog"?view_quicklog():state.view==="workout"?view_workout():state.view==="liftview"?view_liftview():state.view==="wtadd"?view_wtadd():state.view==="cardioadd"?view_cardio():state.view==="photos"?view_photos():view_settings();
   var nav='<nav class="wl-nav">'+NAV.map(function(n){return '<button class="wl-navbtn '+(state.view===n[0]||(n[0]==="overview"&&(state.view==="food"||state.view==="diary"))||(n[0]==="weight"&&state.view==="photos")?"on":"")+'" data-act="go" data-view="'+n[0]+'">'+I[n[0]]+'<span>'+n[1]+'</span></button>';}).join("")+'</nav>';
   var avatar='<button class="wl-avatar'+(state.view==="settings"?" on":"")+'" data-act="go" data-view="settings" aria-label="Settings"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>';
-  var hdrRight='<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">'+(syncOn()?'<div id="wl-sync" class="wl-sync '+syncState.s+'">'+syncLabel()+'</div><div id="wl-synctime" class="wl-synctime">'+lastSyncText()+'</div>':'')+'<div class="wl-verchip">v'+APP_BUILD+'</div></div>';
-  document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header"><div><div class="wl-eyebrow">Progress Tracker</div><h1 class="wl-title">'+title+'</h1></div><div style="display:flex;align-items:center;gap:10px">'+hdrRight+avatar+'</div></header><main class="wl-main">'+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML()+actPickHTML();
+  var hdrRight='<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">'+(syncOn()?'<div id="wl-sync" class="wl-sync '+syncState.s+'">'+syncLabel()+'</div><div id="wl-synctime" class="wl-synctime">'+lastSyncText()+'</div>':'')+'</div>';
+  document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header"><div>'+(title?'<div class="wl-eyebrow">Progress Tracker</div><h1 class="wl-title">'+title+'</h1>':'')+'</div><div style="display:flex;align-items:center;gap:10px">'+hdrRight+avatar+'</div></header><main class="wl-main">'+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML()+actPickHTML();
   var hdr=document.querySelector(".wl-header");if(hdr)document.documentElement.style.setProperty("--headh",hdr.offsetHeight+"px");
   if(document.getElementById("wl-photostrip"))renderPhotosStrip(state.selDate);
   if(state.view==="diary")renderDiary();
