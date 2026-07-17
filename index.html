@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker ÃÂ· build 2026-07-14.149 ÃÂ· deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.153 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -436,11 +436,11 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.152";
+var APP_BUILD="2026-07-14.153";
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
-function minToHM(min){if(min==null)return "Ã¢ÂÂ";var h=Math.floor(min/60),m=Math.round(min%60);return h+":"+pad(m);}
+function minToHM(min){if(min==null)return "—";var h=Math.floor(min/60),m=Math.round(min%60);return h+":"+pad(m);}
 function minToHMpad(min){if(min==null)return "";var h=Math.floor(min/60),m=Math.round(min%60);return pad(h)+":"+pad(m);}
 function sleepGoalMin(){return num(state.settings.sleepGoal);}
 function toISO(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());}
@@ -557,7 +557,7 @@ function load(){
   try{state.calOpen=localStorage.getItem("wl_calopen")==="1";}catch(e){}
 }
 function payload(){return {settings:state.settings,weights:state.weights,food:state.food,workouts:state.workouts,steps:state.steps,notes:state.notes,sleep:state.sleep,weeklySummary:state.weeklySummary,nightlySummary:state.nightlySummary,presets:state.presets};}
-function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(payload()));}catch(e){toast("Couldn't save Ã¢ÂÂ storage full or blocked");}}
+function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(payload()));}catch(e){toast("Couldn't save — storage full or blocked");}}
 function save(){saveLocal();scheduleCloudPush();}
 
 /* ---------------- cloud sync (private GitHub repo via Contents API) ---------------- */
@@ -574,14 +574,14 @@ function setLastSync(){try{localStorage.setItem(LAST_KEY,String(Date.now()));}ca
 function getLastSync(){var v=+localStorage.getItem(LAST_KEY);return v>0?v:null;}
 function fmtClock(ts){return new Date(ts).toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"});}
 function lastSyncText(){var t=getLastSync();return t?("synced "+fmtClock(t)):"";}
-function syncLabel(){return {ok:"Synced",saving:"SavingÃ¢ÂÂ¦",syncing:"SyncingÃ¢ÂÂ¦",offline:"Offline",error:"Sync error"}[syncState.s]||"";}
+function syncLabel(){return {ok:"Synced",saving:"Saving…",syncing:"Syncing…",offline:"Offline",error:"Sync error"}[syncState.s]||"";}
 function setSync(s,msg){syncState={s:s,msg:msg||""};
   var el=document.getElementById("wl-sync");if(el){el.className="wl-sync "+s;el.textContent=syncLabel();}
   var tt=document.getElementById("wl-synctime");if(tt)tt.textContent=lastSyncText();
   var st=document.getElementById("wl-sync-status");if(st)st.innerHTML=syncStatusHTML();}
 function syncStatusHTML(){if(!syncOn())return '<span style="color:var(--faint)">Not connected. Add your repo and token, then Test.</span>';
   var m={ok:"var(--good)",saving:"var(--accent)",syncing:"var(--accent)",offline:"var(--bad)",error:"var(--bad)",idle:"var(--muted)"}[syncState.s]||"var(--muted)";
-  return '<span style="color:'+m+'">'+(syncLabel()||"Connected")+'</span>'+(syncState.msg?' <span style="color:var(--faint)">ÃÂ· '+esc(syncState.msg)+'</span>':'')+(getLastSync()?' <span style="color:var(--faint)">ÃÂ· '+lastSyncText()+'</span>':'');}
+  return '<span style="color:'+m+'">'+(syncLabel()||"Connected")+'</span>'+(syncState.msg?' <span style="color:var(--faint)">· '+esc(syncState.msg)+'</span>':'')+(getLastSync()?' <span style="color:var(--faint)">· '+lastSyncText()+'</span>':'');}
 function b64enc(str){return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g,function(_,h){return String.fromCharCode(parseInt(h,16));}));}
 function b64dec(b64){b64=(b64||"").replace(/\s/g,"");if(!b64)return "";return decodeURIComponent(Array.prototype.map.call(atob(b64),function(c){return "%"+("00"+c.charCodeAt(0).toString(16)).slice(-2);}).join(""));}
 function ghHeaders(c){return {Authorization:"Bearer "+c.token,Accept:"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"};}
@@ -700,12 +700,12 @@ function genSummary(){var c=syncCfg();
     if(r.status===204)return;
     if(r.status===401||r.status===403)throw new Error("Your GitHub token needs Actions: write permission");
     if(r.status===404)throw new Error("Add weekly-checkin.yml to the repo first");
-    if(r.status===422)throw new Error("Couldn't start Ã¢ÂÂ check branch/workflow name");
+    if(r.status===422)throw new Error("Couldn't start — check branch/workflow name");
     throw new Error("Couldn't start the check-in ("+r.status+")");
   }).then(function(){return pollSummary(prevGen,30);})
   .then(function(sum){state.genBusy=false;
     if(sum){state.weeklySummary=sum;state.sumOpen=true;saveLocal();toast("Your check-in is ready");}
-    else toast("Still working Ã¢ÂÂ it will appear here shortly");
+    else toast("Still working — it will appear here shortly");
     render();})
   .catch(function(e){state.genBusy=false;render();toast(e.message||"Couldn't generate");});}
 function dayMissing(sel){sel=sel||state.selDate;var miss=[];
@@ -743,12 +743,12 @@ function genNightly(){var c=syncCfg();
     if(r.status===204)return;
     if(r.status===401||r.status===403)throw new Error("Your GitHub token needs Actions: write permission");
     if(r.status===404)throw new Error("Add nightly-checkin.yml to the repo first");
-    if(r.status===422)throw new Error("Couldn't start Ã¢ÂÂ check branch/workflow name");
+    if(r.status===422)throw new Error("Couldn't start — check branch/workflow name");
     throw new Error("Couldn't start the recap ("+r.status+")");
   }).then(function(){return pollNightly(prevGen,30);})
   .then(function(sum){state.nightBusy=false;
     if(sum){state.nightlySummary=sum;state.nightOpen=true;saveLocal();toast("Today\u2019s recap is ready");}
-    else toast("Still working Ã¢ÂÂ it will appear here shortly");
+    else toast("Still working — it will appear here shortly");
     render();})
   .catch(function(e){state.nightBusy=false;render();toast(e.message||"Couldn't generate");});}
 
@@ -767,9 +767,9 @@ function bmr(){var s=state.settings;
   var inch=num(s.heightIn)||0;var H=(ft*12+inch)*2.54;
   var wKg=currentWeightKg();if(wKg==null)return null;
   return Math.round(10*wKg+6.25*H-5*age+(s.sex==="male"?5:-161));}
-function bmrText(){var b=bmr();return b!=null?(b.toLocaleString()+" cal/day"):"Ã¢ÂÂ";}
+function bmrText(){var b=bmr();return b!=null?(b.toLocaleString()+" cal/day"):"—";}
 var ACTIVITY={bmr:1,sedentary:1.2,light:1.375,moderate:1.4625,active:1.55,intense:1.725,physical:1.9};
-var ALEVELS=[["bmr","Basal Metabolic Rate (BMR)"],["sedentary","Little or no exercise"],["light","Exercise 1Ã¢ÂÂ3 times/week"],["moderate","Exercise 4Ã¢ÂÂ5 times/week"],["active","Daily exercise or intense 3Ã¢ÂÂ4ÃÂ/week"],["intense","Intense exercise 6Ã¢ÂÂ7 times/week"],["physical","Very intense daily, or physical job"]];
+var ALEVELS=[["bmr","Basal Metabolic Rate (BMR)"],["sedentary","Little or no exercise"],["light","Exercise 1–3 times/week"],["moderate","Exercise 4–5 times/week"],["active","Daily exercise or intense 3–4×/week"],["intense","Intense exercise 6–7 times/week"],["physical","Very intense daily, or physical job"]];
 function alLabel(k){for(var i=0;i<ALEVELS.length;i++)if(ALEVELS[i][0]===k)return ALEVELS[i][1];return "Not set";}
 function profileComplete(){var s=state.settings;return !!(s.sex&&num(s.age)!=null&&num(s.heightFt)!=null&&num(s.startingWeight)!=null&&s.activityLevel);}
 function activityMult(){return ACTIVITY[state.settings.activityLevel]||null;}
@@ -787,24 +787,24 @@ function suggestedProteinG(){var gw=num(state.settings.goalWeight);if(gw==null)r
 function stratLabel(){var m=strategyMode();return m==="gain"?"To gain":m==="maintain"?"Maintain at":"To lose";}
 function calSummaryHTML(){var b=bmr();if(b==null)return "Add sex, age &amp; height above to calculate.";
   var m=maintenanceCals(),t=targetIntake();
-  var s='BMR <b>'+b.toLocaleString()+'</b> ÃÂ· Maintenance <b>'+m.toLocaleString()+'</b>';
-  if(t!=null){s+=' ÃÂ· '+stratLabel()+' <b>'+t.toLocaleString()+'</b>';if(t<1200)s+=' <span style="color:var(--bad)">(under ~1200/day Ã¢ÂÂ consider a gentler goal)</span>';}
-  var sp=suggestedProteinG();if(sp!=null)s+=' ÃÂ· protein target <b>'+sp+'g</b> (1g/lb of target weight)';
+  var s='BMR <b>'+b.toLocaleString()+'</b> · Maintenance <b>'+m.toLocaleString()+'</b>';
+  if(t!=null){s+=' · '+stratLabel()+' <b>'+t.toLocaleString()+'</b>';if(t<1200)s+=' <span style="color:var(--bad)">(under ~1200/day — consider a gentler goal)</span>';}
+  var sp=suggestedProteinG();if(sp!=null)s+=' · protein target <b>'+sp+'g</b> (1g/lb of target weight)';
   return s+' cal/day';}
 function suggestedMacros(){var cal=num(state.settings.targetCalories);if(cal==null)cal=targetIntake();if(cal==null)return null;var pro;if(state.settings.proteinAuto===false){pro=num(state.settings.targetProtein);}else{pro=suggestedProteinG();}if(pro==null)return null;var fat=Math.round(cal*0.20/9);if(fat<40)fat=40;var carb=Math.round(Math.max(0,cal-pro*4-fat*9)/4);return {protein:pro,carbs:carb,fat:fat,cal:cal};}
 function applyAutoCalTarget(){if(state.settings.calTargetAuto===false)return false;var t=targetIntake();if(t==null)return false;state.settings.targetCalories=String(t);return true;}
 function applyAutoMacros(){applyAutoCalTarget();if(state.settings.macroAuto===false)return false;var sm=suggestedMacros();if(!sm)return false;if(state.settings.proteinAuto!==false)state.settings.targetProtein=String(sm.protein);state.settings.targetCarbs=String(sm.carbs);state.settings.targetFat=String(sm.fat);return true;}
 function syncMacroInputs(){["targetCalories","targetProtein","targetCarbs","targetFat"].forEach(function(k){var el=document.querySelector('[data-set="'+k+'"]');if(el&&document.activeElement!==el)el.value=state.settings[k]||"";});}
-function macroNoticeHTML(){var sm=suggestedMacros();if(!sm)return "";if(state.settings.macroAuto!==false||state.settings.macroDismiss)return "";var p=num(state.settings.targetProtein),c=num(state.settings.targetCarbs),f=num(state.settings.targetFat);if(p===sm.protein&&c===sm.carbs&&f===sm.fat)return "";return '<div class="wl-calnote"><span>Suggested: <b>'+sm.protein+'g</b> P ÃÂ· <b>'+sm.carbs+'g</b> C ÃÂ· <b>'+sm.fat+'g</b> F <span style="color:var(--faint)">(protein anchored, fat 20% min 40g, rest carbs)</span>.</span><span class="wl-calnote-actions"><button class="wl-calnote-btn" data-act="macro:suggest">Use suggested</button><button class="wl-calnote-btn ghost" data-act="macro:keep">Keep mine</button></span></div>';}
+function macroNoticeHTML(){var sm=suggestedMacros();if(!sm)return "";if(state.settings.macroAuto!==false||state.settings.macroDismiss)return "";var p=num(state.settings.targetProtein),c=num(state.settings.targetCarbs),f=num(state.settings.targetFat);if(p===sm.protein&&c===sm.carbs&&f===sm.fat)return "";return '<div class="wl-calnote"><span>Suggested: <b>'+sm.protein+'g</b> P · <b>'+sm.carbs+'g</b> C · <b>'+sm.fat+'g</b> F <span style="color:var(--faint)">(protein anchored, fat 20% min 40g, rest carbs)</span>.</span><span class="wl-calnote-actions"><button class="wl-calnote-btn" data-act="macro:suggest">Use suggested</button><button class="wl-calnote-btn ghost" data-act="macro:keep">Keep mine</button></span></div>';}
 function macroPctHTML(){var s=state.settings;
   var p=num(s.targetProtein),c=num(s.targetCarbs),ft=num(s.targetFat);
   if(p==null&&c==null&&ft==null)return "Enter gram targets to see their total calories and share of your daily total.";
   var total=(p||0)*4+(c||0)*4+(ft||0)*9;
   var cal=num(s.targetCalories);if(cal==null)cal=(targetIntake()||maintenanceCals());
   var out="";
-  if(cal&&cal>0){var parts=[];[["Protein",p,4],["Carbs",c,4],["Fat",ft,9]].forEach(function(m){if(m[1]!=null)parts.push(m[0]+" <b>"+Math.round(m[1]*m[2]/cal*100)+"%</b>");});if(parts.length)out=parts.join(" ÃÂ· ")+" of your "+cal.toLocaleString()+"-cal target ÃÂ· ";}
+  if(cal&&cal>0){var parts=[];[["Protein",p,4],["Carbs",c,4],["Fat",ft,9]].forEach(function(m){if(m[1]!=null)parts.push(m[0]+" <b>"+Math.round(m[1]*m[2]/cal*100)+"%</b>");});if(parts.length)out=parts.join(" · ")+" of your "+cal.toLocaleString()+"-cal target · ";}
   var out2=out+'macros total <b>'+Math.round(total).toLocaleString()+' cal</b>';
-  var sp=suggestedProteinG();if(sp!=null)out2+='<br>Ã°ÂÂÂª Suggested protein <b>'+sp+'g</b> (1g per lb of target weight) to protect muscle.';
+  var sp=suggestedProteinG();if(sp!=null)out2+='<br>💪 Suggested protein <b>'+sp+'g</b> (1g per lb of target weight) to protect muscle.';
   return out2;}
 function prepChart(src){
   var sw=(src||state.weights).slice().sort(function(a,b){return a.date.localeCompare(b.date);});if(!sw.length)return {data:[],slope:null,intercept:null};
@@ -867,13 +867,13 @@ function buildChart(c,goal,unit,compact){
   data.forEach(function(d){s+='<circle data-act="chart:pt" data-ts="'+d.ts+'" data-w="'+d.weight+'" data-avg="'+d.avg+'" cx="'+sx(d.ts)+'" cy="'+sy(d.weight)+'" r="3.2" fill="'+CH.actual+'"/>';});
   s+='</svg>';
   var last=data[data.length-1];
-  s+='<div class="wl-readout" id="wl-readout"><b>'+r1(last.weight)+'</b> '+unit+' ÃÂ· '+fmtShort(new Date(last.ts))+' (latest)</div>';
+  s+='<div class="wl-readout" id="wl-readout"><b>'+r1(last.weight)+'</b> '+unit+' · '+fmtShort(new Date(last.ts))+' (latest)</div>';
   if(!compact)s+='<div class="wl-legend"><span><i style="background:'+CH.actual+'"></i>Actual</span><span><i style="background:'+CH.avg+'"></i>7-day avg</span><span><i style="background:'+CH.reg+'"></i>Trend</span><span><i style="background:'+CH.goal+'"></i>Goal</span></div>';
   return s;
 }
 
 /* ---------------- views ---------------- */
-function renderSummary(t){var o=esc(t);o=o.replace(/\*\*(.+?)\*\*/g,"<b>$1</b>");o=o.replace(/^\s*[-*]\s+/gm,"Ã¢ÂÂ¢ ");o=o.replace(/\n/g,"<br>");return o;}
+function renderSummary(t){var o=esc(t);o=o.replace(/\*\*(.+?)\*\*/g,"<b>$1</b>");o=o.replace(/^\s*[-*]\s+/gm,"• ");o=o.replace(/\n/g,"<br>");return o;}
 function weeklyAIText(){
   var u=state.settings.units;
   var avg=function(a){return a.length?Math.round(a.reduce(function(x,y){return x+y;},0)/a.length):null;};
@@ -893,7 +893,7 @@ function weeklyAIText(){
   var curW=t.wv.length?t.wv[t.wv.length-1]:null;var wChange=t.wv.length>=2?(t.wv[t.wv.length-1]-t.wv[0]):null;
   var al=Object.keys(acts(t.days)).map(function(a){return a+" x"+acts(t.days)[a];});
   var L=[];
-  L.push("Weekly check-in for "+(state.settings.name||"me")+" Ã¢ÂÂ "+fmtShort(s)+" to "+fmtShort(e)+". Units: "+u+".");
+  L.push("Weekly check-in for "+(state.settings.name||"me")+" — "+fmtShort(s)+" to "+fmtShort(e)+". Units: "+u+".");
   L.push("Goals: target weight "+(num(state.settings.goalWeight)!=null?r1(num(state.settings.goalWeight))+" "+u:"not set")+"; steps "+(state.settings.stepsGoal||"not set")+"/day; sleep "+(sleepGoalMin()!=null?minToHM(sleepGoalMin()):"not set")+"; calories "+(num(state.settings.targetCalories)!=null?num(state.settings.targetCalories):"not set")+"/day.");
   L.push("Weight: "+(curW!=null?curW+" "+u:"not logged")+(wChange!=null?" ("+(wChange<=0?"down ":"up ")+Math.abs(r1(wChange))+" "+u+" over the week)":"")+". Weekly avg "+(avg(t.wv)!=null?avg(t.wv)+" "+u:"n/a")+" vs "+(avg(p.wv)!=null?avg(p.wv)+" "+u:"n/a")+" last week.");
   L.push("Steps: avg "+(avg(t.steps)!=null?avg(t.steps).toLocaleString():"none")+"/day vs "+(avg(p.steps)!=null?avg(p.steps).toLocaleString():"none")+" last week ("+t.steps.length+"/7 days logged).");
@@ -901,35 +901,35 @@ function weeklyAIText(){
   L.push("Calories: avg "+(avg(t.cals)!=null?avg(t.cals).toLocaleString():"none")+"/day; macros avg protein "+(avg(t.prot)!=null?avg(t.prot)+"g":"n/a")+", carbs "+(avg(t.carb)!=null?avg(t.carb)+"g":"n/a")+", fat "+(avg(t.fat)!=null?avg(t.fat)+"g":"n/a")+" ("+t.cals.length+"/7 days logged).");
   L.push("Activities: "+(al.length?al.join(", "):"none logged")+". Days logged: "+loggedCount(t.days)+"/7.");
   L.push("");
-  L.push("Please give a short, encouraging but honest weekly check-in: what went well, one or two things to watch, and one concrete suggestion for next week. Keep it motivating and practical Ã¢ÂÂ no medical advice or diagnosis.");
+  L.push("Please give a short, encouraging but honest weekly check-in: what went well, one or two things to watch, and one concrete suggestion for next week. Keep it motivating and practical — no medical advice or diagnosis.");
   return L.join("\n");
 }
 function ckRow(done,label,val,sec,optional){
-  var ic=done?'<span class="wl-ck-ic"></span>':(optional?'<span class="wl-ck-ic opt">Ã¢ÂÂ¦</span>':'<span class="wl-ck-ic miss">!</span>');
-  return '<button class="wl-ck-row" data-act="dl:open" data-sec="'+sec+'"><span class="wl-ck-l">'+ic+'<span class="wl-ck-lab">'+label+'</span></span><span class="wl-ck-val'+(done?"":" empty")+'">'+esc(val)+'</span><span class="wl-ck-go">Ã¢ÂÂº</span></button>';
+  var ic=done?'<span class="wl-ck-ic"></span>':(optional?'<span class="wl-ck-ic opt">◦</span>':'<span class="wl-ck-ic miss">!</span>');
+  return '<button class="wl-ck-row" data-act="dl:open" data-sec="'+sec+'"><span class="wl-ck-l">'+ic+'<span class="wl-ck-lab">'+label+'</span></span><span class="wl-ck-val'+(done?"":" empty")+'">'+esc(val)+'</span><span class="wl-ck-go">›</span></button>';
 }
 function ckCalories(sel){
   var f=state.food[sel]||{};var cal=num(f.calories),p=num(f.protein),cb=num(f.carbs),ft=num(f.fat);
   var has=cal!=null||p!=null||cb!=null||ft!=null;
-  if(!has)return '<button class="wl-ck-row" data-act="dl:open" data-sec="calories"><span class="wl-ck-l"><span class="wl-ck-ic miss">!</span><span class="wl-ck-lab">Calories</span></span><span class="wl-ck-val empty">Add</span><span class="wl-ck-go">Ã¢ÂÂº</span></button>';
+  if(!has)return '<button class="wl-ck-row" data-act="dl:open" data-sec="calories"><span class="wl-ck-l"><span class="wl-ck-ic miss">!</span><span class="wl-ck-lab">Calories</span></span><span class="wl-ck-val empty">Add</span><span class="wl-ck-go">›</span></button>';
   var tg=num(state.settings.targetCalories);
   var tCarb=num(state.settings.targetCarbs),tFat=num(state.settings.targetFat),tProt=num(state.settings.targetProtein);
   var calOver=(tg!=null&&cal!=null&&cal>tg);
   var carbOver=calOver&&(tCarb!=null&&cb!=null&&cb>tCarb);
   var fatOver=calOver&&(tFat!=null&&ft!=null&&ft>tFat);
   var protLow=(tProt!=null&&p!=null&&p<tProt*0.9);
-  var h='<button class="wl-ck-row col" data-act="dl:open" data-sec="calories"><div class="wl-ck-top"><span class="wl-ck-l"><span class="wl-ck-ic"></span><span class="wl-ck-lab">Calories</span></span><span class="wl-ck-val"'+(calOver?' style="color:var(--bad)"':'')+'>'+(cal!=null?Math.round(cal).toLocaleString():"Ã¢ÂÂ")+(tg!=null?' <span style="color:var(--faint);font-weight:600">/ '+tg.toLocaleString()+'</span>':'')+'</span><span class="wl-ck-go">Ã¢ÂÂº</span></div>';
+  var h='<button class="wl-ck-row col" data-act="dl:open" data-sec="calories"><div class="wl-ck-top"><span class="wl-ck-l"><span class="wl-ck-ic"></span><span class="wl-ck-lab">Calories</span></span><span class="wl-ck-val"'+(calOver?' style="color:var(--bad)"':'')+'>'+(cal!=null?Math.round(cal).toLocaleString():"—")+(tg!=null?' <span style="color:var(--faint);font-weight:600">/ '+tg.toLocaleString()+'</span>':'')+'</span><span class="wl-ck-go">›</span></div>';
   if(p!=null||cb!=null||ft!=null){var P=(p||0)*4,C=(cb||0)*4,F=(ft||0)*9;var tot=(P+C+F)||1;
     var pCol=protLow?"var(--bad)":"var(--mac-p)",cCol=carbOver?"var(--bad)":"var(--mac-c)",fCol=fatOver?"var(--bad)":"var(--mac-f)";
     h+='<div class="wl-mbar"><i style="width:'+(P/tot*100)+'%;background:'+pCol+'"></i><i style="width:'+(C/tot*100)+'%;background:'+cCol+'"></i><i style="width:'+(F/tot*100)+'%;background:'+fCol+'"></i></div>';
-    h+='<div class="wl-mlegend"><div class="wl-mseg"><div class="k" style="color:'+pCol+'">Protein</div><div class="v"'+(protLow?' style="color:var(--bad)"':'')+'>'+(p!=null?p+"g":"Ã¢ÂÂ")+'</div></div><div class="wl-mseg"><div class="k" style="color:'+cCol+'">Carbs</div><div class="v"'+(carbOver?' style="color:var(--bad)"':'')+'>'+(cb!=null?cb+"g":"Ã¢ÂÂ")+'</div></div><div class="wl-mseg"><div class="k" style="color:'+fCol+'">Fat</div><div class="v"'+(fatOver?' style="color:var(--bad)"':'')+'>'+(ft!=null?ft+"g":"Ã¢ÂÂ")+'</div></div></div>';}
+    h+='<div class="wl-mlegend"><div class="wl-mseg"><div class="k" style="color:'+pCol+'">Protein</div><div class="v"'+(protLow?' style="color:var(--bad)"':'')+'>'+(p!=null?p+"g":"—")+'</div></div><div class="wl-mseg"><div class="k" style="color:'+cCol+'">Carbs</div><div class="v"'+(carbOver?' style="color:var(--bad)"':'')+'>'+(cb!=null?cb+"g":"—")+'</div></div><div class="wl-mseg"><div class="k" style="color:'+fCol+'">Fat</div><div class="v"'+(fatOver?' style="color:var(--bad)"':'')+'>'+(ft!=null?ft+"g":"—")+'</div></div></div>';}
   return h+'</button>';
 }
 function ckNotes(sel){
   var note=(state.notes[sel]||"").trim();
-  if(note){var snip=note.length>58?note.slice(0,58)+"Ã¢ÂÂ¦":note;
-    return '<button class="wl-ck-row" data-act="dl:open" data-sec="notes"><span class="wl-ck-l"><span class="wl-ck-ic"></span><span class="wl-ck-lab">Notes</span></span><span class="wl-ck-note">'+esc(snip)+'</span><span class="wl-ck-go">Ã¢ÂÂº</span></button>';}
-  return '<button class="wl-ck-row" data-act="dl:open" data-sec="notes"><span class="wl-ck-l"><span class="wl-ck-ic opt">Ã¢ÂÂ¦</span><span class="wl-ck-lab">Notes</span></span><span class="wl-ck-val empty">Optional</span><span class="wl-ck-go">Ã¢ÂÂº</span></button>';
+  if(note){var snip=note.length>58?note.slice(0,58)+"…":note;
+    return '<button class="wl-ck-row" data-act="dl:open" data-sec="notes"><span class="wl-ck-l"><span class="wl-ck-ic"></span><span class="wl-ck-lab">Notes</span></span><span class="wl-ck-note">'+esc(snip)+'</span><span class="wl-ck-go">›</span></button>';}
+  return '<button class="wl-ck-row" data-act="dl:open" data-sec="notes"><span class="wl-ck-l"><span class="wl-ck-ic opt">◦</span><span class="wl-ck-lab">Notes</span></span><span class="wl-ck-val empty">Optional</span><span class="wl-ck-go">›</span></button>';
 }
 function todayChecklistHTML(sel){
   var u=state.settings.units;var f=state.food[sel]||{};
@@ -947,7 +947,7 @@ function todayChecklistHTML(sel){
 }
 function activitySummaryHTML(sel){
   var log=normActs(sel);
-  var h='<div class="wl-card"><div class="wl-card-head"><span>Activity</span><button class="wl-link" data-act="go" data-view="train">Activity tab Ã¢ÂÂ</button></div>';
+  var h='<div class="wl-card"><div class="wl-card-head"><span>Activity</span><button class="wl-link" data-act="go" data-view="train">Activity tab →</button></div>';
   if(log.length){h+='<div class="wl-preset-list" style="padding-top:2px">';log.forEach(function(a){h+='<span class="wl-achip '+a.cat+' on" style="cursor:default">'+esc(a.name||CATLABEL[a.cat])+'</span>';});h+='</div>';}
   else h+='<div class="wl-hint">No activity logged. Add cardio, lifting, recovery, or supplements from the Activity tab.</div>';
   return h+'</div>';
@@ -961,10 +961,10 @@ function view_overview(){
   if(state.genBusy||_sum||_ciDay){
   h+='<div class="wl-card" style="border:1px solid var(--accent)">';
   if(state.genBusy){
-    h+='<div class="wl-card-head"><span>Weekly check-in</span></div><div class="wl-hint">Ã¢ÂÂ³ Generating your check-inÃ¢ÂÂ¦ this takes about a minute. You can keep using the app Ã¢ÂÂ it\u2019ll appear here when it\u2019s ready.</div>';
+    h+='<div class="wl-card-head"><span>Weekly check-in</span></div><div class="wl-hint">⏳ Generating your check-in… this takes about a minute. You can keep using the app — it\u2019ll appear here when it\u2019s ready.</div>';
   }else if(_sum){var _open=state.sumOpen!==false;
-    h+='<button class="wl-collapse-head" data-act="sum:toggle"><span>Weekly check-in'+(_open?' <span class="wl-count" style="margin-left:6px">AI</span>':'')+'</span>'+(_open?'<span class="wl-chevron open">Ã¢ÂÂº</span>':'<span style="color:var(--accent);font-weight:600;font-size:13px">View summary Ã¢ÂÂº</span>')+'</button>';
-    if(_open){h+='<div class="wl-ai-summary" style="margin-top:6px">'+renderSummary(_sum)+'</div>';if(_ciDay)h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="ai:gen">Ã¢ÂÂ» Regenerate</button>';}
+    h+='<button class="wl-collapse-head" data-act="sum:toggle"><span>Weekly check-in'+(_open?' <span class="wl-count" style="margin-left:6px">AI</span>':'')+'</span>'+(_open?'<span class="wl-chevron open">›</span>':'<span style="color:var(--accent);font-weight:600;font-size:13px">View summary ›</span>')+'</button>';
+    if(_open){h+='<div class="wl-ai-summary" style="margin-top:6px">'+renderSummary(_sum)+'</div>';if(_ciDay)h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="ai:gen">↻ Regenerate</button>';}
   }else{
     h+='<div class="wl-card-head"><span>Weekly check-in</span></div><div class="wl-hint" style="margin-bottom:10px">Your recap of last week is ready to generate.</div><button class="wl-btn wl-btn-primary wl-full" data-act="ai:gen">Generate summary</button>';
   }
@@ -975,14 +975,14 @@ function view_overview(){
   h+=activitySummaryHTML(state.selDate);
   h+='<div class="wl-card">';
   if(state.nightBusy){
-    h+='<div class="wl-card-head"><span>'+(state.selDate===todayISO()?"Today\u2019s":"Day")+' recap</span></div><div class="wl-hint">Ã¢ÂÂ³ CompletingÃ¢ÂÂ¦ generating your recap (about a minute). It\u2019ll appear here when ready.</div>';
+    h+='<div class="wl-card-head"><span>'+(state.selDate===todayISO()?"Today\u2019s":"Day")+' recap</span></div><div class="wl-hint">⏳ Completing… generating your recap (about a minute). It\u2019ll appear here when ready.</div>';
   }else{
     var _ns=state.nightlySummary;var _sel=state.selDate;var _selToday=_sel===todayISO();
     var _hasRecap=_ns&&_ns.date===_sel&&_ns.text;
     if(_hasRecap){var _no=state.nightOpen!==false;
-      h+='<button class="wl-collapse-head" data-act="night:toggle"><span>Daily recap <span class="wl-count" style="margin-left:6px">'+fmtShort(parseISO(_ns.date))+'</span></span>'+(_no?'<span class="wl-chevron open">Ã¢ÂÂº</span>':'<span style="color:var(--accent);font-weight:600;font-size:13px">View Ã¢ÂÂº</span>')+'</button>';
+      h+='<button class="wl-collapse-head" data-act="night:toggle"><span>Daily recap <span class="wl-count" style="margin-left:6px">'+fmtShort(parseISO(_ns.date))+'</span></span>'+(_no?'<span class="wl-chevron open">›</span>':'<span style="color:var(--accent);font-weight:600;font-size:13px">View ›</span>')+'</button>';
       if(_no)h+='<div class="wl-ai-summary" style="margin-top:6px">'+renderSummary(_ns.text)+'</div>';
-      h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="night:gen">Ã¢ÂÂ» Regenerate</button>';
+      h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="night:gen">↻ Regenerate</button>';
     }else{
       h+='<div class="wl-card-head"><span>'+(_selToday?"Today\u2019s":"Day")+' recap</span></div>';
       var _miss=dayMissing(_sel);
@@ -991,10 +991,10 @@ function view_overview(){
     }
   }
   h+='</div>';
-  h+='<div class="wl-card"><div class="wl-card-head"><span>Food diary</span><button class="wl-link" data-act="go" data-view="diary">Browse all Ã¢ÂÂ</button></div>';
+  h+='<div class="wl-card"><div class="wl-card-head"><span>Food diary</span><button class="wl-link" data-act="go" data-view="diary">Browse all →</button></div>';
   h+='<div id="wl-photostrip"></div>';
   h+='<div class="wl-mealadd">'+[["breakfast","Breakfast"],["lunch","Lunch"],["snack","Snack"],["dinner","Dinner"]].map(function(m){return '<button class="wl-btn wl-btn-ghost" data-act="photo:add" data-meal="'+m[0]+'">'+I.plus.replace("<svg","<svg width=14 height=14")+m[1]+'</button>';}).join("")+'</div>';
-  h+='<div class="wl-hint" style="margin-top:8px">Ã°ÂÂÂ· Kept on this device only Ã¢ÂÂ not synced or seen by the AI.</div>';
+  h+='<div class="wl-hint" style="margin-top:8px">📷 Kept on this device only — not synced or seen by the AI.</div>';
   h+='</div>';
   h+=connectionCards();
   h+='</div>';return h;
@@ -1016,7 +1016,7 @@ function oneConnCard(d){
   var progress=null;if(start!=null&&goal!=null&&current!=null&&start!==goal){progress=(start-current)/(start-goal);progress=Math.max(0,Math.min(1,progress));}
   var name=esc(ps.name||"Someone");
   var h='<div class="wl-card"><div class="wl-card-head"><span>'+name+'\u2019s progress</span><span class="wl-count">shared</span></div>';
-  h+='<div class="wl-hero-top" style="margin-bottom:12px"><div><div class="wl-mini-label">Current</div><div class="wl-bignum" style="font-size:30px">'+(current!=null?r1(current):"Ã¢ÂÂ")+'<span class="wl-unit">'+u+'</span></div></div>'+(lost!=null?'<div class="wl-change '+(lost>=0?"good":"bad")+'">'+(lost>=0?I.down:I.up)+(lost>=0?"Lost ":"Gained ")+Math.abs(r1(lost))+' '+u+'</div>':'')+'</div>';
+  h+='<div class="wl-hero-top" style="margin-bottom:12px"><div><div class="wl-mini-label">Current</div><div class="wl-bignum" style="font-size:30px">'+(current!=null?r1(current):"—")+'<span class="wl-unit">'+u+'</span></div></div>'+(lost!=null?'<div class="wl-change '+(lost>=0?"good":"bad")+'">'+(lost>=0?I.down:I.up)+(lost>=0?"Lost ":"Gained ")+Math.abs(r1(lost))+' '+u+'</div>':'')+'</div>';
   if(progress!=null)h+='<div class="wl-progress-track"><div class="wl-progress-fill" style="width:'+(progress*100)+'%"></div><div class="wl-progress-marker" style="left:'+(progress*100)+'%"></div></div><div class="wl-progress-ends"><span><b>'+r1(start)+'</b> start</span><span class="wl-togo">'+(toGo!=null&&toGo>0?r1(toGo)+" "+u+" to go":"Goal reached")+'</span><span><b>'+r1(goal)+'</b> goal</span></div>';
   var pc=prepChart(pw);if(pc.data.length)h+=buildChart(pc,goal,u,true);
   return h+'</div>';
@@ -1024,22 +1024,22 @@ function oneConnCard(d){
 function connectionsHTML(){var list=connectionList();
   if(!list.length)return '<div class="wl-hint" style="margin-top:8px">No one connected yet. Create an invite code to add someone.</div>';
   var h='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:12px 0 6px">Connected</div>';
-  list.forEach(function(uid){var nm=(connData[uid]&&connData[uid].settings&&connData[uid].settings.name)||"PendingÃ¢ÂÂ¦";
-    h+='<div class="wl-preset-manage-row">'+I.check.replace("<svg","<svg width=14 height=14")+'<span>'+esc(nm)+'</span><button class="wl-icon-btn" data-act="conn:remove" data-uid="'+uid+'">Ã¢ÂÂ</button></div>';});
+  list.forEach(function(uid){var nm=(connData[uid]&&connData[uid].settings&&connData[uid].settings.name)||"Pending…";
+    h+='<div class="wl-preset-manage-row">'+I.check.replace("<svg","<svg width=14 height=14")+'<span>'+esc(nm)+'</span><button class="wl-icon-btn" data-act="conn:remove" data-uid="'+uid+'">✕</button></div>';});
   return h;
 }
 function fcCell(label,sub,fc,stalledMsg){
   var h='<div class="wl-fc"><div class="wl-fc-label">'+label+'</div><div class="wl-fc-sub">'+sub+'</div>';
-  if(fc&&!fc.stalled)h+='<div class="wl-fc-weeks">'+r1(fc.weeks)+'<span> wks</span></div><div class="wl-fc-date">Ã¢ÂÂ '+fmtFull(fc.date)+'</div>';
+  if(fc&&!fc.stalled)h+='<div class="wl-fc-weeks">'+r1(fc.weeks)+'<span> wks</span></div><div class="wl-fc-date">≈ '+fmtFull(fc.date)+'</div>';
   else h+='<div class="wl-fc-na">'+(fc&&fc.stalled?stalledMsg:"Add more data")+'</div>';
   return h+'</div>';
 }
 function addDays(d,n){var x=new Date(d);x.setHours(0,0,0,0);x.setDate(x.getDate()+n);return x;}
 function trendCtx(){
   var mode=state.trendMode||"W",off=state.trendOffset||0;var start,end,gran,label;
-  if(mode==="W"){start=weekStartFor(-off);end=addDays(start,6);gran="day";label=fmtShort(start)+" Ã¢ÂÂ "+fmtShort(end);}
+  if(mode==="W"){start=weekStartFor(-off);end=addDays(start,6);gran="day";label=fmtShort(start)+" – "+fmtShort(end);}
   else if(mode==="M"){var now=new Date();var mo=new Date(now.getFullYear(),now.getMonth()-off,1);start=new Date(mo.getFullYear(),mo.getMonth(),1);end=new Date(mo.getFullYear(),mo.getMonth()+1,0);gran="day";label=MONTHS[start.getMonth()]+" "+start.getFullYear();}
-  else{var n2=new Date();var em=new Date(n2.getFullYear(),n2.getMonth()-off*6,1);end=new Date(em.getFullYear(),em.getMonth()+1,0);start=new Date(em.getFullYear(),em.getMonth()-5,1);gran="month";label=MONTHS3[start.getMonth()]+" Ã¢ÂÂ "+MONTHS3[end.getMonth()]+" "+end.getFullYear();}
+  else{var n2=new Date();var em=new Date(n2.getFullYear(),n2.getMonth()-off*6,1);end=new Date(em.getFullYear(),em.getMonth()+1,0);start=new Date(em.getFullYear(),em.getMonth()-5,1);gran="month";label=MONTHS3[start.getMonth()]+" – "+MONTHS3[end.getMonth()]+" "+end.getFullYear();}
   return {mode:mode,off:off,start:start,end:end,gran:gran,label:label};
 }
 function bucketValues(map){var ctx=trendCtx();var out=[];
@@ -1109,48 +1109,48 @@ function view_weight(){
   var _prog=null;if(_start!=null&&_goal!=null&&_cur!=null&&_start!==_goal){_prog=Math.max(0,Math.min(1,(_start-_cur)/(_start-_goal)));}
   var _cAll=prepChart();var _fc=computeForecasts(_cur,_goal,_cAll.slope);
   if(_start!=null&&_goal!=null){
-    h+='<div class="wl-card wl-hero"><div class="wl-hero-top"><div><div class="wl-mini-label">Current</div><div class="wl-bignum">'+(_cur!=null?r1(_cur):"Ã¢ÂÂ")+'<span class="wl-unit">'+u+'</span></div></div>';
+    h+='<div class="wl-card wl-hero"><div class="wl-hero-top"><div><div class="wl-mini-label">Current</div><div class="wl-bignum">'+(_cur!=null?r1(_cur):"—")+'<span class="wl-unit">'+u+'</span></div></div>';
     if(_lost!=null)h+='<div class="wl-change '+(_lost>=0?"good":"bad")+'">'+(_lost>=0?I.down:I.up)+(_lost>=0?"Lost ":"Gained ")+Math.abs(r1(_lost))+' '+u+'</div>';
     h+='</div><div class="wl-progress-track"><div class="wl-progress-fill" style="width:'+((_prog||0)*100)+'%"></div>'+(_prog!=null?'<div class="wl-progress-marker" style="left:'+(_prog*100)+'%"></div>':'')+'</div><div class="wl-progress-ends"><span><b>'+r1(_start)+'</b> start</span><span class="wl-togo">'+(_toGo!=null&&_toGo>0?r1(_toGo)+" "+u+" to go":"Goal reached")+'</span><span><b>'+r1(_goal)+'</b> goal</span></div></div>';
     h+='<div class="wl-card"><div class="wl-card-head"><span>Forecast to goal</span></div>';
     if(_fc.done)h+='<div class="wl-empty">You\'re at or below your goal weight. Nice work.</div>';
     else{h+='<div class="wl-forecast-grid">'+fcCell("At your target",state.settings.targetType==="percent_bw_per_week"?state.settings.targetValue+"% / week":state.settings.targetValue+" "+u+" / week",_fc.target,"")+
-      fcCell("At your current pace",(_fc.observed&&_fc.observed.rate!=null)?r1(_fc.observed.rate)+" "+u+" / week":"based on your data",_fc.observed,"Not enough downward trend yet Ã¢ÂÂ keep logging weigh-ins.")+'</div>';}
+      fcCell("At your current pace",(_fc.observed&&_fc.observed.rate!=null)?r1(_fc.observed.rate)+" "+u+" / week":"based on your data",_fc.observed,"Not enough downward trend yet — keep logging weigh-ins.")+'</div>';}
     h+='</div>';
   }
-  h+='<div class="wl-card"><div class="wl-seg wl-seg-wide" style="margin-bottom:10px">'+["W","M","6M"].map(function(m){return '<button class="'+(ctx.mode===m?"on":"")+'" data-act="trend:mode" data-mode="'+m+'">'+m+'</button>';}).join("")+'</div><div class="wl-cal-head"><button class="wl-icon-btn" data-act="trend:prev">Ã¢ÂÂ¹</button><span class="wl-cal-title">'+ctx.label+'</span><button class="wl-icon-btn" data-act="trend:next"'+(off<=0?' style="opacity:.3"':'')+'>Ã¢ÂÂº</button></div></div>';
+  h+='<div class="wl-card"><div class="wl-seg wl-seg-wide" style="margin-bottom:10px">'+["W","M","6M"].map(function(m){return '<button class="'+(ctx.mode===m?"on":"")+'" data-act="trend:mode" data-mode="'+m+'">'+m+'</button>';}).join("")+'</div><div class="wl-cal-head"><button class="wl-icon-btn" data-act="trend:prev">‹</button><span class="wl-cal-title">'+ctx.label+'</span><button class="wl-icon-btn" data-act="trend:next"'+(off<=0?' style="opacity:.3"':'')+'>›</button></div></div>';
   var sw=sortedWeights();var startISO=toISO(ctx.start),endISO=toISO(ctx.end);
   var rw=sw.filter(function(x){return x.date>=startISO&&x.date<=endISO;});
   var goal=num(state.settings.goalWeight);var wc=prepChart(rw);
   var wchg=rw.length>=2?(rw[rw.length-1].weight-rw[0].weight):null;
   h+='<div class="wl-card"><div class="wl-card-head"><span>Weight</span></div>';
-  h+='<div class="wl-hint" style="margin-bottom:6px"><b>Change '+(wchg!=null?(wchg<=0?"Ã¢ÂÂ¼ ":"Ã¢ÂÂ² ")+Math.abs(r1(wchg))+" "+u:"Ã¢ÂÂ")+'</b>'+(rw.length?' ÃÂ· latest '+r1(rw[rw.length-1].weight)+" "+u:"")+'</div>';
+  h+='<div class="wl-hint" style="margin-bottom:6px"><b>Change '+(wchg!=null?(wchg<=0?"▼ ":"▲ ")+Math.abs(r1(wchg))+" "+u:"—")+'</b>'+(rw.length?' · latest '+r1(rw[rw.length-1].weight)+" "+u:"")+'</div>';
   if(wc.data.length)h+=buildChart(wc,goal,u,true);
   else h+='<div class="wl-empty">No weigh-ins in this period.</div>';
   h+='</div>';
   var stepMap={};Object.keys(state.steps).forEach(function(d){var v=num(state.steps[d]);if(v!=null)stepMap[d]=v;});
   var sbk=bucketValues(stepMap);var savg=bucketAvg(sbk);
   h+='<div class="wl-card"><div class="wl-card-head"><span>Steps</span></div>';
-  h+='<div class="wl-hint" style="margin-bottom:6px"><b>Average '+(savg!=null?savg.toLocaleString()+perLbl:"Ã¢ÂÂ")+'</b></div>';
+  h+='<div class="wl-hint" style="margin-bottom:6px"><b>Average '+(savg!=null?savg.toLocaleString()+perLbl:"—")+'</b></div>';
   h+=buildBars(sbk,num(state.settings.stepsGoal),true);
   h+='</div>';
   var calMap={};Object.keys(state.food).forEach(function(d){var c=num(state.food[d]&&state.food[d].calories);if(c!=null)calMap[d]=c;});
   var cbk=bucketValues(calMap);var cavg=bucketAvg(cbk);
   h+='<div class="wl-card"><div class="wl-card-head"><span>Calories</span></div>';
-  h+='<div class="wl-hint" style="margin-bottom:6px"><b>Average '+(cavg!=null?cavg.toLocaleString()+perLbl:"Ã¢ÂÂ")+'</b></div>';
+  h+='<div class="wl-hint" style="margin-bottom:6px"><b>Average '+(cavg!=null?cavg.toLocaleString()+perLbl:"—")+'</b></div>';
   h+=buildBars(cbk,num(state.settings.targetCalories),false);
   h+='</div>';
   var sleepMap={};Object.keys(state.sleep).forEach(function(d){var v=num(state.sleep[d]);if(v!=null)sleepMap[d]=v;});
   var slbk=bucketValues(sleepMap);var slavg=bucketAvg(slbk);var sgm=sleepGoalMin();
   h+='<div class="wl-card"><div class="wl-card-head"><span>Sleep</span></div>';
-  h+='<div class="wl-hint" style="margin-bottom:6px"><b>Average '+(slavg!=null?minToHM(slavg):"Ã¢ÂÂ")+'</b>'+(sgm!=null?' ÃÂ· goal '+minToHM(sgm):"")+'</div>';
+  h+='<div class="wl-hint" style="margin-bottom:6px"><b>Average '+(slavg!=null?minToHM(slavg):"—")+'</b>'+(sgm!=null?' · goal '+minToHM(sgm):"")+'</div>';
   h+=buildSleepChart(slbk,sgm);
   h+='</div>';
-  h+='<div class="wl-card" style="padding:13px 16px"><button class="wl-link" data-act="go" data-view="overview">+ Log or edit on the Home tab Ã¢ÂÂ</button></div>';
+  h+='<div class="wl-card" style="padding:13px 16px"><button class="wl-link" data-act="go" data-view="overview">+ Log or edit on the Home tab →</button></div>';
   return h+'</div>';
 }
-function stat(l,v,u){return '<div class="wl-stat"><div class="wl-stat-label">'+l+'</div><div class="wl-stat-val">'+v+'<span>'+(v!=="Ã¢ÂÂ"?" "+u:"")+'</span></div></div>';}
-function barInner(val,target){if(val==null||!target)return '<div class="wl-tbar-fill" style="width:0%"></div><span class="wl-tbar-text">Ã¢ÂÂ of '+target+'</span>';
+function stat(l,v,u){return '<div class="wl-stat"><div class="wl-stat-label">'+l+'</div><div class="wl-stat-val">'+v+'<span>'+(v!=="—"?" "+u:"")+'</span></div></div>';}
+function barInner(val,target){if(val==null||!target)return '<div class="wl-tbar-fill" style="width:0%"></div><span class="wl-tbar-text">— of '+target+'</span>';
   var pct=Math.min(1.15,val/target);var over=val>target*1.05;
   return '<div class="wl-tbar-fill'+(over?" over":"")+'" style="width:'+Math.min(100,pct*100)+'%"></div><span class="wl-tbar-text">'+Math.round(val/target*100)+'% of '+target+'</span>';}
 function dayHasAny(iso){var f=state.food[iso];var w=false;for(var i=0;i<state.weights.length;i++){if(state.weights[i].date===iso){w=true;break;}}
@@ -1168,15 +1168,15 @@ function dayBarHTML(){
   var sel=state.selDate;var isToday=sel===todayISO();var open=state.calOpen;
   var lbl=isToday?('<span class="wl-daydot"></span>Today, '+parseISO(sel).toLocaleDateString(undefined,{month:"short",day:"numeric"})):fmtLong(parseISO(sel));
   var h='<div class="wl-daybar'+(isToday?"":" off")+'"><div class="wl-daybar-row">';
-  if(!open)h+='<button class="wl-icon-btn" data-act="day:prev">Ã¢ÂÂ¹</button>';
-  h+='<button class="wl-datebtn" data-act="cal:expand">'+lbl+'<span class="wl-chevron'+(open?" open":"")+'" style="font-size:15px;line-height:1;margin-left:4px">Ã¢ÂÂº</span></button>';
-  if(!open)h+='<button class="wl-icon-btn"'+(sel>=todayISO()?' style="opacity:.3"':'')+' data-act="day:next">Ã¢ÂÂº</button>';
+  if(!open)h+='<button class="wl-icon-btn" data-act="day:prev">‹</button>';
+  h+='<button class="wl-datebtn" data-act="cal:expand">'+lbl+'<span class="wl-chevron'+(open?" open":"")+'" style="font-size:15px;line-height:1;margin-left:4px">›</span></button>';
+  if(!open)h+='<button class="wl-icon-btn"'+(sel>=todayISO()?' style="opacity:.3"':'')+' data-act="day:next">›</button>';
   h+='</div>';
   var now=new Date();var curMonth=open&&state.calY===now.getFullYear()&&state.calM===now.getMonth();
   if(!isToday&&!curMonth)h+='<div style="text-align:center;margin-top:6px"><button class="wl-jumptoday" data-act="opentoday">Jump to today</button></div>';
   if(open){
     var y=state.calY,m=state.calM;var dim=new Date(y,m+1,0).getDate();var lead=new Date(y,m,1).getDay();
-    h+='<div class="wl-card" style="margin-top:8px;padding:12px"><div class="wl-cal-head"><button class="wl-icon-btn" data-act="cal:prev">Ã¢ÂÂ¹</button><span class="wl-cal-title">'+MONTHS[m]+' '+y+'</span><button class="wl-icon-btn" data-act="cal:next">Ã¢ÂÂº</button></div><div class="wl-cal-grid wl-cal-dow">';
+    h+='<div class="wl-card" style="margin-top:8px;padding:12px"><div class="wl-cal-head"><button class="wl-icon-btn" data-act="cal:prev">‹</button><span class="wl-cal-title">'+MONTHS[m]+' '+y+'</span><button class="wl-icon-btn" data-act="cal:next">›</button></div><div class="wl-cal-grid wl-cal-dow">';
     WEEKDAYS.forEach(function(dw){h+='<div class="wl-dow">'+dw+'</div>';});h+='</div><div class="wl-cal-grid">';
     for(var i=0;i<lead;i++)h+='<div class="wl-cell empty"></div>';
     for(var d=1;d<=dim;d++){var iso=toISO(new Date(y,m,d));var isT=iso===todayISO();var isS=iso===sel;
@@ -1194,18 +1194,18 @@ function quickEntryHTML(){
   var t={calories:num(state.settings.targetCalories),protein:num(state.settings.targetProtein),carbs:num(state.settings.targetCarbs),fat:num(state.settings.targetFat)};
   var hasT=Object.keys(t).some(function(k){return t[k]!=null;});
   var body='';
-  if(sec==="weight")body='<label class="wl-field wl-field-full"><span>Weight <em>'+u+'</em></span><input class="wl-daywt-input wl-num" type="text" inputmode="decimal" placeholder="Ã¢ÂÂ" value="'+(wmap[sel]!=null?wmap[sel]:"")+'"></label>';
-  else if(sec==="steps")body='<label class="wl-field wl-field-full"><span>Steps</span><input class="wl-steps-input wl-num" data-int="1" type="text" inputmode="numeric" placeholder="Ã¢ÂÂ" value="'+(state.steps[sel]!=null?state.steps[sel]:"")+'"></label>';
-  else if(sec==="sleep")body='<div class="wl-row"><label class="wl-field"><span>Hours</span><input class="wl-num wl-sleep-h" data-int="1" type="text" inputmode="numeric" placeholder="Ã¢ÂÂ" value="'+(state.sleep[sel]!=null?Math.floor(state.sleep[sel]/60):"")+'"></label><label class="wl-field"><span>Minutes</span><input class="wl-num wl-sleep-m" data-int="1" type="text" inputmode="numeric" placeholder="Ã¢ÂÂ" value="'+(state.sleep[sel]!=null?state.sleep[sel]%60:"")+'"></label></div>';
+  if(sec==="weight")body='<label class="wl-field wl-field-full"><span>Weight <em>'+u+'</em></span><input class="wl-daywt-input wl-num" type="text" inputmode="decimal" placeholder="—" value="'+(wmap[sel]!=null?wmap[sel]:"")+'"></label>';
+  else if(sec==="steps")body='<label class="wl-field wl-field-full"><span>Steps</span><input class="wl-steps-input wl-num" data-int="1" type="text" inputmode="numeric" placeholder="—" value="'+(state.steps[sel]!=null?state.steps[sel]:"")+'"></label>';
+  else if(sec==="sleep")body='<div class="wl-row"><label class="wl-field"><span>Hours</span><input class="wl-num wl-sleep-h" data-int="1" type="text" inputmode="numeric" placeholder="—" value="'+(state.sleep[sel]!=null?Math.floor(state.sleep[sel]/60):"")+'"></label><label class="wl-field"><span>Minutes</span><input class="wl-num wl-sleep-m" data-int="1" type="text" inputmode="numeric" placeholder="—" value="'+(state.sleep[sel]!=null?state.sleep[sel]%60:"")+'"></label></div>';
   else if(sec==="calories"){body='<div class="wl-macro3">';
     [["protein","Protein","g"],["fat","Fat","g"],["carbs","Carbs","g"]].forEach(function(f){var val=e[f[0]]!=null?e[f[0]]:"";body+='<label class="wl-field"><span>'+f[1]+' <em>'+f[2]+'</em></span><input class="wl-food-input wl-num" data-food="'+f[0]+'" type="text" inputmode="decimal" placeholder="0" value="'+val+'">';if(hasT&&t[f[0]]!=null)body+='<div class="wl-tbar" id="bar-'+f[0]+'">'+barInner(num(val),t[f[0]])+'</div>';body+='</label>';});
     var _cv=e.calories!=null?e.calories:"";
     body+='</div><label class="wl-field wl-field-full" style="margin-top:14px"><span>Total Calories <em>cal</em></span><input class="wl-food-input wl-num" data-food="calories" type="text" inputmode="decimal" placeholder="0" value="'+_cv+'">';if(hasT&&t.calories!=null)body+='<div class="wl-tbar" id="bar-calories">'+barInner(num(_cv),t.calories)+'</div>';body+='</label>';
     body+='<div id="wl-calnotice">'+calNoticeHTML(sel)+'</div>';}
-  else if(sec==="notes")body='<textarea class="wl-note-input" placeholder="Any notes for the AI summary (feeling sick, feeling good, on vacationÃ¢ÂÂ¦)" style="width:100%;min-height:96px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:14px;padding:11px 12px;box-sizing:border-box;outline:none;resize:vertical">'+esc(state.notes[sel]||"")+'</textarea>';
+  else if(sec==="notes")body='<textarea class="wl-note-input" placeholder="Any notes for the AI summary (feeling sick, feeling good, on vacation…)" style="width:100%;min-height:96px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:14px;padding:11px 12px;box-sizing:border-box;outline:none;resize:vertical">'+esc(state.notes[sel]||"")+'</textarea>';
   var h='<div class="wl-confirm"><div class="wl-confirm-card">';
-  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><div style="font-weight:800;font-size:17px">'+titles[sec]+'</div><button class="wl-icon-btn" data-act="qe:close">Ã¢ÂÂ</button></div>';
-  h+='<div class="wl-hint" style="margin-bottom:14px">'+fmtLong(parseISO(sel))+(sel===todayISO()?" ÃÂ· Today":"")+'</div>';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><div style="font-weight:800;font-size:17px">'+titles[sec]+'</div><button class="wl-icon-btn" data-act="qe:close">✕</button></div>';
+  h+='<div class="wl-hint" style="margin-bottom:14px">'+fmtLong(parseISO(sel))+(sel===todayISO()?" · Today":"")+'</div>';
   h+=body;
   h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:16px" data-act="qe:close">Done</button>';
   return h+'</div></div>';
@@ -1215,17 +1215,17 @@ function weekDays(offset){var s=weekStartFor(offset),arr=[];for(var i=0;i<7;i++)
 function dayRow(d){var iso=toISO(d);var w=null;for(var i=0;i<state.weights.length;i++){if(state.weights[i].date===iso){w=state.weights[i].weight;break;}}
   var f=state.food[iso]||{};return {date:iso,dow:d.toLocaleDateString(undefined,{weekday:"long"}),d:d,weight:w,steps:num(state.steps[iso]),sleep:num(state.sleep[iso]),
     calories:num(f.calories),protein:num(f.protein),fat:num(f.fat),carbs:num(f.carbs),activities:normActs(iso).map(actLabel),note:state.notes[iso]||""};}
-function fnum(v){return v==null?"Ã¢ÂÂ":(Math.abs(v)>=1000?Math.round(v).toLocaleString():(v%1===0?String(v):String(r1(v))));}
+function fnum(v){return v==null?"—":(Math.abs(v)>=1000?Math.round(v).toLocaleString():(v%1===0?String(v):String(r1(v))));}
 function avgStatF(label,disp,sub,color){return '<div class="wl-stat"><div class="wl-stat-label">'+label+'</div><div class="wl-stat-val'+(color?" "+color:"")+'">'+disp+'</div><div class="wl-stat-sub">'+(sub||"&nbsp;")+'</div></div>';}
 function actStat(label,n,cat){var col={cardio:"#3b82f6",lifting:"#22c55e",rest:"#6b7280",supp:"#a855f7"}[cat]||"var(--text)";return '<div class="wl-stat"><div class="wl-stat-label">'+label+'</div><div class="wl-stat-val" style="color:'+col+'">'+n+'</div></div>';}
 function sumStat(label,v,unit){
   if(label==="")return '<div class="wl-stat" style="visibility:hidden"></div>';
-  var disp=v==null?"Ã¢ÂÂ":(Math.abs(v)>=1000?Math.round(v).toLocaleString():(v%1===0?String(v):String(r1(v))));
+  var disp=v==null?"—":(Math.abs(v)>=1000?Math.round(v).toLocaleString():(v%1===0?String(v):String(r1(v))));
   return '<div class="wl-stat"><div class="wl-stat-label">'+label+'</div><div class="wl-stat-val">'+disp+'<span>'+(v!=null&&unit?" "+unit:"")+'</span></div></div>';}
 function view_summary(){
   var days=weekDays(state.weekOffset).map(dayRow);
   var s=weekStartFor(state.weekOffset),e=new Date(s);e.setDate(s.getDate()+6);
-  var isThis=state.weekOffset===0;var label=fmtShort(s)+" Ã¢ÂÂ "+fmtShort(e);var u=state.settings.units;
+  var isThis=state.weekOffset===0;var label=fmtShort(s)+" – "+fmtShort(e);var u=state.settings.units;
   var metrics=["steps","calories","protein","fat","carbs"];var tot={},cnt={};
   metrics.forEach(function(k){tot[k]=0;cnt[k]=0;days.forEach(function(r){if(r[k]!=null){tot[k]+=r[k];cnt[k]++;}});});
   function avg(k){return cnt[k]?tot[k]/cnt[k]:null;}
@@ -1234,7 +1234,7 @@ function view_summary(){
   var slAvg=slv.length?Math.round(slv.reduce(function(a,b){return a+b;},0)/slv.length):null;
   var ts=weekTrainingStats(s);var _tI=todayISO();
   var tCal=num(state.settings.targetCalories),tStep=num(state.settings.stepsGoal),tProt=num(state.settings.targetProtein),tFat=num(state.settings.targetFat),tCarb=num(state.settings.targetCarbs),tSleep=sleepGoalMin();
-  var h='<div class="wl-stack"><div class="wl-daybar"><div class="wl-daybar-row"><button class="wl-icon-btn" data-act="sum:prev">Ã¢ÂÂ¹</button><span class="wl-datebtn" style="cursor:default">'+label+(isThis?' ÃÂ· This week':'')+'</span><button class="wl-icon-btn"'+(isThis?' style="opacity:.3"':'')+' data-act="sum:next">Ã¢ÂÂº</button></div></div>';
+  var h='<div class="wl-stack"><div class="wl-daybar"><div class="wl-daybar-row"><button class="wl-icon-btn" data-act="sum:prev">‹</button><span class="wl-datebtn" style="cursor:default">'+label+(isThis?' · This week':'')+'</span><button class="wl-icon-btn"'+(isThis?' style="opacity:.3"':'')+' data-act="sum:next">›</button></div></div>';
   h+='<div class="wl-card"><div class="wl-card-head"><span>Completed Check-ins</span></div><div class="wl-chips wl-cichips">';
   days.forEach(function(r){var dISO=r.date;var dow=parseISO(dISO).toLocaleDateString(undefined,{weekday:"short"});
     if(dISO>_tI){h+='<span class="wl-cichip fut">'+dow+'</span>';return;}
@@ -1251,10 +1251,10 @@ function view_summary(){
   h+='<div class="wl-card"><div class="wl-card-head"><span>Averages <em>per logged day</em></span></div><div class="wl-statrow" style="grid-template-columns:repeat(3,1fr)">'+
     avgStatF("Calories",fnum(avgCal),tCal!=null?"goal "+fnum(tCal):"",gcol(avgCal,tCal,true,100))+
     avgStatF("Steps",fnum(avgStep),tStep!=null?"goal "+fnum(tStep):"",gcol(avgStep,tStep,false,0))+
-    avgStatF("Sleep",slAvg!=null?minToHM(slAvg):"Ã¢ÂÂ",tSleep!=null?"goal "+minToHM(tSleep):"",gcol(slAvg,tSleep,false,30))+
-    avgStatF("Protein",avgProt!=null?fnum(avgProt)+"g":"Ã¢ÂÂ",tProt!=null?"goal "+tProt+"g":"",gcol(avgProt,tProt,false,10))+
-    avgStatF("Fat",avgFat!=null?fnum(avgFat)+"g":"Ã¢ÂÂ",tFat!=null?"goal "+tFat+"g":"",acol(tFat!=null&&avgFat!=null,avgFat>tFat&&calOverGoal))+
-    avgStatF("Carbs",avgCarb!=null?fnum(avgCarb)+"g":"Ã¢ÂÂ",tCarb!=null?"goal "+tCarb+"g":"",acol(tCarb!=null&&avgCarb!=null,avgCarb>tCarb&&calOverGoal))+'</div></div>';
+    avgStatF("Sleep",slAvg!=null?minToHM(slAvg):"—",tSleep!=null?"goal "+minToHM(tSleep):"",gcol(slAvg,tSleep,false,30))+
+    avgStatF("Protein",avgProt!=null?fnum(avgProt)+"g":"—",tProt!=null?"goal "+tProt+"g":"",gcol(avgProt,tProt,false,10))+
+    avgStatF("Fat",avgFat!=null?fnum(avgFat)+"g":"—",tFat!=null?"goal "+tFat+"g":"",acol(tFat!=null&&avgFat!=null,avgFat>tFat&&calOverGoal))+
+    avgStatF("Carbs",avgCarb!=null?fnum(avgCarb)+"g":"—",tCarb!=null?"goal "+tCarb+"g":"",acol(tCarb!=null&&avgCarb!=null,avgCarb>tCarb&&calOverGoal))+'</div></div>';
   var cardioN=ts.cardioSessions||0,liftN=ts.liftSessions||0,recN=0,suppN=0;
   for(var _wi=0;_wi<7;_wi++){normActs(toISO(addDays(s,_wi))).forEach(function(a){if(a.cat==="rest")recN++;else if(a.cat==="supp")suppN++;});}
   h+='<div class="wl-card"><div class="wl-card-head"><span>Weekly Activity</span></div><div class="wl-statrow" style="grid-template-columns:repeat(2,1fr)">'+actStat("Cardio",cardioN,"cardio")+actStat("Weight Training",liftN,"lifting")+actStat("Recovery",recN,"rest")+actStat("Supplements",suppN,"supp")+'</div></div>';
@@ -1331,7 +1331,7 @@ function renderPhotosStrip(date){var host=document.getElementById("wl-photostrip
 function renderPhotos(date){var host=document.getElementById("wl-photos");if(!host)return;
   idbByDate(date).then(function(list){var h2=document.getElementById("wl-photos");if(!h2)return;
     clearPhotoURLs();
-    if(!list.length){h2.innerHTML='<div class="wl-empty" style="padding:6px 0">No food photos yet Ã¢ÂÂ add a meal below.</div>';return;}
+    if(!list.length){h2.innerHTML='<div class="wl-empty" style="padding:6px 0">No food photos yet — add a meal below.</div>';return;}
     var MEALS=[["breakfast","Breakfast"],["lunch","Lunch"],["snack","Snack"],["dinner","Dinner"],["","Other"]];
     var html="";
     MEALS.forEach(function(m){var items=list.filter(function(p){return (p.meal||"")===m[0];});if(!items.length)return;
@@ -1343,9 +1343,9 @@ function renderPhotos(date){var host=document.getElementById("wl-photos");if(!ho
   }).catch(function(){var h2=document.getElementById("wl-photos");if(h2)h2.innerHTML='<div class="wl-empty" style="padding:6px 0">Photos aren\u2019t available on this device.</div>';});}
 function view_diary(){
   var h='<div class="wl-stack">';
-  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="go" data-view="overview">Ã¢ÂÂ¹</button><span class="wl-cal-title">Food Diary</span><span style="width:36px;display:inline-block"></span></div>';
-  h+='<div class="wl-hint" style="text-align:center;margin:-4px 0 4px">Ã°ÂÂÂ· Your meals by day Ã¢ÂÂ kept on this device only, not synced or seen by the AI.</div>';
-  h+='<div id="wl-diary"><div class="wl-empty" style="padding:20px 0">LoadingÃ¢ÂÂ¦</div></div>';
+  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="go" data-view="overview">‹</button><span class="wl-cal-title">Food Diary</span><span style="width:36px;display:inline-block"></span></div>';
+  h+='<div class="wl-hint" style="text-align:center;margin:-4px 0 4px">📷 Your meals by day — kept on this device only, not synced or seen by the AI.</div>';
+  h+='<div id="wl-diary"><div class="wl-empty" style="padding:20px 0">Loading…</div></div>';
   h+='</div>';
   return h;
 }
@@ -1361,12 +1361,12 @@ function renderDiary(){var host=document.getElementById("wl-diary");if(!host)ret
     var MEALS=[["breakfast","Breakfast"],["lunch","Lunch"],["snack","Snack"],["dinner","Dinner"],["","Other"]];
     var html="";
     shown.forEach(function(wkISO){var ws0=parseISO(wkISO),we=addDays(ws0,6);
-      html+='<div class="wl-diary-weekhead">'+fmtShort(ws0)+' Ã¢ÂÂ '+fmtShort(we)+(toISO(weekStartFor(0))===wkISO?' ÃÂ· This week':'')+'</div>';
+      html+='<div class="wl-diary-weekhead">'+fmtShort(ws0)+' – '+fmtShort(we)+(toISO(weekStartFor(0))===wkISO?' · This week':'')+'</div>';
       for(var i=0;i<7;i++){var dISO=toISO(addDays(ws0,i));var photos=byDate[dISO];if(!photos)continue;
         var f=state.food[dISO]||{};var cal=num(f.calories),p=num(f.protein),c=num(f.carbs),ft=num(f.fat);
-        html+='<div class="wl-card wl-diary-day"><div class="wl-diary-dayhead"><span class="wl-diary-date">'+fmtLong(parseISO(dISO))+(dISO===todayISO()?' ÃÂ· Today':'')+'</span></div>';
-        if(cal!=null||p!=null||c!=null||ft!=null){html+='<div class="wl-diary-macros">'+(cal!=null?'<b>'+Math.round(cal).toLocaleString()+'</b> cal':'<span style="color:var(--faint)">calories not logged</span>')+(p!=null?'  ÃÂ·  P: '+p+'g':'')+(ft!=null?'  ÃÂ·  F: '+ft+'g':'')+(c!=null?'  ÃÂ·  C: '+c+'g':'')+'</div>';
-          var mc=(p||0)*4+(c||0)*4+(ft||0)*9;if((p!=null||c!=null||ft!=null)&&cal!=null&&Math.abs(cal-mc)>2)html+='<div class="wl-diary-partial">Ã¢ÂÂ Ã¯Â¸Â Partial log Ã¢ÂÂ macros don\u2019t total the calories</div>';}
+        html+='<div class="wl-card wl-diary-day"><div class="wl-diary-dayhead"><span class="wl-diary-date">'+fmtLong(parseISO(dISO))+(dISO===todayISO()?' · Today':'')+'</span></div>';
+        if(cal!=null||p!=null||c!=null||ft!=null){html+='<div class="wl-diary-macros">'+(cal!=null?'<b>'+Math.round(cal).toLocaleString()+'</b> cal':'<span style="color:var(--faint)">calories not logged</span>')+(p!=null?'  ·  P: '+p+'g':'')+(ft!=null?'  ·  F: '+ft+'g':'')+(c!=null?'  ·  C: '+c+'g':'')+'</div>';
+          var mc=(p||0)*4+(c||0)*4+(ft||0)*9;if((p!=null||c!=null||ft!=null)&&cal!=null&&Math.abs(cal-mc)>2)html+='<div class="wl-diary-partial">⚠️ Partial log — macros don\u2019t total the calories</div>';}
         MEALS.forEach(function(m){var items=photos.filter(function(x){return (x.meal||"")===m[0];});if(!items.length)return;
           html+='<div class="wl-meal-label">'+m[1]+'</div><div class="wl-photos">';
           items.forEach(function(x){var url=URL.createObjectURL(x.blob);photoURLs.push(url);photoMap[x.id]=url;html+='<button class="wl-photo" data-act="photo:view" data-id="'+x.id+'" style="background-image:url('+url+')"></button>';});
@@ -1374,14 +1374,14 @@ function renderDiary(){var host=document.getElementById("wl-diary");if(!host)ret
         html+='</div>';
       }
     });
-    if(weeks.length>show)html+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:4px" data-act="diary:older">Ã¢ÂÂ Load older week</button>';
+    if(weeks.length>show)html+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:4px" data-act="diary:older">↓ Load older week</button>';
     host2.innerHTML=html;
   }).catch(function(){var host2=document.getElementById("wl-diary");if(host2)host2.innerHTML='<div class="wl-empty" style="padding:20px 0">Photos aren\u2019t available on this device.</div>';});}
 function openLightbox(id){
   var ids=[].slice.call(document.querySelectorAll('[data-act="photo:view"]')).map(function(b){return b.getAttribute("data-id");});
   if(ids.indexOf(id)<0)ids=[id];
   var ov=document.createElement("div");ov.className="wl-lightbox";
-  ov.innerHTML='<div class="wl-lb-count"></div><button class="wl-lb-nav prev" data-lb="prev">Ã¢ÂÂ¹</button><img class="wl-lb-img" alt=""><button class="wl-lb-nav next" data-lb="next">Ã¢ÂÂº</button><div class="wl-lb-bar"><button class="wl-btn wl-btn-ghost" data-lb="close">Close</button><button class="wl-btn wl-btn-danger" data-lb="del">Delete</button></div>';
+  ov.innerHTML='<div class="wl-lb-count"></div><button class="wl-lb-nav prev" data-lb="prev">‹</button><img class="wl-lb-img" alt=""><button class="wl-lb-nav next" data-lb="next">›</button><div class="wl-lb-bar"><button class="wl-btn wl-btn-ghost" data-lb="close">Close</button><button class="wl-btn wl-btn-danger" data-lb="del">Delete</button></div>';
   var img=ov.querySelector(".wl-lb-img"),countEl=ov.querySelector(".wl-lb-count"),prevB=ov.querySelector(".wl-lb-nav.prev"),nextB=ov.querySelector(".wl-lb-nav.next");
   var urls={},idx=Math.max(0,ids.indexOf(id)),dirty=false;
   function show(){img.src=urls[ids[idx]]||"";countEl.textContent=ids.length>1?(idx+1)+" / "+ids.length:"";prevB.style.visibility=idx>0?"visible":"hidden";nextB.style.visibility=idx<ids.length-1?"visible":"hidden";}
@@ -1404,13 +1404,13 @@ function openLightbox(id){
 }
 function themeGrid(){var cur=state.settings.theme||"ink";
   return Object.keys(THEMES).map(function(id){var t=THEMES[id];var on=id===cur;
-    return '<button class="wl-theme'+(on?" on":"")+'" data-act="set:theme" data-theme="'+id+'"><span class="wl-theme-sw"><i style="background:'+t.v.bg+'"></i><i style="background:'+t.v.card+'"></i><i style="background:'+t.v.accent+'"></i><i style="background:'+t.v.good+'"></i></span><span class="wl-theme-name">'+t.label+(id==="ink"?" ÃÂ· current":"")+'</span>'+(on?'<span class="wl-theme-check">'+I.check.replace("<svg","<svg width=14 height=14")+'</span>':'')+'</button>';}).join("");
+    return '<button class="wl-theme'+(on?" on":"")+'" data-act="set:theme" data-theme="'+id+'"><span class="wl-theme-sw"><i style="background:'+t.v.bg+'"></i><i style="background:'+t.v.card+'"></i><i style="background:'+t.v.accent+'"></i><i style="background:'+t.v.good+'"></i></span><span class="wl-theme-name">'+t.label+(id==="ink"?" · current":"")+'</span>'+(on?'<span class="wl-theme-check">'+I.check.replace("<svg","<svg width=14 height=14")+'</span>':'')+'</button>';}).join("");
 }
 function zoneFromHR(hr,mx){if(hr==null||mx==null||mx<=0)return null;var p=hr/mx;if(p<0.60)return 1;if(p<0.70)return 2;if(p<0.80)return 3;if(p<0.90)return 4;return 5;}
 function estMaxHR(){var age=num(state.settings.age);if(age==null)return null;return Math.round(208-0.7*age);}
 function effMaxHR(){var m=num(state.settings.maxHR);return m!=null?m:estMaxHR();}
 function zoneAreaHTML(cf,pfx){pfx=pfx||"cf";var mx=effMaxHR();var hr=num(cf.hr);
-  if(mx!=null&&hr!=null){var z=zoneFromHR(hr,mx);return '<div class="wl-cf-label">Zone</div><div class="wl-hint">From your avg HR: <b>Zone '+z+'</b> ('+Math.round(hr/mx*100)+'% of max '+mx+' bpm) Ã¢ÂÂ set automatically.</div>';}
+  if(mx!=null&&hr!=null){var z=zoneFromHR(hr,mx);return '<div class="wl-cf-label">Zone</div><div class="wl-hint">From your avg HR: <b>Zone '+z+'</b> ('+Math.round(hr/mx*100)+'% of max '+mx+' bpm) — set automatically.</div>';}
   var label=mx!=null?'Zone <em>enter avg HR above to auto-detect</em>':'Zone';
   return '<div class="wl-cf-label">'+label+'</div><div class="wl-seg wl-seg-wide">'+[1,2,3,4,5].map(function(z){return '<button class="'+(cf.zone===z?"on":"")+'" data-act="'+pfx+':zone" data-zone="'+z+'">'+z+'</button>';}).join("")+'</div>';}
 function weekTrainingStats(ws){var out={cardioSessions:0,cardioZ2Sessions:0,cardioMins:0,cardioZ2Mins:0,liftSessions:0,liftMins:0,totalMins:0};
@@ -1419,10 +1419,10 @@ function weekTrainingStats(ws){var out={cardioSessions:0,cardioZ2Sessions:0,card
     ((state.training.liftSessions||{})[iso]||[]).forEach(function(x){out.liftSessions++;out.liftMins+=(num(x.mins)||0);});}
   out.totalMins=out.cardioMins+out.liftMins;return out;}
 function goalBarHTML(label,val,goal,unit,soon){var pct=goal>0?Math.min(100,Math.round(val/goal*100)):0;var done=goal>0&&val>=goal;
-  return '<div class="wl-goalrow"><div class="wl-goalrow-top"><span>'+label+(soon?' <em style="color:var(--faint);font-style:normal">ÃÂ· logging soon</em>':'')+'</span><span class="wl-goalrow-val'+(done?" done":"")+'">'+val+' / '+goal+(unit?' '+unit:'')+(done?' Ã¢ÂÂ':'')+'</span></div><div class="wl-goalbar"><div class="wl-goalbar-fill'+(done?" done":"")+'" style="width:'+pct+'%"></div></div></div>';}
+  return '<div class="wl-goalrow"><div class="wl-goalrow-top"><span>'+label+(soon?' <em style="color:var(--faint);font-style:normal">· logging soon</em>':'')+'</span><span class="wl-goalrow-val'+(done?" done":"")+'">'+val+' / '+goal+(unit?' '+unit:'')+(done?' ✓':'')+'</span></div><div class="wl-goalbar"><div class="wl-goalbar-fill'+(done?" done":"")+'" style="width:'+pct+'%"></div></div></div>';}
 function trainingGoalsHTML(ws){var st=weekTrainingStats(ws);var f=state.settings;
   var cmGoal=num(f.cardioMinGoal),liftGoal=num(f.liftSessGoal);
-  if(cmGoal==null&&liftGoal==null)return '<div class="wl-hint">Set weekly training goals in Settings Ã¢ÂÂ Goals to track them here.</div>';
+  if(cmGoal==null&&liftGoal==null)return '<div class="wl-hint">Set weekly training goals in Settings → Goals to track them here.</div>';
   var h='';
   if(cmGoal!=null)h+=goalBarHTML("Cardio minutes (zone 2+)",st.cardioZ2Mins,cmGoal,"min",false);
   if(liftGoal!=null)h+=goalBarHTML("Lifting sessions",st.liftSessions,liftGoal,"",false);
@@ -1438,14 +1438,14 @@ var EXSEED=[
 {n:"Goblet Squat",m:"quads",e:"Dumbbell"},{n:"Smith Machine Squat (Feet Forward)",m:"quads",e:"Smith Machine"},
 {n:"Romanian Deadlift (Smith Machine)",m:"hamstrings",e:"Smith Machine"}
 ];
-function muscleTagHTML(k){var m=muscleInfo(k);return '<span class="wl-mtag on" style="--mc:'+m.color+'"><span class="wl-mtag-bars">Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ</span>'+m.label.toUpperCase()+'</span>';}
+function muscleTagHTML(k){var m=muscleInfo(k);return '<span class="wl-mtag on" style="--mc:'+m.color+'"><span class="wl-mtag-bars">▎▎▎</span>'+m.label.toUpperCase()+'</span>';}
 function exFormHTML(xf){
   var h='<div class="wl-card" style="border:1px solid var(--accent)"><div class="wl-card-head"><span>'+(xf.id?"Edit exercise":"New exercise")+'</span></div>';
   h+='<label class="wl-field wl-field-full"><span>Name</span><input class="wl-ex-input" data-xf="name" type="text" placeholder="e.g. Smith Machine Bench Press" value="'+esc(xf.name||"")+'"></label>';
   h+='<div class="wl-cf-label" style="margin-top:14px">Muscle group</div><div class="wl-preset-list">'+MUSCLES.map(function(m){return '<button class="wl-mtag'+(xf.muscle===m[0]?" on":"")+'" data-act="ex:muscle" data-muscle="'+m[0]+'" style="--mc:'+m[2]+'">'+m[1]+'</button>';}).join("")+'</div>';
   h+='<label class="wl-field wl-field-full" style="margin-top:14px"><span>Equipment <em>optional</em></span><input class="wl-ex-input" data-xf="equipment" type="text" placeholder="e.g. Dumbbell, Cable, Smith Machine" value="'+esc(xf.equipment||"")+'"></label>';
-  h+='<div style="margin-top:12px"><button class="wl-achip'+(xf.bodyweight?" on":"")+'" data-act="ex:bw">'+(xf.bodyweight?"Ã¢ÂÂ ":"")+'Bodyweight exercise</button></div>';
-  h+='<div class="wl-hint" style="margin-top:6px">Turn on for pull-ups, dips, etc. Ã¢ÂÂ sets will use your bodyweight (plus any added load) when logging.</div>';
+  h+='<div style="margin-top:12px"><button class="wl-achip'+(xf.bodyweight?" on":"")+'" data-act="ex:bw">'+(xf.bodyweight?"✓ ":"")+'Bodyweight exercise</button></div>';
+  h+='<div class="wl-hint" style="margin-top:6px">Turn on for pull-ups, dips, etc. — sets will use your bodyweight (plus any added load) when logging.</div>';
   h+='<div class="wl-row" style="margin-top:14px"><button class="wl-btn wl-btn-primary wl-full" data-act="ex:save">'+(xf.id?"Save changes":"Add exercise")+'</button><button class="wl-btn wl-btn-ghost" data-act="ex:cancel">Cancel</button></div>';
   if(xf.id)h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px;color:var(--bad);border-color:var(--bad)" data-act="ex:del" data-id="'+xf.id+'">'+I.trash.replace("<svg","<svg width=15 height=15")+'Delete exercise</button>';
   return h+'</div>';
@@ -1454,18 +1454,18 @@ function view_exlib(){
   var xf=state.exForm;
   var h='<div class="wl-stack">';
   if(state.browseOpen){
-    h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="browse:close">Ã¢ÂÂ¹</button><span class="wl-cal-title">Common exercises</span><span style="width:36px;display:inline-block"></span></div>';
-    h+='<div class="wl-hint" style="text-align:center;margin-bottom:4px">Tap to add to your library. Add what you use Ã¢ÂÂ you can edit or remove any of them afterward.</div>';
+    h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="browse:close">‹</button><span class="wl-cal-title">Common exercises</span><span style="width:36px;display:inline-block"></span></div>';
+    h+='<div class="wl-hint" style="text-align:center;margin-bottom:4px">Tap to add to your library. Add what you use — you can edit or remove any of them afterward.</div>';
     h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-bottom:4px" data-act="ex:seedall">Add all of these</button>';
     MUSCLES.forEach(function(mm){var seeds=EXSEED.map(function(s,i){return {s:s,i:i};}).filter(function(x){return x.s.m===mm[0];});if(!seeds.length)return;
       h+='<div class="wl-card"><div style="margin-bottom:8px">'+muscleTagHTML(mm[0])+'</div><div class="wl-preset-list">';
       seeds.forEach(function(x){var added=(state.training.exercises||[]).some(function(e){return e.name.toLowerCase()===x.s.n.toLowerCase();});
-        h+='<button class="wl-achip wl-seedchip'+(added?" on":"")+'" style="'+(added?'background:'+mm[2]+';border-color:'+mm[2]+';color:#fff':'border-color:'+mm[2]+';color:'+mm[2])+'" data-act="exseed:add" data-idx="'+x.i+'"><span class="wl-chip-ic">'+(added?"Ã¢ÂÂ":"Ã¯Â¼Â")+'</span>'+esc(x.s.n)+'</button>';});
+        h+='<button class="wl-achip wl-seedchip'+(added?" on":"")+'" style="'+(added?'background:'+mm[2]+';border-color:'+mm[2]+';color:#fff':'border-color:'+mm[2]+';color:'+mm[2])+'" data-act="exseed:add" data-idx="'+x.i+'"><span class="wl-chip-ic">'+(added?"✓":"＋")+'</span>'+esc(x.s.n)+'</button>';});
       h+='</div></div>';});
     h+='<button class="wl-btn wl-btn-primary wl-full" data-act="browse:close">Done</button>';
     return h+'</div>';
   }
-  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="go" data-view="train">Ã¢ÂÂ¹</button><span class="wl-cal-title">Exercise Library</span><span style="width:36px;display:inline-block"></span></div>';
+  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="go" data-view="train">‹</button><span class="wl-cal-title">Exercise Library</span><span style="width:36px;display:inline-block"></span></div>';
   var exs=state.training.exercises||[];
   if(!exs.length&&!xf)h+='<div class="wl-card"><div class="wl-hint">No exercises yet. Tap <b>Browse common exercises</b> to add popular ones fast, or <b>Add exercise</b> to enter your own.</div></div>';
   if(exs.length){MUSCLES.forEach(function(m){
@@ -1473,7 +1473,7 @@ function view_exlib(){
     if(!items.length)return;
     h+='<div class="wl-card"><div style="margin-bottom:8px">'+muscleTagHTML(m[0])+'</div>';
     items.forEach(function(x){var sub=[];if(x.e.equipment)sub.push(esc(x.e.equipment));if(x.e.bodyweight)sub.push("Bodyweight");
-      h+='<div class="wl-exrow"><button class="wl-exrow-main" data-act="ex:edit" data-id="'+x.e.id+'"><span class="wl-exrow-name">'+esc(x.e.name)+'</span>'+(sub.length?'<span class="wl-exrow-sub">'+sub.join(" ÃÂ· ")+'</span>':'')+'</button><button class="wl-exrow-del" data-act="ex:del" data-id="'+x.e.id+'">'+I.trash.replace("<svg","<svg width=17 height=17")+'</button></div>';});
+      h+='<div class="wl-exrow"><button class="wl-exrow-main" data-act="ex:edit" data-id="'+x.e.id+'"><span class="wl-exrow-name">'+esc(x.e.name)+'</span>'+(sub.length?'<span class="wl-exrow-sub">'+sub.join(" · ")+'</span>':'')+'</button><button class="wl-exrow-del" data-act="ex:del" data-id="'+x.e.id+'">'+I.trash.replace("<svg","<svg width=17 height=17")+'</button></div>';});
     h+='</div>';});}
   if(xf)h+=exFormHTML(xf);
   else{h+='<button class="wl-btn wl-btn-primary wl-full" data-act="ex:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add exercise</button>';
@@ -1486,38 +1486,38 @@ function getRoutine(id){return (state.training.routines||[]).filter(function(r){
 function rItem(rt,iid){return (rt.items||[]).filter(function(i){return i.id===iid;})[0];}
 function noteEditorHTML(){var ne=state.noteEdit;
   var h='<div class="wl-note-editor"><input class="wl-noteinput" id="wl-noteinput" type="text" placeholder="One-line note (e.g. 8-12 goal, Bench 30)" value="'+esc(ne.text||"")+'" autocomplete="off">';
-  h+='<button class="wl-achip'+(ne.pinned?" on":"")+'" style="margin-top:10px;'+(ne.pinned?"background:var(--accent);border-color:var(--accent);color:#fff":"")+'" data-act="note:pin"><span class="wl-chip-ic">'+(ne.pinned?"Ã¢ÂÂ":"Ã°ÂÂÂ")+'</span>Pin to exercise (shows in every routine)</button>';
+  h+='<button class="wl-achip'+(ne.pinned?" on":"")+'" style="margin-top:10px;'+(ne.pinned?"background:var(--accent);border-color:var(--accent);color:#fff":"")+'" data-act="note:pin"><span class="wl-chip-ic">'+(ne.pinned?"✓":"📌")+'</span>Pin to exercise (shows in every routine)</button>';
   h+='<div class="wl-row" style="margin-top:10px"><button class="wl-btn wl-btn-primary wl-full" data-act="note:save">Save note</button><button class="wl-btn wl-btn-ghost" data-act="note:cancel">Cancel</button></div>';
   if(ne.nid)h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="note:del">Delete note</button>';
   return h+'</div>';}
 function routineNotesHTML(rt,it,ex){var h='';
-  (ex.notes||[]).forEach(function(n){h+='<button class="wl-note" data-act="note:edit" data-iid="'+it.id+'" data-nid="'+n.id+'" data-pinned="1"><span class="wl-note-txt">'+esc(n.text)+'</span><span class="wl-note-pin">Ã°ÂÂÂ</span></button>';});
+  (ex.notes||[]).forEach(function(n){h+='<button class="wl-note" data-act="note:edit" data-iid="'+it.id+'" data-nid="'+n.id+'" data-pinned="1"><span class="wl-note-txt">'+esc(n.text)+'</span><span class="wl-note-pin">📌</span></button>';});
   (it.notes||[]).forEach(function(n){h+='<button class="wl-note" data-act="note:edit" data-iid="'+it.id+'" data-nid="'+n.id+'" data-pinned="0"><span class="wl-note-txt">'+esc(n.text)+'</span></button>';});
   if(state.noteEdit&&state.noteEdit.iid===it.id&&!state.noteEdit.forHeader)h+=noteEditorHTML();
-  else h+='<button class="wl-note-add" data-act="note:add" data-iid="'+it.id+'">Ã¯Â¼Â note</button>';
+  else h+='<button class="wl-note-add" data-act="note:add" data-iid="'+it.id+'">＋ note</button>';
   return h;}
 function routineItemHTML(rt,it,idx){
   var ex=exById(it.exerciseId);if(!ex)return '<div class="wl-card"><div class="wl-hint">Missing exercise. <button class="wl-link" data-act="ri:remove" data-iid="'+it.id+'">Remove</button></div></div>';
   var u=state.settings.units;
   var h='<div class="wl-card wl-ritem">';
   h+='<div style="margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">'+muscleTagHTML(ex.muscle||"other")+'<span class="wl-ri-actions">'+(idx>0?'<button class="wl-icon-btn" data-act="ri:up" data-iid="'+it.id+'">'+I.up.replace("<svg","<svg width=17 height=17")+'</button>':'')+(idx<rt.items.length-1?'<button class="wl-icon-btn" data-act="ri:down" data-iid="'+it.id+'">'+I.down.replace("<svg","<svg width=17 height=17")+'</button>':'')+'<button class="wl-icon-btn" data-act="ri:remove" data-iid="'+it.id+'">'+I.trash.replace("<svg","<svg width=16 height=16")+'</button></span></div>';
-  h+='<div class="wl-exrow-name">'+esc(ex.name)+'</div>'+((ex.equipment||ex.bodyweight)?'<div class="wl-exrow-sub" style="margin-bottom:8px">'+esc(ex.equipment||"")+(ex.bodyweight?(ex.equipment?" ÃÂ· ":"")+"Bodyweight":"")+'</div>':'<div style="height:6px"></div>');
+  h+='<div class="wl-exrow-name">'+esc(ex.name)+'</div>'+((ex.equipment||ex.bodyweight)?'<div class="wl-exrow-sub" style="margin-bottom:8px">'+esc(ex.equipment||"")+(ex.bodyweight?(ex.equipment?" · ":"")+"Bodyweight":"")+'</div>':'<div style="height:6px"></div>');
   h+=routineNotesHTML(rt,it,ex);
-  h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Rep range</span><div style="display:flex;align-items:center;gap:6px"><input class="wl-ri-input wl-num" data-iid="'+it.id+'" data-field="repLow" type="text" inputmode="numeric" value="'+esc(it.repLow!=null?it.repLow:"")+'" placeholder="8" style="text-align:center"><span style="color:var(--faint)">Ã¢ÂÂ</span><input class="wl-ri-input wl-num" data-iid="'+it.id+'" data-field="repHigh" type="text" inputmode="numeric" value="'+esc(it.repHigh!=null?it.repHigh:"")+'" placeholder="12" style="text-align:center"></div></label>';
+  h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Rep range</span><div style="display:flex;align-items:center;gap:6px"><input class="wl-ri-input wl-num" data-iid="'+it.id+'" data-field="repLow" type="text" inputmode="numeric" value="'+esc(it.repLow!=null?it.repLow:"")+'" placeholder="8" style="text-align:center"><span style="color:var(--faint)">–</span><input class="wl-ri-input wl-num" data-iid="'+it.id+'" data-field="repHigh" type="text" inputmode="numeric" value="'+esc(it.repHigh!=null?it.repHigh:"")+'" placeholder="12" style="text-align:center"></div></label>';
   h+='<label class="wl-field"><span>'+(ex.bodyweight?"Added wt <em>optional</em>":"Weight ("+u+")")+'</span><input class="wl-ri-input wl-num" data-iid="'+it.id+'" data-field="weight" type="text" inputmode="decimal" value="'+esc(it.weight!=null?it.weight:"")+'" placeholder="'+(ex.bodyweight?"0 = BW":"0")+'"></label></div>';
-  h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px"><span class="wl-cf-label" style="margin:0">Sets</span><div class="wl-stepper"><button data-act="ri:setdec" data-iid="'+it.id+'">Ã¢ÂÂ</button><span>'+(it.sets||0)+'</span><button data-act="ri:setinc" data-iid="'+it.id+'">+</button></div></div>';
+  h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px"><span class="wl-cf-label" style="margin:0">Sets</span><div class="wl-stepper"><button data-act="ri:setdec" data-iid="'+it.id+'">−</button><span>'+(it.sets||0)+'</span><button data-act="ri:setinc" data-iid="'+it.id+'">+</button></div></div>';
   return h+'</div>';
 }
 function routinePickHTML(rt){
   var h='<div class="wl-stack">';
-  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="ri:pickclose">Ã¢ÂÂ¹</button><span class="wl-cal-title">Add exercise</span><span style="width:36px;display:inline-block"></span></div>';
+  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="ri:pickclose">‹</button><span class="wl-cal-title">Add exercise</span><span style="width:36px;display:inline-block"></span></div>';
   var exs=state.training.exercises||[];
   if(!exs.length)h+='<div class="wl-card"><div class="wl-hint">Your library is empty. <button class="wl-link" data-act="go" data-view="exlib">Add exercises first</button>.</div></div>';
   MUSCLES.forEach(function(m){var items=exs.filter(function(e){return (e.muscle||"other")===m[0];}).sort(function(a,b){return (a.name||"").toLowerCase().localeCompare((b.name||"").toLowerCase());});
     if(!items.length)return;
     h+='<div class="wl-card"><div style="margin-bottom:8px">'+muscleTagHTML(m[0])+'</div>';
     items.forEach(function(e){var already=(rt.items||[]).some(function(i){return i.exerciseId===e.id;});
-      h+='<div class="wl-exrow"><button class="wl-exrow-main" data-act="ri:pick" data-eid="'+e.id+'"><span class="wl-exrow-name">'+esc(e.name)+'</span>'+((e.equipment||e.bodyweight)?'<span class="wl-exrow-sub">'+esc(e.equipment||"")+(e.bodyweight?(e.equipment?" ÃÂ· ":"")+"Bodyweight":"")+'</span>':'')+'</button>'+(already?'<span class="wl-note-pin" style="font-size:13px;color:var(--good)">Ã¢ÂÂ added</span>':'<button class="wl-btn wl-btn-ghost" data-act="ri:pick" data-eid="'+e.id+'" style="padding:6px 12px">Add</button>')+'</div>';});
+      h+='<div class="wl-exrow"><button class="wl-exrow-main" data-act="ri:pick" data-eid="'+e.id+'"><span class="wl-exrow-name">'+esc(e.name)+'</span>'+((e.equipment||e.bodyweight)?'<span class="wl-exrow-sub">'+esc(e.equipment||"")+(e.bodyweight?(e.equipment?" · ":"")+"Bodyweight":"")+'</span>':'')+'</button>'+(already?'<span class="wl-note-pin" style="font-size:13px;color:var(--good)">✓ added</span>':'<button class="wl-btn wl-btn-ghost" data-act="ri:pick" data-eid="'+e.id+'" style="padding:6px 12px">Add</button>')+'</div>';});
     h+='</div>';});
   h+='<button class="wl-btn wl-btn-primary wl-full" data-act="ri:pickclose">Done</button>';
   return h+'</div>';
@@ -1525,11 +1525,11 @@ function routinePickHTML(rt){
 function view_routine(){
   var rt=getRoutine(state.routineId);
   var h='<div class="wl-stack">';
-  if(!rt){h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="go" data-view="train">Ã¢ÂÂ¹</button><span class="wl-cal-title">Routine</span></div><div class="wl-card"><div class="wl-hint">Routine not found.</div></div>';return h+'</div>';}
+  if(!rt){h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="go" data-view="train">‹</button><span class="wl-cal-title">Routine</span></div><div class="wl-card"><div class="wl-hint">Routine not found.</div></div>';return h+'</div>';}
   if(state.riPickOpen)return routinePickHTML(rt);
-  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="rt:save">Ã¢ÂÂ¹</button><span class="wl-cal-title">Edit routine</span><span style="width:36px;display:inline-block"></span></div>';
-  h+='<div class="wl-card"><label class="wl-field wl-field-full"><span>Routine name</span><input class="wl-rt-name" type="text" value="'+esc(rt.name||"")+'" placeholder="e.g. Day 1 Ã¢ÂÂ Push"></label></div>';
-  if(!(rt.items||[]).length)h+='<div class="wl-card"><div class="wl-hint">No exercises yet. Add them from your library below Ã¢ÂÂ they\u2019ll group by muscle automatically.</div></div>';
+  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="rt:save">‹</button><span class="wl-cal-title">Edit routine</span><span style="width:36px;display:inline-block"></span></div>';
+  h+='<div class="wl-card"><label class="wl-field wl-field-full"><span>Routine name</span><input class="wl-rt-name" type="text" value="'+esc(rt.name||"")+'" placeholder="e.g. Day 1 – Push"></label></div>';
+  if(!(rt.items||[]).length)h+='<div class="wl-card"><div class="wl-hint">No exercises yet. Add them from your library below — they\u2019ll group by muscle automatically.</div></div>';
   (rt.items||[]).forEach(function(it,idx){h+=routineItemHTML(rt,it,idx);});
   h+='<button class="wl-btn wl-btn-ghost wl-full" data-act="ri:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add exercise</button>';
   h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:8px" data-act="rt:save">'+I.check.replace("<svg","<svg width=16 height=16")+'Save routine</button>';
@@ -1538,25 +1538,25 @@ function view_routine(){
 }
 function routinePreviewHTML(rt){var h='';
   (rt.items||[]).forEach(function(it){var ex=exById(it.exerciseId);if(!ex)return;
-    var rng=(it.repLow||it.repHigh)?((it.repLow||"?")+"Ã¢ÂÂ"+(it.repHigh||"?")):"";
+    var rng=(it.repLow||it.repHigh)?((it.repLow||"?")+"–"+(it.repHigh||"?")):"";
     var wt=ex.bodyweight?("BW"+(num(it.weight)?" +"+it.weight:"")):(num(it.weight)!=null?it.weight+" "+state.settings.units:"");
-    h+='<div class="wl-exrow"><div style="flex:1"><span class="wl-mtag on" style="--mc:'+muscleInfo(ex.muscle).color+';background:'+muscleInfo(ex.muscle).color+';border-color:'+muscleInfo(ex.muscle).color+';color:#fff;font-size:9.5px;padding:3px 7px;vertical-align:middle;margin-right:6px">'+muscleInfo(ex.muscle).label.toUpperCase()+'</span><span class="wl-exrow-name" style="display:inline">'+esc(ex.name)+'</span><div class="wl-exrow-sub">'+(it.sets||0)+' sets'+(rng?' ÃÂ· '+rng+' reps':'')+(wt?' ÃÂ· '+wt:'')+'</div></div></div>';});
+    h+='<div class="wl-exrow"><div style="flex:1"><span class="wl-mtag on" style="--mc:'+muscleInfo(ex.muscle).color+';background:'+muscleInfo(ex.muscle).color+';border-color:'+muscleInfo(ex.muscle).color+';color:#fff;font-size:9.5px;padding:3px 7px;vertical-align:middle;margin-right:6px">'+muscleInfo(ex.muscle).label.toUpperCase()+'</span><span class="wl-exrow-name" style="display:inline">'+esc(ex.name)+'</span><div class="wl-exrow-sub">'+(it.sets||0)+' sets'+(rng?' · '+rng+' reps':'')+(wt?' · '+wt:'')+'</div></div></div>';});
   return h;}
 function view_rlaunch(){
   var rt=getRoutine(state.routineId);var h='<div class="wl-stack">';
-  if(!rt){h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="go" data-view="train">Ã¢ÂÂ¹</button><span class="wl-cal-title">Routine</span></div>';return h+'</div>';}
-  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="go" data-view="train">Ã¢ÂÂ¹</button><span class="wl-cal-title">'+esc(rt.name||"Routine")+'</span><span style="width:36px;display:inline-block"></span></div>';
+  if(!rt){h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="go" data-view="train">‹</button><span class="wl-cal-title">Routine</span></div>';return h+'</div>';}
+  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="go" data-view="train">‹</button><span class="wl-cal-title">'+esc(rt.name||"Routine")+'</span><span style="width:36px;display:inline-block"></span></div>';
   h+='<div class="wl-card">'+(rt.items&&rt.items.length?routinePreviewHTML(rt):'<div class="wl-hint">No exercises in this routine yet.</div>')+'</div>';
-  if(rt.items&&rt.items.length)h+='<button class="wl-btn wl-btn-primary wl-full" data-act="wo:start" data-id="'+rt.id+'">Ã¢ÂÂ¶ Start workout</button>';
-  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:quick" data-id="'+rt.id+'">Quick log <em style="color:var(--faint);font-style:normal">Ã¢ÂÂ just the summary</em></button>';
+  if(rt.items&&rt.items.length)h+='<button class="wl-btn wl-btn-primary wl-full" data-act="wo:start" data-id="'+rt.id+'">▶ Start workout</button>';
+  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:quick" data-id="'+rt.id+'">Quick log <em style="color:var(--faint);font-style:normal">— just the summary</em></button>';
   h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="rt:openedit" data-id="'+rt.id+'">Edit routine</button>';
   return h+'</div>';
 }
 function liftFormHTML(lf){
   var h='<div class="wl-card"><div class="wl-card-head"><span>Quick log</span></div><div class="wl-hint" style="margin-bottom:12px">Log the session summary without per-set detail. Feeds your weekly training goals and the AI coach.</div>';
-  h+='<div class="wl-row"><label class="wl-field"><span>Duration <em>min</em></span><input class="wl-lf-input wl-num" data-lf="mins" type="text" inputmode="numeric" placeholder="45" value="'+(lf.mins!=null?esc(String(lf.mins)):"")+'"></label><label class="wl-field"><span>Avg HR <em>bpm, optional</em></span><input class="wl-lf-input wl-num" data-lf="hr" type="text" inputmode="numeric" placeholder="Ã¢ÂÂ" value="'+(lf.hr!=null?esc(String(lf.hr)):"")+'"></label></div>';
-  h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Peak HR <em>bpm, optional</em></span><input class="wl-lf-input wl-num" data-lf="hrMax" type="text" inputmode="numeric" placeholder="Ã¢ÂÂ" value="'+(lf.hrMax!=null?esc(String(lf.hrMax)):"")+'"></label><label class="wl-field"><span>Est. calories <em>optional</em></span><input class="wl-lf-input wl-num" data-lf="cal" type="text" inputmode="numeric" placeholder="Ã¢ÂÂ" value="'+(lf.cal!=null?esc(String(lf.cal)):"")+'"></label></div>';
-  h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>RPE <em>1-10, optional</em></span><input class="wl-lf-input wl-num" data-lf="rpe" type="text" inputmode="numeric" placeholder="Ã¢ÂÂ" value="'+(lf.rpe!=null?esc(String(lf.rpe)):"")+'"></label><label class="wl-field" style="visibility:hidden"><span>.</span><input></label></div>';
+  h+='<div class="wl-row"><label class="wl-field"><span>Duration <em>min</em></span><input class="wl-lf-input wl-num" data-lf="mins" type="text" inputmode="numeric" placeholder="45" value="'+(lf.mins!=null?esc(String(lf.mins)):"")+'"></label><label class="wl-field"><span>Avg HR <em>bpm, optional</em></span><input class="wl-lf-input wl-num" data-lf="hr" type="text" inputmode="numeric" placeholder="—" value="'+(lf.hr!=null?esc(String(lf.hr)):"")+'"></label></div>';
+  h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Peak HR <em>bpm, optional</em></span><input class="wl-lf-input wl-num" data-lf="hrMax" type="text" inputmode="numeric" placeholder="—" value="'+(lf.hrMax!=null?esc(String(lf.hrMax)):"")+'"></label><label class="wl-field"><span>Est. calories <em>optional</em></span><input class="wl-lf-input wl-num" data-lf="cal" type="text" inputmode="numeric" placeholder="—" value="'+(lf.cal!=null?esc(String(lf.cal)):"")+'"></label></div>';
+  h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>RPE <em>1-10, optional</em></span><input class="wl-lf-input wl-num" data-lf="rpe" type="text" inputmode="numeric" placeholder="—" value="'+(lf.rpe!=null?esc(String(lf.rpe)):"")+'"></label><label class="wl-field" style="visibility:hidden"><span>.</span><input></label></div>';
   h+='<div id="wl-zonearea" style="margin-top:12px">'+zoneAreaHTML(lf,"lf")+'</div>';
   h+='<label class="wl-field wl-field-full" style="margin-top:12px"><span>Notes <em>optional</em></span><textarea class="wl-lf-input" data-lf="notes" style="width:100%;min-height:60px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:14px;padding:11px 12px;box-sizing:border-box;outline:none;resize:vertical">'+esc(lf.notes||"")+'</textarea></label>';
   h+='<div class="wl-row" style="margin-top:14px"><button class="wl-btn wl-btn-primary wl-full" data-act="lift:save">Log workout</button><button class="wl-btn wl-btn-ghost" data-act="lift:cancel">Cancel</button></div>';
@@ -1588,26 +1588,26 @@ function pauseWorkout(){var w=state.workout;if(!w)return;if(w.tState!=="ready"&&
 function woBuckets(){var w=state.workout;if(!w)return null;if(w.tState==="ready")return {warmup:0,work:0,rest:0,total:0,segMs:0};if(w.paused||!w.stateStartTs){var tot=w.warmupMs+w.workMs+w.restMs;return {warmup:w.warmupMs,work:w.workMs,rest:w.restMs,total:tot,segMs:0};}var now=Date.now();var seg=now-w.stateStartTs;var b={warmup:w.warmupMs,work:w.workMs,rest:w.restMs};if(w.tState==="warmup")b.warmup+=seg;else if(w.tState==="working")b.work+=seg;else b.rest+=seg;b.total=b.warmup+b.work+b.rest;b.segMs=seg;return b;}
 function fmtDur(ms){var s=Math.max(0,Math.floor(ms/1000));var h=Math.floor(s/3600);var m=Math.floor((s%3600)/60);var ss=s%60;return (h?h+":"+("0"+m).slice(-2):m)+":"+("0"+ss).slice(-2);}
 var woTimer=null;
-function startWoTick(){if(woTimer)clearInterval(woTimer);woTimer=setInterval(function(){if(!state.workout||state.view!=="workout"){return;}var w=state.workout;var b=woBuckets();var t=document.getElementById("wl-tb-total");if(t)t.textContent=fmtDur(b.total);var s=document.getElementById("wl-tb-seg");if(s)s.textContent=(w.tState==="ready"?"Ready":w.tState==="warmup"?"Warmup":w.tState==="working"?"Working":"Resting")+(w.tState==="ready"?"":" ÃÂ· "+fmtDur(b.segMs));var rt=document.getElementById("wl-rest-time");if(rt&&w.tState==="resting")rt.textContent=fmtDur(b.segMs);},1000);}
+function startWoTick(){if(woTimer)clearInterval(woTimer);woTimer=setInterval(function(){if(!state.workout||state.view!=="workout"){return;}var w=state.workout;var b=woBuckets();var t=document.getElementById("wl-tb-total");if(t)t.textContent=fmtDur(b.total);var s=document.getElementById("wl-tb-seg");if(s)s.textContent=(w.tState==="ready"?"Ready":w.tState==="warmup"?"Warmup":w.tState==="working"?"Working":"Resting")+(w.tState==="ready"?"":" · "+fmtDur(b.segMs));var rt=document.getElementById("wl-rest-time");if(rt&&w.tState==="resting")rt.textContent=fmtDur(b.segMs);},1000);}
 function setTargetIcon(reps,lo,hi){reps=num(reps);lo=num(lo);hi=num(hi);if(reps==null)return "";
   if(lo!=null&&reps<lo)return '<span class="wl-tgt" style="color:#ef4444">'+I.trenddn.replace("<svg","<svg width=18 height=18")+'</span>';
   if(hi!=null&&reps>hi)return '<span class="wl-tgt" style="color:#22c55e">'+I.trend.replace("<svg","<svg width=18 height=18")+'</span>';
   return '<span class="wl-tgt" style="color:#eab308">'+I.target.replace("<svg","<svg width=17 height=17")+'</span>';}
 function timerBarHTML(){var w=state.workout;var b=woBuckets();
   var lbl=w.tState==="ready"?"Ready":w.tState==="warmup"?"Warmup":w.tState==="working"?"Working":"Resting";
-  var h='<div class="wl-timerbar"><div class="wl-tb-left"><div class="wl-tb-total" id="wl-tb-total">'+fmtDur(b.total)+'</div><div class="wl-tb-seg wl-tb-'+w.tState+'" id="wl-tb-seg">'+lbl+(w.tState==="ready"?"":' ÃÂ· '+fmtDur(b.segMs))+'</div></div><div class="wl-tb-btns">';
+  var h='<div class="wl-timerbar"><div class="wl-tb-left"><div class="wl-tb-total" id="wl-tb-total">'+fmtDur(b.total)+'</div><div class="wl-tb-seg wl-tb-'+w.tState+'" id="wl-tb-seg">'+lbl+(w.tState==="ready"?"":' · '+fmtDur(b.segMs))+'</div></div><div class="wl-tb-btns">';
   if(w.tState==="ready")h+='<button class="wl-btn wl-btn-primary" data-act="wo:begin" style="padding:9px 16px">Start</button>';
   else if(w.tState==="warmup")h+='<button class="wl-btn wl-btn-primary" data-act="wo:startroutine" style="padding:9px 14px">End warmup</button>';
   h+='</div></div>';
   return h;}
 function setRowHTML(en,ei,st,si){var done=st.status==="done",sk=st.status==="skipped";
   var h='<div class="wl-setgrid wl-setrow'+(done?" done":"")+(sk?" skipped":"")+'">';
-  h+='<button class="wl-set-menu" data-act="wo:setmenu" data-ei="'+ei+'" data-si="'+si+'">Ã¢ÂÂ®</button>';
+  h+='<button class="wl-set-menu" data-act="wo:setmenu" data-ei="'+ei+'" data-si="'+si+'">⋮</button>';
   h+='<input class="wl-set-input" data-wo="weight" data-ei="'+ei+'" data-si="'+si+'" type="text" inputmode="decimal" value="'+esc(st.weight||"")+'"'+(sk?" disabled":"")+'>';
   if(sk)h+='<span class="wl-set-skip">skipped</span>';else h+='<input class="wl-set-input" data-wo="reps" data-ei="'+ei+'" data-si="'+si+'" type="text" inputmode="numeric" value="'+esc(st.reps||"")+'">';
-  h+='<input class="wl-set-input wl-set-rir" data-wo="rir" data-ei="'+ei+'" data-si="'+si+'" type="text" inputmode="numeric" placeholder="Ã¢ÂÂ" value="'+esc(st.rir||"")+'"'+(sk?" disabled":"")+'>';
+  h+='<input class="wl-set-input wl-set-rir" data-wo="rir" data-ei="'+ei+'" data-si="'+si+'" type="text" inputmode="numeric" placeholder="–" value="'+esc(st.rir||"")+'"'+(sk?" disabled":"")+'>';
   h+='<span class="wl-set-tgt">'+(done&&!sk?setTargetIcon(st.reps,en.repLow,en.repHigh):"")+'</span>';
-  h+='<button class="wl-set-log'+(done?" done":"")+(sk?" skipped":"")+'" data-act="wo:log" data-ei="'+ei+'" data-si="'+si+'">'+(done?"Ã¢ÂÂ":sk?"Ã¢ÂÂ":"")+'</button>';
+  h+='<button class="wl-set-log'+(done?" done":"")+(sk?" skipped":"")+'" data-act="wo:log" data-ei="'+ei+'" data-si="'+si+'">'+(done?"✓":sk?"–":"")+'</button>';
   return h+'</div>';}
 function view_workout(){var w=state.workout;
   if(!w)return '<div class="wl-stack"><div class="wl-card"><div class="wl-hint">No active workout.</div></div></div>';
@@ -1615,12 +1615,12 @@ function view_workout(){var w=state.workout;
   var h='<div class="wl-stack wl-workout">';
   h+='<div class="wl-cal-head" style="margin-bottom:2px"><span class="wl-cal-title" style="font-size:16px">'+esc(w.name)+'</span></div>';
   h+=timerBarHTML();
-  if(w.tState==="ready")h+='<div class="wl-hint" style="text-align:center;margin:2px 0 4px">Review your workout below, then tap <b>Start</b> Ã¢ÂÂ your warmup begins first. Tap <b>End warmup</b> when you\u2019re ready to lift.</div>';
-  w.entries.forEach(function(en,ei){h+='<div class="wl-card" id="wo-ex-'+ei+'"><div style="margin-bottom:6px;display:flex;align-items:center;justify-content:space-between">'+muscleTagHTML(en.muscle||"other")+'<span style="display:inline-flex;gap:2px"><button class="wl-icon-btn" data-act="wo:hist" data-ei="'+ei+'">'+I.history.replace("<svg","<svg width=18 height=18")+'</button><button class="wl-icon-btn" data-act="wo:exmenu" data-ei="'+ei+'" style="font-size:20px">Ã¢ÂÂ®</button></span></div>';
+  if(w.tState==="ready")h+='<div class="wl-hint" style="text-align:center;margin:2px 0 4px">Review your workout below, then tap <b>Start</b> — your warmup begins first. Tap <b>End warmup</b> when you\u2019re ready to lift.</div>';
+  w.entries.forEach(function(en,ei){h+='<div class="wl-card" id="wo-ex-'+ei+'"><div style="margin-bottom:6px;display:flex;align-items:center;justify-content:space-between">'+muscleTagHTML(en.muscle||"other")+'<span style="display:inline-flex;gap:2px"><button class="wl-icon-btn" data-act="wo:hist" data-ei="'+ei+'">'+I.history.replace("<svg","<svg width=18 height=18")+'</button><button class="wl-icon-btn" data-act="wo:exmenu" data-ei="'+ei+'" style="font-size:20px">⋮</button></span></div>';
     h+='<div class="wl-exrow-name">'+esc(en.name)+'</div>';
     if(en.bodyweight)h+='<div class="wl-exrow-sub">Bodyweight @ <button class="wl-link" data-act="wo:bw" style="display:inline">'+(w.bw!=null?w.bw+" "+state.settings.units:"set weight")+'</button></div>';
     else if(en.equipment)h+='<div class="wl-exrow-sub">'+esc(en.equipment)+'</div>';
-    (en.notes||[]).forEach(function(n){h+='<div class="wl-note" style="cursor:default"><span class="wl-note-txt">'+esc(n.text)+'</span>'+(n.pinned?'<span class="wl-note-pin">Ã°ÂÂÂ</span>':'')+'</div>';});
+    (en.notes||[]).forEach(function(n){h+='<div class="wl-note" style="cursor:default"><span class="wl-note-txt">'+esc(n.text)+'</span>'+(n.pinned?'<span class="wl-note-pin">📌</span>':'')+'</div>';});
     h+='<div class="wl-setgrid wl-sethead" style="margin-top:10px"><span></span><span>WEIGHT</span><span>REPS</span><span>RIR</span><span></span><span>LOG</span></div>';
     en.sets.forEach(function(st,si){h+=setRowHTML(en,ei,st,si);});
     h+='</div>';});
@@ -1630,11 +1630,11 @@ function view_workout(){var w=state.workout;
   return h+'</div>';}
 function finishSheetHTML(){var w=state.workout;var b=woBuckets();var ff=w.finishForm||{};
   var h='<div class="wl-stack">';
-  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="wo:finishback">Ã¢ÂÂ¹</button><span class="wl-cal-title">Finish workout</span><span style="width:36px;display:inline-block"></span></div>';
-  h+='<div class="wl-card"><div class="wl-card-head"><span>'+esc(w.name)+'</span></div><div class="wl-diary-macros" style="border:none;padding:0"><b>'+fmtDur(b.total)+'</b> total ÃÂ· work '+fmtDur(b.work)+' ÃÂ· rest '+fmtDur(b.rest)+(b.warmup>2000?' ÃÂ· warmup '+fmtDur(b.warmup):"")+'</div></div>';
+  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="wo:finishback">‹</button><span class="wl-cal-title">Finish workout</span><span style="width:36px;display:inline-block"></span></div>';
+  h+='<div class="wl-card"><div class="wl-card-head"><span>'+esc(w.name)+'</span></div><div class="wl-diary-macros" style="border:none;padding:0"><b>'+fmtDur(b.total)+'</b> total · work '+fmtDur(b.work)+' · rest '+fmtDur(b.rest)+(b.warmup>2000?' · warmup '+fmtDur(b.warmup):"")+'</div></div>';
   h+='<div class="wl-card"><div class="wl-card-head"><span>Session summary</span></div>';
-  h+='<div class="wl-row"><label class="wl-field"><span>Avg HR <em>optional</em></span><input class="wl-wof-input wl-num" data-wof="hr" type="text" inputmode="numeric" placeholder="Ã¢ÂÂ" value="'+(ff.hr!=null?esc(String(ff.hr)):"")+'"></label><label class="wl-field"><span>Peak HR <em>optional</em></span><input class="wl-wof-input wl-num" data-wof="hrMax" type="text" inputmode="numeric" placeholder="Ã¢ÂÂ" value="'+(ff.hrMax!=null?esc(String(ff.hrMax)):"")+'"></label></div>';
-  h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Est. calories <em>optional</em></span><input class="wl-wof-input wl-num" data-wof="cal" type="text" inputmode="numeric" placeholder="Ã¢ÂÂ" value="'+(ff.cal!=null?esc(String(ff.cal)):"")+'"></label><label class="wl-field"><span>RPE <em>1-10, optional</em></span><input class="wl-wof-input wl-num" data-wof="rpe" type="text" inputmode="numeric" placeholder="Ã¢ÂÂ" value="'+(ff.rpe!=null?esc(String(ff.rpe)):"")+'"></label></div>';
+  h+='<div class="wl-row"><label class="wl-field"><span>Avg HR <em>optional</em></span><input class="wl-wof-input wl-num" data-wof="hr" type="text" inputmode="numeric" placeholder="—" value="'+(ff.hr!=null?esc(String(ff.hr)):"")+'"></label><label class="wl-field"><span>Peak HR <em>optional</em></span><input class="wl-wof-input wl-num" data-wof="hrMax" type="text" inputmode="numeric" placeholder="—" value="'+(ff.hrMax!=null?esc(String(ff.hrMax)):"")+'"></label></div>';
+  h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Est. calories <em>optional</em></span><input class="wl-wof-input wl-num" data-wof="cal" type="text" inputmode="numeric" placeholder="—" value="'+(ff.cal!=null?esc(String(ff.cal)):"")+'"></label><label class="wl-field"><span>RPE <em>1-10, optional</em></span><input class="wl-wof-input wl-num" data-wof="rpe" type="text" inputmode="numeric" placeholder="—" value="'+(ff.rpe!=null?esc(String(ff.rpe)):"")+'"></label></div>';
   h+='<div id="wl-zonearea" style="margin-top:12px">'+zoneAreaHTML({hr:ff.hr,zone:ff.zone||2},"wof")+'</div>';
   h+='<label class="wl-field wl-field-full" style="margin-top:12px"><span>Notes <em>optional</em></span><textarea class="wl-wof-input" data-wof="notes" style="width:100%;min-height:60px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:14px;padding:11px 12px;box-sizing:border-box;outline:none;resize:vertical">'+esc(ff.notes||"")+'</textarea></label>';
   h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:14px" data-act="wo:savesession">Save workout</button>';
@@ -1674,35 +1674,35 @@ function analyzeSession(date,sessId){var arr=(state.training.liftSessions||{})[d
   });
   return {prs:prs,progress:progress};}
 function view_liftview(){var s=getLiftSession();var u=state.settings.units;var mode=state.liftEdit;var h='<div class="wl-stack">';
-  if(!s){h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="lift:back">Ã¢ÂÂ¹</button><span class="wl-cal-title">Session</span></div><div class="wl-card"><div class="wl-hint">Session not found.</div></div>';return h+'</div>';}
+  if(!s){h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="lift:back">‹</button><span class="wl-cal-title">Session</span></div><div class="wl-card"><div class="wl-hint">Session not found.</div></div>';return h+'</div>';}
   if(mode==="summary"){
-    h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="lift:summaryback">Ã¢ÂÂ¹</button><span class="wl-cal-title">Edit summary</span><span style="width:36px;display:inline-block"></span></div>';
-    h+='<div class="wl-card"><div class="wl-card-head"><span>'+esc(s.name||"Session")+'</span></div><div class="wl-hint" style="margin-bottom:12px">Your saved values are filled in Ã¢ÂÂ write over anything you want to change.</div>'+liftSummaryFieldsHTML(s)+'</div>';
+    h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="lift:summaryback">‹</button><span class="wl-cal-title">Edit summary</span><span style="width:36px;display:inline-block"></span></div>';
+    h+='<div class="wl-card"><div class="wl-card-head"><span>'+esc(s.name||"Session")+'</span></div><div class="wl-hint" style="margin-bottom:12px">Your saved values are filled in — write over anything you want to change.</div>'+liftSummaryFieldsHTML(s)+'</div>';
     h+='<button class="wl-btn wl-btn-primary wl-full" data-act="lift:savedetail">Save workout</button>';
     return h+'</div>';}
   var editing=mode==="sets";
-  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="'+(editing?"lift:editcancel":"lift:back")+'">Ã¢ÂÂ¹</button><span class="wl-cal-title">'+esc(s.name||"Session")+'</span><span style="width:36px;display:inline-block"></span></div>';
+  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="'+(editing?"lift:editcancel":"lift:back")+'">‹</button><span class="wl-cal-title">'+esc(s.name||"Session")+'</span><span style="width:36px;display:inline-block"></span></div>';
   if(!editing&&s.mode==="full"){var _an=analyzeSession(s.date,s.id);
     if(_an.prs.length||_an.progress.length){h+='<div class="wl-card" style="border:1px solid var(--good)">';
-      if(_an.prs.length){h+='<div class="wl-card-head"><span>Ã°ÂÂÂ New PR'+(_an.prs.length>1?"s":"")+'</span></div>';
-        _an.prs.forEach(function(p){h+='<div class="wl-pr-row">'+(p.type==="weight"?'Ã°ÂÂÂ <b>'+esc(p.name)+'</b> Ã¢ÂÂ new top weight: '+p.w+' '+u+(p.r!=null?' ÃÂ '+p.r:""):'Ã°ÂÂÂª <b>'+esc(p.name)+'</b> Ã¢ÂÂ strength PR, ~'+p.e+' '+u+' est. 1RM'+(p.w!=null&&p.r!=null?' ('+p.w+' ÃÂ '+p.r+')':""))+'</div>';});}
-      if(_an.progress.length){h+='<div class="wl-card-head" style="margin-top:'+(_an.prs.length?"12px":"0")+'"><span>Ã°ÂÂÂ Ready to add weight</span></div><div class="wl-hint" style="margin:2px 0 6px">You hit the top of your rep range at Ã¢ÂÂ¤1 RIR Ã¢ÂÂ Max\u2019s cue to go up.</div>';
-        _an.progress.forEach(function(p){h+='<div class="wl-pr-row">'+esc(p.name)+(p.next!=null?' Ã¢ÂÂ try <b>'+p.next+' '+u+'</b> next time':"")+'</div>';});}
+      if(_an.prs.length){h+='<div class="wl-card-head"><span>🎉 New PR'+(_an.prs.length>1?"s":"")+'</span></div>';
+        _an.prs.forEach(function(p){h+='<div class="wl-pr-row">'+(p.type==="weight"?'🏆 <b>'+esc(p.name)+'</b> — new top weight: '+p.w+' '+u+(p.r!=null?' × '+p.r:""):'💪 <b>'+esc(p.name)+'</b> — strength PR, ~'+p.e+' '+u+' est. 1RM'+(p.w!=null&&p.r!=null?' ('+p.w+' × '+p.r+')':""))+'</div>';});}
+      if(_an.progress.length){h+='<div class="wl-card-head" style="margin-top:'+(_an.prs.length?"12px":"0")+'"><span>📈 Ready to add weight</span></div><div class="wl-hint" style="margin:2px 0 6px">You hit the top of your rep range at ≤1 RIR — Max\u2019s cue to go up.</div>';
+        _an.progress.forEach(function(p){h+='<div class="wl-pr-row">'+esc(p.name)+(p.next!=null?' → try <b>'+p.next+' '+u+'</b> next time':"")+'</div>';});}
       h+='</div>';}
   }
   h+='<div class="wl-card"><div class="wl-card-head"><span>Summary <span class="wl-count">'+(s.mode==="full"?"logged":"quick")+'</span></span></div>';
-  if(s.mode==="full")h+='<div class="wl-diary-macros" style="border:none;padding:0;margin-bottom:6px">'+(s.mins!=null?'<b>'+s.mins+' min</b> ÃÂ· ':"")+'work '+fmtDur((s.workSec||0)*1000)+' ÃÂ· rest '+fmtDur((s.restSec||0)*1000)+(s.warmupSec>2?' ÃÂ· warmup '+fmtDur((s.warmupSec||0)*1000):"")+'</div>';
+  if(s.mode==="full")h+='<div class="wl-diary-macros" style="border:none;padding:0;margin-bottom:6px">'+(s.mins!=null?'<b>'+s.mins+' min</b> · ':"")+'work '+fmtDur((s.workSec||0)*1000)+' · rest '+fmtDur((s.restSec||0)*1000)+(s.warmupSec>2?' · warmup '+fmtDur((s.warmupSec||0)*1000):"")+'</div>';
   var sm=[];if(s.mins!=null&&s.mode!=="full")sm.push(s.mins+" min");if(s.hr!=null)sm.push("HR "+s.hr+(s.hrMax!=null?"/"+s.hrMax:""));else if(s.hrMax!=null)sm.push("peak "+s.hrMax);if(s.zone)sm.push("Zone "+s.zone);if(s.cal!=null)sm.push("~"+s.cal+" cal");if(s.rpe!=null)sm.push("RPE "+s.rpe);
-  h+='<div class="wl-exrow-sub" style="line-height:1.6">'+(sm.length?sm.join("  ÃÂ·  "):"No HR / calories / RPE recorded")+'</div>';
+  h+='<div class="wl-exrow-sub" style="line-height:1.6">'+(sm.length?sm.join("  ·  "):"No HR / calories / RPE recorded")+'</div>';
   if(s.notes)h+='<div class="wl-note" style="cursor:default;margin-top:8px"><span class="wl-note-txt" style="white-space:normal">'+esc(s.notes)+'</span></div>';
   h+='</div>';
   if(s.mode==="full"&&s.entries){s.entries.forEach(function(en,ei){h+='<div class="wl-card"><div style="margin-bottom:6px">'+muscleTagHTML(en.muscle||"other")+'</div><div class="wl-exrow-name">'+esc(en.name)+'</div>';
     h+='<div class="wl-setgrid wl-sethead" style="grid-template-columns:1fr 1fr 46px 60px;margin-top:8px"><span>WEIGHT</span><span>REPS</span><span>RIR</span><span></span></div>';
-    en.sets.forEach(function(st,si){var stat=st.status==="skipped"?"skipped":st.status==="done"?"Ã¢ÂÂ":"";
-      if(editing)h+='<div class="wl-setgrid wl-setrow" style="grid-template-columns:1fr 1fr 46px 60px"><input class="wl-sv-set wl-set-input" data-ei="'+ei+'" data-si="'+si+'" data-field="weight" type="text" inputmode="decimal" value="'+esc(st.weight!=null?String(st.weight):"")+'"><input class="wl-sv-set wl-set-input" data-ei="'+ei+'" data-si="'+si+'" data-field="reps" type="text" inputmode="numeric" value="'+esc(st.reps!=null?String(st.reps):"")+'"><input class="wl-sv-set wl-set-input wl-set-rir" data-ei="'+ei+'" data-si="'+si+'" data-field="rir" type="text" inputmode="numeric" placeholder="Ã¢ÂÂ" value="'+esc(st.rir!=null?String(st.rir):"")+'"><span class="wl-exrow-sub" style="text-align:center">'+stat+'</span></div>';
-      else h+='<div class="wl-setgrid" style="grid-template-columns:1fr 1fr 46px 60px;padding:7px 0;border-top:1px solid var(--line)"><span style="text-align:center;font-size:15px">'+(st.weight!=null?st.weight:"Ã¢ÂÂ")+'</span><span style="text-align:center;font-size:15px">'+(st.reps!=null?st.reps:"Ã¢ÂÂ")+'</span><span style="text-align:center;color:var(--faint)">'+(st.rir!=null?st.rir:"Ã¢ÂÂ")+'</span><span class="wl-exrow-sub" style="text-align:center">'+stat+'</span></div>';});
+    en.sets.forEach(function(st,si){var stat=st.status==="skipped"?"skipped":st.status==="done"?"✓":"";
+      if(editing)h+='<div class="wl-setgrid wl-setrow" style="grid-template-columns:1fr 1fr 46px 60px"><input class="wl-sv-set wl-set-input" data-ei="'+ei+'" data-si="'+si+'" data-field="weight" type="text" inputmode="decimal" value="'+esc(st.weight!=null?String(st.weight):"")+'"><input class="wl-sv-set wl-set-input" data-ei="'+ei+'" data-si="'+si+'" data-field="reps" type="text" inputmode="numeric" value="'+esc(st.reps!=null?String(st.reps):"")+'"><input class="wl-sv-set wl-set-input wl-set-rir" data-ei="'+ei+'" data-si="'+si+'" data-field="rir" type="text" inputmode="numeric" placeholder="–" value="'+esc(st.rir!=null?String(st.rir):"")+'"><span class="wl-exrow-sub" style="text-align:center">'+stat+'</span></div>';
+      else h+='<div class="wl-setgrid" style="grid-template-columns:1fr 1fr 46px 60px;padding:7px 0;border-top:1px solid var(--line)"><span style="text-align:center;font-size:15px">'+(st.weight!=null?st.weight:"–")+'</span><span style="text-align:center;font-size:15px">'+(st.reps!=null?st.reps:"–")+'</span><span style="text-align:center;color:var(--faint)">'+(st.rir!=null?st.rir:"–")+'</span><span class="wl-exrow-sub" style="text-align:center">'+stat+'</span></div>';});
     h+='</div>';});}
-  if(editing){h+='<button class="wl-btn wl-btn-primary wl-full" data-act="lift:tofinish">Finish Ã¢ÂÂ edit summary</button>';h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="lift:editcancel">Cancel edits</button>';}
+  if(editing){h+='<button class="wl-btn wl-btn-primary wl-full" data-act="lift:tofinish">Finish → edit summary</button>';h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="lift:editcancel">Cancel edits</button>';}
   else{h+='<button class="wl-btn wl-btn-primary wl-full" data-act="lift:edit">Edit workout</button>';h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="lift:del" data-id="'+s.id+'">Delete session</button>';}
   return h+'</div>';}
 function openHistory(exId,name){state.histView={exId:exId,name:name};render();}
@@ -1710,10 +1710,10 @@ function histOverlayHTML(){var hv=state.histView;var ls=state.training.liftSessi
   dates.forEach(function(d){(ls[d]||[]).forEach(function(s){if(s.mode==="full"&&s.entries){var e=s.entries.filter(function(x){return x.exerciseId===hv.exId;})[0];if(e&&e.sets)e.sets.forEach(function(st){if(st.status==="done"&&st.weight!=null)rows.push({w:st.weight,r:st.reps,d:d,name:s.name});});}});});
   var u=state.settings.units;var bestE=null,bestW=null;
   rows.forEach(function(r){var e=e1rm(r.w,r.r);if(e!=null&&(bestE==null||e>bestE))bestE=e;if(r.w!=null&&(bestW==null||r.w>bestW))bestW=r.w;});
-  var h='<div class="wl-confirm"><div class="wl-confirm-card" style="max-height:74vh;overflow:auto"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div style="font-weight:800;font-size:18px">History</div><button class="wl-icon-btn" data-act="wo:histclose">Ã¢ÂÂ</button></div><div class="wl-exrow-sub" style="margin-bottom:12px">'+esc(hv.name)+'</div>';
-  if(!rows.length)h+='<div class="wl-hint">No logged sets yet Ã¢ÂÂ finish a workout with this exercise and it\u2019ll show here.</div>';
-  else h+='<div class="wl-card" style="padding:10px 12px;margin-bottom:12px;background:var(--bg2)"><div class="wl-exrow-sub">Personal best</div><div style="font-size:15px;margin-top:2px">Ã°ÂÂÂ top weight <b>'+bestW+' '+u+'</b>'+(bestE!=null?'  ÃÂ·  est. 1RM <b>~'+Math.round(bestE)+' '+u+'</b>':"")+'</div></div>';
-  rows.forEach(function(r){var e=e1rm(r.w,r.r);var isPR=(bestE!=null&&e!=null&&Math.abs(e-bestE)<0.01);h+='<div style="display:flex;justify-content:space-between;align-items:baseline;padding:10px 0;border-bottom:1px solid var(--line)"><span style="font-size:16px">'+(isPR?'Ã¢Â­Â ':"")+'<b>'+r.w+'</b> <span style="font-size:12px;color:var(--faint)">'+u+'</span> ÃÂ <b>'+(r.r!=null?r.r:"Ã¢ÂÂ")+'</b></span><span class="wl-exrow-sub" style="text-align:right">'+fmtShort(parseISO(r.d))+'<br>'+esc(r.name||"")+'</span></div>';});
+  var h='<div class="wl-confirm"><div class="wl-confirm-card" style="max-height:74vh;overflow:auto"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div style="font-weight:800;font-size:18px">History</div><button class="wl-icon-btn" data-act="wo:histclose">✕</button></div><div class="wl-exrow-sub" style="margin-bottom:12px">'+esc(hv.name)+'</div>';
+  if(!rows.length)h+='<div class="wl-hint">No logged sets yet — finish a workout with this exercise and it\u2019ll show here.</div>';
+  else h+='<div class="wl-card" style="padding:10px 12px;margin-bottom:12px;background:var(--bg2)"><div class="wl-exrow-sub">Personal best</div><div style="font-size:15px;margin-top:2px">🏆 top weight <b>'+bestW+' '+u+'</b>'+(bestE!=null?'  ·  est. 1RM <b>~'+Math.round(bestE)+' '+u+'</b>':"")+'</div></div>';
+  rows.forEach(function(r){var e=e1rm(r.w,r.r);var isPR=(bestE!=null&&e!=null&&Math.abs(e-bestE)<0.01);h+='<div style="display:flex;justify-content:space-between;align-items:baseline;padding:10px 0;border-bottom:1px solid var(--line)"><span style="font-size:16px">'+(isPR?'⭐ ':"")+'<b>'+r.w+'</b> <span style="font-size:12px;color:var(--faint)">'+u+'</span> × <b>'+(r.r!=null?r.r:"–")+'</b></span><span class="wl-exrow-sub" style="text-align:right">'+fmtShort(parseISO(r.d))+'<br>'+esc(r.name||"")+'</span></div>';});
   return h+'</div></div>';}
 function woOverlaysHTML(){var h="";
   if(state.setMenu){h+='<div class="wl-confirm"><div class="wl-confirm-card"><div class="wl-confirm-msg" style="font-weight:700;margin-bottom:14px">Set</div><button class="wl-btn wl-btn-ghost wl-full" data-act="wo:addset">Add set below</button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:skipset">Skip / unskip set</button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="wo:delset">Delete set</button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:12px" data-act="wo:setmenu:close">Cancel</button></div></div>';}
@@ -1731,7 +1731,7 @@ function woOverlaysHTML(){var h="";
     '<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="wo:exremove" data-ei="'+ei+'">Remove exercise</button>'+
     '<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:12px" data-act="wo:exmenu:close">Cancel</button></div></div>';}
   if(state.woReplaceEi!=null){var exs=state.training.exercises||[];
-    h+='<div class="wl-confirm"><div class="wl-confirm-card" style="max-height:76vh;overflow:auto"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="font-weight:800;font-size:17px">Replace with</div><button class="wl-icon-btn" data-act="wo:replacecancel">Ã¢ÂÂ</button></div>';
+    h+='<div class="wl-confirm"><div class="wl-confirm-card" style="max-height:76vh;overflow:auto"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="font-weight:800;font-size:17px">Replace with</div><button class="wl-icon-btn" data-act="wo:replacecancel">✕</button></div>';
     MUSCLES.forEach(function(m){var items=exs.filter(function(e){return (e.muscle||"other")===m[0];}).sort(function(a,b){return (a.name||"").toLowerCase().localeCompare((b.name||"").toLowerCase());});if(!items.length)return;
       h+='<div style="margin:10px 0 4px">'+muscleTagHTML(m[0])+'</div>';
       items.forEach(function(e){h+='<button class="wl-exrow-main" data-act="wo:replacepick" data-eid="'+e.id+'" style="width:100%;padding:9px 0;border-bottom:1px solid var(--line)"><span class="wl-exrow-name">'+esc(e.name)+'</span></button>';});});
@@ -1739,15 +1739,15 @@ function woOverlaysHTML(){var h="";
   if(state.workout&&state.workout.tState==="resting"){var b=woBuckets();
     h+='<div class="wl-confirm"><div class="wl-confirm-card" style="text-align:center"><div style="font-size:12px;color:var(--faint);text-transform:uppercase;letter-spacing:.1em;font-weight:800">Rest</div><div class="wl-tb-total" id="wl-rest-time" style="font-size:52px;margin:12px 0;color:#3b82f6">'+fmtDur(b.segMs)+'</div><button class="wl-btn wl-btn-primary wl-full" data-act="wo:endrest">Begin next set</button></div></div>';}
   if(state.woResume){var w=state.workout;var paused=w&&w.paused;
-    h+='<div class="wl-confirm"><div class="wl-confirm-card"><div class="wl-confirm-msg" style="font-weight:700;margin-bottom:4px">'+esc((w&&w.name)||"Workout")+'</div><div class="wl-hint" style="margin-bottom:14px">'+(paused?"Paused Ã¢ÂÂ resume where you left off. The time in between isn\u2019t counted.":"You have a workout in progress.")+'</div><button class="wl-btn wl-btn-primary wl-full" data-act="wo:resume">Resume workout</button>'+(paused?"":'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:finishlater">Finish later <em style="color:var(--faint);font-style:normal">(pause)</em></button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:endnow">End &amp; save</button>')+'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="wo:discardnow">Discard</button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:12px" data-act="wo:resumecancel">Cancel</button></div></div>';}
+    h+='<div class="wl-confirm"><div class="wl-confirm-card"><div class="wl-confirm-msg" style="font-weight:700;margin-bottom:4px">'+esc((w&&w.name)||"Workout")+'</div><div class="wl-hint" style="margin-bottom:14px">'+(paused?"Paused — resume where you left off. The time in between isn\u2019t counted.":"You have a workout in progress.")+'</div><button class="wl-btn wl-btn-primary wl-full" data-act="wo:resume">Resume workout</button>'+(paused?"":'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:finishlater">Finish later <em style="color:var(--faint);font-style:normal">(pause)</em></button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:endnow">End &amp; save</button>')+'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="wo:discardnow">Discard</button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:12px" data-act="wo:resumecancel">Cancel</button></div></div>';}
   if(state.noteEdit&&state.noteEdit.woEi!=null)h+='<div class="wl-confirm"><div class="wl-confirm-card">'+noteEditorHTML()+'</div></div>';
   return h;}
 function view_wtadd(){var h='<div class="wl-stack">';
-  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="go" data-view="train">Ã¢ÂÂ¹</button><span class="wl-cal-title">Add weight training</span><span style="width:36px;display:inline-block"></span></div>';
+  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="go" data-view="train">‹</button><span class="wl-cal-title">Add weight training</span><span style="width:36px;display:inline-block"></span></div>';
   var rts=state.training.routines||[];
   h+='<div class="wl-card"><div class="wl-card-head"><span>Choose a routine</span></div>';
   if(rts.length){rts.forEach(function(rt){var nEx=(rt.items||[]).length;h+='<button class="wl-exrow-main" data-act="rt:open" data-id="'+rt.id+'" style="width:100%;padding:13px 0;border-bottom:1px solid var(--line)"><span class="wl-exrow-name">'+esc(rt.name||"Untitled routine")+'</span><span class="wl-exrow-sub">'+nEx+' exercise'+(nEx===1?"":"s")+'</span></button>';});}
-  else h+='<div class="wl-hint">No routines yet Ã¢ÂÂ create one to get started.</div>';
+  else h+='<div class="wl-hint">No routines yet — create one to get started.</div>';
   h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="rt:new">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add new routine</button>';
   h+='</div>';
   h+='<button class="wl-btn wl-btn-ghost wl-full" data-act="go" data-view="exlib">Exercise library'+((state.training.exercises||[]).length?' <span class="wl-count">'+state.training.exercises.length+'</span>':'')+'</button>';
@@ -1755,8 +1755,8 @@ function view_wtadd(){var h='<div class="wl-stack">';
 function view_wtadd_end(){}
 function view_quicklog(){
   var lf=state.liftForm;var rt=lf&&getRoutine(lf.routineId);var h='<div class="wl-stack">';
-  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="lift:cancel">Ã¢ÂÂ¹</button><span class="wl-cal-title">'+esc((rt&&rt.name)||"Weight training")+'</span><span style="width:36px;display:inline-block"></span></div>';
-  h+='<div class="wl-hint" style="text-align:center;margin-bottom:4px">Logging for '+fmtLong(parseISO(lf.date))+(lf.date===todayISO()?" ÃÂ· Today":"")+'</div>';
+  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="lift:cancel">‹</button><span class="wl-cal-title">'+esc((rt&&rt.name)||"Weight training")+'</span><span style="width:36px;display:inline-block"></span></div>';
+  h+='<div class="wl-hint" style="text-align:center;margin-bottom:4px">Logging for '+fmtLong(parseISO(lf.date))+(lf.date===todayISO()?" · Today":"")+'</div>';
   if(lf)h+=liftFormHTML(lf);
   return h+'</div>';
 }
@@ -1764,27 +1764,27 @@ function cardioFormHTML(cf){
   var types=normPresets().filter(function(p){return p.cat==="cardio";}).map(function(p){return p.name;});
   var h='<div class="wl-cardioform">';
   h+='<div class="wl-cf-label">Type</div><div class="wl-preset-list">';
-  types.forEach(function(t){h+='<button class="wl-achip cardio'+(cf.type===t?" on":"")+'" data-act="cf:type" data-type="'+esc(t)+'">'+(cf.type===t?"Ã¢ÂÂ ":"")+esc(t)+'</button>';});
-  h+='<button class="wl-achip other" data-act="cf:newtype-toggle">Ã¯Â¼Â New</button></div>';
+  types.forEach(function(t){h+='<button class="wl-achip cardio'+(cf.type===t?" on":"")+'" data-act="cf:type" data-type="'+esc(t)+'">'+(cf.type===t?"✓ ":"")+esc(t)+'</button>';});
+  h+='<button class="wl-achip other" data-act="cf:newtype-toggle">＋ New</button></div>';
   if(cf.newOpen)h+='<div class="wl-row" style="margin-top:8px"><input class="wl-inline-input" id="wl-newcardio" placeholder="New cardio type (e.g. Stairmaster)"><button class="wl-btn wl-btn-ghost" data-act="cf:newtype">Add</button></div>';
-  h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Duration <em>min</em></span><input class="wl-cf-input wl-num" data-cf="mins" type="text" inputmode="numeric" placeholder="20" value="'+(cf.mins!=null?esc(String(cf.mins)):"")+'"></label><label class="wl-field"><span>Avg HR <em>bpm, optional</em></span><input class="wl-cf-input wl-num" data-cf="hr" type="text" inputmode="numeric" placeholder="Ã¢ÂÂ" value="'+(cf.hr!=null?esc(String(cf.hr)):"")+'"></label></div>';
-  h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Peak HR <em>bpm, optional</em></span><input class="wl-cf-input wl-num" data-cf="hrMax" type="text" inputmode="numeric" placeholder="Ã¢ÂÂ" value="'+(cf.hrMax!=null?esc(String(cf.hrMax)):"")+'"></label><label class="wl-field"><span>Est. calories <em>optional</em></span><input class="wl-cf-input wl-num" data-cf="cal" type="text" inputmode="numeric" placeholder="Ã¢ÂÂ" value="'+(cf.cal!=null?esc(String(cf.cal)):"")+'"></label></div>';
-  h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>RPE <em>1-10, optional</em></span><input class="wl-cf-input wl-num" data-cf="rpe" type="text" inputmode="numeric" placeholder="Ã¢ÂÂ" value="'+(cf.rpe!=null?esc(String(cf.rpe)):"")+'"></label><label class="wl-field" style="visibility:hidden"><span>.</span><input></label></div>';
+  h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Duration <em>min</em></span><input class="wl-cf-input wl-num" data-cf="mins" type="text" inputmode="numeric" placeholder="20" value="'+(cf.mins!=null?esc(String(cf.mins)):"")+'"></label><label class="wl-field"><span>Avg HR <em>bpm, optional</em></span><input class="wl-cf-input wl-num" data-cf="hr" type="text" inputmode="numeric" placeholder="—" value="'+(cf.hr!=null?esc(String(cf.hr)):"")+'"></label></div>';
+  h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Peak HR <em>bpm, optional</em></span><input class="wl-cf-input wl-num" data-cf="hrMax" type="text" inputmode="numeric" placeholder="—" value="'+(cf.hrMax!=null?esc(String(cf.hrMax)):"")+'"></label><label class="wl-field"><span>Est. calories <em>optional</em></span><input class="wl-cf-input wl-num" data-cf="cal" type="text" inputmode="numeric" placeholder="—" value="'+(cf.cal!=null?esc(String(cf.cal)):"")+'"></label></div>';
+  h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>RPE <em>1-10, optional</em></span><input class="wl-cf-input wl-num" data-cf="rpe" type="text" inputmode="numeric" placeholder="—" value="'+(cf.rpe!=null?esc(String(cf.rpe)):"")+'"></label><label class="wl-field" style="visibility:hidden"><span>.</span><input></label></div>';
   h+='<div id="wl-zonearea" style="margin-top:12px">'+zoneAreaHTML(cf)+'</div>';
   h+='<div class="wl-row" style="margin-top:14px"><button class="wl-btn wl-btn-primary wl-full" data-act="cardio:save">'+(cf.id?"Save changes":"Log cardio")+'</button><button class="wl-btn wl-btn-ghost" data-act="cardio:cancel">Cancel</button></div>';
   return h+'</div>';
 }
 function activityManageHTML(){
   var op=state.manageOpen;
-  var h='<div class="wl-card"><button class="wl-collapse-head" data-act="manage:toggle"><span>Manage activities</span><span class="wl-chevron'+(op?" open":"")+'">Ã¢ÂÂº</span></button>';
+  var h='<div class="wl-card"><button class="wl-collapse-head" data-act="manage:toggle"><span>Manage activities</span><span class="wl-chevron'+(op?" open":"")+'">›</span></button>';
   if(op){h+='<div class="wl-collapse-body">';
     var mp=normPresets();var byName=function(a,b){return (a.p.name||"").toLowerCase().localeCompare((b.p.name||"").toLowerCase());};
     [["cardio","Cardio"],["lifting","Weight training"],["supp","Supplements"],["rest","Recovery"]].forEach(function(cd){
       var cat=cd[0];var items=mp.map(function(p,i){return {p:p,i:i};}).filter(function(x){return x.p.cat===cat;}).sort(byName);
       h+='<div style="margin:12px 0 6px"><span class="wl-actcat wl-cat-'+cat+'">'+cd[1]+'</span></div><div class="wl-preset-list">';
-      items.forEach(function(x){h+='<span class="wl-mgchip '+cat+'">'+esc(x.p.name)+'<button class="wl-mgchip-x" data-act="preset:del" data-idx="'+x.i+'">Ã¢ÂÂ</button></span>';});
-      if(state.actAddCat===cat)h+='<span class="wl-mgchip '+cat+'"><input class="wl-mgchip-input" id="wl-addact-'+cat+'" placeholder="nameÃ¢ÂÂ¦" autocomplete="off"><button class="wl-mgchip-x" data-act="act:addcat" data-cat="'+cat+'">Ã¢ÂÂ</button></span>';
-      else h+='<button class="wl-achip other" data-act="act:addopen" data-cat="'+cat+'">Ã¯Â¼Â Add</button>';
+      items.forEach(function(x){h+='<span class="wl-mgchip '+cat+'">'+esc(x.p.name)+'<button class="wl-mgchip-x" data-act="preset:del" data-idx="'+x.i+'">✕</button></span>';});
+      if(state.actAddCat===cat)h+='<span class="wl-mgchip '+cat+'"><input class="wl-mgchip-input" id="wl-addact-'+cat+'" placeholder="name…" autocomplete="off"><button class="wl-mgchip-x" data-act="act:addcat" data-cat="'+cat+'">✓</button></span>';
+      else h+='<button class="wl-achip other" data-act="act:addopen" data-cat="'+cat+'">＋ Add</button>';
       h+='</div>';
     });
     h+='<div class="wl-hint" style="margin-top:12px">These are the activities you can tap-log on the Activity tab (Cardio, Recovery, and Supplements cards). Cardio ones also appear in the cardio logger.</div></div>';
@@ -1797,7 +1797,7 @@ function actCatCardHTML(cat,title,date){
   var addLabel=cat==="rest"?"Add recovery":cat==="supp"?"Add supplement":"Add";
   var noun=cat==="rest"?"recovery":"supplements";
   var h='<div class="wl-card"><div class="wl-card-head"><span>'+title+(mine.length?' <span class="wl-count">'+mine.length+'</span>':'')+'</span></div>';
-  if(mine.length){h+='<div class="wl-preset-list">';mine.forEach(function(x){h+='<button class="wl-achip '+cat+' on" data-act="act:del" data-idx="'+x.i+'" data-date="'+date+'">'+esc(x.a.name||CATLABEL[cat])+' Ã¢ÂÂ</button>';});h+='</div>';}
+  if(mine.length){h+='<div class="wl-preset-list">';mine.forEach(function(x){h+='<button class="wl-achip '+cat+' on" data-act="act:del" data-idx="'+x.i+'" data-date="'+date+'">'+esc(x.a.name||CATLABEL[cat])+' ✕</button>';});h+='</div>';}
   else h+='<div class="wl-hint">No '+noun+' logged for this day.</div>';
   h+='<button class="wl-btn '+btnClass+' wl-full" style="margin-top:10px" data-act="act:pick" data-cat="'+cat+'">'+I.plus.replace("<svg","<svg width=16 height=16")+addLabel+'</button>';
   return h+'</div>';
@@ -1808,12 +1808,12 @@ function actPickHTML(){
   function onIdx(pr){for(var i=0;i<log.length;i++){if(log[i].name===pr.name&&log[i].cat===pr.cat)return i;}return -1;}
   var items=pre.map(function(p,i){return {p:p,i:i};}).filter(function(x){return x.p.cat===cat;}).sort(function(a,b){return (a.p.name||"").toLowerCase().localeCompare((b.p.name||"").toLowerCase());});
   var h='<div class="wl-confirm"><div class="wl-confirm-card">';
-  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><div style="font-weight:800;font-size:17px">Add '+(cat==="rest"?"recovery":"supplement")+'</div><button class="wl-icon-btn" data-act="actpick:close">Ã¢ÂÂ</button></div>';
-  h+='<div class="wl-hint" style="margin-bottom:14px">'+fmtLong(parseISO(sel))+(sel===todayISO()?" ÃÂ· Today":"")+' Ã¢ÂÂ tap to add or remove.</div>';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><div style="font-weight:800;font-size:17px">Add '+(cat==="rest"?"recovery":"supplement")+'</div><button class="wl-icon-btn" data-act="actpick:close">✕</button></div>';
+  h+='<div class="wl-hint" style="margin-bottom:14px">'+fmtLong(parseISO(sel))+(sel===todayISO()?" · Today":"")+' — tap to add or remove.</div>';
   h+='<div class="wl-preset-list">';
-  items.forEach(function(x){var on=onIdx(x.p)>=0;h+='<button class="wl-achip '+cat+(on?" on":"")+'" data-act="act:toggle" data-idx="'+x.i+'" data-date="'+sel+'"><span class="wl-chip-ic">'+(on?"Ã¢ÂÂ":"")+'</span>'+esc(x.p.name||CATLABEL[cat])+'</button>';});
-  if(state.actAddCat===cat)h+='<span class="wl-mgchip '+cat+'"><input class="wl-mgchip-input" id="wl-addact-'+cat+'" placeholder="nameÃ¢ÂÂ¦" autocomplete="off"><button class="wl-mgchip-x" data-act="act:addcat" data-cat="'+cat+'">Ã¢ÂÂ</button></span>';
-  else h+='<button class="wl-achip other" data-act="act:addopen" data-cat="'+cat+'">Ã¯Â¼Â Add new</button>';
+  items.forEach(function(x){var on=onIdx(x.p)>=0;h+='<button class="wl-achip '+cat+(on?" on":"")+'" data-act="act:toggle" data-idx="'+x.i+'" data-date="'+sel+'"><span class="wl-chip-ic">'+(on?"✓":"")+'</span>'+esc(x.p.name||CATLABEL[cat])+'</button>';});
+  if(state.actAddCat===cat)h+='<span class="wl-mgchip '+cat+'"><input class="wl-mgchip-input" id="wl-addact-'+cat+'" placeholder="name…" autocomplete="off"><button class="wl-mgchip-x" data-act="act:addcat" data-cat="'+cat+'">✓</button></span>';
+  else h+='<button class="wl-achip other" data-act="act:addopen" data-cat="'+cat+'">＋ Add new</button>';
   h+='</div>';
   h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:16px" data-act="actpick:close">Done</button>';
   return h+'</div></div>';
@@ -1825,16 +1825,16 @@ function view_train(){
   var sess=((state.training.sessions||{})[d]||[]).filter(function(s){return s.kind==="cardio";});
   h+='<div class="wl-card"><div class="wl-card-head"><span>Cardio'+(sess.length?' <span class="wl-count">'+sess.length+'</span>':'')+'</span></div>';
   if(sess.length){sess.forEach(function(s){var meta=[];meta.push(s.mins+" min");if(s.zone)meta.push("Zone "+s.zone);if(s.hr)meta.push("HR "+s.hr+(s.hrMax?"/"+s.hrMax:""));else if(s.hrMax)meta.push("peak "+s.hrMax);if(s.rpe)meta.push("RPE "+s.rpe);if(s.cal)meta.push("~"+s.cal+" cal");
-    h+='<div class="wl-sess"><button class="wl-sess-main" data-act="cardio:edit" data-id="'+s.id+'"><span class="wl-sess-type">'+esc(s.type||"Cardio")+'</span><span class="wl-sess-meta">'+meta.join("  ÃÂ·  ")+'</span></button><button class="wl-icon-btn" data-act="cardio:del" data-id="'+s.id+'">'+I.trash.replace("<svg","<svg width=15 height=15")+'</button></div>';});
+    h+='<div class="wl-sess"><button class="wl-sess-main" data-act="cardio:edit" data-id="'+s.id+'"><span class="wl-sess-type">'+esc(s.type||"Cardio")+'</span><span class="wl-sess-meta">'+meta.join("  ·  ")+'</span></button><button class="wl-icon-btn" data-act="cardio:del" data-id="'+s.id+'">'+I.trash.replace("<svg","<svg width=15 height=15")+'</button></div>';});
   }else if(!cf){h+='<div class="wl-hint">No cardio logged for this day.</div>';}
   if(cf&&cf.kind==="cardio")h+=cardioFormHTML(cf);
   else h+='<button class="wl-btn wl-btn-cardio wl-full" style="margin-top:10px" data-act="cardio:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add cardio</button>';
   h+='</div>';
   h+='<div class="wl-card"><div class="wl-card-head"><span>Weight training</span></div>';
-  if(state.workout){var wp=state.workout.paused;h+='<button class="wl-inprogress'+(wp?" partial":"")+'" data-act="wo:resumeask"><span><span class="wl-ip-dot'+(wp?" pauseddot":"")+'"></span>'+esc(state.workout.name||"Workout")+'</span><span class="wl-ip-badge'+(wp?" partial":"")+'">'+(wp?"Partial Ã¢ÂÂº":"In progress Ã¢ÂÂº")+'</span></button>';}
+  if(state.workout){var wp=state.workout.paused;h+='<button class="wl-inprogress'+(wp?" partial":"")+'" data-act="wo:resumeask"><span><span class="wl-ip-dot'+(wp?" pauseddot":"")+'"></span>'+esc(state.workout.name||"Workout")+'</span><span class="wl-ip-badge'+(wp?" partial":"")+'">'+(wp?"Partial ›":"In progress ›")+'</span></button>';}
   var lsess=((state.training.liftSessions||{})[d]||[]);
   if(lsess.length){lsess.forEach(function(s){var meta=[];meta.push((s.mode==="full"?"logged":"quick"));if(s.mins)meta.push(s.mins+" min");if(s.hr)meta.push("HR "+s.hr+(s.hrMax?"/"+s.hrMax:""));if(s.rpe)meta.push("RPE "+s.rpe);if(s.cal)meta.push("~"+s.cal+" cal");
-    h+='<div class="wl-sess"><button class="wl-sess-main" data-act="lift:view" data-id="'+s.id+'"><span class="wl-sess-type">'+esc(s.name||"Weight training")+'</span><span class="wl-sess-meta">'+meta.join("  ÃÂ·  ")+'</span></button><button class="wl-icon-btn" data-act="lift:del" data-id="'+s.id+'">'+I.trash.replace("<svg","<svg width=15 height=15")+'</button></div>';});}
+    h+='<div class="wl-sess"><button class="wl-sess-main" data-act="lift:view" data-id="'+s.id+'"><span class="wl-sess-type">'+esc(s.name||"Weight training")+'</span><span class="wl-sess-meta">'+meta.join("  ·  ")+'</span></button><button class="wl-icon-btn" data-act="lift:del" data-id="'+s.id+'">'+I.trash.replace("<svg","<svg width=15 height=15")+'</button></div>';});}
   else if(!state.workout){h+='<div class="wl-hint">No weight training logged for this day.</div>';}
   h+='<button class="wl-btn wl-btn-lift wl-full" style="margin-top:10px" data-act="wt:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add weight training</button></div>';
   h+=actCatCardHTML("rest","Recovery",d);
@@ -1847,72 +1847,72 @@ function view_settings(){
   var op=state.open||{};
   var h='<div class="wl-stack">';
   var profOpen=!!op.profile;
-  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="profile"><span>My Profile'+(profileComplete()?'':' <span class="wl-req">Required</span>')+'</span><span class="wl-chevron'+(profOpen?" open":"")+'">Ã¢ÂÂº</span></button>';
+  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="profile"><span>My Profile'+(profileComplete()?'':' <span class="wl-req">Required</span>')+'</span><span class="wl-chevron'+(profOpen?" open":"")+'">›</span></button>';
   if(profOpen){h+='<div class="wl-collapse-body">';
-    if(!profileComplete())h+='<div class="wl-hint" style="margin-bottom:12px">Fill this out first Ã¢ÂÂ calorie and macro targets need it.</div>';
+    if(!profileComplete())h+='<div class="wl-hint" style="margin-bottom:12px">Fill this out first — calorie and macro targets need it.</div>';
     h+='<label class="wl-field wl-field-full"><span>Units</span><div class="wl-seg">'+["lbs","kg"].map(function(x){return '<button class="'+(u===x?"on":"")+'" data-act="set:units" data-units="'+x+'">'+x+'</button>';}).join("")+'</div></label>';
     h+='<label class="wl-field wl-field-full" style="margin-top:12px"><span>Sex</span><div class="wl-seg"><button class="'+(f.sex==="male"?"on":"")+'" data-act="set:sex" data-sex="male">Male</button><button class="'+(f.sex==="female"?"on":"")+'" data-act="set:sex" data-sex="female">Female</button></div></label>';
-    h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Age</span><input class="wl-num" data-int="1" data-set="age" type="text" inputmode="numeric" value="'+esc(f.age||"")+'" placeholder="Ã¢ÂÂ"></label><label class="wl-field"><span>Height (ft)</span><input class="wl-num" data-int="1" data-set="heightFt" type="text" inputmode="numeric" value="'+esc(f.heightFt||"")+'" placeholder="ft"></label><label class="wl-field"><span>(in)</span><input class="wl-num" data-int="1" data-set="heightIn" type="text" inputmode="numeric" value="'+esc(f.heightIn||"")+'" placeholder="in"></label></div>';
-    h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Starting weight ('+u+')</span><input class="wl-num" type="text" inputmode="decimal" data-set="startingWeight" value="'+esc(f.startingWeight)+'" placeholder="Ã¢ÂÂ"></label><label class="wl-field"><span>Start date</span><input type="date" data-set="startDate" max="'+todayISO()+'" value="'+esc(f.startDate)+'"></label></div>';
+    h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Age</span><input class="wl-num" data-int="1" data-set="age" type="text" inputmode="numeric" value="'+esc(f.age||"")+'" placeholder="—"></label><label class="wl-field"><span>Height (ft)</span><input class="wl-num" data-int="1" data-set="heightFt" type="text" inputmode="numeric" value="'+esc(f.heightFt||"")+'" placeholder="ft"></label><label class="wl-field"><span>(in)</span><input class="wl-num" data-int="1" data-set="heightIn" type="text" inputmode="numeric" value="'+esc(f.heightIn||"")+'" placeholder="in"></label></div>';
+    h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Starting weight ('+u+')</span><input class="wl-num" type="text" inputmode="decimal" data-set="startingWeight" value="'+esc(f.startingWeight)+'" placeholder="—"></label><label class="wl-field"><span>Start date</span><input type="date" data-set="startDate" max="'+todayISO()+'" value="'+esc(f.startDate)+'"></label></div>';
     h+='<label class="wl-field wl-field-full" style="margin-top:12px"><span>Max heart rate <em>bpm, optional</em></span><input class="wl-num" data-int="1" type="text" inputmode="numeric" data-set="maxHR" value="'+esc(f.maxHR||"")+'" placeholder="'+(estMaxHR()!=null?estMaxHR():"e.g. 185")+'"></label>';
-    h+='<div class="wl-hint">'+(estMaxHR()!=null?"Estimated ~"+estMaxHR()+" bpm from your age (208 Ã¢ÂÂ 0.7 ÃÂ age).":"Add your age above to estimate this.")+' Auto-assigns cardio zones from avg HR.</div>';
+    h+='<div class="wl-hint">'+(estMaxHR()!=null?"Estimated ~"+estMaxHR()+" bpm from your age (208 − 0.7 × age).":"Add your age above to estimate this.")+' Auto-assigns cardio zones from avg HR.</div>';
     h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:16px 0 8px">Weekly check-in day</div><div class="wl-daypick">'+WEEKDAYS.map(function(dn,i){return '<button class="wl-day'+((parseInt(f.weekStart,10)||0)===i?" on":"")+'" data-act="set:weekstart" data-day="'+i+'">'+dn+'</button>';}).join("")+'</div><div class="wl-hint">Your week runs '+DAYFULL[parseInt(f.weekStart,10)||0]+' through '+DAYFULL[((parseInt(f.weekStart,10)||0)+6)%7]+'.</div>';
     h+='</div>';}
   h+='</div>';
   var stratOpen=!!op.strategy;
-  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="strategy"><span>Strategy</span><span class="wl-chevron'+(stratOpen?" open":"")+'">Ã¢ÂÂº</span></button>';
+  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="strategy"><span>Strategy</span><span class="wl-chevron'+(stratOpen?" open":"")+'">›</span></button>';
   if(stratOpen){h+='<div class="wl-collapse-body">';
-    h+='<label class="wl-field wl-field-full"><span>Target weight ('+u+')</span><input class="wl-num" type="text" inputmode="decimal" data-set="goalWeight" value="'+esc(f.goalWeight)+'" placeholder="Ã¢ÂÂ"></label>';
+    h+='<label class="wl-field wl-field-full"><span>Target weight ('+u+')</span><input class="wl-num" type="text" inputmode="decimal" data-set="goalWeight" value="'+esc(f.goalWeight)+'" placeholder="—"></label>';
     h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:16px 0 8px">Activity level</div>';
     var alSel=f.activityLevel;var alOpen=state.actLevelOpen||!alSel;
     if(alOpen)h+='<div class="wl-optlist">'+ALEVELS.map(function(x){var on=alSel===x[0];return '<button class="wl-opt'+(on?" on":"")+'" data-act="set:activity" data-level="'+x[0]+'"><span>'+x[1]+'</span>'+(on?'<span class="wl-opt-ck">'+I.check.replace("<svg","<svg width=15 height=15")+'</span>':'')+'</button>';}).join("")+'</div>';
     else h+='<button class="wl-opt on" data-act="al:change"><span>'+alLabel(alSel)+'</span><span style="color:var(--accent);font-size:13px;font-weight:600">Change</span></button>';
-    h+='<div class="wl-hint" style="margin-top:12px"><span id="wl-calread">'+calSummaryHTML()+'</span> <span style="color:var(--faint)">(MifflinÃ¢ÂÂSt Jeor ÃÂ· info only)</span></div>';
+    h+='<div class="wl-hint" style="margin-top:12px"><span id="wl-calread">'+calSummaryHTML()+'</span> <span style="color:var(--faint)">(Mifflin–St Jeor · info only)</span></div>';
     h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:16px 0 8px">Strategy</div><div class="wl-seg wl-seg-wide">'+[["lose","Lose weight"],["maintain","Maintain"],["gain","Gain weight"]].map(function(x){return '<button class="'+(strategyMode()===x[0]?"on":"")+'" data-act="set:strategy" data-strat="'+x[0]+'">'+x[1]+'</button>';}).join("")+'</div>';
-    h+='<div class="wl-hint" style="margin-top:8px">'+(strategyMode()==="gain"?"Targets a surplus Ã¢ÂÂ protein stays high to build muscle.":strategyMode()==="maintain"?"Targets maintenance Ã¢ÂÂ protein stays high to hold muscle.":"Targets a deficit Ã¢ÂÂ protein stays high to protect muscle.")+'</div>';
+    h+='<div class="wl-hint" style="margin-top:8px">'+(strategyMode()==="gain"?"Targets a surplus — protein stays high to build muscle.":strategyMode()==="maintain"?"Targets maintenance — protein stays high to hold muscle.":"Targets a deficit — protein stays high to protect muscle.")+'</div>';
     if(strategyMode()!=="maintain"){var gain=strategyMode()==="gain";
-      h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:16px 0 8px">Weekly '+(gain?"gain":"loss")+' target</div><div class="wl-row" style="align-items:flex-end"><label class="wl-field" style="flex:1"><span>'+(f.targetType==="percent_bw_per_week"?"% / week":u+" / week")+'</span><input class="wl-num" type="text" inputmode="decimal" data-set="targetValue" value="'+esc(f.targetValue)+'" placeholder="—"></label><div class="wl-seg" style="flex:1.25"><button class="'+(f.targetType==="lbs_per_week"?"on":"")+'" data-act="set:ttype" data-type="lbs_per_week">'+u+'/wk</button><button class="'+(f.targetType==="percent_bw_per_week"?"on":"")+'" data-act="set:ttype" data-type="percent_bw_per_week">% BW/wk</button></div></div><div class="wl-hint">'+(f.targetType==="percent_bw_per_week"?"e.g. 1 = "+(gain?"gain":"lose")+" 1% of bodyweight/week.":"e.g. 1 = "+(gain?"gain":"lose")+" 1 "+u+"/week (0.5Ã¢ÂÂ1 common).")+'</div>';}
+      h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:16px 0 8px">Weekly '+(gain?"gain":"loss")+' target</div><div class="wl-row" style="align-items:flex-end"><label class="wl-field" style="flex:1"><span>'+(f.targetType==="percent_bw_per_week"?"% / week":u+" / week")+'</span><input class="wl-num" type="text" inputmode="decimal" data-set="targetValue" value="'+esc(f.targetValue)+'" placeholder="—"></label><div class="wl-seg" style="flex:1.25"><button class="'+(f.targetType==="lbs_per_week"?"on":"")+'" data-act="set:ttype" data-type="lbs_per_week">'+u+'/wk</button><button class="'+(f.targetType==="percent_bw_per_week"?"on":"")+'" data-act="set:ttype" data-type="percent_bw_per_week">% BW/wk</button></div></div><div class="wl-hint">'+(f.targetType==="percent_bw_per_week"?"e.g. 1 = "+(gain?"gain":"lose")+" 1% of bodyweight/week.":"e.g. 1 = "+(gain?"gain":"lose")+" 1 "+u+"/week (0.5–1 common).")+'</div>';}
     h+='<label class="wl-field wl-field-full" style="margin-top:16px"><span>Daily calorie target</span><input class="wl-num" data-int="1" type="text" inputmode="numeric" data-set="targetCalories" value="'+esc(f.targetCalories)+'" placeholder="'+(targetIntake()!=null?targetIntake():"complete Profile")+'"></label>';
     h+='<div class="wl-hint" style="margin-top:6px">'+(f.calTargetAuto===false?'Manually set. <button class="wl-link" data-act="cal:usecalc" style="display:inline">Use calculated target</button>':(targetIntake()!=null?'Auto-calculated from your maintenance calories and strategy above. Edit it to override.':'Complete your Profile and target weight to auto-calculate this.'))+'</div>';
-    h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:16px 0 8px">Macro targets</div><div class="wl-macrogrid">'+[["targetProtein","Protein","g"],["targetCarbs","Carbs","g"],["targetFat","Fat","g"]].map(function(x){return '<label class="wl-field"><span>'+x[1]+' <em>'+x[2]+'</em></span><input class="wl-num" type="text" inputmode="decimal" data-set="'+x[0]+'" value="'+esc(f[x[0]])+'" placeholder="Ã¢ÂÂ"></label>';}).join("")+'</div><div id="wl-macronotice">'+macroNoticeHTML()+'</div><div class="wl-hint"><span id="wl-macropct">'+macroPctHTML()+'</span></div>';
+    h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:16px 0 8px">Macro targets</div><div class="wl-macrogrid">'+[["targetProtein","Protein","g"],["targetCarbs","Carbs","g"],["targetFat","Fat","g"]].map(function(x){return '<label class="wl-field"><span>'+x[1]+' <em>'+x[2]+'</em></span><input class="wl-num" type="text" inputmode="decimal" data-set="'+x[0]+'" value="'+esc(f[x[0]])+'" placeholder="—"></label>';}).join("")+'</div><div id="wl-macronotice">'+macroNoticeHTML()+'</div><div class="wl-hint"><span id="wl-macropct">'+macroPctHTML()+'</span></div>';
     h+='</div>';}
   h+='</div>';
-  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="goals"><span>Goals</span><span class="wl-chevron'+(op.goals?" open":"")+'">Ã¢ÂÂº</span></button>';
+  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="goals"><span>Goals</span><span class="wl-chevron'+(op.goals?" open":"")+'">›</span></button>';
   if(op.goals){h+='<div class="wl-collapse-body">';
-    h+='<label class="wl-field wl-field-full"><span>Daily steps goal</span><input class="wl-num" data-int="1" data-set="stepsGoal" type="text" inputmode="numeric" value="'+esc(f.stepsGoal||"")+'" placeholder="Ã¢ÂÂ"></label>';
-    h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:16px 0 8px">Sleep goal</div><div class="wl-row"><label class="wl-field"><span>Hours</span><input class="wl-num wl-goalsleep-h" data-int="1" type="text" inputmode="numeric" placeholder="â" value="'+(num(f.sleepGoal)!=null?Math.floor(num(f.sleepGoal)/60):"")+'"></label><label class="wl-field"><span>Minutes</span><input class="wl-num wl-goalsleep-m" data-int="1" type="text" inputmode="numeric" placeholder="—" value="'+(num(f.sleepGoal)!=null?num(f.sleepGoal)%60:"")+'"></label></div>';
+    h+='<label class="wl-field wl-field-full"><span>Daily steps goal</span><input class="wl-num" data-int="1" data-set="stepsGoal" type="text" inputmode="numeric" value="'+esc(f.stepsGoal||"")+'" placeholder="—"></label>';
+    h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:16px 0 8px">Sleep goal</div><div class="wl-row"><label class="wl-field"><span>Hours</span><input class="wl-num wl-goalsleep-h" data-int="1" type="text" inputmode="numeric" placeholder="—" value="'+(num(f.sleepGoal)!=null?Math.floor(num(f.sleepGoal)/60):"")+'"></label><label class="wl-field"><span>Minutes</span><input class="wl-num wl-goalsleep-m" data-int="1" type="text" inputmode="numeric" placeholder="—" value="'+(num(f.sleepGoal)!=null?num(f.sleepGoal)%60:"")+'"></label></div>';
     h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:16px 0 8px">Weekly training goals</div>';
-    h+='<div class="wl-row"><label class="wl-field"><span>Cardio minutes / week <em>zone 2+</em></span><input class="wl-num" data-int="1" data-set="cardioMinGoal" type="text" inputmode="numeric" value="'+esc(f.cardioMinGoal||"")+'" placeholder="Ã¢ÂÂ"></label><label class="wl-field"><span>Lifting sessions / week</span><input class="wl-num" data-int="1" data-set="liftSessGoal" type="text" inputmode="numeric" value="'+esc(f.liftSessGoal||"")+'" placeholder="Ã¢ÂÂ"></label></div>';
+    h+='<div class="wl-row"><label class="wl-field"><span>Cardio minutes / week <em>zone 2+</em></span><input class="wl-num" data-int="1" data-set="cardioMinGoal" type="text" inputmode="numeric" value="'+esc(f.cardioMinGoal||"")+'" placeholder="—"></label><label class="wl-field"><span>Lifting sessions / week</span><input class="wl-num" data-int="1" data-set="liftSessGoal" type="text" inputmode="numeric" value="'+esc(f.liftSessGoal||"")+'" placeholder="—"></label></div>';
     h+='<div class="wl-hint" style="margin-top:6px">Cardio minutes only count sessions whose average heart rate is zone 2 or higher (a session with no zone logged still counts).</div>';
     h+='</div>';}
   h+='</div>';
   h+=activityManageHTML();
-  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="reminder"><span>Daily reminder</span><span class="wl-chevron'+(op.reminder?" open":"")+'">Ã¢ÂÂº</span></button>'+(op.reminder?('<div class="wl-collapse-body">'+
+  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="reminder"><span>Daily reminder</span><span class="wl-chevron'+(op.reminder?" open":"")+'">›</span></button>'+(op.reminder?('<div class="wl-collapse-body">'+
     '<label class="wl-field wl-field-full"><span>Remind me to log at</span><input type="time" id="wl-remind-time" value="'+esc(f.reminderTime||"19:00")+'"></label>'+
     '<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="reminder:add">'+I.calendar.replace("<svg","<svg width=16 height=16")+'Add reminder to Calendar</button>'+
-    '<div class="wl-hint" style="margin-top:10px">Tap <b>Add reminder to Calendar</b>, then choose <b>Add All</b> Ã¢ÂÂ this creates a daily repeating reminder in your Calendar that notifies you even when the app is closed. (iPhone &amp; iPad don\u2019t let a web app send its own scheduled notifications, so this uses your Calendar instead.) To change the time, pick a new one and add it again, then delete the old event.</div></div>'):'')+'</div>';
-  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="theme"><span>Theme</span><span class="wl-chevron'+(op.theme?" open":"")+'">Ã¢ÂÂº</span></button>'+(op.theme?('<div class="wl-collapse-body"><div class="wl-theme-grid">'+themeGrid()+'</div></div>'):'')+'</div>';
+    '<div class="wl-hint" style="margin-top:10px">Tap <b>Add reminder to Calendar</b>, then choose <b>Add All</b> — this creates a daily repeating reminder in your Calendar that notifies you even when the app is closed. (iPhone &amp; iPad don\u2019t let a web app send its own scheduled notifications, so this uses your Calendar instead.) To change the time, pick a new one and add it again, then delete the old event.</div></div>'):'')+'</div>';
+  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="theme"><span>Theme</span><span class="wl-chevron'+(op.theme?" open":"")+'">›</span></button>'+(op.theme?('<div class="wl-collapse-body"><div class="wl-theme-grid">'+themeGrid()+'</div></div>'):'')+'</div>';
   h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="exportdata"><span>Export data</span><span class="wl-chevron'+(op.exportdata?" open":"")+'">›</span></button>'+(op.exportdata?('<div class="wl-collapse-body"><button class="wl-btn wl-btn-primary wl-full" data-act="sum:exportall">Export all data</button><div class="wl-hint" style="margin-top:8px">CSV of your full history — every logged metric, training, and notes.</div></div>'):'')+'</div>';
   var sc=syncCfg();
   if(isOwner()){
-  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="sync"><span>Cloud sync <em>GitHub</em></span><span class="wl-chevron'+(op.sync?" open":"")+'">Ã¢ÂÂº</span></button>'+(op.sync?('<div class="wl-collapse-body">'+
-    '<label class="wl-field wl-field-full"><span>Access token</span><input type="password" data-sync="token" value="'+esc(sc.token||"")+'" placeholder="github_pat_Ã¢ÂÂ¦" autocapitalize="off" autocorrect="off" spellcheck="false"></label>'+
+  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="sync"><span>Cloud sync <em>GitHub</em></span><span class="wl-chevron'+(op.sync?" open":"")+'">›</span></button>'+(op.sync?('<div class="wl-collapse-body">'+
+    '<label class="wl-field wl-field-full"><span>Access token</span><input type="password" data-sync="token" value="'+esc(sc.token||"")+'" placeholder="github_pat_…" autocapitalize="off" autocorrect="off" spellcheck="false"></label>'+
     '<div class="wl-row" style="margin-top:12px"><button class="wl-btn wl-btn-ghost wl-full" data-act="sync:test">Test</button><button class="wl-btn wl-btn-ghost wl-full" data-act="sync:pull">Pull</button><button class="wl-btn wl-btn-primary wl-full" data-act="sync:push">Push</button></div>'+
     '<div class="wl-row" style="margin-top:10px"><button class="wl-btn wl-btn-ghost wl-full" data-act="sync:copy">Copy setup</button><button class="wl-btn wl-btn-ghost wl-full" data-act="sync:paste">Paste setup</button></div>'+
     (state.syncPasteOpen?'<textarea id="wl-syncpaste" placeholder="Paste setup here, then tap Apply" style="width:100%;min-height:80px;margin-top:10px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--mono);font-size:12px;padding:10px;box-sizing:border-box;outline:none"></textarea><div class="wl-row" style="margin-top:8px"><button class="wl-btn wl-btn-ghost wl-full" data-act="sync:pastecancel">Cancel</button><button class="wl-btn wl-btn-primary wl-full" data-act="sync:pasteapply">Apply</button></div>':'')+
     '<div class="wl-hint" style="margin-top:10px"><b>Status:</b> <span id="wl-sync-status">'+syncStatusHTML()+'</span></div>'+
-    '<div class="wl-hint">Synced with <b>kaleyeah/weight-data</b>. Enter your token once, tap <b>Test</b>, then <b>Push</b>. Setting up a new device? Tap <b>Copy setup</b> here and <b>Paste setup</b> there Ã¢ÂÂ no retyping the token. Your token is stored on this device only, never in the app\u2019s code.</div></div>'):'')+'</div>';
+    '<div class="wl-hint">Synced with <b>kaleyeah/weight-data</b>. Enter your token once, tap <b>Test</b>, then <b>Push</b>. Setting up a new device? Tap <b>Copy setup</b> here and <b>Paste setup</b> there — no retyping the token. Your token is stored on this device only, never in the app\u2019s code.</div></div>'):'')+'</div>';
   }
-  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="share"><span>'+(isOwner()?'Sharing <em>invite</em>':'Your profile')+'</span>'+'<span class="wl-chevron'+(op.share?" open":"")+'">Ã¢ÂÂº</span></button>'+(op.share?('<div class="wl-collapse-body">'+
+  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="share"><span>'+(isOwner()?'Sharing <em>invite</em>':'Your profile')+'</span>'+'<span class="wl-chevron'+(op.share?" open":"")+'">›</span></button>'+(op.share?('<div class="wl-collapse-body">'+
     '<label class="wl-field wl-field-full"><span>Your name</span><input type="text" data-set="name" value="'+esc(f.name||"")+'" placeholder="e.g. Alex" autocapitalize="words" autocorrect="off"></label>'+
     (isOwner()?connectionsHTML():'')+
     (isOwner()?'<div class="wl-row" style="margin-top:12px"><button class="wl-btn wl-btn-primary wl-full" data-act="invite:create">Create invite code</button></div>':'')+'<div class="wl-row" style="margin-top:8px"><button class="wl-btn wl-btn-ghost wl-full" data-act="invite:open">'+(isOwner()?'Enter a code (join someone)':'Enter an invite code')+'</button></div>'+
     (state.inviteCode?'<div class="wl-hint" style="margin-top:10px">Send this code to the person you\u2019re adding, then have them tap <b>Enter a code</b> on their device:</div><textarea readonly onclick="this.select()" style="width:100%;min-height:76px;margin-top:6px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--mono);font-size:11px;padding:10px;box-sizing:border-box;outline:none">'+esc(state.inviteCode)+'</textarea><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:6px" data-act="invite:copy">Copy code</button>':'')+
     (state.joinOpen?'<textarea id="wl-joincode" placeholder="Paste the invite code you were sent" style="width:100%;min-height:76px;margin-top:10px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--mono);font-size:11px;padding:10px;box-sizing:border-box;outline:none"></textarea><div class="wl-row" style="margin-top:6px"><button class="wl-btn wl-btn-ghost wl-full" data-act="invite:joincancel">Cancel</button><button class="wl-btn wl-btn-primary wl-full" data-act="invite:join">Join</button></div>':'')+
-    (isOwner()?'<div class="wl-hint" style="margin-top:10px">Add people by <b>invite code</b>. Each person gets their own private space tied to that code Ã¢ÂÂ it can\u2019t be switched or overwritten from another device. Your <b>activities and macros stay private</b>; only weight-loss progress is shared, on the Home tab.</div><div class="wl-hint">Note: everyone shares one repo &amp; token, so this is trust-based separation (fine for family) rather than a hard wall.</div>':'<div class="wl-hint" style="margin-top:10px">This name shows on your progress card for whoever you\u2019re sharing with. Your weigh-ins, activities, and macros are your own.</div>')
+    (isOwner()?'<div class="wl-hint" style="margin-top:10px">Add people by <b>invite code</b>. Each person gets their own private space tied to that code — it can\u2019t be switched or overwritten from another device. Your <b>activities and macros stay private</b>; only weight-loss progress is shared, on the Home tab.</div><div class="wl-hint">Note: everyone shares one repo &amp; token, so this is trust-based separation (fine for family) rather than a hard wall.</div>':'<div class="wl-hint" style="margin-top:10px">This name shows on your progress card for whoever you\u2019re sharing with. Your weigh-ins, activities, and macros are your own.</div>')
     ):'')+'</div>';
   if(isOwner())
-  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="backup"><span>Backup &amp; transfer</span><span class="wl-chevron'+(op.backup?" open":"")+'">Ã¢ÂÂº</span></button>'+(op.backup?('<div class="wl-collapse-body">'+
+  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="backup"><span>Backup &amp; transfer</span><span class="wl-chevron'+(op.backup?" open":"")+'">›</span></button>'+(op.backup?('<div class="wl-collapse-body">'+
     '<div class="wl-row"><button class="wl-btn wl-btn-ghost wl-full" data-act="export">Export / share file</button><button class="wl-btn wl-btn-ghost wl-full" data-act="import">Import file</button></div>'+
     '<div class="wl-row" style="margin-top:10px"><button class="wl-btn wl-btn-ghost wl-full" data-act="copy">Copy backup text</button><button class="wl-btn wl-btn-ghost wl-full" data-act="paste">Restore from text</button></div>'+
     (state.pasteOpen?'<textarea id="wl-paste" placeholder="Paste backup JSON here, then tap Restore" style="width:100%;min-height:120px;margin-top:10px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--mono);font-size:13px;padding:10px;box-sizing:border-box;outline:none"></textarea><div class="wl-row" style="margin-top:8px"><button class="wl-btn wl-btn-ghost wl-full" data-act="paste:cancel">Cancel</button><button class="wl-btn wl-btn-primary wl-full" data-act="paste:do">Restore</button></div>':'')+
@@ -1924,7 +1924,7 @@ function view_settings(){
   if(!state.confirmReset)h+='<button class="wl-btn wl-btn-danger wl-full" data-act="reset:ask">'+I.trash.replace("<svg","<svg width=16 height=16")+'Erase all data</button>';
   else h+='<div class="wl-hint">This permanently deletes every weigh-in, food entry, step count, activity, and setting. This can\'t be undone.</div><div class="wl-row"><button class="wl-btn wl-btn-ghost wl-full" data-act="reset:cancel">Cancel</button><button class="wl-btn wl-btn-danger wl-full" data-act="reset:do">Yes, erase everything</button></div>';
   h+='</div>';
-  h+='<div style="text-align:center;color:var(--faint);font-size:11px;padding:16px 0 4px;letter-spacing:.02em">Progress Tracker ÃÂ· version '+APP_BUILD+'</div>';
+  h+='<div style="text-align:center;color:var(--faint);font-size:11px;padding:16px 0 4px;letter-spacing:.02em">Progress Tracker · version '+APP_BUILD+'</div>';
   return h+'</div>';
 }
 
@@ -1955,7 +1955,7 @@ document.addEventListener("click",function(e){
   if(a==="confirm:no"){state.pendingConfirm=null;render();return;}
   if(a==="alert:dismiss"){state.alertDismissed=true;render();return;}
   if(a==="chart:pt"){var ts=+el.getAttribute("data-ts"),w=+el.getAttribute("data-w"),av=el.getAttribute("data-avg");
-    var r=document.getElementById("wl-readout");if(r)r.innerHTML='<b>'+r1(w)+'</b> '+state.settings.units+' ÃÂ· '+fmtFull(new Date(ts))+(av!=="null"?' ÃÂ· avg '+av:'');return;}
+    var r=document.getElementById("wl-readout");if(r)r.innerHTML='<b>'+r1(w)+'</b> '+state.settings.units+' · '+fmtFull(new Date(ts))+(av!=="null"?' · avg '+av:'');return;}
   if(a==="weight:add"){var dt=document.getElementById("wl-wdate").value,vv=num(document.getElementById("wl-wval").value);
     if(vv==null){toast("Enter a weight");return;}state.weights=state.weights.filter(function(x){return x.date!==dt;});state.weights.push({date:dt,weight:vv});save();render();return;}
   if(a==="weight:del"){var dd=el.getAttribute("data-date");askConfirm("Delete this weigh-in?",function(){state.weights=state.weights.filter(function(x){return x.date!==dd;});save();});return;}
@@ -1963,7 +1963,7 @@ document.addEventListener("click",function(e){
   if(a==="dl:open"){state.quickEntry=el.getAttribute("data-sec");render();var _f=document.querySelector(".wl-confirm-card input,.wl-confirm-card textarea");if(_f)_f.focus();return;}
   if(a==="qe:close"){state.quickEntry=null;render();window.scrollTo(0,0);return;}
   if(a==="opentoday"){state.selDate=todayISO();state.calY=new Date().getFullYear();state.calM=new Date().getMonth();state.cardioForm=null;render();return;}
-  if(a==="ai:copy"){copyText(weeklyAIText(),"Copied your week Ã¢ÂÂ paste into your AI to generate");return;}
+  if(a==="ai:copy"){copyText(weeklyAIText(),"Copied your week — paste into your AI to generate");return;}
   if(a==="ai:gen"){genSummary();return;}
   if(a==="sum:toggle"){state.sumOpen=(state.sumOpen===false);try{localStorage.setItem("wl_sumopen",state.sumOpen?"1":"0");}catch(e){}render();return;}
   if(a==="night:toggle"){state.nightOpen=(state.nightOpen===false);render();return;}
@@ -1985,7 +1985,7 @@ document.addEventListener("click",function(e){
   if(a==="wo:begin"){var w=state.workout;if(!w)return;w.tState="warmup";w.startTs=Date.now();w.stateStartTs=Date.now();saveWorkout();render();startWoTick();return;}
   if(a==="wo:startroutine"){woTransition("working");render();return;}
   if(a==="wo:endrest"){woTransition("working");render();return;}
-  if(a==="wo:log"){var w=state.workout;if(!w)return;if(w.tState==="ready"){toast("Tap Start to begin your warmup first");return;}if(w.tState==="warmup"){toast("Finish your warmup Ã¢ÂÂ tap End warmup to start the routine");return;}var ei=+el.getAttribute("data-ei"),si=+el.getAttribute("data-si");var stt=w.entries[ei].sets[si];
+  if(a==="wo:log"){var w=state.workout;if(!w)return;if(w.tState==="ready"){toast("Tap Start to begin your warmup first");return;}if(w.tState==="warmup"){toast("Finish your warmup — tap End warmup to start the routine");return;}var ei=+el.getAttribute("data-ei"),si=+el.getAttribute("data-si");var stt=w.entries[ei].sets[si];
     if(stt.status==="done"){askConfirm("Reopen this set? It goes back to unlogged, and time counts as working until you check it again.",function(){var w2=state.workout;if(!w2)return;var s2=w2.entries[ei].sets[si];s2.status="pending";if(w2.tState==="resting"){var now=Date.now();w2.workMs+=(now-w2.stateStartTs);w2.tState="working";w2.stateStartTs=now;}saveWorkout();},{label:"Reopen",danger:false});return;}
     var en=w.entries[ei];var need=[];var vw=num(stt.weight),vr=num(stt.reps),vi=num(stt.rir);
     if(!en.bodyweight&&(vw==null||vw<=0))need.push("a weight");
@@ -2105,7 +2105,7 @@ document.addEventListener("click",function(e){
   if(a==="photo:view"){openLightbox(el.getAttribute("data-id"));return;}
   if(a==="openday"){var od=el.getAttribute("data-date");state.selDate=od;var pd=parseISO(od);state.calY=pd.getFullYear();state.calM=pd.getMonth();state.view="overview";render();return;}
   if(a==="day:clear"){var fdd=state.selDate;
-    askConfirm("Clear ALL entries for this day Ã¢ÂÂ weight, steps, sleep, calories, macros, activities, note, and photos? This can\u2019t be undone.",function(){
+    askConfirm("Clear ALL entries for this day — weight, steps, sleep, calories, macros, activities, note, and photos? This can\u2019t be undone.",function(){
       delete state.food[fdd];delete state.steps[fdd];delete state.sleep[fdd];delete state.workouts[fdd];delete state.notes[fdd];
       state.weights=state.weights.filter(function(x){return x.date!==fdd;});
       save();toast("Day cleared");
@@ -2147,11 +2147,11 @@ document.addEventListener("click",function(e){
   if(a==="invite:open"){state.joinOpen=true;state.inviteCode=null;render();return;}
   if(a==="invite:joincancel"){state.joinOpen=false;render();return;}
   if(a==="invite:join"){var ta=document.getElementById("wl-joincode");var inv=decodeInvite(ta&&ta.value);if(!inv||!inv.t||!inv.u){toast("That code isn\u2019t valid");return;}
-    askConfirm("Join as a new person on this device? This device gets its own private space Ã¢ÂÂ it starts empty (no weigh-ins or activities of its own).",function(){
+    askConfirm("Join as a new person on this device? This device gets its own private space — it starts empty (no weigh-ins or activities of its own).",function(){
     setSyncCfg({token:inv.t,repo:inv.r||DEFAULT_REPO,branch:inv.b||DEFAULT_BRANCH,uid:inv.u});
     state.weights=[];state.food={};state.workouts={};state.steps={};state.notes={};state.sleep={};state.weeklySummary=null;state.nightlySummary=null;state.presets=[];
     state.settings=Object.assign({},DEFAULT_SETTINGS,{connections:inv.from?[inv.from]:[]});
-    ghSha=null;connData={};state.joinOpen=false;state.inviteCode=null;markDirty(true);save();applyTheme(state.settings.theme||"ink");autoSync();toast("Joined"+(inv.fromName?" ÃÂ· connected to "+inv.fromName:""));
+    ghSha=null;connData={};state.joinOpen=false;state.inviteCode=null;markDirty(true);save();applyTheme(state.settings.theme||"ink");autoSync();toast("Joined"+(inv.fromName?" · connected to "+inv.fromName:""));
     },{label:"Join",danger:false});return;}
   if(a==="conn:remove"){var ru=el.getAttribute("data-uid");askConfirm("Stop sharing with this person on your Home tab?",function(){state.settings.connections=(state.settings.connections||[]).filter(function(x){return x!==ru;});delete connData[ru];save();},{label:"Stop sharing"});return;}
   if(a==="reminder:add"){var ti=document.getElementById("wl-remind-time");var tv=(ti&&ti.value)||"19:00";state.settings.reminderTime=tv;save();shareOrDownload("activity-reminder.ics","text/calendar",reminderICS(tv));return;}
@@ -2234,9 +2234,9 @@ document.addEventListener("input",function(e){
 });
 function sanityWarn(el){
   if(!el||!el.classList)return;var v=num(el.value);if(v==null)return;
-  if(el.classList.contains("wl-daywt-input")){var u=state.settings.units;var lo=u==="kg"?23:50,hi=u==="kg"?450:1000;if(v<lo||v>hi)toast("That weight looks off ("+v+" "+u+") Ã¢ÂÂ double-check it.");}
-  else if(el.classList.contains("wl-food-input")&&el.getAttribute("data-food")==="calories"){if(v>10000)toast("That\u2019s a lot of calories ("+Math.round(v).toLocaleString()+") Ã¢ÂÂ double-check.");}
-  else if(el.getAttribute&&el.getAttribute("data-set")==="targetCalories"){if(v>10000)toast("That calorie target looks high Ã¢ÂÂ double-check.");}
+  if(el.classList.contains("wl-daywt-input")){var u=state.settings.units;var lo=u==="kg"?23:50,hi=u==="kg"?450:1000;if(v<lo||v>hi)toast("That weight looks off ("+v+" "+u+") — double-check it.");}
+  else if(el.classList.contains("wl-food-input")&&el.getAttribute("data-food")==="calories"){if(v>10000)toast("That\u2019s a lot of calories ("+Math.round(v).toLocaleString()+") — double-check.");}
+  else if(el.getAttribute&&el.getAttribute("data-set")==="targetCalories"){if(v>10000)toast("That calorie target looks high — double-check.");}
 }
 document.addEventListener("change",function(e){var el=e.target;sanityWarn(el);
   if(el&&el.hasAttribute&&el.hasAttribute("data-set")){state.settings[el.getAttribute("data-set")]=el.value;save();var ce=document.getElementById("wl-calread");if(ce)ce.innerHTML=calSummaryHTML();var mp=document.getElementById("wl-macropct");if(mp)mp.innerHTML=macroPctHTML();}
@@ -2250,7 +2250,7 @@ document.getElementById("wl-import").addEventListener("change",function(e){
 document.getElementById("wl-photo-input").addEventListener("change",function(e){
   var files=e.target.files;if(!files||!files.length){return;}
   var date=state.selDate;var arr=Array.prototype.slice.call(files);e.target.value="";var meal=state.pendingMeal||"";
-  toast("Adding "+arr.length+" photo"+(arr.length>1?"s":"")+"Ã¢ÂÂ¦");
+  toast("Adding "+arr.length+" photo"+(arr.length>1?"s":"")+"…");
   var chain=Promise.resolve();
   arr.forEach(function(f){chain=chain.then(function(){return processImage(f).then(function(blob){
     var id=date+"-"+Date.now()+"-"+Math.random().toString(36).slice(2,7);
@@ -2288,7 +2288,7 @@ function copyBackup(){
 }
 function fallbackCopy(text){
   var ta=document.createElement("textarea");ta.value=text;ta.style.position="fixed";ta.style.opacity="0";document.body.appendChild(ta);ta.focus();ta.select();
-  try{document.execCommand("copy");toast("Backup copied");}catch(e){toast("Couldn't copy Ã¢ÂÂ use Export instead");}document.body.removeChild(ta);
+  try{document.execCommand("copy");toast("Backup copied");}catch(e){toast("Couldn't copy — use Export instead");}document.body.removeChild(ta);
 }
 function copyText(text,msg){
   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(function(){toast(msg||"Copied");}).catch(function(){legacyCopy(text,msg);});
@@ -2298,14 +2298,14 @@ function legacyCopy(text,msg){
   var ta=document.createElement("textarea");ta.value=text;ta.style.position="fixed";ta.style.opacity="0";document.body.appendChild(ta);ta.focus();ta.select();
   try{document.execCommand("copy");toast(msg||"Copied");}catch(e){toast("Couldn't copy");}document.body.removeChild(ta);
 }
-function updateApp(){toast("Fetching latestÃ¢ÂÂ¦");setTimeout(function(){location.replace(location.origin+location.pathname+"?v="+Date.now());},250);}
+function updateApp(){toast("Fetching latest…");setTimeout(function(){location.replace(location.origin+location.pathname+"?v="+Date.now());},250);}
 function extractBuild(txt){var m=/APP_BUILD="([^"]+)"/.exec(txt);return m?m[1]:null;}
 function checkForUpdate(){
   fetch(location.origin+location.pathname+"?vc="+Date.now(),{cache:"no-store"})
     .then(function(r){return r.text();})
     .then(function(txt){var sv=extractBuild(txt);if(!sv||sv===APP_BUILD)return;
       var already="";try{already=sessionStorage.getItem("wl_reloaded_for")||"";}catch(e){}
-      if(already===sv){showUpdateBanner();return;} /* reload didn't stick (CDN lag) Ã¢ÂÂ offer instead of looping */
+      if(already===sv){showUpdateBanner();return;} /* reload didn't stick (CDN lag) — offer instead of looping */
       try{sessionStorage.setItem("wl_reloaded_for",sv);}catch(e){}
       updateApp();
     }).catch(function(){});
@@ -2319,7 +2319,7 @@ function showUpdateBanner(){
 function showAppliedBanner(ver){
   if(document.getElementById("wl-applied-banner"))return;
   var b=document.createElement("div");b.id="wl-applied-banner";b.className="wl-applied-banner";
-  b.innerHTML='<span>Ã¢ÂÂ Updated to version '+ver+'</span><span class="wl-applied-hint">Swipe to dismiss</span>';
+  b.innerHTML='<span>✓ Updated to version '+ver+'</span><span class="wl-applied-hint">Swipe to dismiss</span>';
   document.body.appendChild(b);
   setTimeout(function(){b.classList.add("in");},30);
   var sx=0,sy=0,dx=0,dy=0,drag=false,gone=false;
