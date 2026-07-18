@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.193 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.205 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -33,11 +33,36 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 .wl-header{display:flex;flex-direction:column;position:sticky;top:0;background:var(--bg);z-index:5;}
 .wl-hdr-row{display:flex;align-items:flex-end;justify-content:space-between;padding:calc(20px + env(safe-area-inset-top,0px)) 20px 14px;}
 .wl-header.hasbanner .wl-hdr-row{padding-top:14px;}
+.wl-hdr-brand{padding:calc(20px + env(safe-area-inset-top,0px)) 20px 0;}
+.wl-header.hasbanner .wl-hdr-brand{padding-top:14px;}
+.wl-hdr-main{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding:4px 20px 14px;}
+.wl-title-slot{flex:1;min-width:0;}
+.wl-hdr-actions{display:flex;align-items:center;gap:10px;flex:none;}
+.wl-hdr-nav{display:flex;justify-content:center;padding:0 20px 14px;}
+.wl-brandline{display:flex;align-items:center;gap:13px;min-width:0;flex-wrap:wrap;row-gap:4px;}
+.wl-header.hasnav .wl-hdr-row{padding-bottom:6px;}
+.wl-ob{position:fixed;inset:0;z-index:200;background:var(--bg);overflow-y:auto;}
+.wl-ob-inner{min-height:100%;display:flex;flex-direction:column;max-width:460px;margin:0 auto;padding:calc(env(safe-area-inset-top,0px) + 34px) 24px calc(env(safe-area-inset-bottom,0px) + 24px);}
+.wl-ob-hero{text-align:center;margin-bottom:8px;}
+.wl-ob-brand{font-weight:900;letter-spacing:.2em;font-size:20px;margin-top:12px;color:var(--text);}
+.wl-ob-tag{font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:var(--faint);font-weight:700;margin-top:8px;}
+.wl-obdots{display:flex;gap:7px;justify-content:center;margin-bottom:6px;}
+.wl-obdot{width:8px;height:8px;border-radius:50%;background:var(--line2);}
+.wl-obdot.on{background:var(--accent);}
+.wl-obdot.done{background:var(--good);}
+.wl-ob-body{flex:1;display:flex;flex-direction:column;justify-content:flex-start;padding:6px 0;}
+.wl-ob-body>*{flex:0 0 auto;}
+.wl-ob-h{font-size:28px;font-weight:800;letter-spacing:-.02em;margin-bottom:8px;}
+.wl-ob-sub{color:var(--muted);font-size:14px;line-height:1.5;}
+.wl-ob-nav{display:flex;gap:10px;margin-top:22px;}
+.wl-ob-skip{background:none;border:none;color:var(--faint);font-size:13px;font-weight:600;font-family:var(--sans);margin-top:14px;padding:8px;align-self:center;cursor:pointer;}
 .wl-modebanner{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;background:var(--accent);color:var(--on-accent);font-weight:800;font-size:13px;letter-spacing:.01em;padding:calc(env(safe-area-inset-top,0px) + 9px) 16px 9px;border:none;font-family:var(--sans);cursor:pointer;box-shadow:0 3px 12px rgba(0,0,0,.3);}
 .wl-mb-em{font-size:15px;line-height:1;}
 .wl-mb-go{opacity:.72;font-weight:700;}
 .wl-datein{font-family:var(--sans);min-height:46px;}
-.wl-eyebrow{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);font-weight:700;}
+.wl-eyebrow{font-size:16px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);font-weight:800;min-width:102px;white-space:nowrap;}
+.wl-brandrow .wl-mark svg{width:30px;height:30px;}
+.wl-brandrow{gap:9px;}
 .wl-avatar{width:38px;height:38px;border-radius:11px;background:var(--card);color:var(--muted);border:1px solid var(--line);font-family:var(--sans);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;padding:0;}
 .wl-avatar.on{border-color:var(--accent);color:var(--accent);}
 .wl-req{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;background:var(--bad);color:#fff;padding:3px 7px;border-radius:6px;margin-left:8px;vertical-align:middle;}
@@ -388,10 +413,11 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 .wl-mark{display:flex;line-height:0;flex:none;}
 .wl-brandword{font-weight:900;letter-spacing:.2em;font-size:17px;color:var(--text);}
 .wl-hnav{display:flex;align-items:center;gap:2px;min-width:0;}
-.wl-hnav-arw{width:38px;height:38px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--muted);font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0;flex:none;}
-.wl-hnav-lbl{display:flex;align-items:center;gap:7px;padding:5px 10px;border-radius:9px;background:none;border:none;color:var(--text);font-size:17px;font-weight:800;letter-spacing:-.01em;font-family:var(--sans);min-width:0;}
+.wl-hnav-arw{width:30px;height:30px;border-radius:7px;border:1px solid var(--line);background:var(--card);color:var(--muted);font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0;flex:none;}
+.wl-hnav-lbl{display:flex;align-items:center;gap:7px;padding:4px 8px;border-radius:9px;background:none;border:none;color:var(--text);font-size:16px;font-weight:800;letter-spacing:-.01em;font-family:var(--sans);min-width:0;}
 .wl-hnav-lbl>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.wl-hnav.off .wl-hnav-lbl{color:var(--accent);}
+.wl-hnav.off .wl-hnav-lbl{color:var(--text);}
+.wl-hnav-lbl.month{min-width:122px;justify-content:center;}
 .wl-substat{margin-top:16px;}
 .wl-substat-h{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;}
 .wl-substat-h>span{font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;}
@@ -507,7 +533,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.193";
+var APP_BUILD="2026-07-14.205";
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="34" y="26" width="32" height="12" rx="5" fill="#7C93F5"/><rect x="26" y="44" width="48" height="12" rx="5" fill="#9FB0C9"/><rect x="16" y="62" width="68" height="14" rx="5" fill="#F5B544"/></svg>';
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
@@ -794,6 +820,52 @@ function statusBannerHTML(sel){var sf=statusFor(sel);
     var msg=isVac?"Enjoy it \u2014 logging\u2019s optional, and a week won\u2019t undo months. Back to routine after.":"Rest is the priority. No pressure to train or hit targets \u2014 the scale will bounce and that\u2019s expected.";
     return '<button class="wl-statusban '+(isVac?"vac":"sick")+'" data-act="status:open"><span class="wl-sb-em">'+(isVac?"\ud83c\udfd6\ufe0f":"\ud83e\udd12")+'</span><span class="wl-sb-t"><span class="wl-sb-h">'+(isVac?"Vacation":"Recovering")+' <span class="wl-sb-pill">'+range+'</span></span><span class="wl-sb-s">'+msg+'</span><span class="wl-sb-edit">Tap to edit or end \u203a</span></span></button>';}
   return '<button class="wl-status-link" data-act="status:open">\ud83c\udfd6\ufe0f Going away or under the weather? Set a status \u203a</button>';}
+function obnav(last){return '<div class="wl-ob-nav"><button class="wl-btn wl-btn-ghost" style="flex:1" data-act="ob:back">Back</button><button class="wl-btn wl-btn-primary" style="flex:2" data-act="ob:next">'+(last?"Finish":"Continue")+'</button></div>';}
+function obDots(active){var d='';for(var i=1;i<=6;i++)d+='<span class="wl-obdot'+(i===active?" on":(i<active?" done":""))+'"></span>';return '<div class="wl-obdots">'+d+'</div>';}
+function obOverlayHTML(){
+  if(!state.onboarding)return '';
+  var step=state.obStep||0;var f=state.settings;var u=f.units||"lbs";
+  var big=BRANDMARK.replace('width="18" height="18"','width="54" height="54"');
+  var h='<div class="wl-ob"><div class="wl-ob-inner">';
+  if(step===0){
+    h+='<div class="wl-ob-hero">'+big+'<div class="wl-ob-brand">COMPOUND</div><div class="wl-ob-tag">Strength \u00b7 in reps \u00b7 over years</div></div>';
+    h+='<div class="wl-ob-body"><div class="wl-ob-h">Welcome</div><div class="wl-ob-sub">Let\u2019s set up your plan \u2014 a couple of minutes. You can change any of this later in Settings.</div></div>';
+    h+='<div class="wl-ob-nav"><button class="wl-btn wl-btn-primary wl-full" data-act="ob:next">Get started</button></div>';
+    h+='<button class="wl-ob-skip" data-act="ob:skip">Skip for now</button>';
+  }else if(step===1){
+    h+=obDots(1)+'<div class="wl-ob-body"><div class="wl-ob-h">About you</div><div class="wl-ob-sub">We use these to estimate your calories.</div>';
+    h+='<label class="wl-field wl-field-full" style="margin-top:14px"><span>Name</span><input data-set="name" type="text" value="'+esc(f.name||"")+'" placeholder="Your name"></label>';
+    h+='<label class="wl-field wl-field-full" style="margin-top:12px"><span>Sex</span><div class="wl-seg"><button class="'+(f.sex==="male"?"on":"")+'" data-act="set:sex" data-sex="male">Male</button><button class="'+(f.sex==="female"?"on":"")+'" data-act="set:sex" data-sex="female">Female</button></div></label>';
+    h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Age</span><input class="wl-num" data-int="1" data-set="age" type="text" inputmode="numeric" value="'+esc(f.age||"")+'" placeholder="\u2014"></label><label class="wl-field"><span>Height (ft)</span><input class="wl-num" data-int="1" data-set="heightFt" type="text" inputmode="numeric" value="'+esc(f.heightFt||"")+'" placeholder="ft"></label><label class="wl-field"><span>(in)</span><input class="wl-num" data-int="1" data-set="heightIn" type="text" inputmode="numeric" value="'+esc(f.heightIn||"")+'" placeholder="in"></label></div></div>'+obnav();
+  }else if(step===2){
+    h+=obDots(2)+'<div class="wl-ob-body"><div class="wl-ob-h">Your weight</div><div class="wl-ob-sub">Where you are now (if you know it), and your goal.</div>';
+    h+='<label class="wl-field wl-field-full" style="margin-top:14px"><span>Units</span><div class="wl-seg">'+["lbs","kg"].map(function(x){return '<button class="'+(u===x?"on":"")+'" data-act="set:units" data-units="'+x+'">'+x+'</button>';}).join("")+'</div></label>';
+    h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Starting <em>'+u+', if known</em></span><input class="wl-num" data-set="startingWeight" type="text" inputmode="decimal" value="'+esc(f.startingWeight)+'" placeholder="\u2014"></label><label class="wl-field"><span>Goal <em>'+u+'</em></span><input class="wl-num" data-set="goalWeight" type="text" inputmode="decimal" value="'+esc(f.goalWeight)+'" placeholder="\u2014"></label></div></div>'+obnav();
+  }else if(step===3){
+    h+=obDots(3)+'<div class="wl-ob-body"><div class="wl-ob-h">Your plan</div><div class="wl-ob-sub">What are you working toward right now?</div>';
+    h+='<div class="wl-seg wl-seg-wide" style="margin-top:14px">'+[["lose","Fat Loss"],["maintain","Maintenance"],["gain","Lean Bulk"]].map(function(m){return '<button class="'+((f.strategy||"lose")===m[0]?"on":"")+'" data-act="set:strategy" data-strat="'+m[0]+'">'+m[1]+'</button>';}).join("")+'</div>';
+    h+='<div class="wl-hint" style="margin-top:12px">Most people should get lean first. You\u2019ll move through phases over time \u2014 your coach will guide it.</div></div>'+obnav();
+  }else if(step===4){
+    h+=obDots(4)+'<div class="wl-ob-body"><div class="wl-ob-h">Activity level</div><div class="wl-ob-sub"><b>Pick what you\u2019ll actually be doing going forward</b> \u2014 not necessarily where you are today. This sets your calorie target, so choose the routine you\u2019re committing to.</div>';
+    h+='<div class="wl-optlist" style="margin-top:14px">'+ALEVELS.filter(function(_a){return _a[0]!=="bmr"&&_a[0]!=="physical";}).map(function(x){var on=f.activityLevel===x[0];return '<button class="wl-opt'+(on?" on":"")+'" data-act="set:activity" data-level="'+x[0]+'"><span>'+x[1]+'</span>'+(on?'<span class="wl-opt-ck">'+I.check.replace("<svg","<svg width=15 height=15")+'</span>':'')+'</button>';}).join("")+'</div></div>'+obnav();
+  }else if(step===5){
+    h+=obDots(5)+'<div class="wl-ob-body"><div class="wl-ob-h">Calories &amp; macros</div>';
+    var canCalc=maintenanceCals()!=null;
+    h+='<div class="wl-ob-sub">'+(canCalc?"Estimated from your details, activity, and plan \u2014 tweak anything.":"Enter your daily targets. (Add sex, age &amp; height earlier to auto-estimate these.)")+'</div>';
+    h+='<label class="wl-field wl-field-full" style="margin-top:14px"><span>Daily calories</span><input class="wl-num" data-int="1" data-set="targetCalories" type="text" inputmode="numeric" value="'+esc(f.targetCalories)+'" placeholder="\u2014"></label>';
+    h+='<div class="wl-row" style="margin-top:10px"><label class="wl-field"><span>Protein <em>g</em></span><input class="wl-num" data-int="1" data-set="targetProtein" type="text" inputmode="numeric" value="'+esc(f.targetProtein)+'" placeholder="\u2014"></label><label class="wl-field"><span>Carbs <em>g</em></span><input class="wl-num" data-int="1" data-set="targetCarbs" type="text" inputmode="numeric" value="'+esc(f.targetCarbs)+'" placeholder="\u2014"></label><label class="wl-field"><span>Fat <em>g</em></span><input class="wl-num" data-int="1" data-set="targetFat" type="text" inputmode="numeric" value="'+esc(f.targetFat)+'" placeholder="\u2014"></label></div>';
+    if(canCalc)h+='<div class="wl-hint" style="margin-top:10px"><button class="wl-link" data-act="ob:recalc" style="display:inline">\u21bb Recalculate from my info</button> \u00b7 protein anchored near 1g/lb of goal weight.</div>';
+    h+='</div>'+obnav();
+  }else if(step===6){
+    h+=obDots(6)+'<div class="wl-ob-body"><div class="wl-ob-h">Weekly check-in</div><div class="wl-ob-sub">Which day should your coach recap your week?</div>';
+    h+='<div class="wl-daypick" style="margin-top:14px">'+WEEKDAYS.map(function(dn,i){return '<button class="wl-day'+((parseInt(f.weekStart,10)||0)===i?" on":"")+'" data-act="set:weekstart" data-day="'+i+'">'+dn+'</button>';}).join("")+'</div></div>'+obnav(true);
+  }else{
+    h+='<div class="wl-ob-hero">'+big+'<div class="wl-ob-tag">Strength \u00b7 in reps \u00b7 over years</div></div><div class="wl-ob-body"><div class="wl-ob-h">You\u2019re all set'+(f.name?", "+esc(f.name):"")+'</div><div class="wl-ob-sub">Your Home screen is ready. Log your first check-in whenever you like.</div>';
+    h+='<div class="wl-hint" style="margin-top:14px">Tip: turn on <b>Sync</b> in Settings to back up your data and use Compound across your devices.</div></div>';
+    h+='<div class="wl-ob-nav"><button class="wl-btn wl-btn-primary wl-full" data-act="ob:finish">Start using Compound</button></div>';
+  }
+  return h+'</div></div>';
+}
 function statusSheetHTML(){if(!state.statusOpen)return "";var sf=state.statusForm||{};var editing=sf.idx>=0;
   var h='<div class="wl-confirm"><div class="wl-confirm-card">';
   h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><div style="font-weight:800;font-size:17px">'+(editing?"Edit status":"Set a status")+'</div><button class="wl-icon-btn" data-act="status:close">\u2715</button></div>';
@@ -1288,11 +1360,11 @@ function dayBarHTML(){
 function headerNav(){var v=state.view;
   if(v==="overview"||v==="food"||v==="calendar"||v==="train"){
     var sel=state.selDate;var isToday=sel===todayISO();var open=state.calOpen;
-    var lbl=open?(MONTHS[state.calM]+' '+state.calY):(isToday?('Today, '+parseISO(sel).toLocaleDateString(undefined,{month:"short",day:"numeric"})):fmtLong(parseISO(sel)));
+    var lbl=open?(MONTHS[state.calM]):(isToday?('Today, '+parseISO(sel).toLocaleDateString(undefined,{month:"short",day:"numeric"})):fmtLong(parseISO(sel)));
     var h='<div class="wl-hnav'+((!isToday&&!open)?" off":"")+'">';
-    h+='<button class="wl-hnav-arw" data-act="'+(open?"cal:prev":"day:prev")+'">‹</button>';
-    h+='<button class="wl-hnav-lbl" data-act="cal:expand">'+((isToday&&!open)?'<span class="wl-daydot"></span>':'')+'<span>'+lbl+'</span></button>';
-    if(open||sel<todayISO())h+='<button class="wl-hnav-arw" data-act="'+(open?"cal:next":"day:next")+'">›</button>';
+    if(open)h+='<button class="wl-hnav-arw" data-act="cal:prev">‹</button>';
+    h+='<button class="wl-hnav-lbl'+(open?" month":"")+'" data-act="cal:expand"><span>'+lbl+'</span></button>';
+    if(open)h+='<button class="wl-hnav-arw" data-act="cal:next">›</button>';
     return h+'</div>';}
   if(v==="summary"){var s0=weekStartFor(state.weekOffset),e0=new Date(s0);e0.setDate(s0.getDate()+6);var isThis=state.weekOffset===0;
     var h='<div class="wl-hnav'+(isThis?"":" off")+'">';
@@ -2138,6 +2210,7 @@ function view_settings(){
   if(!state.confirmReset)h+='<button class="wl-btn wl-btn-danger wl-full" data-act="reset:ask">'+I.trash.replace("<svg","<svg width=16 height=16")+'Erase all data</button>';
   else h+='<div class="wl-hint">This permanently deletes every weigh-in, food entry, step count, activity, and setting. This can\'t be undone.</div><div class="wl-row"><button class="wl-btn wl-btn-ghost wl-full" data-act="reset:cancel">Cancel</button><button class="wl-btn wl-btn-danger wl-full" data-act="reset:do">Yes, erase everything</button></div>';
   h+='</div>';
+  h+='<div style="text-align:center;margin-top:6px"><button class="wl-btn wl-btn-ghost" style="display:inline-block;width:auto;padding:9px 18px" data-act="ob:start">Replay first-time setup</button></div>';
   h+='<div style="text-align:center;padding:26px 0 8px">'+'<div style="display:inline-flex;align-items:center;gap:9px">'+BRANDMARK.replace("width=\"18\" height=\"18\"","width=\"26\" height=\"26\"")+'<span class="wl-brandword">COMPOUND</span></div>'+'<div style="color:var(--faint);font-size:10px;margin-top:9px;letter-spacing:.22em;text-transform:uppercase">Strength · in reps · over years</div>'+'<div style="color:var(--faint);font-size:11px;margin-top:5px;letter-spacing:.02em;font-family:var(--mono)">v'+APP_BUILD+'</div></div>';
   return h+'</div>';
 }
@@ -2154,8 +2227,8 @@ function render(){
   var nav='<nav class="wl-nav">'+NAV.map(function(n){return '<button class="wl-navbtn '+(state.view===n[0]||(n[0]==="overview"&&(state.view==="food"||state.view==="diary"))||(n[0]==="weight"&&state.view==="photos")?"on":"")+'" data-act="go" data-view="'+n[0]+'">'+I[n[0]]+'<span>'+n[1]+'</span></button>';}).join("")+'</nav>';
   var avatar='<button class="wl-avatar'+(state.view==="settings"?" on":"")+'" data-act="go" data-view="settings" aria-label="Settings"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>';
   var hdrRight=syncOn()?'<button class="wl-syncdot" data-act="syncdot" aria-label="Sync status"><span class="wl-sdot '+syncDotClass()+'" id="wl-sdot"></span></button>':'';
-  var _navH=headerNav();var _brand='<span class="wl-mark">'+BRANDMARK+'</span>';var _md=statusFor(todayISO());var _mbanner=_md?('<button class="wl-modebanner" data-act="go" data-view="settings"><span class="wl-mb-em">'+(_md.status.type==="vacation"?"\ud83c\udfd6\ufe0f":"\ud83e\udd12")+'</span><span>'+(_md.status.type==="vacation"?"Vacation Mode":"Recovery Mode")+'</span><span class="wl-mb-go">Settings \u203a</span></button>'):'';var hdrLeft=_navH?('<div class="wl-brandrow">'+_brand+'<span class="wl-eyebrow">'+title+'</span></div>'+_navH):(title?'<div class="wl-brandrow">'+_brand+'<span class="wl-eyebrow">Compound</span></div><h1 class="wl-title">'+title+'</h1>':'');
-  document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header'+(_md?" hasbanner":"")+'">'+_mbanner+'<div class="wl-hdr-row"><div class="wl-hnav-wrap">'+hdrLeft+'</div><div class="wl-hdr-icons">'+hdrRight+avatar+'</div></div></header><main class="wl-main">'+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML()+statusSheetHTML();
+  var _navH=headerNav();var _brand='<span class="wl-mark">'+BRANDMARK+'</span>';var _md=statusFor(todayISO());var _mbanner=_md?('<button class="wl-modebanner" data-act="go" data-view="settings"><span class="wl-mb-em">'+(_md.status.type==="vacation"?"\ud83c\udfd6\ufe0f":"\ud83e\udd12")+'</span><span>'+(_md.status.type==="vacation"?"Vacation Mode":"Recovery Mode")+'</span><span class="wl-mb-go">Settings \u203a</span></button>'):'';
+  document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header'+(_md?" hasbanner":"")+'">'+_mbanner+'<div class="wl-hdr-brand"><div class="wl-brandrow">'+_brand+'<span class="wl-eyebrow">Compound</span></div></div><div class="wl-hdr-main"><div class="wl-title-slot">'+(title?('<h1 class="wl-title">'+title+'</h1>'):'')+'</div><div class="wl-hdr-actions">'+_navH+hdrRight+avatar+'</div></div></header><main class="wl-main">'+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML()+statusSheetHTML()+obOverlayHTML();
   var hdr=document.querySelector(".wl-header");if(hdr)document.documentElement.style.setProperty("--headh",hdr.offsetHeight+"px");
   if(document.getElementById("wl-photostrip"))renderPhotosStrip(state.selDate);
   if(state.view==="diary")renderDiary();
@@ -2181,6 +2254,11 @@ document.addEventListener("click",function(e){
   if(a==="skip:steps"){var sd=state.selDate;var on=!isSkip(sd,"steps");setSkip(sd,"steps",on);if(on)delete state.steps[sd];save();render();return;}
   if(a==="skip:sleep"){var sd=state.selDate;var on=!isSkip(sd,"sleep");setSkip(sd,"sleep",on);if(on)delete state.sleep[sd];save();render();return;}
   if(a==="skip:calories"){var sd=state.selDate;var on=!isSkip(sd,"calories");setSkip(sd,"calories",on);if(on)delete state.food[sd];save();render();return;}
+  if(a==="ob:next"){state.obStep=(state.obStep||0)+1;if(state.obStep===5&&!state.obMacrosDone){var _f=state.settings;if(_f.targetValue==null||_f.targetValue===""){_f.targetValue=(_f.strategy==="gain"?"0.5":_f.strategy==="maintain"?"0":"1");}if(!_f.targetType)_f.targetType="lbs_per_week";if(maintenanceCals()!=null)applyAutoMacros();state.obMacrosDone=true;}render();return;}
+  if(a==="ob:recalc"){var _rf=state.settings;if(_rf.targetValue==null||_rf.targetValue===""){_rf.targetValue=(_rf.strategy==="gain"?"0.5":_rf.strategy==="maintain"?"0":"1");}if(!_rf.targetType)_rf.targetType="lbs_per_week";applyAutoMacros();save();render();return;}
+  if(a==="ob:back"){state.obStep=Math.max(0,(state.obStep||0)-1);render();return;}
+  if(a==="ob:skip"||a==="ob:finish"){state.onboarding=false;state.settings.onboarded=true;save();render();return;}
+  if(a==="ob:start"){state.onboarding=true;state.obStep=0;render();return;}
   if(a==="status:open"){var _s=statusFor(state.selDate);state.statusForm=_s?{idx:_s.idx,type:_s.status.type,start:_s.status.start,end:_s.status.end||"",hasEnd:!!_s.status.end}:{idx:-1,type:"vacation",start:state.selDate,end:"",hasEnd:false};state.statusOpen=true;render();return;}
   if(a==="status:type"){state.statusForm=state.statusForm||{};state.statusForm.type=el.getAttribute("data-type");render();return;}
   if(a==="status:close"){state.statusOpen=false;render();return;}
@@ -2608,7 +2686,7 @@ function makeIcon(){
 
 
 /* ---------------- init ---------------- */
-load();loadTraining();loadWorkout();ensureIdentity();if(migrateOrphanLiftTags())save();applyTheme(state.settings.theme||"dark");makeIcon();if(state.workout)state.view="train";render();autoSync();if(state.workout)startWoTick();
+load();loadTraining();loadWorkout();ensureIdentity();if(migrateOrphanLiftTags())save();if(state.settings.onboarded==null)state.settings.onboarded=(state.weights.length>0||num(state.settings.goalWeight)!=null||num(state.settings.startingWeight)!=null||!!(state.settings.name&&(""+state.settings.name).trim()));if(!state.settings.onboarded){state.onboarding=true;state.obStep=0;}applyTheme(state.settings.theme||"dark");makeIcon();if(state.workout)state.view="train";render();autoSync();if(state.workout)startWoTick();
 try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(e){}
 try{
   var wlraw=localStorage.getItem("wl_announced")||"";
