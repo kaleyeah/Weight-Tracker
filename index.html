@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.218 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.219 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -73,6 +73,8 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 .wl-planrow>span.acc{color:var(--accent);}
 .wl-coachsig{font-size:15px;color:var(--muted);font-style:italic;margin-top:16px;}
 .wl-coachsig b{color:var(--text);font-style:normal;}
+.wl-scriptwarn{background:rgba(245,181,68,.12);border:1px solid rgba(245,181,68,.42);border-radius:12px;padding:12px 14px;font-size:13px;line-height:1.5;color:var(--text);}
+.wl-scriptwarn b{color:var(--accent);}
 .wl-ob-sub b{color:var(--text);}
 .wl-obdot{width:8px;height:8px;border-radius:50%;background:var(--line2);}
 .wl-obdot.on{background:var(--accent);}
@@ -568,7 +570,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.218";
+var APP_BUILD="2026-07-14.219";
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="34" y="26" width="32" height="12" rx="5" fill="#7C93F5"/><rect x="26" y="44" width="48" height="12" rx="5" fill="#9FB0C9"/><rect x="16" y="62" width="68" height="14" rx="5" fill="#F5B544"/></svg>';
 var deferredPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredPrompt=e;});
 var photoURLs=[],photoMap={},photoDB=null;
@@ -682,7 +684,7 @@ function load(){
   try{var raw=localStorage.getItem(KEY);if(raw){var d=JSON.parse(raw);
     state.settings=Object.assign({},DEFAULT_SETTINGS,d.settings||{});
     state.weights=Array.isArray(d.weights)?d.weights:[];
-    state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.bodyfat=d.bodyfat||{};state.waist=d.waist||{};state.statuses=d.statuses||[];state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;
+    state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.bodyfat=d.bodyfat||{};state.waist=d.waist||{};state.statuses=d.statuses||[];state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;state.scriptVer=d.scriptVer||{};
     state.presets=(Array.isArray(d.presets)&&d.presets.length)?d.presets:DEFAULT_PRESETS.slice();state.skips=d.skips||{};
   }}catch(e){}
   if(state.settings.macroAuto===undefined&&(num(state.settings.targetProtein)!=null||num(state.settings.targetCarbs)!=null||num(state.settings.targetFat)!=null))state.settings.macroAuto=false;
@@ -693,7 +695,9 @@ function load(){
   try{state.sumOpen=localStorage.getItem("wl_sumopen")!=="0";}catch(e){}
   try{state.calOpen=localStorage.getItem("wl_calopen")==="1";}catch(e){}
 }
-function payload(){return {settings:state.settings,weights:state.weights,food:state.food,workouts:state.workouts,steps:state.steps,notes:state.notes,sleep:state.sleep,bodyfat:state.bodyfat,waist:state.waist,statuses:state.statuses,weeklySummary:state.weeklySummary,nightlySummary:state.nightlySummary,presets:state.presets,skips:state.skips};}
+function payload(){return {settings:state.settings,weights:state.weights,food:state.food,workouts:state.workouts,steps:state.steps,notes:state.notes,sleep:state.sleep,bodyfat:state.bodyfat,waist:state.waist,statuses:state.statuses,weeklySummary:state.weeklySummary,nightlySummary:state.nightlySummary,presets:state.presets,skips:state.skips,scriptVer:state.scriptVer};}
+var EXPECTED_SCRIPTS={weekly:"2026-07-14.167",nightly:"2026-07-14.167"};
+function scriptVerWarn(){var sv=state.scriptVer||{};var bad=[];if(sv.weekly&&sv.weekly!==EXPECTED_SCRIPTS.weekly)bad.push("weekly "+sv.weekly);if(sv.nightly&&sv.nightly!==EXPECTED_SCRIPTS.nightly)bad.push("nightly "+sv.nightly);return bad.length?bad:null;}
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(payload()));}catch(e){toast("Couldn't save — storage full or blocked");}}
 function save(){saveLocal();scheduleCloudPush();}
 
@@ -754,7 +758,7 @@ function cloudGet(cb){var c=syncCfg();if(!syncOn()){cb&&cb(null,"not configured"
 function applyCloud(d){if(!d)return;
   state.settings=Object.assign({},DEFAULT_SETTINGS,d.settings||{});
   state.weights=Array.isArray(d.weights)?d.weights:[];
-  state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.bodyfat=d.bodyfat||{};state.waist=d.waist||{};state.statuses=d.statuses||[];state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;
+  state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.bodyfat=d.bodyfat||{};state.waist=d.waist||{};state.statuses=d.statuses||[];state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;state.scriptVer=d.scriptVer||{};
   state.presets=(Array.isArray(d.presets)&&d.presets.length)?d.presets:DEFAULT_PRESETS.slice();
   if(state.settings.macroAuto===undefined&&(num(state.settings.targetProtein)!=null||num(state.settings.targetCarbs)!=null||num(state.settings.targetFat)!=null))state.settings.macroAuto=false;
   if(state.settings.calTargetAuto===undefined&&num(state.settings.targetCalories)!=null)state.settings.calTargetAuto=false;
@@ -857,46 +861,10 @@ function statusBannerHTML(sel){var sf=statusFor(sel);
     return '<button class="wl-statusban '+(isVac?"vac":"sick")+'" data-act="status:open"><span class="wl-sb-em">'+(isVac?"\ud83c\udfd6\ufe0f":"\ud83e\udd12")+'</span><span class="wl-sb-t"><span class="wl-sb-h">'+(isVac?"Vacation":"Recovering")+' <span class="wl-sb-pill">'+range+'</span></span><span class="wl-sb-s">'+msg+'</span><span class="wl-sb-edit">Tap to edit or end \u203a</span></span></button>';}
   return '<button class="wl-status-link" data-act="status:open">\ud83c\udfd6\ufe0f Going away or under the weather? Set a status \u203a</button>';}
 function obStepMsg(st){var f=state.settings;if(st===1){if(!(f.name&&(""+f.name).trim()))return "Add your name";if(!f.sex)return "Select male or female";if(num(f.age)==null)return "Add your age";if(num(f.heightFt)==null)return "Add your height";return "";}if(st===2){if(num(f.startingWeight)==null)return "Add your current weight";if(num(f.goalWeight)==null)return "Add your target weight";return "";}if(st===4){if(!f.activityLevel)return "Pick your activity level";return "";}return "";}
-var _QREXP=[],_QRLOG=[];(function(){var i;for(i=0;i<8;i++)_QREXP[i]=1<<i;for(i=8;i<256;i++)_QREXP[i]=_QREXP[i-4]^_QREXP[i-5]^_QREXP[i-6]^_QREXP[i-8];for(i=0;i<255;i++)_QRLOG[_QREXP[i]]=i;})();
-function _qge(n){while(n<0)n+=255;while(n>=255)n-=255;return _QREXP[n];}
-function _qgl(n){return _QRLOG[n];}
-function _qpm(a,b){var r=[],i,j;for(i=0;i<a.length+b.length-1;i++)r[i]=0;for(i=0;i<a.length;i++)for(j=0;j<b.length;j++)r[i+j]^=_qge(_qgl(a[i])+_qgl(b[j]));return r;}
-function _qrsg(d){var p=[1],i;for(i=0;i<d;i++)p=_qpm(p,[1,_qge(i)]);return p;}
-function _qrse(data,ecLen){var gen=_qrsg(ecLen),res=data.slice(),i,j;for(i=0;i<ecLen;i++)res.push(0);for(i=0;i<data.length;i++){var c=res[i];if(c!==0)for(j=0;j<gen.length;j++)res[i+j]^=_qge(_qgl(gen[j])+_qgl(c));}return res.slice(data.length);}
-var _QRECL={1:[26,7,1],2:[44,10,1],3:[70,15,1],4:[100,20,1],5:[134,26,1],6:[172,18,2],7:[196,20,2],8:[242,24,2],9:[292,30,2]};
-var _QRAL={1:[],2:[6,18],3:[6,22],4:[6,26],5:[6,30],6:[6,34],7:[6,22,38],8:[6,24,42],9:[6,26,46]};
-var _QRF=[1,1,1,0,1,1,1,1,1,0,0,0,1,0,0];
-function makeQR(text){var bytes=[],i,j;var enc=unescape(encodeURIComponent(text));for(i=0;i<enc.length;i++)bytes.push(enc.charCodeAt(i));
-  var v=0,ver;for(ver=1;ver<=9;ver++){var E=_QRECL[ver];var dcwc=E[0]-E[1]*E[2];if(4+8+bytes.length*8+4<=dcwc*8){v=ver;break;}}if(!v)return null;
-  var EC=_QRECL[v],tot=EC[0],ec=EC[1],nb=EC[2],dataCw=tot-ec*nb;
-  var bits=[];function put(val,n){var k;for(k=n-1;k>=0;k--)bits.push((val>>k)&1);}
-  put(4,4);put(bytes.length,8);for(i=0;i<bytes.length;i++)put(bytes[i],8);
-  var t2=Math.min(4,dataCw*8-bits.length);put(0,t2);while(bits.length%8)bits.push(0);
-  var dcw=[];for(i=0;i<bits.length;i+=8){var b=0;for(j=0;j<8;j++)b=(b<<1)|bits[i+j];dcw.push(b);}
-  var pads=[0xEC,0x11],pi=0;while(dcw.length<dataCw)dcw.push(pads[(pi++)%2]);
-  var perBlk=Math.floor(dataCw/nb),rem=dataCw%nb,blocks=[],off=0;
-  for(i=0;i<nb;i++){var cnt=perBlk+(i>=nb-rem?1:0);var d=dcw.slice(off,off+cnt);off+=cnt;blocks.push({d:d,e:_qrse(d,ec)});}
-  var finalCw=[],maxD=0;for(i=0;i<nb;i++)if(blocks[i].d.length>maxD)maxD=blocks[i].d.length;
-  for(i=0;i<maxD;i++)for(j=0;j<nb;j++)if(i<blocks[j].d.length)finalCw.push(blocks[j].d[i]);
-  for(i=0;i<ec;i++)for(j=0;j<nb;j++)finalCw.push(blocks[j].e[i]);
-  var size=17+v*4,m=[],r,c;for(r=0;r<size;r++){m[r]=[];for(c=0;c<size;c++)m[r][c]=null;}
-  function finder(fr,fc){var a,bb;for(a=-1;a<=7;a++)for(bb=-1;bb<=7;bb++){var rr=fr+a,cc=fc+bb;if(rr<0||rr>=size||cc<0||cc>=size)continue;var on=(a>=0&&a<=6&&(bb===0||bb===6))||(bb>=0&&bb<=6&&(a===0||a===6))||(a>=2&&a<=4&&bb>=2&&bb<=4);m[rr][cc]=on?1:0;}}
-  finder(0,0);finder(0,size-7);finder(size-7,0);
-  for(i=8;i<size-8;i++){m[6][i]=(i%2===0)?1:0;m[i][6]=(i%2===0)?1:0;}
-  var ap=_QRAL[v];for(i=0;i<ap.length;i++)for(j=0;j<ap.length;j++){var pr=ap[i],pc=ap[j];if((pr<=7&&pc<=7)||(pr<=7&&pc>=size-8)||(pr>=size-8&&pc<=7))continue;var a2,b2;for(a2=-2;a2<=2;a2++)for(b2=-2;b2<=2;b2++)m[pr+a2][pc+b2]=(Math.abs(a2)===2||Math.abs(b2)===2||(a2===0&&b2===0))?1:0;}
-  var RES=-2;for(i=0;i<9;i++){if(m[8][i]===null)m[8][i]=RES;if(m[i][8]===null)m[i][8]=RES;}
-  for(i=0;i<8;i++){if(m[8][size-1-i]===null)m[8][size-1-i]=RES;if(m[size-1-i][8]===null)m[size-1-i][8]=RES;}m[size-8][8]=RES;
-  var dir=-1,row=size-1,bi=0,tb=finalCw.length*8,col,cc2;
-  for(col=size-1;col>0;col-=2){if(col===6)col--;for(;;){for(cc2=0;cc2<2;cc2++){var cx=col-cc2;if(m[row][cx]===null){var dd=0;if(bi<tb){dd=(finalCw[bi>>3]>>(7-(bi&7)))&1;bi++;}var mk=((row+cx)%2===0)?1:0;m[row][cx]=dd^mk;}}row+=dir;if(row<0||row>=size){row-=dir;dir=-dir;break;}}}
-  var F=_QRF;for(i=0;i<=5;i++)m[8][i]=F[i];m[8][7]=F[6];m[8][8]=F[7];m[7][8]=F[8];for(i=9;i<15;i++)m[14-i][8]=F[i];
-  for(i=0;i<7;i++)m[size-1-i][8]=F[i];m[size-8][8]=1;for(i=7;i<15;i++)m[8][size-15+i]=F[i];
-  for(r=0;r<size;r++)for(c=0;c<size;c++)if(m[r][c]===RES||m[r][c]===null)m[r][c]=0;
-  return {size:size,m:m};}
-function qrSVG(text,px){var q=makeQR(text);if(!q)return "";var size=q.size,quiet=4,tot=size+quiet*2,W=px||220,x,y;var s='<svg viewBox="0 0 '+tot+' '+tot+'" width="'+W+'" height="'+W+'" shape-rendering="crispEdges"><rect width="'+tot+'" height="'+tot+'" fill="#ffffff"/><path fill="#000000" d="';for(y=0;y<size;y++)for(x=0;x<size;x++)if(q.m[y][x])s+='M'+(x+quiet)+' '+(y+quiet)+'h1v1h-1z';return s+'"/></svg>';}
 function _b64url(str){return b64enc(str).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");}
 function _b64urldec(str){str=(str||"").replace(/-/g,"+").replace(/_/g,"/");while(str.length%4)str+="=";return b64dec(str);}
 function deviceSetupLink(){var c=syncCfg();var p={t:c.token};var r=c.repo||DEFAULT_REPO;if(r!==DEFAULT_REPO)p.r=r;var b=c.branch||DEFAULT_BRANCH;if(b&&b!==DEFAULT_BRANCH)p.b=b;var u=myUid();if(u&&u!=="owner")p.u=u;return location.origin+location.pathname+"#setup="+_b64url(JSON.stringify(p));}
-function deviceSheetHTML(){if(!state.deviceOpen)return "";var link=deviceSetupLink();var h='<div class="wl-confirm"><div class="wl-confirm-card">';h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><div style="font-weight:800;font-size:17px">Set up another device</div><button class="wl-icon-btn" data-act="device:close">\u2715</button></div>';h+='<div class="wl-hint" style="margin-bottom:14px">On your other device, <b>scan this</b> with the camera \u2014 or open the copied link \u2014 then tap Import. Both devices share the same data.</div>';h+='<div class="wl-qrwrap">'+(qrSVG(link,240)||'<div style="color:#555;font-size:12px;text-align:center;padding:26px 12px">Link too long for a QR \u2014 use Copy setup link below.</div>')+'</div>';h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:14px" data-act="device:copylink">Copy setup link</button>';h+='<div class="wl-hint" style="margin-top:10px;color:var(--bad)">This link has full read/write access to your data \u2014 only share it with your own devices.</div>';return h+'</div></div>';}
+function deviceSheetHTML(){if(!state.deviceOpen)return "";var link=deviceSetupLink();var h='<div class="wl-confirm"><div class="wl-confirm-card">';h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><div style="font-weight:800;font-size:17px">Set up another device</div><button class="wl-icon-btn" data-act="device:close">\u2715</button></div>';h+='<div class="wl-hint" style="margin-bottom:12px">Tap <b>Copy setup link</b>, send it to your other device (AirDrop / Messages), and open it there \u2014 it\u2019ll import your data. Both devices share the same data.</div>';h+='<div style="background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:11px;font-family:var(--mono);font-size:11px;color:var(--muted);word-break:break-all;max-height:84px;overflow:auto">'+esc(link)+'</div>';h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="device:copylink">Copy setup link</button>';h+='<div class="wl-hint" style="margin-top:10px;color:var(--bad)">This link has full read/write access to your data \u2014 only share it with your own devices.</div>';return h+'</div></div>';}
 function checkSetupLink(){var hh=location.hash||"";var mm=hh.match(/[#&]setup=([^&]+)/);if(!mm)return;var pl=null;try{pl=JSON.parse(_b64urldec(mm[1]));}catch(e){try{pl=JSON.parse(b64dec(decodeURIComponent(mm[1])));}catch(e2){pl=null;}}try{history.replaceState(null,"",location.pathname+location.search);}catch(e){}if(!pl||!pl.t)return;askConfirm("Set up this device with your synced data? It connects to your account and pulls your existing weigh-ins, activities, and settings.",function(){setSyncCfg({token:pl.t,repo:pl.r||DEFAULT_REPO,branch:pl.b||DEFAULT_BRANCH,uid:pl.u||"owner"});ghSha=null;connData={};state.settings.onboarded=true;state.onboarding=false;markDirty(false);save();cloudPull(true);toast("Connecting \u2014 pulling your data");},{label:"Import",danger:false});}
 function obnav(last){return '<div class="wl-ob-nav"><button class="wl-btn wl-btn-ghost" style="flex:1" data-act="ob:back">Back</button><button class="wl-btn wl-btn-primary" style="flex:2" data-act="ob:next">'+(last?"Finish":"Continue")+'</button></div>';}
 function obDots(active){var d='';for(var i=1;i<=6;i++)d+='<span class="wl-obdot'+(i===active?" on":(i<active?" done":""))+'"></span>';return '<div class="wl-ob-brandbar">'+BRANDMARK.replace('width="18" height="18"','width="30" height="30"')+'<span class="wl-ob-bw">COMPOUND</span></div><div class="wl-obdots">'+d+'</div>';}
@@ -1242,6 +1210,7 @@ function activitySummaryHTML(sel){
 function view_overview(){
   var u=state.settings.units;
   var h='<div class="wl-stack">';
+  if(isOwner()){var _svw=scriptVerWarn();if(_svw)h+='<div class="wl-scriptwarn"><b>\u26a0 Coach scripts out of date.</b> Running '+_svw.join(", ")+' \u2014 expected '+EXPECTED_SCRIPTS.weekly+'. Redeploy <b>weekly-checkin.mjs</b> &amp; <b>nightly-checkin.mjs</b>. Clears after the next check-in runs.</div>';}
   var _hsw=sortedWeights(),_hstart=num(state.settings.startingWeight),_hgoal=num(state.settings.goalWeight);
   var _hcur=_hsw.length?_hsw[_hsw.length-1].weight:_hstart;
   var _hlost=(_hstart!=null&&_hcur!=null)?_hstart-_hcur:null;
@@ -2292,7 +2261,7 @@ function view_settings(){
   h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="sync"><span>Cloud sync <em>GitHub</em></span><span class="wl-chevron'+(op.sync?" open":"")+'">›</span></button>'+(op.sync?('<div class="wl-collapse-body">'+
     '<label class="wl-field wl-field-full"><span>Access token</span><input type="password" data-sync="token" value="'+esc(sc.token||"")+'" placeholder="github_pat_…" autocapitalize="off" autocorrect="off" spellcheck="false"></label>'+
     '<div class="wl-row" style="margin-top:12px"><button class="wl-btn wl-btn-ghost wl-full" data-act="sync:test">Test</button><button class="wl-btn wl-btn-ghost wl-full" data-act="sync:pull">Pull</button><button class="wl-btn wl-btn-primary wl-full" data-act="sync:push">Push</button></div>'+
-    '<div class="wl-row" style="margin-top:10px"><button class="wl-btn wl-btn-primary wl-full" data-act="device:open">Set up another device (QR / link)</button></div>'+'<div class="wl-row" style="margin-top:8px"><button class="wl-btn wl-btn-ghost wl-full" data-act="sync:copy">Copy setup</button><button class="wl-btn wl-btn-ghost wl-full" data-act="sync:paste">Paste setup</button></div>'+
+    '<div class="wl-row" style="margin-top:10px"><button class="wl-btn wl-btn-primary wl-full" data-act="device:open">Set up another device (link)</button></div>'+'<div class="wl-row" style="margin-top:8px"><button class="wl-btn wl-btn-ghost wl-full" data-act="sync:copy">Copy setup</button><button class="wl-btn wl-btn-ghost wl-full" data-act="sync:paste">Paste setup</button></div>'+
     (state.syncPasteOpen?'<textarea id="wl-syncpaste" placeholder="Paste setup here, then tap Apply" style="width:100%;min-height:80px;margin-top:10px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--mono);font-size:12px;padding:10px;box-sizing:border-box;outline:none"></textarea><div class="wl-row" style="margin-top:8px"><button class="wl-btn wl-btn-ghost wl-full" data-act="sync:pastecancel">Cancel</button><button class="wl-btn wl-btn-primary wl-full" data-act="sync:pasteapply">Apply</button></div>':'')+
     '<div class="wl-hint" style="margin-top:10px"><b>Status:</b> <span id="wl-sync-status">'+syncStatusHTML()+'</span></div>'+
     '<div class="wl-hint">Synced with <b>kaleyeah/weight-data</b>. Enter your token once, tap <b>Test</b>, then <b>Push</b>. Setting up a new device? Tap <b>Copy setup</b> here and <b>Paste setup</b> there — no retyping the token. Your token is stored on this device only, never in the app\u2019s code.</div></div>'):'')+'</div>';
@@ -2712,7 +2681,7 @@ function applyImport(text){
   askConfirm("Replace all data on this device with this backup? Current entries will be overwritten.",function(){
   state.settings=Object.assign({},DEFAULT_SETTINGS,d.settings||{});
   state.weights=Array.isArray(d.weights)?d.weights:[];
-  state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.bodyfat=d.bodyfat||{};state.waist=d.waist||{};state.statuses=d.statuses||[];state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;
+  state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.bodyfat=d.bodyfat||{};state.waist=d.waist||{};state.statuses=d.statuses||[];state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;state.scriptVer=d.scriptVer||{};
   state.presets=(Array.isArray(d.presets)&&d.presets.length)?d.presets:DEFAULT_PRESETS.slice();
   state.pasteOpen=false;state.view="overview";applyTheme(state.settings.theme||"dark");save();toast("Data restored");
   },{label:"Replace",danger:false});
