@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.185 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.186 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -36,6 +36,7 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 .wl-modebanner{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;background:var(--accent);color:var(--on-accent);font-weight:800;font-size:13px;letter-spacing:.01em;padding:calc(env(safe-area-inset-top,0px) + 9px) 16px 9px;border:none;font-family:var(--sans);cursor:pointer;box-shadow:0 3px 12px rgba(0,0,0,.3);}
 .wl-mb-em{font-size:15px;line-height:1;}
 .wl-mb-go{opacity:.72;font-weight:700;}
+.wl-datein{font-family:var(--sans);min-height:46px;}
 .wl-eyebrow{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);font-weight:700;}
 .wl-avatar{width:38px;height:38px;border-radius:11px;background:var(--card);color:var(--muted);border:1px solid var(--line);font-family:var(--sans);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;padding:0;}
 .wl-avatar.on{border-color:var(--accent);color:var(--accent);}
@@ -506,7 +507,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.185";
+var APP_BUILD="2026-07-14.186";
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="34" y="26" width="32" height="12" rx="5" fill="#7C93F5"/><rect x="26" y="44" width="48" height="12" rx="5" fill="#9FB0C9"/><rect x="16" y="62" width="68" height="14" rx="5" fill="#F5B544"/></svg>';
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
@@ -798,7 +799,11 @@ function statusSheetHTML(){if(!state.statusOpen)return "";var sf=state.statusFor
   h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><div style="font-weight:800;font-size:17px">'+(editing?"Edit status":"Set a status")+'</div><button class="wl-icon-btn" data-act="status:close">\u2715</button></div>';
   h+='<div class="wl-hint" style="margin-bottom:12px">Away, sick, or taking a break \u2014 tell your coach so it eases up, and the day still counts as checked in.</div>';
   h+='<div class="wl-seg wl-seg-wide" style="margin-bottom:12px">'+[["vacation","\ud83c\udfd6\ufe0f Vacation"],["sick","\ud83e\udd12 Sick"]].map(function(m){return '<button class="'+(sf.type===m[0]?"on":"")+'" data-act="status:type" data-type="'+m[0]+'">'+m[1]+'</button>';}).join("")+'</div>';
-  h+='<div class="wl-row"><label class="wl-field"><span>From</span><input type="date" class="wl-status-start" value="'+(sf.start||"")+'"></label><label class="wl-field"><span>To <span style="color:var(--faint)">(optional)</span></span><input type="date" class="wl-status-end" value="'+(sf.end||"")+'"></label></div>';
+  var _he=sf.hasEnd!=null?sf.hasEnd:!!sf.end;
+  h+='<label class="wl-field wl-field-full"><span>From</span><input type="date" class="wl-status-start wl-datein" value="'+(sf.start||"")+'"></label>';
+  h+='<div class="wl-field wl-field-full" style="margin-top:12px"><span>Duration</span><div class="wl-seg wl-seg-wide"><button class="'+(!_he?"on":"")+'" data-act="status:togend" data-end="0">Ongoing</button><button class="'+(_he?"on":"")+'" data-act="status:togend" data-end="1">Set end date</button></div></div>';
+  if(_he)h+='<label class="wl-field wl-field-full" style="margin-top:10px"><span>Ends</span><input type="date" class="wl-status-end wl-datein" value="'+(sf.end||"")+'"></label>';
+  else h+='<div class="wl-hint" style="margin-top:8px">No end date \u2014 stays on until you end it in Settings.</div>';
   h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:14px" data-act="status:save">'+(editing?"Update":("Start "+(sf.type==="sick"?"sick":"vacation")+" mode"))+'</button>';
   if(editing)h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="status:end">End now</button>';
   return h+'</div></div>';}
@@ -2179,10 +2184,11 @@ document.addEventListener("click",function(e){
   if(a==="skip:steps"){var sd=state.selDate;var on=!isSkip(sd,"steps");setSkip(sd,"steps",on);if(on)delete state.steps[sd];save();render();return;}
   if(a==="skip:sleep"){var sd=state.selDate;var on=!isSkip(sd,"sleep");setSkip(sd,"sleep",on);if(on)delete state.sleep[sd];save();render();return;}
   if(a==="skip:calories"){var sd=state.selDate;var on=!isSkip(sd,"calories");setSkip(sd,"calories",on);if(on)delete state.food[sd];save();render();return;}
-  if(a==="status:open"){var _s=statusFor(state.selDate);state.statusForm=_s?{idx:_s.idx,type:_s.status.type,start:_s.status.start,end:_s.status.end||""}:{idx:-1,type:"vacation",start:state.selDate,end:""};state.statusOpen=true;render();return;}
+  if(a==="status:open"){var _s=statusFor(state.selDate);state.statusForm=_s?{idx:_s.idx,type:_s.status.type,start:_s.status.start,end:_s.status.end||"",hasEnd:!!_s.status.end}:{idx:-1,type:"vacation",start:state.selDate,end:"",hasEnd:false};state.statusOpen=true;render();return;}
   if(a==="status:type"){state.statusForm=state.statusForm||{};state.statusForm.type=el.getAttribute("data-type");render();return;}
+  if(a==="status:togend"){var _tf=state.statusForm||{};_tf.hasEnd=el.getAttribute("data-end")==="1";if(!_tf.hasEnd)_tf.end="";state.statusForm=_tf;render();return;}
   if(a==="status:close"){state.statusOpen=false;render();return;}
-  if(a==="status:save"){var _f=state.statusForm||{};var _st=_f.start,_en=_f.end||null;if(!_st){toast("Pick a start date");return;}if(_en&&_en<_st){toast("End is before start");return;}var _o={type:_f.type||"vacation",start:_st,end:_en};state.statuses=state.statuses||[];if(_f.idx>=0)state.statuses[_f.idx]=_o;else state.statuses.push(_o);state.statusOpen=false;save();render();return;}
+  if(a==="status:save"){var _f=state.statusForm||{};var _st=_f.start,_en=((_f.hasEnd!=null?_f.hasEnd:!!_f.end)&&_f.end)?_f.end:null;if(!_st){toast("Pick a start date");return;}if(_en&&_en<_st){toast("End is before start");return;}var _o={type:_f.type||"vacation",start:_st,end:_en};state.statuses=state.statuses||[];if(_f.idx>=0)state.statuses[_f.idx]=_o;else state.statuses.push(_o);state.statusOpen=false;save();render();return;}
   if(a==="status:end"){var _f=state.statusForm||{};if(_f.idx>=0&&state.statuses)state.statuses.splice(_f.idx,1);state.statusOpen=false;save();render();return;}
   if(a==="status:endnow"){var _es=statusFor(todayISO());if(_es&&state.statuses){var _yd=toISO(addDays(parseISO(todayISO()),-1));if(_es.status.start>_yd)state.statuses.splice(_es.idx,1);else _es.status.end=_yd;save();}render();return;}
   if(a==="qe:close"){state.quickEntry=null;render();window.scrollTo(0,0);return;}
