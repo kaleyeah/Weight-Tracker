@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.210 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.212 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -548,7 +548,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.210";
+var APP_BUILD="2026-07-14.212";
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="34" y="26" width="32" height="12" rx="5" fill="#7C93F5"/><rect x="26" y="44" width="48" height="12" rx="5" fill="#9FB0C9"/><rect x="16" y="62" width="68" height="14" rx="5" fill="#F5B544"/></svg>';
 var deferredPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredPrompt=e;});
 var photoURLs=[],photoMap={},photoDB=null;
@@ -844,6 +844,38 @@ function obOverlayHTML(){
   var big=BRANDMARK.replace('width="18" height="18"','width="54" height="54"');
   var h='<div class="wl-ob"><div class="wl-ob-inner">';
   if(step===0){
+    h+='<div class="wl-ob-hero">'+big+'<div class="wl-ob-brand">COMPOUND</div><div class="wl-ob-tag">Strength \u00b7 in reps \u00b7 over years</div></div>';
+    h+='<div class="wl-ob-body"><div class="wl-ob-h">Welcome</div><div class="wl-ob-sub">Let\u2019s set up your plan \u2014 a couple of minutes. You can change any of this later in Settings.</div></div>';
+    h+='<div class="wl-ob-nav"><button class="wl-btn wl-btn-primary wl-full" data-act="ob:next">Get started</button></div>';
+    h+='<button class="wl-ob-skip" data-act="ob:skip">Skip for now</button>';
+  }else if(step===1){
+    h+=obDots(1)+'<div class="wl-ob-body"><div class="wl-ob-h">About you</div><div class="wl-ob-sub">We use these to estimate your calories.</div>';
+    h+='<label class="wl-field wl-field-full" style="margin-top:14px"><span>Name</span><input data-set="name" type="text" value="'+esc(f.name||"")+'" placeholder="Your name"></label>';
+    h+='<label class="wl-field wl-field-full" style="margin-top:12px"><span>Sex</span><div class="wl-seg"><button class="'+(f.sex==="male"?"on":"")+'" data-act="set:sex" data-sex="male">Male</button><button class="'+(f.sex==="female"?"on":"")+'" data-act="set:sex" data-sex="female">Female</button></div></label>';
+    h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Age</span><input class="wl-num" data-int="1" data-set="age" type="text" inputmode="numeric" value="'+esc(f.age||"")+'" placeholder="\u2014"></label><label class="wl-field"><span>Height (ft)</span><input class="wl-num" data-int="1" data-set="heightFt" type="text" inputmode="numeric" value="'+esc(f.heightFt||"")+'" placeholder="ft"></label><label class="wl-field"><span>(in)</span><input class="wl-num" data-int="1" data-set="heightIn" type="text" inputmode="numeric" value="'+esc(f.heightIn||"")+'" placeholder="in"></label></div></div>'+obnav();
+  }else if(step===2){
+    h+=obDots(2)+'<div class="wl-ob-body"><div class="wl-ob-h">Your weight</div><div class="wl-ob-sub">Where you are now (if you know it), and your goal.</div>';
+    h+='<label class="wl-field wl-field-full" style="margin-top:14px"><span>Units</span><div class="wl-seg">'+["lbs","kg"].map(function(x){return '<button class="'+(u===x?"on":"")+'" data-act="set:units" data-units="'+x+'">'+x+'</button>';}).join("")+'</div></label>';
+    h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Starting <em>'+u+', if known</em></span><input class="wl-num" data-set="startingWeight" type="text" inputmode="decimal" value="'+esc(f.startingWeight)+'" placeholder="\u2014"></label><label class="wl-field"><span>Goal <em>'+u+'</em></span><input class="wl-num" data-set="goalWeight" type="text" inputmode="decimal" value="'+esc(f.goalWeight)+'" placeholder="\u2014"></label></div></div>'+obnav();
+  }else if(step===3){
+    h+=obDots(3)+'<div class="wl-ob-body"><div class="wl-ob-h">Your plan</div><div class="wl-ob-sub">What are you working toward right now?</div>';
+    h+='<div class="wl-seg wl-seg-wide" style="margin-top:14px">'+[["lose","Fat Loss"],["maintain","Maintenance"],["gain","Lean Bulk"]].map(function(m){return '<button class="'+((f.strategy||"lose")===m[0]?"on":"")+'" data-act="set:strategy" data-strat="'+m[0]+'">'+m[1]+'</button>';}).join("")+'</div>';
+    h+='<div class="wl-hint" style="margin-top:12px">Most people should get lean first. You\u2019ll move through phases over time \u2014 your coach will guide it.</div></div>'+obnav();
+  }else if(step===4){
+    h+=obDots(4)+'<div class="wl-ob-body"><div class="wl-ob-h">Activity level</div><div class="wl-ob-sub"><b>Pick what you\u2019ll actually be doing going forward</b> \u2014 not necessarily where you are today. This sets your calorie target, so choose the routine you\u2019re committing to.</div>';
+    h+='<div class="wl-optlist" style="margin-top:14px">'+ALEVELS.filter(function(_a){return _a[0]!=="bmr"&&_a[0]!=="physical";}).map(function(x){var on=f.activityLevel===x[0];return '<button class="wl-opt'+(on?" on":"")+'" data-act="set:activity" data-level="'+x[0]+'"><span>'+x[1]+'</span>'+(on?'<span class="wl-opt-ck">'+I.check.replace("<svg","<svg width=15 height=15")+'</span>':'')+'</button>';}).join("")+'</div></div>'+obnav();
+  }else if(step===5){
+    h+=obDots(5)+'<div class="wl-ob-body"><div class="wl-ob-h">Calories &amp; macros</div>';
+    var canCalc=maintenanceCals()!=null;
+    h+='<div class="wl-ob-sub">'+(canCalc?"Estimated from your details, activity, and plan \u2014 tweak anything.":"Enter your daily targets. (Add sex, age &amp; height earlier to auto-estimate these.)")+'</div>';
+    if((f.strategy||"lose")!=="maintain"){var _gn=(f.strategy==="gain");h+='<label class="wl-field wl-field-full" style="margin-top:14px"><span>Weekly '+(_gn?"gain":"loss")+' target <em>'+u+'/week</em></span><input class="wl-num" data-set="targetValue" type="text" inputmode="decimal" value="'+esc(f.targetValue)+'" placeholder="'+(_gn?"0.5":"1")+'"></label>';}h+='<label class="wl-field wl-field-full" style="margin-top:12px"><span>Daily calories</span><input class="wl-num" data-int="1" data-set="targetCalories" type="text" inputmode="numeric" value="'+esc(f.targetCalories)+'" placeholder="\u2014"></label>';
+    h+='<div class="wl-row" style="margin-top:10px"><label class="wl-field"><span>Protein <em>g</em></span><input class="wl-num" data-int="1" data-set="targetProtein" type="text" inputmode="numeric" value="'+esc(f.targetProtein)+'" placeholder="\u2014"></label><label class="wl-field"><span>Carbs <em>g</em></span><input class="wl-num" data-int="1" data-set="targetCarbs" type="text" inputmode="numeric" value="'+esc(f.targetCarbs)+'" placeholder="\u2014"></label><label class="wl-field"><span>Fat <em>g</em></span><input class="wl-num" data-int="1" data-set="targetFat" type="text" inputmode="numeric" value="'+esc(f.targetFat)+'" placeholder="\u2014"></label></div>';
+    if(canCalc)h+='<div class="wl-hint" style="margin-top:10px"><button class="wl-link" data-act="ob:recalc" style="display:inline">\u21bb Recalculate from my info</button> \u00b7 protein anchored near 1g/lb of goal weight.</div>';
+    h+='</div>'+obnav();
+  }else if(step===6){
+    h+=obDots(6)+'<div class="wl-ob-body"><div class="wl-ob-h">Weekly check-in</div><div class="wl-ob-sub">Which day should your coach recap your week?</div>';
+    h+='<div class="wl-daypick" style="margin-top:14px">'+WEEKDAYS.map(function(dn,i){return '<button class="wl-day'+((parseInt(f.weekStart,10)||0)===i?" on":"")+'" data-act="set:weekstart" data-day="'+i+'">'+dn+'</button>';}).join("")+'</div></div>'+obnav(true);
+  }else{
     h+='<div class="wl-ob-hero">'+big+'<div class="wl-ob-brand">COMPOUND</div><div class="wl-ob-tag">Strength \u00b7 in reps \u00b7 over years</div></div>';
     var _standalone=(window.matchMedia&&window.matchMedia("(display-mode: standalone)").matches)||window.navigator.standalone===true;
     var _isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
@@ -2246,11 +2278,11 @@ document.addEventListener("click",function(e){
   if(a==="skip:steps"){var sd=state.selDate;var on=!isSkip(sd,"steps");setSkip(sd,"steps",on);if(on)delete state.steps[sd];save();render();return;}
   if(a==="skip:sleep"){var sd=state.selDate;var on=!isSkip(sd,"sleep");setSkip(sd,"sleep",on);if(on)delete state.sleep[sd];save();render();return;}
   if(a==="skip:calories"){var sd=state.selDate;var on=!isSkip(sd,"calories");setSkip(sd,"calories",on);if(on)delete state.food[sd];save();render();return;}
-  if(a==="ob:next"){state.obStep=(state.obStep||0)+1;if(state.obStep===5&&!state.obMacrosDone){var _f=state.settings;if(_f.targetValue==null||_f.targetValue===""){_f.targetValue=(_f.strategy==="gain"?"0.5":_f.strategy==="maintain"?"0":"1");}if(!_f.targetType)_f.targetType="lbs_per_week";if(maintenanceCals()!=null)applyAutoMacros();state.obMacrosDone=true;}render();return;}
+  if(a==="ob:next"){state.obStep=(state.obStep||0)+1;if(state.obStep===5&&!state.obMacrosDone){var _f=state.settings;if(_f.targetValue==null||_f.targetValue===""){_f.targetValue=(_f.strategy==="gain"?"0.5":_f.strategy==="maintain"?"0":"1");}if(!_f.targetType)_f.targetType="lbs_per_week";if(maintenanceCals()!=null){applyAutoMacros();state.obMacrosDone=true;}}render();return;}
   if(a==="ob:recalc"){var _rf=state.settings;if(_rf.targetValue==null||_rf.targetValue===""){_rf.targetValue=(_rf.strategy==="gain"?"0.5":_rf.strategy==="maintain"?"0":"1");}if(!_rf.targetType)_rf.targetType="lbs_per_week";applyAutoMacros();save();render();return;}
   if(a==="ob:back"){state.obStep=Math.max(0,(state.obStep||0)-1);render();return;}
   if(a==="ob:skip"||a==="ob:finish"){state.onboarding=false;state.settings.onboarded=true;save();render();return;}
-  if(a==="ob:start"){state.onboarding=true;state.obStep=0;render();return;}
+  if(a==="ob:start"){state.onboarding=true;state.obStep=0;state.obMacrosDone=false;render();return;}
   if(a==="ob:install"){if(deferredPrompt){deferredPrompt.prompt();deferredPrompt.userChoice.then(function(){deferredPrompt=null;});}return;}
   if(a==="status:open"){var _s=statusFor(state.selDate);state.statusForm=_s?{idx:_s.idx,type:_s.status.type,start:_s.status.start,end:_s.status.end||"",hasEnd:!!_s.status.end}:{idx:-1,type:"vacation",start:state.selDate,end:"",hasEnd:false};state.statusOpen=true;render();return;}
   if(a==="status:type"){state.statusForm=state.statusForm||{};state.statusForm.type=el.getAttribute("data-type");render();return;}
