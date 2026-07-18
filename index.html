@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.186 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.193 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -507,7 +507,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.186";
+var APP_BUILD="2026-07-14.193";
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="34" y="26" width="32" height="12" rx="5" fill="#7C93F5"/><rect x="26" y="44" width="48" height="12" rx="5" fill="#9FB0C9"/><rect x="16" y="62" width="68" height="14" rx="5" fill="#F5B544"/></svg>';
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
@@ -799,11 +799,8 @@ function statusSheetHTML(){if(!state.statusOpen)return "";var sf=state.statusFor
   h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><div style="font-weight:800;font-size:17px">'+(editing?"Edit status":"Set a status")+'</div><button class="wl-icon-btn" data-act="status:close">\u2715</button></div>';
   h+='<div class="wl-hint" style="margin-bottom:12px">Away, sick, or taking a break \u2014 tell your coach so it eases up, and the day still counts as checked in.</div>';
   h+='<div class="wl-seg wl-seg-wide" style="margin-bottom:12px">'+[["vacation","\ud83c\udfd6\ufe0f Vacation"],["sick","\ud83e\udd12 Sick"]].map(function(m){return '<button class="'+(sf.type===m[0]?"on":"")+'" data-act="status:type" data-type="'+m[0]+'">'+m[1]+'</button>';}).join("")+'</div>';
-  var _he=sf.hasEnd!=null?sf.hasEnd:!!sf.end;
   h+='<label class="wl-field wl-field-full"><span>From</span><input type="date" class="wl-status-start wl-datein" value="'+(sf.start||"")+'"></label>';
-  h+='<div class="wl-field wl-field-full" style="margin-top:12px"><span>Duration</span><div class="wl-seg wl-seg-wide"><button class="'+(!_he?"on":"")+'" data-act="status:togend" data-end="0">Ongoing</button><button class="'+(_he?"on":"")+'" data-act="status:togend" data-end="1">Set end date</button></div></div>';
-  if(_he)h+='<label class="wl-field wl-field-full" style="margin-top:10px"><span>Ends</span><input type="date" class="wl-status-end wl-datein" value="'+(sf.end||"")+'"></label>';
-  else h+='<div class="wl-hint" style="margin-top:8px">No end date \u2014 stays on until you end it in Settings.</div>';
+  h+='<div class="wl-hint" style="margin-top:8px">Stays on until you end it from Settings \u2014 just tap End when you\u2019re back.</div>';
   h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:14px" data-act="status:save">'+(editing?"Update":("Start "+(sf.type==="sick"?"sick":"vacation")+" mode"))+'</button>';
   if(editing)h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="status:end">End now</button>';
   return h+'</div></div>';}
@@ -1295,19 +1292,19 @@ function headerNav(){var v=state.view;
     var h='<div class="wl-hnav'+((!isToday&&!open)?" off":"")+'">';
     h+='<button class="wl-hnav-arw" data-act="'+(open?"cal:prev":"day:prev")+'">‹</button>';
     h+='<button class="wl-hnav-lbl" data-act="cal:expand">'+((isToday&&!open)?'<span class="wl-daydot"></span>':'')+'<span>'+lbl+'</span></button>';
-    h+='<button class="wl-hnav-arw"'+((!open&&sel>=todayISO())?' style="opacity:.3"':'')+' data-act="'+(open?"cal:next":"day:next")+'">›</button>';
+    if(open||sel<todayISO())h+='<button class="wl-hnav-arw" data-act="'+(open?"cal:next":"day:next")+'">›</button>';
     return h+'</div>';}
   if(v==="summary"){var s0=weekStartFor(state.weekOffset),e0=new Date(s0);e0.setDate(s0.getDate()+6);var isThis=state.weekOffset===0;
     var h='<div class="wl-hnav'+(isThis?"":" off")+'">';
     h+='<button class="wl-hnav-arw" data-act="sum:prev">‹</button>';
     h+='<button class="wl-hnav-lbl" data-act="sum:tocur"><span>'+fmtShort(s0)+' – '+fmtShort(e0)+'</span></button>';
-    h+='<button class="wl-hnav-arw"'+(isThis?' style="opacity:.3"':'')+' data-act="sum:next">›</button>';
+    if(!isThis)h+='<button class="wl-hnav-arw" data-act="sum:next">›</button>';
     return h+'</div>';}
   if(v==="weight"){var ctx=trendCtx();var o2=state.trendOffset||0;
     var h='<div class="wl-hnav'+(o2<=0?"":" off")+'">';
     h+='<button class="wl-hnav-arw" data-act="trend:prev">‹</button>';
     h+='<button class="wl-hnav-lbl" data-act="trend:tocur"><span>'+ctx.label+'</span></button>';
-    h+='<button class="wl-hnav-arw"'+(o2<=0?' style="opacity:.3"':'')+' data-act="trend:next">›</button>';
+    if(o2>0)h+='<button class="wl-hnav-arw" data-act="trend:next">›</button>';
     return h+'</div>';}
   return '';
 }
@@ -2186,9 +2183,8 @@ document.addEventListener("click",function(e){
   if(a==="skip:calories"){var sd=state.selDate;var on=!isSkip(sd,"calories");setSkip(sd,"calories",on);if(on)delete state.food[sd];save();render();return;}
   if(a==="status:open"){var _s=statusFor(state.selDate);state.statusForm=_s?{idx:_s.idx,type:_s.status.type,start:_s.status.start,end:_s.status.end||"",hasEnd:!!_s.status.end}:{idx:-1,type:"vacation",start:state.selDate,end:"",hasEnd:false};state.statusOpen=true;render();return;}
   if(a==="status:type"){state.statusForm=state.statusForm||{};state.statusForm.type=el.getAttribute("data-type");render();return;}
-  if(a==="status:togend"){var _tf=state.statusForm||{};_tf.hasEnd=el.getAttribute("data-end")==="1";if(!_tf.hasEnd)_tf.end="";state.statusForm=_tf;render();return;}
   if(a==="status:close"){state.statusOpen=false;render();return;}
-  if(a==="status:save"){var _f=state.statusForm||{};var _st=_f.start,_en=((_f.hasEnd!=null?_f.hasEnd:!!_f.end)&&_f.end)?_f.end:null;if(!_st){toast("Pick a start date");return;}if(_en&&_en<_st){toast("End is before start");return;}var _o={type:_f.type||"vacation",start:_st,end:_en};state.statuses=state.statuses||[];if(_f.idx>=0)state.statuses[_f.idx]=_o;else state.statuses.push(_o);state.statusOpen=false;save();render();return;}
+  if(a==="status:save"){var _f=state.statusForm||{};var _st=_f.start,_en=null;if(!_st){toast("Pick a start date");return;}if(_en&&_en<_st){toast("End is before start");return;}var _o={type:_f.type||"vacation",start:_st,end:_en};state.statuses=state.statuses||[];if(_f.idx>=0)state.statuses[_f.idx]=_o;else state.statuses.push(_o);state.statusOpen=false;save();render();return;}
   if(a==="status:end"){var _f=state.statusForm||{};if(_f.idx>=0&&state.statuses)state.statuses.splice(_f.idx,1);state.statusOpen=false;save();render();return;}
   if(a==="status:endnow"){var _es=statusFor(todayISO());if(_es&&state.statuses){var _yd=toISO(addDays(parseISO(todayISO()),-1));if(_es.status.start>_yd)state.statuses.splice(_es.idx,1);else _es.status.end=_yd;save();}render();return;}
   if(a==="qe:close"){state.quickEntry=null;render();window.scrollTo(0,0);return;}
