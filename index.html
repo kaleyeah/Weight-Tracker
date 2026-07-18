@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.212 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.214 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -54,6 +54,12 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 .wl-ob-stepn{flex:none;width:26px;height:26px;border-radius:50%;background:var(--accent);color:var(--on-accent);font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;}
 .wl-ob-stept{font-size:15px;color:var(--muted);line-height:1.4;padding-top:2px;}
 .wl-ob-stept b{color:var(--text);}
+.wl-ob-proj{margin-top:16px;background:rgba(245,181,68,.1);border:1px solid rgba(245,181,68,.32);border-radius:12px;padding:13px 15px;font-size:15px;color:var(--text);line-height:1.5;}
+.wl-ob-proj b{color:var(--accent);}
+.wl-ob-princ{margin-top:18px;display:flex;flex-direction:column;gap:13px;}
+.wl-ob-pr{display:flex;gap:11px;align-items:flex-start;font-size:15px;line-height:1.45;color:var(--muted);}
+.wl-ob-prd{flex:none;width:7px;height:7px;border-radius:50%;background:var(--accent);margin-top:7px;}
+.wl-ob-pr b{color:var(--text);}
 .wl-obdot{width:8px;height:8px;border-radius:50%;background:var(--line2);}
 .wl-obdot.on{background:var(--accent);}
 .wl-obdot.done{background:var(--good);}
@@ -548,7 +554,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.212";
+var APP_BUILD="2026-07-14.214";
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="34" y="26" width="32" height="12" rx="5" fill="#7C93F5"/><rect x="26" y="44" width="48" height="12" rx="5" fill="#9FB0C9"/><rect x="16" y="62" width="68" height="14" rx="5" fill="#F5B544"/></svg>';
 var deferredPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredPrompt=e;});
 var photoURLs=[],photoMap={},photoDB=null;
@@ -836,6 +842,7 @@ function statusBannerHTML(sel){var sf=statusFor(sel);
     var msg=isVac?"Enjoy it \u2014 logging\u2019s optional, and a week won\u2019t undo months. Back to routine after.":"Rest is the priority. No pressure to train or hit targets \u2014 the scale will bounce and that\u2019s expected.";
     return '<button class="wl-statusban '+(isVac?"vac":"sick")+'" data-act="status:open"><span class="wl-sb-em">'+(isVac?"\ud83c\udfd6\ufe0f":"\ud83e\udd12")+'</span><span class="wl-sb-t"><span class="wl-sb-h">'+(isVac?"Vacation":"Recovering")+' <span class="wl-sb-pill">'+range+'</span></span><span class="wl-sb-s">'+msg+'</span><span class="wl-sb-edit">Tap to edit or end \u203a</span></span></button>';}
   return '<button class="wl-status-link" data-act="status:open">\ud83c\udfd6\ufe0f Going away or under the weather? Set a status \u203a</button>';}
+function obStepMsg(st){var f=state.settings;if(st===1){if(!(f.name&&(""+f.name).trim()))return "Add your name";if(!f.sex)return "Select male or female";if(num(f.age)==null)return "Add your age";if(num(f.heightFt)==null)return "Add your height";return "";}if(st===2){if(num(f.startingWeight)==null)return "Add your current weight";if(num(f.goalWeight)==null)return "Add your target weight";return "";}if(st===4){if(!f.activityLevel)return "Pick your activity level";return "";}return "";}
 function obnav(last){return '<div class="wl-ob-nav"><button class="wl-btn wl-btn-ghost" style="flex:1" data-act="ob:back">Back</button><button class="wl-btn wl-btn-primary" style="flex:2" data-act="ob:next">'+(last?"Finish":"Continue")+'</button></div>';}
 function obDots(active){var d='';for(var i=1;i<=6;i++)d+='<span class="wl-obdot'+(i===active?" on":(i<active?" done":""))+'"></span>';return '<div class="wl-ob-brandbar">'+BRANDMARK.replace('width="18" height="18"','width="30" height="30"')+'<span class="wl-ob-bw">COMPOUND</span></div><div class="wl-obdots">'+d+'</div>';}
 function obOverlayHTML(){
@@ -845,18 +852,18 @@ function obOverlayHTML(){
   var h='<div class="wl-ob"><div class="wl-ob-inner">';
   if(step===0){
     h+='<div class="wl-ob-hero">'+big+'<div class="wl-ob-brand">COMPOUND</div><div class="wl-ob-tag">Strength \u00b7 in reps \u00b7 over years</div></div>';
-    h+='<div class="wl-ob-body"><div class="wl-ob-h">Welcome</div><div class="wl-ob-sub">Let\u2019s set up your plan \u2014 a couple of minutes. You can change any of this later in Settings.</div></div>';
+    h+='<div class="wl-ob-body"><div class="wl-ob-h">Welcome</div><div class="wl-ob-sub">Answer a few quick questions and we\u2019ll build your plan. First, what Compound believes:</div><div class="wl-ob-princ">'+[["Protein first","then calories, then the rest."],["Think in years","consistency beats intensity \u2014 the trend matters, not one day."],["The smallest deficit that works","lose fat without crashing your energy or muscle."],["Lift to keep what you build","the scale isn\u2019t the whole story."]].map(function(p){return '<div class="wl-ob-pr"><span class="wl-ob-prd"></span><span><b>'+p[0]+'</b> \u2014 '+p[1]+'</span></div>';}).join("")+'</div></div>';
     h+='<div class="wl-ob-nav"><button class="wl-btn wl-btn-primary wl-full" data-act="ob:next">Get started</button></div>';
     h+='<button class="wl-ob-skip" data-act="ob:skip">Skip for now</button>';
   }else if(step===1){
     h+=obDots(1)+'<div class="wl-ob-body"><div class="wl-ob-h">About you</div><div class="wl-ob-sub">We use these to estimate your calories.</div>';
-    h+='<label class="wl-field wl-field-full" style="margin-top:14px"><span>Name</span><input data-set="name" type="text" value="'+esc(f.name||"")+'" placeholder="Your name"></label>';
+    h+='<label class="wl-field wl-field-full" style="margin-top:14px"><span>What should I call you?</span><input data-set="name" type="text" value="'+esc(f.name||"")+'" placeholder="First name"></label>';
     h+='<label class="wl-field wl-field-full" style="margin-top:12px"><span>Sex</span><div class="wl-seg"><button class="'+(f.sex==="male"?"on":"")+'" data-act="set:sex" data-sex="male">Male</button><button class="'+(f.sex==="female"?"on":"")+'" data-act="set:sex" data-sex="female">Female</button></div></label>';
     h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Age</span><input class="wl-num" data-int="1" data-set="age" type="text" inputmode="numeric" value="'+esc(f.age||"")+'" placeholder="\u2014"></label><label class="wl-field"><span>Height (ft)</span><input class="wl-num" data-int="1" data-set="heightFt" type="text" inputmode="numeric" value="'+esc(f.heightFt||"")+'" placeholder="ft"></label><label class="wl-field"><span>(in)</span><input class="wl-num" data-int="1" data-set="heightIn" type="text" inputmode="numeric" value="'+esc(f.heightIn||"")+'" placeholder="in"></label></div></div>'+obnav();
   }else if(step===2){
     h+=obDots(2)+'<div class="wl-ob-body"><div class="wl-ob-h">Your weight</div><div class="wl-ob-sub">Where you are now (if you know it), and your goal.</div>';
     h+='<label class="wl-field wl-field-full" style="margin-top:14px"><span>Units</span><div class="wl-seg">'+["lbs","kg"].map(function(x){return '<button class="'+(u===x?"on":"")+'" data-act="set:units" data-units="'+x+'">'+x+'</button>';}).join("")+'</div></label>';
-    h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Starting <em>'+u+', if known</em></span><input class="wl-num" data-set="startingWeight" type="text" inputmode="decimal" value="'+esc(f.startingWeight)+'" placeholder="\u2014"></label><label class="wl-field"><span>Goal <em>'+u+'</em></span><input class="wl-num" data-set="goalWeight" type="text" inputmode="decimal" value="'+esc(f.goalWeight)+'" placeholder="\u2014"></label></div></div>'+obnav();
+    h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Current <em>'+u+'</em></span><input class="wl-num" data-set="startingWeight" type="text" inputmode="decimal" value="'+esc(f.startingWeight)+'" placeholder="\u2014"></label><label class="wl-field"><span>Goal <em>'+u+'</em></span><input class="wl-num" data-set="goalWeight" type="text" inputmode="decimal" value="'+esc(f.goalWeight)+'" placeholder="\u2014"></label></div></div>'+obnav();
   }else if(step===3){
     h+=obDots(3)+'<div class="wl-ob-body"><div class="wl-ob-h">Your plan</div><div class="wl-ob-sub">What are you working toward right now?</div>';
     h+='<div class="wl-seg wl-seg-wide" style="margin-top:14px">'+[["lose","Fat Loss"],["maintain","Maintenance"],["gain","Lean Bulk"]].map(function(m){return '<button class="'+((f.strategy||"lose")===m[0]?"on":"")+'" data-act="set:strategy" data-strat="'+m[0]+'">'+m[1]+'</button>';}).join("")+'</div>';
@@ -868,7 +875,7 @@ function obOverlayHTML(){
     h+=obDots(5)+'<div class="wl-ob-body"><div class="wl-ob-h">Calories &amp; macros</div>';
     var canCalc=maintenanceCals()!=null;
     h+='<div class="wl-ob-sub">'+(canCalc?"Estimated from your details, activity, and plan \u2014 tweak anything.":"Enter your daily targets. (Add sex, age &amp; height earlier to auto-estimate these.)")+'</div>';
-    if((f.strategy||"lose")!=="maintain"){var _gn=(f.strategy==="gain");h+='<label class="wl-field wl-field-full" style="margin-top:14px"><span>Weekly '+(_gn?"gain":"loss")+' target <em>'+u+'/week</em></span><input class="wl-num" data-set="targetValue" type="text" inputmode="decimal" value="'+esc(f.targetValue)+'" placeholder="'+(_gn?"0.5":"1")+'"></label>';}h+='<label class="wl-field wl-field-full" style="margin-top:12px"><span>Daily calories</span><input class="wl-num" data-int="1" data-set="targetCalories" type="text" inputmode="numeric" value="'+esc(f.targetCalories)+'" placeholder="\u2014"></label>';
+    var _cw=num(f.startingWeight),_gw=num(f.goalWeight);if(_cw!=null&&_gw!=null&&(f.strategy||"lose")!=="maintain"){var _rt=num(f.targetValue)||1;var _wks=Math.abs(_cw-_gw)/_rt;var _pdt=addDays(parseISO(todayISO()),Math.round(_wks*7));h+='<div class="wl-ob-proj">On track to reach <b>'+r1(_gw)+' '+u+'</b> in about <b>'+Math.round(_wks)+' weeks</b> \u2014 around <b>'+_pdt.toLocaleDateString(undefined,{month:"long",year:"numeric"})+'</b>.</div>';}h+='<label class="wl-field wl-field-full" style="margin-top:14px"><span>Daily calories</span><input class="wl-num" data-int="1" data-set="targetCalories" type="text" inputmode="numeric" value="'+esc(f.targetCalories)+'" placeholder="\u2014"></label>';
     h+='<div class="wl-row" style="margin-top:10px"><label class="wl-field"><span>Protein <em>g</em></span><input class="wl-num" data-int="1" data-set="targetProtein" type="text" inputmode="numeric" value="'+esc(f.targetProtein)+'" placeholder="\u2014"></label><label class="wl-field"><span>Carbs <em>g</em></span><input class="wl-num" data-int="1" data-set="targetCarbs" type="text" inputmode="numeric" value="'+esc(f.targetCarbs)+'" placeholder="\u2014"></label><label class="wl-field"><span>Fat <em>g</em></span><input class="wl-num" data-int="1" data-set="targetFat" type="text" inputmode="numeric" value="'+esc(f.targetFat)+'" placeholder="\u2014"></label></div>';
     if(canCalc)h+='<div class="wl-hint" style="margin-top:10px"><button class="wl-link" data-act="ob:recalc" style="display:inline">\u21bb Recalculate from my info</button> \u00b7 protein anchored near 1g/lb of goal weight.</div>';
     h+='</div>'+obnav();
@@ -2278,7 +2285,7 @@ document.addEventListener("click",function(e){
   if(a==="skip:steps"){var sd=state.selDate;var on=!isSkip(sd,"steps");setSkip(sd,"steps",on);if(on)delete state.steps[sd];save();render();return;}
   if(a==="skip:sleep"){var sd=state.selDate;var on=!isSkip(sd,"sleep");setSkip(sd,"sleep",on);if(on)delete state.sleep[sd];save();render();return;}
   if(a==="skip:calories"){var sd=state.selDate;var on=!isSkip(sd,"calories");setSkip(sd,"calories",on);if(on)delete state.food[sd];save();render();return;}
-  if(a==="ob:next"){state.obStep=(state.obStep||0)+1;if(state.obStep===5&&!state.obMacrosDone){var _f=state.settings;if(_f.targetValue==null||_f.targetValue===""){_f.targetValue=(_f.strategy==="gain"?"0.5":_f.strategy==="maintain"?"0":"1");}if(!_f.targetType)_f.targetType="lbs_per_week";if(maintenanceCals()!=null){applyAutoMacros();state.obMacrosDone=true;}}render();return;}
+  if(a==="ob:next"){var _cs=state.obStep||0;var _vm=obStepMsg(_cs);if(_vm){toast(_vm);return;}state.obStep=_cs+1;if(state.obStep===5&&!state.obMacrosDone){var _f=state.settings;if(_f.targetValue==null||_f.targetValue===""){_f.targetValue=(_f.strategy==="gain"?"0.5":_f.strategy==="maintain"?"0":"1");}if(!_f.targetType)_f.targetType="lbs_per_week";if(maintenanceCals()!=null){applyAutoMacros();state.obMacrosDone=true;}}render();return;}
   if(a==="ob:recalc"){var _rf=state.settings;if(_rf.targetValue==null||_rf.targetValue===""){_rf.targetValue=(_rf.strategy==="gain"?"0.5":_rf.strategy==="maintain"?"0":"1");}if(!_rf.targetType)_rf.targetType="lbs_per_week";applyAutoMacros();save();render();return;}
   if(a==="ob:back"){state.obStep=Math.max(0,(state.obStep||0)-1);render();return;}
   if(a==="ob:skip"||a==="ob:finish"){state.onboarding=false;state.settings.onboarded=true;save();render();return;}
