@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.179 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.180 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -479,7 +479,7 @@ html[data-theme="light"] .wl-brandword{color:#151A21;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.179";
+var APP_BUILD="2026-07-14.180";
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="34" y="26" width="32" height="12" rx="5" fill="#7C93F5"/><rect x="26" y="44" width="48" height="12" rx="5" fill="#9FB0C9"/><rect x="16" y="62" width="68" height="14" rx="5" fill="#F5B544"/></svg>';
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
@@ -761,9 +761,9 @@ function isSkip(date,field){return !!(state.skips&&state.skips[date]&&state.skip
 function setSkip(date,field,on){state.skips=state.skips||{};if(on){state.skips[date]=state.skips[date]||{};state.skips[date][field]=1;}else if(state.skips[date]){delete state.skips[date][field];if(!Object.keys(state.skips[date]).length)delete state.skips[date];}}
 function dayMissing(sel){sel=sel||state.selDate;var miss=[];
   if(!state.weights.some(function(x){return x.date===sel;})&&!isSkip(sel,"weight"))miss.push("weight");
-  if(num(state.steps[sel])==null)miss.push("steps");
-  if(num(state.sleep[sel])==null)miss.push("sleep");
-  var f=state.food[sel]||{};if(num(f.calories)==null&&num(f.protein)==null&&num(f.carbs)==null&&num(f.fat)==null)miss.push("calories");
+  if(num(state.steps[sel])==null&&!isSkip(sel,"steps"))miss.push("steps");
+  if(num(state.sleep[sel])==null&&!isSkip(sel,"sleep"))miss.push("sleep");
+  var f=state.food[sel]||{};if(num(f.calories)==null&&num(f.protein)==null&&num(f.carbs)==null&&num(f.fat)==null&&!isSkip(sel,"calories"))miss.push("calories");
   return miss;}
 function pollNightly(prevGen,tries){var c=syncCfg();var url=ghUrl(c);var H=ghHeaders(c);var br=c.branch||DEFAULT_BRANCH;
   return new Promise(function(resolve){var n=0;
@@ -984,18 +984,19 @@ function ckNotes(sel){
   return '<button class="wl-ck-row" data-act="dl:open" data-sec="notes"><span class="wl-ck-l"><span class="wl-ck-ic opt">◦</span><span class="wl-ck-lab">Notes</span></span><span class="wl-ck-val empty">Optional</span><span class="wl-ck-go">›</span></button>';
 }
 function ckRowSkip(label,val,sec){return '<button class="wl-ck-row" data-act="dl:open" data-sec="'+sec+'"><span class="wl-ck-l"><span class="wl-ck-ic"></span><span class="wl-ck-lab">'+label+'</span></span><span class="wl-ck-val" style="color:var(--faint);font-style:italic">'+val+'</span><span class="wl-ck-go">›</span></button>';}
+function skipBtn(sec,on,word){return '<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="skip:'+sec+'">'+(on?"Un-skip \u2014 I\u2019ll log "+word:"Not tracking "+word+" today")+'</button>'+(on?'<div class="wl-hint" style="margin-top:8px">Marked skipped \u2014 still counts as checked in. Logging when you can gives your coach a truer read over time.</div>':'');}
 function todayChecklistHTML(sel){
   var u=state.settings.units;var f=state.food[sel]||{};
   var wt=null;for(var i=0;i<state.weights.length;i++){if(state.weights[i].date===sel){wt=state.weights[i].weight;break;}}
   var steps=num(state.steps[sel]),sleep=num(state.sleep[sel]);
   var hasCal=num(f.calories)!=null||num(f.protein)!=null||num(f.carbs)!=null||num(f.fat)!=null;
-  var wSkip=isSkip(sel,"weight");
-  var done=((wt!=null||wSkip)?1:0)+(steps!=null?1:0)+(hasCal?1:0)+(sleep!=null?1:0);
+  var wSkip=isSkip(sel,"weight"),stSkip=isSkip(sel,"steps"),slSkip=isSkip(sel,"sleep"),calSkip=isSkip(sel,"calories");
+  var done=((wt!=null||wSkip)?1:0)+((steps!=null||stSkip)?1:0)+((hasCal||calSkip)?1:0)+((sleep!=null||slSkip)?1:0);
   var h='<div class="wl-card wl-check"><div class="wl-ck-head"><span class="wl-ck-title">'+(sel===todayISO()?"Today":"This day")+'\u2019s Check-in</span><span class="wl-ck-cnt">'+done+' of 4 done</span></div>';
   h+=(wt!=null)?ckRow(true,"Weight",r1(wt)+" "+u,"weight",false):(wSkip?ckRowSkip("Weight","Skipped","weight"):ckRow(false,"Weight","Add","weight",false));
-  h+=ckRow(steps!=null,"Steps",steps!=null?Math.round(steps).toLocaleString():"Add","steps",false);
-  h+=ckCalories(sel);
-  h+=ckRow(sleep!=null,"Sleep",sleep!=null?minToHM(sleep):"Add","sleep",false);
+  h+=(steps!=null)?ckRow(true,"Steps",Math.round(steps).toLocaleString(),"steps",false):(stSkip?ckRowSkip("Steps","Skipped","steps"):ckRow(false,"Steps","Add","steps",false));
+  h+=(hasCal||!calSkip)?ckCalories(sel):ckRowSkip("Calories","Skipped","calories");
+  h+=(sleep!=null)?ckRow(true,"Sleep",minToHM(sleep),"sleep",false):(slSkip?ckRowSkip("Sleep","Skipped","sleep"):ckRow(false,"Sleep","Add","sleep",false));
   h+=ckNotes(sel);
   return h+'</div>';
 }
@@ -1266,13 +1267,13 @@ function quickEntryHTML(){
   var hasT=Object.keys(t).some(function(k){return t[k]!=null;});
   var body='';
   if(sec==="weight"){var _wsk=isSkip(sel,"weight");body='<label class="wl-field wl-field-full"><span>Weight <em>'+u+'</em></span><input class="wl-daywt-input wl-num" type="text" inputmode="decimal" placeholder="'+(_wsk?"skipped":"—")+'" value="'+(wmap[sel]!=null?wmap[sel]:"")+'"></label>';var waistU=u==="kg"?"cm":"in";body+='<div class="wl-row" style="margin-top:10px"><label class="wl-field"><span>Body fat <em>%</em></span><input class="wl-bf-input wl-num" type="text" inputmode="decimal" placeholder="\u2014" value="'+(state.bodyfat[sel]!=null?state.bodyfat[sel]:"")+'"></label><label class="wl-field"><span>Waist <em>'+waistU+'</em></span><input class="wl-waist-input wl-num" type="text" inputmode="decimal" placeholder="\u2014" value="'+(state.waist[sel]!=null?state.waist[sel]:"")+'"></label></div>';body+='<div class="wl-hint" style="margin-top:6px">Log body fat % or waist whenever you measure \u2014 it sharpens your coach\u2019s read.</div>';body+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="skip:weight">'+(_wsk?"Un-skip — I’ll log a weight":"No scale today — skip weight")+'</button>';if(_wsk)body+='<div class="wl-hint" style="margin-top:8px">Marked skipped for this day. Add a note (e.g. “on vacation”) so your coach knows why.</div>';}
-  else if(sec==="steps")body='<label class="wl-field wl-field-full"><span>Steps</span><input class="wl-steps-input wl-num" data-int="1" type="text" inputmode="numeric" placeholder="—" value="'+(state.steps[sel]!=null?state.steps[sel]:"")+'"></label>';
-  else if(sec==="sleep")body='<div class="wl-row"><label class="wl-field"><span>Hours</span><input class="wl-num wl-sleep-h" data-int="1" type="text" inputmode="numeric" placeholder="—" value="'+(state.sleep[sel]!=null?Math.floor(state.sleep[sel]/60):"")+'"></label><label class="wl-field"><span>Minutes</span><input class="wl-num wl-sleep-m" data-int="1" type="text" inputmode="numeric" placeholder="—" value="'+(state.sleep[sel]!=null?state.sleep[sel]%60:"")+'"></label></div>';
+  else if(sec==="steps"){var _stk=isSkip(sel,"steps");body='<label class="wl-field wl-field-full"><span>Steps</span><input class="wl-steps-input wl-num" data-int="1" type="text" inputmode="numeric" placeholder="'+(_stk?"skipped":"\u2014")+'" value="'+(state.steps[sel]!=null?state.steps[sel]:"")+'"></label>';body+=skipBtn("steps",_stk,"steps");}
+  else if(sec==="sleep"){var _slk=isSkip(sel,"sleep");body='<div class="wl-row"><label class="wl-field"><span>Hours</span><input class="wl-num wl-sleep-h" data-int="1" type="text" inputmode="numeric" placeholder="'+(_slk?"skip":"\u2014")+'" value="'+(state.sleep[sel]!=null?Math.floor(state.sleep[sel]/60):"")+'"></label><label class="wl-field"><span>Minutes</span><input class="wl-num wl-sleep-m" data-int="1" type="text" inputmode="numeric" placeholder="'+(_slk?"skip":"\u2014")+'" value="'+(state.sleep[sel]!=null?state.sleep[sel]%60:"")+'"></label></div>';body+=skipBtn("sleep",_slk,"sleep");}
   else if(sec==="calories"){body='<div class="wl-macro3">';
     [["protein","Protein","g"],["fat","Fat","g"],["carbs","Carbs","g"]].forEach(function(f){var val=e[f[0]]!=null?e[f[0]]:"";body+='<label class="wl-field"><span>'+f[1]+' <em>'+f[2]+'</em></span><input class="wl-food-input wl-num" data-food="'+f[0]+'" type="text" inputmode="decimal" placeholder="0" value="'+val+'">';if(hasT&&t[f[0]]!=null)body+='<div class="wl-tbar" id="bar-'+f[0]+'">'+barInner(num(val),t[f[0]])+'</div>';body+='</label>';});
     var _cv=e.calories!=null?e.calories:"";
     body+='</div><label class="wl-field wl-field-full" style="margin-top:14px"><span>Total Calories <em>cal</em></span><input class="wl-food-input wl-num" data-food="calories" type="text" inputmode="decimal" placeholder="0" value="'+_cv+'">';if(hasT&&t.calories!=null)body+='<div class="wl-tbar" id="bar-calories">'+barInner(num(_cv),t.calories)+'</div>';body+='</label>';
-    body+='<div id="wl-calnotice">'+calNoticeHTML(sel)+'</div>';}
+    body+='<div id="wl-calnotice">'+calNoticeHTML(sel)+'</div>';var _clk=isSkip(sel,"calories");body+=skipBtn("calories",_clk,"food");}
   else if(sec==="notes")body='<textarea class="wl-note-input" placeholder="Any notes for the AI summary (feeling sick, feeling good, on vacation…)" style="width:100%;min-height:96px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:14px;padding:11px 12px;box-sizing:border-box;outline:none;resize:vertical">'+esc(state.notes[sel]||"")+'</textarea>';
   var h='<div class="wl-confirm"><div class="wl-confirm-card">';
   h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><div style="font-weight:800;font-size:17px">'+titles[sec]+'</div><button class="wl-icon-btn" data-act="qe:close">✕</button></div>';
@@ -2119,6 +2120,9 @@ document.addEventListener("click",function(e){
   if(a==="food:pick"){state.selDate=el.getAttribute("data-date");state.view="food";render();return;}
   if(a==="dl:open"){state.quickEntry=el.getAttribute("data-sec");render();var _f=document.querySelector(".wl-confirm-card input,.wl-confirm-card textarea");if(_f)_f.focus();return;}
   if(a==="skip:weight"){var sd=state.selDate;var on=!isSkip(sd,"weight");setSkip(sd,"weight",on);if(on)state.weights=state.weights.filter(function(x){return x.date!==sd;});save();render();return;}
+  if(a==="skip:steps"){var sd=state.selDate;var on=!isSkip(sd,"steps");setSkip(sd,"steps",on);if(on)delete state.steps[sd];save();render();return;}
+  if(a==="skip:sleep"){var sd=state.selDate;var on=!isSkip(sd,"sleep");setSkip(sd,"sleep",on);if(on)delete state.sleep[sd];save();render();return;}
+  if(a==="skip:calories"){var sd=state.selDate;var on=!isSkip(sd,"calories");setSkip(sd,"calories",on);if(on)delete state.food[sd];save();render();return;}
   if(a==="qe:close"){state.quickEntry=null;render();window.scrollTo(0,0);return;}
   if(a==="opentoday"){state.selDate=todayISO();state.calY=new Date().getFullYear();state.calM=new Date().getMonth();state.cardioForm=null;render();return;}
   if(a==="ai:copy"){copyText(weeklyAIText(),"Copied your week — paste into your AI to generate");return;}
@@ -2353,7 +2357,7 @@ document.addEventListener("input",function(e){
   var el=e.target;
   if(el.classList&&el.classList.contains("wl-num")){var isInt=el.hasAttribute("data-int");var cv=isInt?el.value.replace(/[^\d]/g,""):el.value.replace(/[^\d.]/g,"").replace(/(\..*)\./g,"$1");if(cv!==el.value)el.value=cv;}
   if(el.classList&&(el.classList.contains("wl-goalsleep-h")||el.classList.contains("wl-goalsleep-m"))){var gh=document.querySelector(".wl-goalsleep-h"),gm=document.querySelector(".wl-goalsleep-m");var hh=gh?num(gh.value):null,mm=gm?num(gm.value):null;if(hh==null&&mm==null)state.settings.sleepGoal="";else state.settings.sleepGoal=String((hh||0)*60+(mm||0));save();return;}
-  if(el.classList&&(el.classList.contains("wl-sleep-h")||el.classList.contains("wl-sleep-m"))){var sl=state.selDate;var hE=document.querySelector(".wl-sleep-h"),mE=document.querySelector(".wl-sleep-m");var hh=hE?num(hE.value):null,mm=mE?num(mE.value):null;if(hh==null&&mm==null)delete state.sleep[sl];else state.sleep[sl]=(hh||0)*60+(mm||0);save();refreshClearBtn();return;}
+  if(el.classList&&(el.classList.contains("wl-sleep-h")||el.classList.contains("wl-sleep-m"))){var sl=state.selDate;var hE=document.querySelector(".wl-sleep-h"),mE=document.querySelector(".wl-sleep-m");var hh=hE?num(hE.value):null,mm=mE?num(mE.value):null;if(hh==null&&mm==null)delete state.sleep[sl];else{state.sleep[sl]=(hh||0)*60+(mm||0);setSkip(sl,"sleep",false);}save();refreshClearBtn();return;}
   if(el.classList&&el.classList.contains("wl-sv-input")){var s=getLiftSession();if(s){s[el.getAttribute("data-sv")]=el.value;saveTraining();}return;}
   if(el.classList&&el.classList.contains("wl-sv-set")){var s=getLiftSession();if(s&&s.entries){var en=s.entries[+el.getAttribute("data-ei")];if(en){var st=en.sets[+el.getAttribute("data-si")];if(st){var v=el.value;st[el.getAttribute("data-field")]=(v===""?null:num(v));saveTraining();}}}return;}
   if(el.classList&&el.classList.contains("wl-set-input")){var w=state.workout;if(w){var en=w.entries[+el.getAttribute("data-ei")];if(en){var st=en.sets[+el.getAttribute("data-si")];if(st){st[el.getAttribute("data-wo")]=el.value;saveWorkout();}}}return;}
@@ -2387,14 +2391,14 @@ document.addEventListener("input",function(e){
       }
     }
     var anyv=["calories","protein","carbs","fat"].some(function(k){return num(entry[k])!=null;});
-    if(anyv)state.food[d]=entry;else delete state.food[d];save();
+    if(anyv){state.food[d]=entry;setSkip(d,"calories",false);}else delete state.food[d];save();
     var t=num(state.settings["target"+key.charAt(0).toUpperCase()+key.slice(1)]);
     var bar=document.getElementById("bar-"+key);if(bar&&t!=null)bar.innerHTML=barInner(num(el.value),t);
     var noteEl=document.getElementById("wl-calnotice");if(noteEl)noteEl.innerHTML=calNoticeHTML(d);
     refreshClearBtn();
     return;}
   if(el.classList&&el.classList.contains("wl-steps-input")){
-    var sd=state.selDate;var sv=el.value;if(num(sv)!=null)state.steps[sd]=num(sv);else delete state.steps[sd];save();refreshClearBtn();return;}
+    var sd=state.selDate;var sv=el.value;if(num(sv)!=null){state.steps[sd]=num(sv);setSkip(sd,"steps",false);}else delete state.steps[sd];save();refreshClearBtn();return;}
   if(el.classList&&el.classList.contains("wl-daywt-input")){
     var wd=state.selDate;var wvv=num(el.value);state.weights=state.weights.filter(function(x){return x.date!==wd;});if(wvv!=null){state.weights.push({date:wd,weight:wvv});setSkip(wd,"weight",false);}save();refreshClearBtn();return;}
   if(el.classList&&el.classList.contains("wl-bf-input")){var bd=state.selDate;var bv=num(el.value);if(bv!=null)state.bodyfat[bd]=bv;else delete state.bodyfat[bd];save();refreshClearBtn();return;}
