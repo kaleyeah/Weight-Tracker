@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.219 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.220 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -43,7 +43,7 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 .wl-header.hasnav .wl-hdr-row{padding-bottom:6px;}
 .wl-ob{position:fixed;inset:0;z-index:200;background:var(--bg);overflow-y:auto;}
 .wl-ob-inner{min-height:100%;display:flex;flex-direction:column;max-width:460px;margin:0 auto;padding:calc(env(safe-area-inset-top,0px) + 34px) 24px calc(env(safe-area-inset-bottom,0px) + 24px);}
-.wl-ob-hero{text-align:center;margin-bottom:8px;}
+.wl-ob-hero{text-align:center;margin:40px 0 54px;}
 .wl-ob-brand{font-weight:900;letter-spacing:.2em;font-size:20px;margin-top:12px;color:var(--text);}
 .wl-ob-tag{font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:var(--faint);font-weight:700;margin-top:8px;}
 .wl-obdots{display:flex;gap:7px;justify-content:flex-start;margin-bottom:6px;}
@@ -570,7 +570,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.219";
+var APP_BUILD="2026-07-14.220";
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="34" y="26" width="32" height="12" rx="5" fill="#7C93F5"/><rect x="26" y="44" width="48" height="12" rx="5" fill="#9FB0C9"/><rect x="16" y="62" width="68" height="14" rx="5" fill="#F5B544"/></svg>';
 var deferredPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredPrompt=e;});
 var photoURLs=[],photoMap={},photoDB=null;
@@ -860,14 +860,14 @@ function statusBannerHTML(sel){var sf=statusFor(sel);
     var msg=isVac?"Enjoy it \u2014 logging\u2019s optional, and a week won\u2019t undo months. Back to routine after.":"Rest is the priority. No pressure to train or hit targets \u2014 the scale will bounce and that\u2019s expected.";
     return '<button class="wl-statusban '+(isVac?"vac":"sick")+'" data-act="status:open"><span class="wl-sb-em">'+(isVac?"\ud83c\udfd6\ufe0f":"\ud83e\udd12")+'</span><span class="wl-sb-t"><span class="wl-sb-h">'+(isVac?"Vacation":"Recovering")+' <span class="wl-sb-pill">'+range+'</span></span><span class="wl-sb-s">'+msg+'</span><span class="wl-sb-edit">Tap to edit or end \u203a</span></span></button>';}
   return '<button class="wl-status-link" data-act="status:open">\ud83c\udfd6\ufe0f Going away or under the weather? Set a status \u203a</button>';}
-function obStepMsg(st){var f=state.settings;if(st===1){if(!(f.name&&(""+f.name).trim()))return "Add your name";if(!f.sex)return "Select male or female";if(num(f.age)==null)return "Add your age";if(num(f.heightFt)==null)return "Add your height";return "";}if(st===2){if(num(f.startingWeight)==null)return "Add your current weight";if(num(f.goalWeight)==null)return "Add your target weight";return "";}if(st===4){if(!f.activityLevel)return "Pick your activity level";return "";}return "";}
+function obStepMsg(st){var f=state.settings;if(st===1){if(!(f.name&&(""+f.name).trim()))return "Add your name";return "";}if(st===2){if(!f.sex)return "Select male or female";if(num(f.age)==null)return "Add your age";if(num(f.heightFt)==null)return "Add your height";return "";}if(st===3){if(num(f.startingWeight)==null)return "Add your current weight";if(num(f.goalWeight)==null)return "Add your target weight";return "";}if(st===5){if(!f.activityLevel)return "Pick your activity level";return "";}return "";}
 function _b64url(str){return b64enc(str).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");}
 function _b64urldec(str){str=(str||"").replace(/-/g,"+").replace(/_/g,"/");while(str.length%4)str+="=";return b64dec(str);}
 function deviceSetupLink(){var c=syncCfg();var p={t:c.token};var r=c.repo||DEFAULT_REPO;if(r!==DEFAULT_REPO)p.r=r;var b=c.branch||DEFAULT_BRANCH;if(b&&b!==DEFAULT_BRANCH)p.b=b;var u=myUid();if(u&&u!=="owner")p.u=u;return location.origin+location.pathname+"#setup="+_b64url(JSON.stringify(p));}
 function deviceSheetHTML(){if(!state.deviceOpen)return "";var link=deviceSetupLink();var h='<div class="wl-confirm"><div class="wl-confirm-card">';h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><div style="font-weight:800;font-size:17px">Set up another device</div><button class="wl-icon-btn" data-act="device:close">\u2715</button></div>';h+='<div class="wl-hint" style="margin-bottom:12px">Tap <b>Copy setup link</b>, send it to your other device (AirDrop / Messages), and open it there \u2014 it\u2019ll import your data. Both devices share the same data.</div>';h+='<div style="background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:11px;font-family:var(--mono);font-size:11px;color:var(--muted);word-break:break-all;max-height:84px;overflow:auto">'+esc(link)+'</div>';h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="device:copylink">Copy setup link</button>';h+='<div class="wl-hint" style="margin-top:10px;color:var(--bad)">This link has full read/write access to your data \u2014 only share it with your own devices.</div>';return h+'</div></div>';}
 function checkSetupLink(){var hh=location.hash||"";var mm=hh.match(/[#&]setup=([^&]+)/);if(!mm)return;var pl=null;try{pl=JSON.parse(_b64urldec(mm[1]));}catch(e){try{pl=JSON.parse(b64dec(decodeURIComponent(mm[1])));}catch(e2){pl=null;}}try{history.replaceState(null,"",location.pathname+location.search);}catch(e){}if(!pl||!pl.t)return;askConfirm("Set up this device with your synced data? It connects to your account and pulls your existing weigh-ins, activities, and settings.",function(){setSyncCfg({token:pl.t,repo:pl.r||DEFAULT_REPO,branch:pl.b||DEFAULT_BRANCH,uid:pl.u||"owner"});ghSha=null;connData={};state.settings.onboarded=true;state.onboarding=false;markDirty(false);save();cloudPull(true);toast("Connecting \u2014 pulling your data");},{label:"Import",danger:false});}
 function obnav(last){return '<div class="wl-ob-nav"><button class="wl-btn wl-btn-ghost" style="flex:1" data-act="ob:back">Back</button><button class="wl-btn wl-btn-primary" style="flex:2" data-act="ob:next">'+(last?"Finish":"Continue")+'</button></div>';}
-function obDots(active){var d='';for(var i=1;i<=6;i++)d+='<span class="wl-obdot'+(i===active?" on":(i<active?" done":""))+'"></span>';return '<div class="wl-ob-brandbar">'+BRANDMARK.replace('width="18" height="18"','width="30" height="30"')+'<span class="wl-ob-bw">COMPOUND</span></div><div class="wl-obdots">'+d+'</div>';}
+function obDots(active){var d='';for(var i=1;i<=7;i++)d+='<span class="wl-obdot'+(i===active?" on":(i<active?" done":""))+'"></span>';return '<div class="wl-ob-brandbar">'+BRANDMARK.replace('width="18" height="18"','width="30" height="30"')+'<span class="wl-ob-bw">COMPOUND</span></div><div class="wl-obdots">'+d+'</div>';}
 function obOverlayHTML(){
   if(!state.onboarding)return '';
   var step=state.obStep||0;var f=state.settings;var u=f.units||"lbs";
@@ -879,33 +879,35 @@ function obOverlayHTML(){
     h+='<div class="wl-ob-nav"><button class="wl-btn wl-btn-primary wl-full" data-act="ob:next">Get started</button></div>';
     h+='<button class="wl-ob-skip" data-act="ob:skip">Skip for now</button>';
   }else if(step===1){
-    h+=obDots(1)+'<div class="wl-ob-body"><div class="wl-ob-h">About you</div><div class="wl-ob-sub">We use these to estimate your calories.</div>';
-    h+='<label class="wl-field wl-field-full" style="margin-top:14px"><span>What should I call you?</span><input data-set="name" type="text" value="'+esc(f.name||"")+'" placeholder="First name"></label>';
-    h+='<label class="wl-field wl-field-full" style="margin-top:12px"><span>Sex</span><div class="wl-seg"><button class="'+(f.sex==="male"?"on":"")+'" data-act="set:sex" data-sex="male">Male</button><button class="'+(f.sex==="female"?"on":"")+'" data-act="set:sex" data-sex="female">Female</button></div></label>';
-    h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Age</span><input class="wl-num" data-int="1" data-set="age" type="text" inputmode="numeric" value="'+esc(f.age||"")+'" placeholder="\u2014"></label><label class="wl-field"><span>Height (ft)</span><input class="wl-num" data-int="1" data-set="heightFt" type="text" inputmode="numeric" value="'+esc(f.heightFt||"")+'" placeholder="ft"></label><label class="wl-field"><span>(in)</span><input class="wl-num" data-int="1" data-set="heightIn" type="text" inputmode="numeric" value="'+esc(f.heightIn||"")+'" placeholder="in"></label></div></div>'+obnav();
+    h+=obDots(1)+'<div class="wl-ob-body"><div class="wl-ob-h">Your name</div><div class="wl-ob-sub">What should I call you? Your coach <b>Max</b> uses this to greet you in your check-ins.</div>';
+    h+='<label class="wl-field wl-field-full" style="margin-top:16px"><span>First name</span><input data-set="name" type="text" value="'+esc(f.name||"")+'" placeholder="First name" autocapitalize="words"></label></div>'+obnav();
   }else if(step===2){
-    h+=obDots(2)+'<div class="wl-ob-body"><div class="wl-ob-h">Your weight</div><div class="wl-ob-sub">Where you are now (if you know it), and your goal.</div>';
-    h+='<label class="wl-field wl-field-full" style="margin-top:14px"><span>Units</span><div class="wl-seg">'+["lbs","kg"].map(function(x){return '<button class="'+(u===x?"on":"")+'" data-act="set:units" data-units="'+x+'">'+x+'</button>';}).join("")+'</div></label>';
-    h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Current <em>'+u+'</em></span><input class="wl-num" data-set="startingWeight" type="text" inputmode="decimal" value="'+esc(f.startingWeight)+'" placeholder="\u2014"></label><label class="wl-field"><span>Goal <em>'+u+'</em></span><input class="wl-num" data-set="goalWeight" type="text" inputmode="decimal" value="'+esc(f.goalWeight)+'" placeholder="\u2014"></label></div></div>'+obnav();
+    h+=obDots(2)+'<div class="wl-ob-body"><div class="wl-ob-h">About you</div>';
+    h+='<label class="wl-field wl-field-full" style="margin-top:16px"><span>Sex</span><div class="wl-seg"><button class="'+(f.sex==="male"?"on":"")+'" data-act="set:sex" data-sex="male">Male</button><button class="'+(f.sex==="female"?"on":"")+'" data-act="set:sex" data-sex="female">Female</button></div></label>';
+    h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Age</span><input class="wl-num" data-int="1" data-set="age" type="text" inputmode="numeric" value="'+esc(f.age||"")+'" placeholder="\u2014"></label><label class="wl-field"><span>Height (ft)</span><input class="wl-num" data-int="1" data-set="heightFt" type="text" inputmode="numeric" value="'+esc(f.heightFt||"")+'" placeholder="ft"></label><label class="wl-field"><span>(in)</span><input class="wl-num" data-int="1" data-set="heightIn" type="text" inputmode="numeric" value="'+esc(f.heightIn||"")+'" placeholder="in"></label></div><div class="wl-ob-sub" style="margin-top:16px">We use these to estimate your calories and macros \u2014 you can change everything later in Settings.</div></div>'+obnav();
   }else if(step===3){
-    h+=obDots(3)+'<div class="wl-ob-body"><div class="wl-ob-h">Your plan</div><div class="wl-ob-sub">What are you working toward right now?</div>';
+    h+=obDots(3)+'<div class="wl-ob-body"><div class="wl-ob-h">Your weight</div><div class="wl-ob-sub">Where you are now, and your goal.</div>';
+    h+='<label class="wl-field wl-field-full" style="margin-top:16px"><span>Units</span><div class="wl-seg">'+["lbs","kg"].map(function(x){return '<button class="'+(u===x?"on":"")+'" data-act="set:units" data-units="'+x+'">'+x+'</button>';}).join("")+'</div></label>';
+    h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Current <em>'+u+'</em></span><input class="wl-num" data-set="startingWeight" type="text" inputmode="decimal" value="'+esc(f.startingWeight)+'" placeholder="\u2014"></label><label class="wl-field"><span>Goal <em>'+u+'</em></span><input class="wl-num" data-set="goalWeight" type="text" inputmode="decimal" value="'+esc(f.goalWeight)+'" placeholder="\u2014"></label></div></div>'+obnav();
+  }else if(step===4){
+    h+=obDots(4)+'<div class="wl-ob-body"><div class="wl-ob-h">Your plan</div><div class="wl-ob-sub">What are you working toward right now?</div>';
     h+='<div class="wl-seg wl-seg-wide" style="margin-top:14px">'+[["lose","Fat Loss"],["maintain","Maintenance"],["gain","Lean Bulk"]].map(function(m){return '<button class="'+((f.strategy||"lose")===m[0]?"on":"")+'" data-act="set:strategy" data-strat="'+m[0]+'">'+m[1]+'</button>';}).join("")+'</div>';
     h+='<div class="wl-hint" style="margin-top:12px">Most people should get lean first. You\u2019ll move through phases over time \u2014 your coach will guide it.</div></div>'+obnav();
-  }else if(step===4){
-    h+=obDots(4)+'<div class="wl-ob-body"><div class="wl-ob-h">Activity level</div><div class="wl-ob-sub"><b>Pick what you\u2019ll actually be doing going forward</b> \u2014 not necessarily where you are today. This sets your calorie target, so choose the routine you\u2019re committing to.</div>';
-    h+='<div class="wl-optlist" style="margin-top:14px">'+ALEVELS.filter(function(_a){return _a[0]!=="bmr"&&_a[0]!=="physical";}).map(function(x){var on=f.activityLevel===x[0];return '<button class="wl-opt'+(on?" on":"")+'" data-act="set:activity" data-level="'+x[0]+'"><span>'+x[1]+'</span>'+(on?'<span class="wl-opt-ck">'+I.check.replace("<svg","<svg width=15 height=15")+'</span>':'')+'</button>';}).join("")+'</div></div>'+obnav();
   }else if(step===5){
-    h+=obDots(5)+'<div class="wl-ob-body"><div class="wl-ob-h">Calories &amp; macros</div>';
+    h+=obDots(5)+'<div class="wl-ob-body"><div class="wl-ob-h">Activity level</div><div class="wl-ob-sub"><b>Pick what you\u2019ll actually be doing going forward</b> \u2014 not necessarily where you are today. This sets your calorie target, so choose the routine you\u2019re committing to.</div>';
+    h+='<div class="wl-optlist" style="margin-top:14px">'+ALEVELS.filter(function(_a){return _a[0]!=="bmr"&&_a[0]!=="physical";}).map(function(x){var on=f.activityLevel===x[0];return '<button class="wl-opt'+(on?" on":"")+'" data-act="set:activity" data-level="'+x[0]+'"><span>'+x[1]+'</span>'+(on?'<span class="wl-opt-ck">'+I.check.replace("<svg","<svg width=15 height=15")+'</span>':'')+'</button>';}).join("")+'</div></div>'+obnav();
+  }else if(step===6){
+    h+=obDots(6)+'<div class="wl-ob-body"><div class="wl-ob-h">Calories &amp; macros</div>';
     var canCalc=maintenanceCals()!=null;
     h+='<div class="wl-ob-sub">'+(canCalc?"Estimated from your details, activity, and plan \u2014 tweak anything.":"Enter your daily targets. (Add sex, age &amp; height earlier to auto-estimate these.)")+'</div>';
     var _cw=num(f.startingWeight),_gw=num(f.goalWeight);if(_cw!=null&&_gw!=null&&(f.strategy||"lose")!=="maintain"){var _rt=num(f.targetValue)||1;var _wks=Math.abs(_cw-_gw)/_rt;var _pdt=addDays(parseISO(todayISO()),Math.round(_wks*7));h+='<div class="wl-ob-proj">On track to reach <b>'+r1(_gw)+' '+u+'</b> in about <b>'+Math.round(_wks)+' weeks</b> \u2014 around <b>'+_pdt.toLocaleDateString(undefined,{month:"long",year:"numeric"})+'</b>.</div>';}h+='<label class="wl-field wl-field-full" style="margin-top:14px"><span>Daily calories</span><input class="wl-num" data-int="1" data-set="targetCalories" type="text" inputmode="numeric" value="'+esc(f.targetCalories)+'" placeholder="\u2014"></label>';
     h+='<div class="wl-row" style="margin-top:10px"><label class="wl-field"><span>Protein <em>g</em></span><input class="wl-num" data-int="1" data-set="targetProtein" type="text" inputmode="numeric" value="'+esc(f.targetProtein)+'" placeholder="\u2014"></label><label class="wl-field"><span>Carbs <em>g</em></span><input class="wl-num" data-int="1" data-set="targetCarbs" type="text" inputmode="numeric" value="'+esc(f.targetCarbs)+'" placeholder="\u2014"></label><label class="wl-field"><span>Fat <em>g</em></span><input class="wl-num" data-int="1" data-set="targetFat" type="text" inputmode="numeric" value="'+esc(f.targetFat)+'" placeholder="\u2014"></label></div>';
     if(canCalc)h+='<div class="wl-hint" style="margin-top:10px"><button class="wl-link" data-act="ob:recalc" style="display:inline">\u21bb Recalculate from my info</button> \u00b7 protein anchored near 1g/lb of goal weight.</div>';
     h+='</div>'+obnav();
-  }else if(step===6){
-    h+=obDots(6)+'<div class="wl-ob-body"><div class="wl-ob-h">Weekly check-in</div><div class="wl-ob-sub">Which day should your coach recap your week?</div>';
-    h+='<div class="wl-daypick" style="margin-top:14px">'+WEEKDAYS.map(function(dn,i){return '<button class="wl-day'+((parseInt(f.weekStart,10)||0)===i?" on":"")+'" data-act="set:weekstart" data-day="'+i+'">'+dn+'</button>';}).join("")+'</div></div>'+obnav();
   }else if(step===7){
+    h+=obDots(7)+'<div class="wl-ob-body"><div class="wl-ob-h">Weekly check-in</div><div class="wl-ob-sub">Which day should your coach recap your week?</div>';
+    h+='<div class="wl-daypick" style="margin-top:14px">'+WEEKDAYS.map(function(dn,i){return '<button class="wl-day'+((parseInt(f.weekStart,10)||0)===i?" on":"")+'" data-act="set:weekstart" data-day="'+i+'">'+dn+'</button>';}).join("")+'</div></div>'+obnav();
+  }else if(step===8){
     var _cw=num(f.startingWeight),_gw=num(f.goalWeight),_strat=f.strategy||"lose";
     var _stratLbl=(_strat==="gain"?"Lean Bulk":_strat==="maintain"?"Maintenance":"Fat Loss");
     var _cal=num(f.targetCalories),_prot=num(f.targetProtein);
@@ -933,15 +935,15 @@ function obOverlayHTML(){
     var _isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
     var _share='<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:-3px"><path d="M12 3v12"/><path d="M8 7l4-4 4 4"/><path d="M6 11H5a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7a1 1 0 0 0-1-1h-1"/></svg>';
     h+='<div class="wl-ob-body"><div class="wl-ob-h">You\u2019re all set'+(f.name?", "+esc(f.name):"")+'</div>';
-    if(_standalone)h+='<div class="wl-ob-sub">Your Home Screen is ready. Log your first check-in whenever you like.</div><div class="wl-hint" style="margin-top:14px">Tip: turn on <b>Sync</b> in Settings to back up your data across your devices.</div>';
-    else if(_isIOS)h+='<div class="wl-ob-sub">One last step \u2014 add Compound to your Home Screen so it opens full-screen like a real app.</div><div class="wl-ob-steps"><div class="wl-ob-step"><span class="wl-ob-stepn">1</span><span class="wl-ob-stept">Tap the <b>Share</b> button '+_share+' in the Safari toolbar.</span></div><div class="wl-ob-step"><span class="wl-ob-stepn">2</span><span class="wl-ob-stept">Scroll down and tap <b>Add to Home Screen</b>.</span></div><div class="wl-ob-step"><span class="wl-ob-stepn">3</span><span class="wl-ob-stept">Tap <b>Add</b>, then open Compound from your Home Screen.</span></div></div>';
-    else if(deferredPrompt)h+='<div class="wl-ob-sub">Add Compound to your home screen so it opens like an app.</div><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:16px" data-act="ob:install">Add to Home Screen</button>';
-    else h+='<div class="wl-ob-sub">Your Home Screen is ready. For quick access, add Compound to your home screen from your browser menu.</div><div class="wl-hint" style="margin-top:14px">Tip: turn on <b>Sync</b> in Settings to back up your data across your devices.</div>';
+    if(_standalone)h+='<div class="wl-ob-sub">You\u2019re on your Home Screen and ready to go. Log your first check-in whenever you like.</div>';
+    else if(_isIOS)h+='<div class="wl-ob-sub">One last step \u2014 add Compound to your Home Screen so it opens full-screen like a real app. That\u2019s how it works best.</div><div class="wl-ob-steps"><div class="wl-ob-step"><span class="wl-ob-stepn">1</span><span class="wl-ob-stept">Tap the <b>Share</b> button '+_share+' in the Safari toolbar.</span></div><div class="wl-ob-step"><span class="wl-ob-stepn">2</span><span class="wl-ob-stept">Scroll down and tap <b>Add to Home Screen</b>.</span></div><div class="wl-ob-step"><span class="wl-ob-stepn">3</span><span class="wl-ob-stept">Tap <b>Add</b>, then open Compound from your Home Screen.</span></div></div>';
+    else if(deferredPrompt)h+='<div class="wl-ob-sub">Add Compound to your home screen so it opens like an app \u2014 that\u2019s how it works best.</div><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:16px" data-act="ob:install">Add to Home Screen</button>';
+    else h+='<div class="wl-ob-sub">For the best experience, add Compound to your home screen from your browser menu \u2014 it opens like an app.</div>';
+    h+='<div class="wl-hint" style="margin-top:16px">You can change any of this \u2014 your plan, targets, name, or check-in day \u2014 anytime in <b>Settings</b>.</div>';
     h+='</div>';
     h+='<div class="wl-ob-nav"><button class="wl-btn wl-btn-primary wl-full" data-act="ob:finish">Start using Compound</button></div>';
   }
-  return h+'</div></div>';
-}
+  return h+'</div></div>';}
 function statusSheetHTML(){if(!state.statusOpen)return "";var sf=state.statusForm||{};var editing=sf.idx>=0;
   var h='<div class="wl-confirm"><div class="wl-confirm-card">';
   h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><div style="font-weight:800;font-size:17px">'+(editing?"Edit status":"Set a status")+'</div><button class="wl-icon-btn" data-act="status:close">\u2715</button></div>';
@@ -2331,7 +2333,7 @@ document.addEventListener("click",function(e){
   if(a==="skip:steps"){var sd=state.selDate;var on=!isSkip(sd,"steps");setSkip(sd,"steps",on);if(on)delete state.steps[sd];save();render();return;}
   if(a==="skip:sleep"){var sd=state.selDate;var on=!isSkip(sd,"sleep");setSkip(sd,"sleep",on);if(on)delete state.sleep[sd];save();render();return;}
   if(a==="skip:calories"){var sd=state.selDate;var on=!isSkip(sd,"calories");setSkip(sd,"calories",on);if(on)delete state.food[sd];save();render();return;}
-  if(a==="ob:next"){var _cs=state.obStep||0;var _vm=obStepMsg(_cs);if(_vm){toast(_vm);return;}state.obStep=_cs+1;if(state.obStep===5&&!state.obMacrosDone){var _f=state.settings;_f.targetValue=(_f.strategy==="gain"?"0.5":_f.strategy==="maintain"?"0":"1");if(!_f.targetType)_f.targetType="lbs_per_week";if(maintenanceCals()!=null){applyAutoMacros();state.obMacrosDone=true;}}render();return;}
+  if(a==="ob:next"){var _cs=state.obStep||0;var _vm=obStepMsg(_cs);if(_vm){toast(_vm);return;}state.obStep=_cs+1;if(state.obStep===6&&!state.obMacrosDone){var _f=state.settings;_f.targetValue=(_f.strategy==="gain"?"0.5":_f.strategy==="maintain"?"0":"1");if(!_f.targetType)_f.targetType="lbs_per_week";if(maintenanceCals()!=null){applyAutoMacros();state.obMacrosDone=true;}}render();return;}
   if(a==="ob:recalc"){var _rf=state.settings;_rf.targetValue=(_rf.strategy==="gain"?"0.5":_rf.strategy==="maintain"?"0":"1");if(!_rf.targetType)_rf.targetType="lbs_per_week";applyAutoMacros();save();render();return;}
   if(a==="ob:back"){state.obStep=Math.max(0,(state.obStep||0)-1);render();return;}
   if(a==="ob:skip"||a==="ob:finish"){state.onboarding=false;state.settings.onboarded=true;save();render();return;}
