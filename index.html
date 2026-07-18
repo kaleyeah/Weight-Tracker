@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.177 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.179 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -479,7 +479,7 @@ html[data-theme="light"] .wl-brandword{color:#151A21;}
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.177";
+var APP_BUILD="2026-07-14.179";
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="34" y="26" width="32" height="12" rx="5" fill="#7C93F5"/><rect x="26" y="44" width="48" height="12" rx="5" fill="#9FB0C9"/><rect x="16" y="62" width="68" height="14" rx="5" fill="#F5B544"/></svg>';
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
@@ -1176,7 +1176,7 @@ function view_weight(){
   var sw=sortedWeights();var startISO=toISO(ctx.start),endISO=toISO(ctx.end);
   var goal=num(state.settings.goalWeight);
   function bcHas(m){return m&&Object.keys(m).length>0;}
-  var bcTabs=[["weight","Weight"]];if(bcHas(state.bodyfat))bcTabs.push(["bodyfat","Body fat"]);if(bcHas(state.waist))bcTabs.push(["waist","Waist"]);
+  var bcTabs=[["weight","Weight"],["bodyfat","Body fat"],["waist","Waist"]];
   var bcTab=state.bcTab||"weight";if(!bcTabs.some(function(t){return t[0]===bcTab;}))bcTab="weight";
   h+='<div class="wl-card"><div class="wl-card-head"><span>Body composition</span></div>';
   if(bcTabs.length>1)h+='<div class="wl-seg wl-seg-wide" style="margin-bottom:12px">'+bcTabs.map(function(t){return '<button class="'+(bcTab===t[0]?"on":"")+'" data-act="bc:tab" data-tab="'+t[0]+'">'+t[1]+'</button>';}).join("")+'</div>';
@@ -1187,7 +1187,7 @@ function view_weight(){
     var arr=Object.keys(bcMap||{}).map(function(d){return {date:d,weight:num(bcMap[d])};}).filter(function(x){return x.weight!=null&&x.date>=startISO&&x.date<=endISO;}).sort(function(a,b){return a.date.localeCompare(b.date);});
     var cc=prepChart(arr);var chg=arr.length>=2?(arr[arr.length-1].weight-arr[0].weight):null;
     h+='<div class="wl-hint" style="margin-bottom:6px"><b>Change '+(chg!=null?(chg<=0?"\u25bc ":"\u25b2 ")+Math.abs(r1(chg))+" "+bcU:"\u2014")+'</b>'+(arr.length?' \u00b7 latest '+r1(arr[arr.length-1].weight)+" "+bcU:"")+'</div>';
-    if(cc.data.length)h+=buildChart(cc,null,bcU,true,ctx.start.getTime(),ctx.end.getTime());else h+='<div class="wl-empty">No entries in this period.</div>';
+    if(cc.data.length)h+=buildChart(cc,null,bcU,true,ctx.start.getTime(),ctx.end.getTime());else if(!bcHas(bcMap))h+='<div class="wl-empty">No '+(bcTab==="bodyfat"?"body fat":"waist")+' logged yet \u2014 add it from the Weight check-in when you measure.</div>';else h+='<div class="wl-empty">No '+(bcTab==="bodyfat"?"body fat":"waist")+' entries in this period.</div>';
   }
   h+='</div>';
   var moreOpen=state.moreStats===true;
@@ -1889,7 +1889,7 @@ function view_quicklog(){
 function cardioFormHTML(cf){
   var h='<div class="wl-cardioform">';
   h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div style="font-weight:800;font-size:16px">'+esc(cf.type||"Cardio")+'</div><button class="wl-link" data-act="cardio:repick">Change type</button></div>';
-  h+='<div class="wl-row"><label class="wl-field"><span>Duration <em>min</em></span><input class="wl-cf-input wl-num" data-cf="mins" type="text" inputmode="numeric" placeholder="20" value="'+(cf.mins!=null?esc(String(cf.mins)):"")+'"></label><label class="wl-field"><span>Avg HR <em>bpm, optional</em></span><input class="wl-cf-input wl-num" data-cf="hr" type="text" inputmode="numeric" placeholder="\u2014" value="'+(cf.hr!=null?esc(String(cf.hr)):"")+'"></label></div>';
+  h+='<div class="wl-row"><label class="wl-field"><span>Duration <em>min</em></span><input class="wl-cf-input wl-num" data-cf="mins" type="text" inputmode="numeric" placeholder="\u2014" value="'+(cf.mins!=null?esc(String(cf.mins)):"")+'"></label><label class="wl-field"><span>Avg HR <em>bpm, optional</em></span><input class="wl-cf-input wl-num" data-cf="hr" type="text" inputmode="numeric" placeholder="\u2014" value="'+(cf.hr!=null?esc(String(cf.hr)):"")+'"></label></div>';
   h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Peak HR <em>bpm, optional</em></span><input class="wl-cf-input wl-num" data-cf="hrMax" type="text" inputmode="numeric" placeholder="\u2014" value="'+(cf.hrMax!=null?esc(String(cf.hrMax)):"")+'"></label><label class="wl-field"><span>Est. calories <em>optional</em></span><input class="wl-cf-input wl-num" data-cf="cal" type="text" inputmode="numeric" placeholder="\u2014" value="'+(cf.cal!=null?esc(String(cf.cal)):"")+'"></label></div>';
   h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>RPE <em>1-10, optional</em></span><input class="wl-cf-input wl-num" data-cf="rpe" type="text" inputmode="numeric" placeholder="\u2014" value="'+(cf.rpe!=null?esc(String(cf.rpe)):"")+'"></label><label class="wl-field" style="visibility:hidden"><span>.</span><input></label></div>';
   h+='<div id="wl-zonearea" style="margin-top:12px">'+zoneAreaHTML(cf)+'</div>';
