@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.240 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.241 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -279,6 +279,20 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 .wl-prrow-name{font-size:14.5px;font-weight:700;color:var(--text);line-height:1.3;}
 .wl-prrow-val{font-size:13px;font-weight:700;color:var(--accent);font-family:var(--mono);margin-top:4px;}
 .wl-prrow-e{font-size:11.5px;font-weight:600;color:var(--muted);font-family:var(--sans);margin-left:8px;}
+.wl-seg-hist button{font-size:12px;padding:8px 2px;}
+.wl-hrow{display:flex;align-items:center;gap:12px;width:100%;background:none;border:none;border-top:1px solid var(--line);padding:12px 2px;font-family:var(--sans);color:var(--text);text-align:left;cursor:pointer;}
+.wl-hrow:first-of-type{border-top:none;}
+.wl-hdate{flex:none;width:44px;text-align:center;}
+.wl-hdow{display:block;font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);}
+.wl-hday{display:block;font-size:16px;font-weight:800;font-family:var(--mono);line-height:1.15;}
+.wl-hmain{flex:1;min-width:0;}
+.wl-hname{font-size:14.5px;font-weight:700;display:flex;align-items:center;gap:7px;}
+.wl-hdotc{width:8px;height:8px;border-radius:50%;flex:none;}
+.wl-hdotc.car{background:#3b82f6;}.wl-hdotc.lift{background:#22c55e;}.wl-hdotc.rest{background:#9ca3af;}.wl-hdotc.supp{background:#a855f7;}
+.wl-hmeta{display:block;font-size:12px;color:var(--muted);margin-top:2px;font-family:var(--mono);}
+.wl-hgo{color:var(--faint);font-size:18px;flex:none;}
+.wl-hwk{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);padding:12px 2px 2px;border-top:1px solid var(--line);margin-top:4px;}
+.wl-hmore{display:block;width:100%;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--muted);font-weight:700;font-size:13px;padding:11px;margin-top:12px;font-family:var(--sans);cursor:pointer;}
 .wl-hsub{font-size:16px;font-weight:700;color:var(--muted);margin-top:1px;letter-spacing:-.01em;}
 .wl-rirwarn{display:flex;align-items:center;gap:10px;background:rgba(242,109,91,.16);border:1.5px solid var(--bad);border-radius:12px;padding:11px 13px;margin:8px 0 4px;color:#ffd9d2;font-weight:700;font-size:14px;line-height:1.35;}
 .wl-rirwarn-ic{width:24px;height:24px;border-radius:50%;background:var(--bad);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:900;flex:none;font-size:15px;}
@@ -608,7 +622,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.240";
+var APP_BUILD="2026-07-14.241";
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="34" y="26" width="32" height="12" rx="5" fill="#7C93F5"/><rect x="26" y="44" width="48" height="12" rx="5" fill="#9FB0C9"/><rect x="16" y="62" width="68" height="14" rx="5" fill="#F5B544"/></svg>';
 var deferredPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredPrompt=e;});
 var photoURLs=[],photoMap={},photoDB=null;
@@ -1445,7 +1459,7 @@ function view_weight(){
     h+='<div class="wl-substat"><div class="wl-substat-h"><span>Sleep</span><span class="v">'+(slavg!=null?"avg "+minToHM(slavg):"\u2014")+(sgm!=null?" \u00b7 goal "+minToHM(sgm):"")+'</span></div>'+buildSleepChart(slbk,sgm)+'</div>';
   }
   h+='</div>';
-  h+=prSummaryHTML();h+='<div class="wl-card" style="padding:13px 16px"><button class="wl-link" data-act="go" data-view="overview">+ Log or edit on the Home tab →</button></div>';
+  h+=prSummaryHTML();h+=trainingHistoryHTML(ctx);h+='<div class="wl-card" style="padding:13px 16px"><button class="wl-link" data-act="go" data-view="overview">+ Log or edit on the Home tab →</button></div>';
   return h+'</div>';
 }
 function stat(l,v,u){return '<div class="wl-stat"><div class="wl-stat-label">'+l+'</div><div class="wl-stat-val">'+v+'<span>'+(v!=="—"?" "+u:"")+'</span></div></div>';}
@@ -2046,6 +2060,28 @@ function prSummaryHTML(){var bests=allTimeBests();if(!bests.length)return "";var
     else{main=b.bestW+" "+u+" \u00d7 "+b.bestWr;var _e9=e1rm(b.bestW,b.bestWr);if(_e9!=null)sub="est. 1RM "+Math.round(_e9)+" "+u;}
     h+='<div class="wl-prrow"><div class="wl-prrow-top"><span class="wl-prrow-name">'+esc(b.name)+'</span>'+(b.dateW?'<span class="wl-prrow-date">'+fmtShort(parseISO(b.dateW))+'</span>':'')+'</div><div class="wl-prrow-val">'+esc(main)+(sub?' <span class="wl-prrow-e">'+esc(sub)+'</span>':'')+'</div></div>';});
   return h+'</div></div>';}
+function trainingHistoryHTML(ctx){var tab=state.histTab||"all";
+  var s0=toISO(ctx.start),e0=toISO(ctx.end);var items=[];
+  var ss=state.training.sessions||{},ls=state.training.liftSessions||{};
+  Object.keys(ss).forEach(function(d){if(d<s0||d>e0)return;(ss[d]||[]).forEach(function(x){if(x.kind!=="cardio")return;var m=[];if(x.mins!=null)m.push(x.mins+" min");if(x.zone)m.push("Zone "+x.zone);if(x.hr!=null)m.push("HR "+x.hr);if(x.cal!=null)m.push("~"+x.cal+" cal");items.push({d:d,ts:x.ts||0,cat:"car",name:x.type||"Cardio",meta:m.join(" \u00b7 ")});});});
+  Object.keys(ls).forEach(function(d){if(d<s0||d>e0)return;(ls[d]||[]).forEach(function(x){var m=[];if(x.mins!=null)m.push(x.mins+" min");m.push(x.mode==="full"?"logged":"quick");if(x.mode==="full"&&x.entries){var n=0;x.entries.forEach(function(en){(en.sets||[]).forEach(function(st){if(st.status==="done")n++;});});if(n)m.push(n+" sets");}if(x.rpe!=null)m.push("RPE "+x.rpe);items.push({d:d,ts:x.ts||0,cat:"lift",name:x.name||"Weight training",meta:m.join(" \u00b7 ")});});});
+  Object.keys(state.workouts||{}).forEach(function(d){if(d<s0||d>e0)return;normActs(d).forEach(function(a){if(a.cat!=="rest"&&a.cat!=="supp")return;items.push({d:d,ts:0,cat:a.cat,name:a.name||CATLABEL[a.cat],meta:CATLABEL[a.cat]});});});
+  var want={car:"car",lift:"lift",rest:"rest",supp:"supp"}[tab]||null;
+  if(want)items=items.filter(function(i){return i.cat===want;});
+  items.sort(function(a,b){return a.d===b.d?(b.ts-a.ts):(a.d<b.d?1:-1);});
+  var segs=[["all","All"],["car","Cardio"],["lift","Lifts"],["rest","Rest"],["supp","Supps"]];
+  var h='<div class="wl-card"><div class="wl-card-head"><span>Training History</span>'+(items.length?'<span class="wl-count">'+items.length+'</span>':'')+'</div>';
+  h+='<div class="wl-seg wl-seg-wide wl-seg-hist">'+segs.map(function(t){return '<button class="'+(tab===t[0]?"on":"")+'" data-act="hist:tab" data-tab="'+t[0]+'">'+t[1]+'</button>';}).join("")+'</div>';
+  if(!items.length){var nm={all:"activity",car:"cardio",lift:"lifting",rest:"recovery",supp:"supplements"}[tab];return h+'<div class="wl-empty">No '+nm+' in this period. Log it on the Activity tab.</div></div>';}
+  var CAP=8;var showAll=state.histMore===true;var shown=showAll?items:items.slice(0,CAP);
+  var grouped=ctx.mode!=="W";var lastWk=null;
+  shown.forEach(function(it){
+    if(grouped){var wk=toISO(weekStartOf(it.d));if(wk!==lastWk){lastWk=wk;var we=addDays(parseISO(wk),6);h+='<div class="wl-hwk">'+fmtShort(parseISO(wk))+' \u2013 '+fmtShort(we)+'</div>';}}
+    var dd=parseISO(it.d);
+    h+='<button class="wl-hrow" data-act="hist:day" data-date="'+it.d+'"><span class="wl-hdate"><span class="wl-hdow">'+DAYS3[dd.getDay()]+'</span><span class="wl-hday">'+dd.getDate()+'</span></span><span class="wl-hmain"><span class="wl-hname"><span class="wl-hdotc '+it.cat+'"></span>'+esc(it.name)+'</span>'+(it.meta?'<span class="wl-hmeta">'+esc(it.meta)+'</span>':'')+'</span><span class="wl-hgo">\u203a</span></button>';
+  });
+  if(items.length>CAP&&!showAll)h+='<button class="wl-hmore" data-act="hist:more">Show '+(items.length-CAP)+' more \u2193</button>';
+  return h+'</div>';}
 function view_liftview(){var s=getLiftSession();var u=state.settings.units;var mode=state.liftEdit;var h='<div class="wl-stack">';
   if(!s){h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="lift:back">‹</button><span class="wl-cal-title">Session</span></div><div class="wl-card"><div class="wl-hint">Session not found.</div></div>';return h+'</div>';}
   if(mode==="summary"){
@@ -2525,13 +2561,16 @@ document.addEventListener("click",function(e){
     state.training.sessions[d]=list;syncCardioTags(d);saveTraining();save();state.cardioForm=null;state.view="train";toast("Cardio logged");render();return;}
   if(a==="cardio:del"){var did=el.getAttribute("data-id");var dd2=state.selDate;var sList=(state.training.sessions[dd2])||[];var victim=sList.filter(function(s){return s.id===did;})[0];askConfirm("Delete this "+((victim&&victim.type)||"cardio")+" session"+(victim&&victim.mins?" ("+victim.mins+" min)":"")+"? This can\u2019t be undone.",function(){var l2=((state.training.sessions[dd2])||[]).filter(function(s){return s.id!==did;});if(l2.length)state.training.sessions[dd2]=l2;else delete state.training.sessions[dd2];syncCardioTags(dd2);saveTraining();save();if(state.cardioForm&&state.cardioForm.id===did)state.cardioForm=null;});return;}
   if(a==="night:gen"){genNightly();return;}
-  if(a==="trend:mode"){state.trendMode=el.getAttribute("data-mode");state.trendOffset=0;render();return;}
+  if(a==="trend:mode"){state.trendMode=el.getAttribute("data-mode");state.trendOffset=0;state.histMore=false;render();return;}
+  if(a==="hist:tab"){state.histTab=el.getAttribute("data-tab");state.histMore=false;render();return;}
+  if(a==="hist:more"){state.histMore=true;render();return;}
+  if(a==="hist:day"){var hd=el.getAttribute("data-date");state.selDate=hd;var hp=parseISO(hd);state.calY=hp.getFullYear();state.calM=hp.getMonth();state.view="train";render();return;}
   if(a==="bc:tab"){state.bcTab=el.getAttribute("data-tab");render();return;}
   if(a==="morestats"){state.moreStats=!state.moreStats;render();return;}
   if(a==="syncdot"){var lt=getLastSync();toast((syncLabel()||"Sync")+(lt?" \u00b7 "+fmtClock(lt):"")+(syncState.msg?" \u2014 "+syncState.msg:""));return;}
-  if(a==="trend:tocur"){state.trendOffset=0;render();return;}
-  if(a==="trend:prev"){state.trendOffset=(state.trendOffset||0)+1;render();return;}
-  if(a==="trend:next"){state.trendOffset=Math.max(0,(state.trendOffset||0)-1);render();return;}
+  if(a==="trend:tocur"){state.trendOffset=0;state.histMore=false;render();return;}
+  if(a==="trend:prev"){state.trendOffset=(state.trendOffset||0)+1;state.histMore=false;render();return;}
+  if(a==="trend:next"){state.trendOffset=Math.max(0,(state.trendOffset||0)-1);state.histMore=false;render();return;}
   if(a==="photo:add"){state.pendingMeal=el.getAttribute("data-meal")||"";state.pendingPose=null;document.getElementById("wl-photo-input").click();return;}
   if(a==="pphoto:add"){state.pendingPose=el.getAttribute("data-pose");state.pendingProgWeek=toISO(weekStartFor(0));state.pendingMeal=null;document.getElementById("wl-photo-input").click();return;}
   if(a==="photo:view"){openLightbox(el.getAttribute("data-id"));return;}
