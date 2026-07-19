@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.225 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.226 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -596,7 +596,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.225";
+var APP_BUILD="2026-07-14.226";
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="34" y="26" width="32" height="12" rx="5" fill="#7C93F5"/><rect x="26" y="44" width="48" height="12" rx="5" fill="#9FB0C9"/><rect x="16" y="62" width="68" height="14" rx="5" fill="#F5B544"/></svg>';
 var deferredPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredPrompt=e;});
 var photoURLs=[],photoMap={},photoDB=null;
@@ -1894,12 +1894,12 @@ function view_rlaunch(){
 }
 function liftFormHTML(lf){
   var h='<div class="wl-card"><div class="wl-card-head"><span>Quick log</span></div><div class="wl-hint" style="margin-bottom:12px">Log the session summary without per-set detail. Feeds your weekly training goals and the AI coach.</div>';
-  h+='<div class="wl-row"><label class="wl-field"><span>Duration <em>min</em></span><input class="wl-lf-input wl-num" data-lf="mins" type="text" inputmode="numeric" placeholder="45" value="'+(lf.mins!=null?esc(String(lf.mins)):"")+'"></label><label class="wl-field"><span>Avg HR <em>bpm, optional</em></span><input class="wl-lf-input wl-num" data-lf="hr" type="text" inputmode="numeric" placeholder="—" value="'+(lf.hr!=null?esc(String(lf.hr)):"")+'"></label></div>';
+  h+='<div class="wl-row"><label class="wl-field"><span>Duration <em>min</em></span><input class="wl-lf-input wl-num" data-lf="mins" type="text" inputmode="numeric" placeholder="—" value="'+(lf.mins!=null?esc(String(lf.mins)):"")+'"></label><label class="wl-field"><span>Avg HR <em>bpm, optional</em></span><input class="wl-lf-input wl-num" data-lf="hr" type="text" inputmode="numeric" placeholder="—" value="'+(lf.hr!=null?esc(String(lf.hr)):"")+'"></label></div>';
   h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Peak HR <em>bpm, optional</em></span><input class="wl-lf-input wl-num" data-lf="hrMax" type="text" inputmode="numeric" placeholder="—" value="'+(lf.hrMax!=null?esc(String(lf.hrMax)):"")+'"></label><label class="wl-field"><span>Est. calories <em>optional</em></span><input class="wl-lf-input wl-num" data-lf="cal" type="text" inputmode="numeric" placeholder="—" value="'+(lf.cal!=null?esc(String(lf.cal)):"")+'"></label></div>';
   h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>RPE <em>1-10, optional</em></span><input class="wl-lf-input wl-num" data-lf="rpe" type="text" inputmode="numeric" placeholder="—" value="'+(lf.rpe!=null?esc(String(lf.rpe)):"")+'"></label><label class="wl-field" style="visibility:hidden"><span>.</span><input></label></div>';
   h+='<div id="wl-zonearea" style="margin-top:12px">'+zoneAreaHTML(lf,"lf")+'</div>';
   h+='<label class="wl-field wl-field-full" style="margin-top:12px"><span>Notes <em>optional</em></span><textarea class="wl-lf-input" data-lf="notes" style="width:100%;min-height:60px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:14px;padding:11px 12px;box-sizing:border-box;outline:none;resize:vertical">'+esc(lf.notes||"")+'</textarea></label>';
-  h+='<div class="wl-row" style="margin-top:14px"><button class="wl-btn wl-btn-primary wl-full" data-act="lift:save">Log workout</button><button class="wl-btn wl-btn-ghost" data-act="lift:cancel">Cancel</button></div>';
+  h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:14px" data-act="lift:save">Log workout</button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="lift:cancel">Cancel</button>';
   return h+'</div>';
 }
 /* ---- live workout ---- */
@@ -2112,7 +2112,6 @@ function view_wtadd(){var h='<div class="wl-stack">';
 function view_wtadd_end(){}
 function view_quicklog(){
   var lf=state.liftForm;var rt=lf&&getRoutine(lf.routineId);var h='<div class="wl-stack">';
-  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="lift:cancel">‹</button><span class="wl-cal-title">'+esc((rt&&rt.name)||"Weight training")+'</span><span style="width:36px;display:inline-block"></span></div>';
   h+='<div class="wl-hint" style="text-align:center;margin-bottom:4px">Logging for '+fmtLong(parseISO(lf.date))+(lf.date===todayISO()?" · Today":"")+'</div>';
   if(lf)h+=liftFormHTML(lf);
   return h+'</div>';
@@ -2125,7 +2124,7 @@ function cardioFormHTML(cf){
   h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>RPE <em>1-10, optional</em></span><input class="wl-cf-input wl-num" data-cf="rpe" type="text" inputmode="numeric" placeholder="\u2014" value="'+(cf.rpe!=null?esc(String(cf.rpe)):"")+'"></label><label class="wl-field" style="visibility:hidden"><span>.</span><input></label></div>';
   h+='<div id="wl-zonearea" style="margin-top:12px">'+zoneAreaHTML(cf)+'</div>';
   h+='<label class="wl-field wl-field-full" style="margin-top:12px"><span>Notes <em>optional</em></span><textarea class="wl-cf-input" data-cf="notes" placeholder="How it felt, incline, intervals \u2014 anything for your coach\u2026" style="width:100%;min-height:60px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:14px;padding:11px 12px;box-sizing:border-box;outline:none;resize:vertical">'+esc(cf.notes||"")+'</textarea></label>';
-  h+='<div class="wl-row" style="margin-top:14px"><button class="wl-btn wl-btn-primary wl-full" data-act="cardio:save">'+(cf.id?"Save changes":"Log cardio")+'</button><button class="wl-btn wl-btn-ghost" data-act="cardio:cancel">Cancel</button></div>';
+  h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:14px" data-act="cardio:save">'+(cf.id?"Save changes":"Log cardio")+'</button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="cardio:cancel">Cancel</button>';
   return h+'</div>';
 }
 function cardioPickHTML(cf){var types=normPresets().filter(function(p){return p.cat==="cardio";}).map(function(p){return p.name;});
@@ -2330,7 +2329,7 @@ function confirmOverlayHTML(){var c=state.pendingConfirm;if(!c)return "";
   return '<div class="wl-confirm"><div class="wl-confirm-card"><div class="wl-confirm-msg">'+esc(c.message)+'</div><div class="wl-confirm-btns"><button class="wl-btn wl-btn-ghost wl-full" data-act="confirm:no">Cancel</button><button class="wl-btn wl-full" style="background:'+(c.danger?"var(--bad)":"var(--accent)")+';color:#fff;border:none" data-act="confirm:yes">'+esc(c.label)+'</button></div></div></div>';}
 function render(){
   clearPhotoURLs();
-  var title=state.view==="settings"?"Settings":state.view==="diary"?"Food Diary":state.view==="exlib"?"":state.view==="routine"?"":state.view==="rlaunch"?"":state.view==="quicklog"?"Quick log":state.view==="workout"?"Workout":state.view==="liftview"?"Workout":state.view==="wtadd"?"":state.view==="cardioadd"?"":state.view==="actadd"?"":state.view==="photos"?"":(NAV.filter(function(n){return n[0]===state.view;})[0]||["","" ])[1];var hsub=state.view==="workout"?((state.workout&&state.workout.name)||""):state.view==="liftview"?(((getLiftSession()||{}).name)||""):"";
+  var title=state.view==="settings"?"Settings":state.view==="diary"?"Food Diary":state.view==="exlib"?"":state.view==="routine"?"":state.view==="rlaunch"?"":state.view==="quicklog"?"Quick log":state.view==="workout"?"Workout":state.view==="liftview"?"Workout":state.view==="wtadd"?"":state.view==="cardioadd"?"":state.view==="actadd"?"":state.view==="photos"?"":(NAV.filter(function(n){return n[0]===state.view;})[0]||["","" ])[1];var hsub=state.view==="workout"?((state.workout&&state.workout.name)||""):state.view==="liftview"?(((getLiftSession()||{}).name)||""):state.view==="quicklog"?(((state.liftForm&&getRoutine(state.liftForm.routineId))||{}).name||""):"";
   var body=state.view==="overview"?view_overview():(state.view==="food"||state.view==="calendar")?view_overview():state.view==="weight"?view_weight():state.view==="summary"?view_summary():state.view==="diary"?view_diary():state.view==="train"?view_train():state.view==="exlib"?view_exlib():state.view==="routine"?view_routine():state.view==="rlaunch"?view_rlaunch():state.view==="quicklog"?view_quicklog():state.view==="workout"?view_workout():state.view==="liftview"?view_liftview():state.view==="wtadd"?view_wtadd():state.view==="cardioadd"?view_cardio():state.view==="actadd"?view_actadd():state.view==="photos"?view_photos():view_settings();
   var nav='<nav class="wl-nav">'+NAV.map(function(n){return '<button class="wl-navbtn '+(state.view===n[0]||(n[0]==="overview"&&(state.view==="food"||state.view==="diary"))||(n[0]==="weight"&&state.view==="photos")?"on":"")+'" data-act="go" data-view="'+n[0]+'">'+I[n[0]]+'<span>'+n[1]+'</span></button>';}).join("")+'</nav>';
   var avatar='<button class="wl-avatar'+(state.view==="settings"?" on":"")+'" data-act="go" data-view="settings" aria-label="Settings"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>';
