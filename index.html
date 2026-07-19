@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.234 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.235 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -598,7 +598,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.234";
+var APP_BUILD="2026-07-14.235";
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="34" y="26" width="32" height="12" rx="5" fill="#7C93F5"/><rect x="26" y="44" width="48" height="12" rx="5" fill="#9FB0C9"/><rect x="16" y="62" width="68" height="14" rx="5" fill="#F5B544"/></svg>';
 var deferredPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredPrompt=e;});
 var photoURLs=[],photoMap={},photoDB=null;
@@ -1215,6 +1215,7 @@ function ckNotes(sel){
 }
 function ckRowSkip(label,val,sec){return '<button class="wl-ck-row" data-act="dl:open" data-sec="'+sec+'"><span class="wl-ck-l"><span class="wl-ck-ic"></span><span class="wl-ck-lab">'+label+'</span></span><span class="wl-ck-val" style="color:var(--faint);font-style:italic">'+val+'</span><span class="wl-ck-go">›</span></button>';}
 function skipBtn(sec,on,word){return '<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="skip:'+sec+'">'+(on?"Un-skip \u2014 I\u2019ll log "+word:"Not tracking "+word+" today")+'</button>'+(on?'<div class="wl-hint" style="margin-top:8px">Marked skipped \u2014 still counts as checked in. Logging when you can gives your coach a truer read over time.</div>':'');}
+function completeBtnHTML(sel){var selToday=sel===todayISO();if(state.nightBusy)return '<div class="wl-hint" style="margin-top:12px;text-align:center">⏳ Completing… generating your recap.</div>';var ns=state.nightlySummary;var hasRecap=ns&&ns.date===sel&&ns.text;if(hasRecap)return '<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:12px" data-act="night:gen">↻ Regenerate recap</button>';return '<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="night:gen">Complete '+(selToday?"today":"this day")+'</button>';}
 function todayChecklistHTML(sel){
   var u=state.settings.units;var f=state.food[sel]||{};
   var wt=null;for(var i=0;i<state.weights.length;i++){if(state.weights[i].date===sel){wt=state.weights[i].weight;break;}}
@@ -1226,7 +1227,7 @@ function todayChecklistHTML(sel){
     mh+=(steps!=null)?ckRow(true,"Steps",Math.round(steps).toLocaleString(),"steps",false):ckRowSkip("Steps","Optional","steps");
     mh+=hasCal?ckCalories(sel):ckRowSkip("Calories","Optional","calories");
     mh+=(sleep!=null)?ckRow(true,"Sleep",minToHM(sleep),"sleep",false):ckRowSkip("Sleep","Optional","sleep");
-    mh+=ckNotes(sel);return mh+'</div>';}
+    mh+=ckNotes(sel);mh+=completeBtnHTML(sel);return mh+'</div>';}
   var wSkip=isSkip(sel,"weight"),stSkip=isSkip(sel,"steps"),slSkip=isSkip(sel,"sleep"),calSkip=isSkip(sel,"calories");
   var done=((wt!=null||wSkip)?1:0)+((steps!=null||stSkip)?1:0)+((hasCal||calSkip)?1:0)+((sleep!=null||slSkip)?1:0);
   var h='<div class="wl-card wl-check"><div class="wl-ck-head"><span class="wl-ck-title">'+(sel===todayISO()?"Today":"This day")+'\u2019s Check-in</span><span class="wl-ck-cnt">'+done+' of 4 done</span></div>';
@@ -1234,7 +1235,7 @@ function todayChecklistHTML(sel){
   h+=(wt!=null)?ckRow(true,"Weight",r1(wt)+" "+u,"weight",false):(wSkip?ckRowSkip("Weight","Skipped","weight"):ckRow(false,"Weight","Add","weight",false));
   h+=(hasCal||!calSkip)?ckCalories(sel):ckRowSkip("Calories","Skipped","calories");
   h+=(steps!=null)?ckRow(true,"Steps",Math.round(steps).toLocaleString(),"steps",false):(stSkip?ckRowSkip("Steps","Skipped","steps"):ckRow(false,"Steps","Add","steps",false));
-  h+=ckNotes(sel);
+  h+=ckNotes(sel);h+=completeBtnHTML(sel);
   return h+'</div>';
 }
 function activitySummaryHTML(sel){
@@ -1250,7 +1251,7 @@ function activitySummaryHTML(sel){
 }
 function view_overview(){
   var u=state.settings.units;
-  var h='<div class="wl-stack">';
+  var h='<div class="wl-stack">';h+=dayBarHTML();
   if(isOwner()){var _svw=scriptVerWarn();if(_svw)h+='<div class="wl-scriptwarn"><b>\u26a0 Coach scripts out of date.</b> Running '+_svw.join(", ")+' \u2014 expected '+EXPECTED_SCRIPTS.weekly+'. Redeploy <b>weekly-checkin.mjs</b> &amp; <b>nightly-checkin.mjs</b>. Clears after the next check-in runs.</div>';}
   var _hsw=sortedWeights(),_hstart=num(state.settings.startingWeight),_hgoal=num(state.settings.goalWeight);
   var _hcur=_hsw.length?_hsw[_hsw.length-1].weight:_hstart;
@@ -1266,6 +1267,7 @@ function view_overview(){
     else{h+='<div class="wl-forecast-grid">'+fcCell("At your target",state.settings.targetType==="percent_bw_per_week"?state.settings.targetValue+"% / week":state.settings.targetValue+" "+u+" / week",_hfc.target,"")+fcCell("At your current pace",(_hfc.observed&&_hfc.observed.rate!=null)?r1(_hfc.observed.rate)+" "+u+" / week":"based on your data",_hfc.observed,"Not enough downward trend yet \u2014 keep logging weigh-ins.")+'</div>';}
     h+='</div>';
   }
+  h+='<div class="wl-card"><div class="wl-card-head"><span>This Week’s Goals</span></div>'+trainingGoalsHTML(weekStartOf(state.selDate))+'</div>';
   var _wk=toISO(weekStartFor(0));var _sum=(state.weeklySummary&&state.weeklySummary.week===_wk&&state.weeklySummary.text)?state.weeklySummary.text:null;
   var _ciDay=(new Date().getDay()===(parseInt(state.settings.weekStart,10)||0));
   if(_sum){try{var _seen=localStorage.getItem("wl_sumseen");if(state.weeklySummary.week!==_seen){state.sumOpen=true;localStorage.setItem("wl_sumseen",state.weeklySummary.week);localStorage.setItem("wl_sumopen","1");}}catch(e){}}
@@ -1282,28 +1284,14 @@ function view_overview(){
   h+='</div>';
   }
   if(_ciDay)h+='<div class="wl-card"><button class="wl-btn wl-btn-primary wl-full" data-act="go" data-view="photos">\ud83d\udcf7 This Week\u2019s Progress Photos</button><div class="wl-hint" style="margin-top:8px">Check-in day \u2014 capture Front, Left Side, Right Side, and Back to track your visible progress.</div></div>';
-  h+=dayBarHTML();
   h+=todayChecklistHTML(state.selDate);
   h+=activitySummaryHTML(state.selDate);
-  h+='<div class="wl-card">';
-  if(state.nightBusy){
-    h+='<div class="wl-card-head"><span>'+(state.selDate===todayISO()?"Today\u2019s":"Day")+' recap</span></div><div class="wl-hint">⏳ Completing… generating your recap (about a minute). It\u2019ll appear here when ready.</div>';
-  }else{
-    var _ns=state.nightlySummary;var _sel=state.selDate;var _selToday=_sel===todayISO();
-    var _hasRecap=_ns&&_ns.date===_sel&&_ns.text;
-    if(_hasRecap){var _no=state.nightOpen!==false;
-      h+='<button class="wl-collapse-head" data-act="night:toggle"><span>Daily recap <span class="wl-count" style="margin-left:6px">'+fmtShort(parseISO(_ns.date))+'</span></span>'+(_no?'<span class="wl-chevron open">›</span>':'<span style="color:var(--accent);font-weight:600;font-size:13px">View ›</span>')+'</button>';
-      if(_no)h+='<div class="wl-ai-summary" style="margin-top:6px">'+renderSummary(_ns.text)+'</div>';
-      h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="night:gen">↻ Regenerate</button>';
-    }else{
-      h+='<div class="wl-card-head"><span>'+(_selToday?"Today\u2019s":"Day")+' recap</span></div>';
-      var _miss=dayMissing(_sel);
-      if(_miss.length)h+='<div class="wl-hint" style="margin:10px 0 8px">Log '+_miss.join(", ")+' to complete '+(_selToday?"today":"this day")+'.</div>';
-      h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:'+(_miss.length?"0":"10px")+'" data-act="night:gen">Complete '+(_selToday?"today":"this day")+'</button>';
-    }
-  }
-  h+='</div>';
-  h+='<div class="wl-card"><div class="wl-card-head"><span>Food diary</span><button class="wl-link" data-act="go" data-view="diary">Browse all →</button></div>';
+  var _ns=state.nightlySummary;var _sel=state.selDate;var _hasRecap=_ns&&_ns.date===_sel&&_ns.text;
+  if(_hasRecap){var _no=state.nightOpen!==false;
+    h+='<div class="wl-card"><button class="wl-collapse-head" data-act="night:toggle"><span>Daily recap <span class="wl-count" style="margin-left:6px">'+fmtShort(parseISO(_ns.date))+'</span></span>'+(_no?'<span class="wl-chevron open">›</span>':'<span style="color:var(--accent);font-weight:600;font-size:13px">View ›</span>')+'</button>';
+    if(_no)h+='<div class="wl-ai-summary" style="margin-top:6px">'+renderSummary(_ns.text)+'</div>';
+    h+='</div>';}
+    h+='<div class="wl-card"><div class="wl-card-head"><span>Food diary</span><button class="wl-link" data-act="go" data-view="diary">Browse all →</button></div>';
   h+='<div id="wl-photostrip"></div>';
   h+='<div class="wl-mealadd">'+[["breakfast","Breakfast"],["lunch","Lunch"],["snack","Snack"],["dinner","Dinner"]].map(function(m){return '<button class="wl-btn wl-btn-ghost" data-act="photo:add" data-meal="'+m[0]+'">'+I.plus.replace("<svg","<svg width=14 height=14")+m[1]+'</button>';}).join("")+'</div>';
   h+='<div class="wl-hint" style="margin-top:8px">📷 Kept on this device only — not synced or seen by the AI.</div>';
@@ -1771,13 +1759,14 @@ function weekTrainingStats(ws){var out={cardioSessions:0,cardioZ2Sessions:0,card
     ((state.training.liftSessions||{})[iso]||[]).forEach(function(x){out.liftSessions++;out.liftMins+=(num(x.mins)||0);});}
   out.totalMins=out.cardioMins+out.liftMins;return out;}
 function goalBarHTML(label,val,goal,unit,soon){var pct=goal>0?Math.min(100,Math.round(val/goal*100)):0;var done=goal>0&&val>=goal;
-  return '<div class="wl-goalrow"><div class="wl-goalrow-top"><span>'+label+(soon?' <em style="color:var(--faint);font-style:normal">· logging soon</em>':'')+'</span><span class="wl-goalrow-val'+(done?" done":"")+'">'+val+' / '+goal+(unit?' '+unit:'')+(done?' ✓':'')+'</span></div><div class="wl-goalbar"><div class="wl-goalbar-fill'+(done?" done":"")+'" style="width:'+pct+'%"></div></div></div>';}
+  return '<div class="wl-goalrow"><div class="wl-goalrow-top"><span>'+label+(soon?' <em style="color:var(--faint);font-style:normal">· logging soon</em>':'')+'</span><span class="wl-goalrow-val'+(done?" done":"")+'">'+(val||0).toLocaleString()+' / '+(goal||0).toLocaleString()+(unit?' '+unit:'')+(done?' ✓':'')+'</span></div><div class="wl-goalbar"><div class="wl-goalbar-fill'+(done?" done":"")+'" style="width:'+pct+'%"></div></div></div>';}
 function trainingGoalsHTML(ws){var st=weekTrainingStats(ws);var f=state.settings;
-  var cmGoal=num(f.cardioMinGoal),liftGoal=num(f.liftSessGoal);
-  if(cmGoal==null&&liftGoal==null)return '<div class="wl-hint">Set weekly training goals in Settings → Goals to track them here.</div>';
+  var cmGoal=num(f.cardioMinGoal),liftGoal=num(f.liftSessGoal),stG=num(f.stepsGoal);
+  if(cmGoal==null&&liftGoal==null&&stG==null)return '<div class="wl-hint">Set weekly training goals in Settings → Goals to track them here.</div>';
   var h='';
-  if(cmGoal!=null)h+=goalBarHTML("Cardio Minutes (Zone 2+)",st.cardioZ2Mins,cmGoal,"min",false);
   if(liftGoal!=null)h+=goalBarHTML("Lifting Sessions",st.liftSessions,liftGoal,"",false);
+  if(cmGoal!=null)h+=goalBarHTML("Cardio Minutes (Zone 2+)",st.cardioZ2Mins,cmGoal,"min",false);
+  if(stG!=null){var _stw=0;for(var _i=0;_i<7;_i++){var _iso=toISO(addDays(ws,_i));var _v=num(state.steps[_iso]);if(_v!=null)_stw+=_v;}h+=goalBarHTML("Steps",_stw,stG*7,"",false);}
   return h;}
 var MUSCLES=[["chest","Chest","#d926b8"],["back","Back","#3aa0c9"],["shoulders","Shoulders","#a855f7"],["biceps","Biceps","#f59e0b"],["triceps","Triceps","#ec4899"],["quads","Quads","#22c55e"],["hamstrings","Hamstrings","#10b981"],["glutes","Glutes","#14b8a6"],["calves","Calves","#84cc16"],["core","Core","#eab308"],["forearms","Forearms","#f97316"],["other","Other","#9ca3af"]];
 function muscleInfo(k){for(var i=0;i<MUSCLES.length;i++)if(MUSCLES[i][0]===k)return {label:MUSCLES[i][1],color:MUSCLES[i][2]};return {label:"Other",color:"#9ca3af"};}
