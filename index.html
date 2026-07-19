@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.223 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.224 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -400,16 +400,17 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 .wl-btn-lift{background:#22c55e;color:#fff;}
 .wl-btn-rest{background:#6b7280;color:#fff;}
 .wl-btn-supp{background:#a855f7;color:#fff;}
-.wl-caticon{width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex:none;background:rgba(255,255,255,.14);}
-.wl-caticon svg{width:20px;height:20px;}
-.wl-card.catcard .wl-card-head{display:flex;align-items:center;gap:11px;}
-.wl-card.catcard .wl-card-head span:not(.wl-caticon){color:#fff;}
+.wl-caticon{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex:none;background:rgba(255,255,255,.14);}
+.wl-caticon svg{width:22px;height:22px;}
+.wl-cathead{display:flex;align-items:center;gap:13px;margin-bottom:12px;}
+.wl-catmeta{min-width:0;}
+.wl-cattype{font-size:17px;font-weight:800;letter-spacing:-.01em;color:#fff;}
+.wl-catsum{font-size:13px;margin-top:1px;color:rgba(255,255,255,.82);}
 .wl-card.catcard .wl-hint{color:rgba(255,255,255,.72);}
 .wl-card.catcard .wl-sess{border-bottom-color:rgba(255,255,255,.16);}
 .wl-card.catcard .wl-sess-type{color:#fff;}
 .wl-card.catcard .wl-sess-meta{color:rgba(255,255,255,.62);}
 .wl-card.catcard .wl-icon-btn{color:rgba(255,255,255,.6);}
-.wl-card.catcard .wl-count{background:rgba(255,255,255,.22);color:#fff;}
 .wl-card.catcard .wl-inprogress{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.42);color:#fff;}
 .wl-card.catcard .wl-ip-badge{color:#fff;}
 .wl-card.catcard .wl-achip{color:#fff;border-color:rgba(255,255,255,.35);background:rgba(255,255,255,.10);}
@@ -592,7 +593,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.223";
+var APP_BUILD="2026-07-14.224";
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="34" y="26" width="32" height="12" rx="5" fill="#7C93F5"/><rect x="26" y="44" width="48" height="12" rx="5" fill="#9FB0C9"/><rect x="16" y="62" width="68" height="14" rx="5" fill="#F5B544"/></svg>';
 var deferredPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredPrompt=e;});
 var photoURLs=[],photoMap={},photoDB=null;
@@ -2173,14 +2174,15 @@ function view_actadd(){var cat=state.actPick;
   return h+'</div>';
 }
 function catIcon(c){var p=(c==="car"||c==="cardio")?'<path d="M3 12h4l2-5 4 10 2-5h6"/>':c==="lift"?'<path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11"/>':c==="rest"?'<path d="M20 14.5A8 8 0 0 1 9.5 4a7 7 0 1 0 10.5 10.5z"/>':'<path d="M10.5 3.5 3.5 10.5a5 5 0 0 0 7 7l7-7a5 5 0 0 0-7-7zM7 7l7 7"/>';return '<span class="wl-caticon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg></span>';}
+function catHead(cat,title,sum){return '<div class="wl-cathead">'+catIcon(cat)+'<div class="wl-catmeta"><div class="wl-cattype">'+title+'</div><div class="wl-catsum">'+sum+'</div></div></div>';}
 function actCatCardHTML(cat,title,date){
   var log=normActs(date);var mine=[];log.forEach(function(a,i){if(a.cat===cat)mine.push({a:a,i:i});});
   var btnClass=cat==="rest"?"wl-btn-rest":cat==="supp"?"wl-btn-supp":"wl-btn-primary";
   var addLabel=cat==="rest"?"Add Recovery":cat==="supp"?"Add Supplement":"Add";
   var noun=cat==="rest"?"recovery":"supplements";
-  var h='<div class="wl-card catcard '+cat+'"><div class="wl-card-head">'+catIcon(cat)+'<span>'+title+(mine.length?' <span class="wl-count">'+mine.length+'</span>':'')+'</span></div>';
+  var catSum=mine.length?(mine.length+" logged"):"Nothing logged today";var h='<div class="wl-card catcard '+cat+'">'+catHead(cat,title,catSum);
   if(mine.length){h+='<div class="wl-preset-list">';mine.forEach(function(x){h+='<button class="wl-achip '+cat+' on" data-act="act:del" data-idx="'+x.i+'" data-date="'+date+'">'+esc(x.a.name||CATLABEL[cat])+' ✕</button>';});h+='</div>';}
-  else h+='<div class="wl-hint">No '+noun+' logged for this day.</div>';
+  
   h+='<button class="wl-btn '+btnClass+' wl-full" style="margin-top:10px" data-act="act:pick" data-cat="'+cat+'">'+I.plus.replace("<svg","<svg width=16 height=16")+addLabel+'</button>';
   return h+'</div>';
 }
@@ -2205,19 +2207,19 @@ function view_train(){
   var h='<div class="wl-stack">'+dayBarHTML();
   h+='<div class="wl-card"><div class="wl-card-head"><span>This Week\u2019s Goals</span></div>'+trainingGoalsHTML(weekStartOf(d))+'</div>';
   var sess=((state.training.sessions||{})[d]||[]).filter(function(s){return s.kind==="cardio";});
-  h+='<div class="wl-card catcard car"><div class="wl-card-head">'+catIcon("car")+'<span>Cardio'+(sess.length?' <span class="wl-count">'+sess.length+'</span>':'')+'</span></div>';
-  if(sess.length){sess.forEach(function(s){var meta=[];meta.push(s.mins+" min");if(s.zone)meta.push("Zone "+s.zone);if(s.hr)meta.push("HR "+s.hr+(s.hrMax?"/"+s.hrMax:""));else if(s.hrMax)meta.push("peak "+s.hrMax);if(s.rpe)meta.push("RPE "+s.rpe);if(s.cal)meta.push("~"+s.cal+" cal");
-    h+='<div class="wl-sess"><button class="wl-sess-main" data-act="cardio:edit" data-id="'+s.id+'"><span class="wl-sess-type">'+esc(s.type||"Cardio")+'</span><span class="wl-sess-meta">'+meta.join("  ·  ")+'</span></button><button class="wl-icon-btn" data-act="cardio:del" data-id="'+s.id+'">'+I.trash.replace("<svg","<svg width=15 height=15")+'</button></div>';});
-  }else{h+='<div class="wl-hint">No cardio logged for this day.</div>';}
-  h+='<button class="wl-btn wl-btn-cardio wl-full" style="margin-top:10px" data-act="cardio:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add Cardio</button>';
-  h+='</div>';
-  h+='<div class="wl-card catcard lift"><div class="wl-card-head">'+catIcon("lift")+'<span>Weight Training</span></div>';
-  if(state.workout){var wp=state.workout.paused;h+='<button class="wl-inprogress'+(wp?" partial":"")+'" data-act="wo:resumeask"><span><span class="wl-ip-dot'+(wp?" pauseddot":"")+'"></span>'+esc(state.workout.name||"Workout")+'</span><span class="wl-ip-badge'+(wp?" partial":"")+'">'+(wp?"Partial ›":"In Progress ›")+'</span></button>';}
   var lsess=((state.training.liftSessions||{})[d]||[]);
+  var carMins=0;sess.forEach(function(s){carMins+=(num(s.mins)||0);});
+  var carSum=sess.length?(sess.length+(sess.length>1?" sessions":" session")+(carMins?" · "+carMins+" min":"")):"No cardio logged";
+  var liftSum=state.workout?"Workout in progress":(lsess.length?(lsess.length+(lsess.length>1?" sessions":" session")):"No training logged");
+  h+='<div class="wl-card catcard lift">'+catHead("lift","Weight Training",liftSum);
+  if(state.workout){var wp=state.workout.paused;h+='<button class="wl-inprogress'+(wp?" partial":"")+'" data-act="wo:resumeask"><span><span class="wl-ip-dot'+(wp?" pauseddot":"")+'"></span>'+esc(state.workout.name||"Workout")+'</span><span class="wl-ip-badge'+(wp?" partial":"")+'">'+(wp?"Partial ›":"In Progress ›")+'</span></button>';}
   if(lsess.length){lsess.forEach(function(s){var meta=[];meta.push((s.mode==="full"?"logged":"quick"));if(s.mins)meta.push(s.mins+" min");if(s.hr)meta.push("HR "+s.hr+(s.hrMax?"/"+s.hrMax:""));if(s.rpe)meta.push("RPE "+s.rpe);if(s.cal)meta.push("~"+s.cal+" cal");
     h+='<div class="wl-sess"><button class="wl-sess-main" data-act="lift:view" data-id="'+s.id+'"><span class="wl-sess-type">'+esc(s.name||"Weight training")+'</span><span class="wl-sess-meta">'+meta.join("  ·  ")+'</span></button><button class="wl-icon-btn" data-act="lift:del" data-id="'+s.id+'">'+I.trash.replace("<svg","<svg width=15 height=15")+'</button></div>';});}
-  else if(!state.workout){h+='<div class="wl-hint">No weight training logged for this day.</div>';}
   h+='<button class="wl-btn wl-btn-lift wl-full" style="margin-top:10px" data-act="wt:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add Weight Training</button></div>';
+  h+='<div class="wl-card catcard car">'+catHead("car","Cardio",carSum);
+  if(sess.length){sess.forEach(function(s){var meta=[];meta.push(s.mins+" min");if(s.zone)meta.push("Zone "+s.zone);if(s.hr)meta.push("HR "+s.hr+(s.hrMax?"/"+s.hrMax:""));else if(s.hrMax)meta.push("peak "+s.hrMax);if(s.rpe)meta.push("RPE "+s.rpe);if(s.cal)meta.push("~"+s.cal+" cal");
+    h+='<div class="wl-sess"><button class="wl-sess-main" data-act="cardio:edit" data-id="'+s.id+'"><span class="wl-sess-type">'+esc(s.type||"Cardio")+'</span><span class="wl-sess-meta">'+meta.join("  ·  ")+'</span></button><button class="wl-icon-btn" data-act="cardio:del" data-id="'+s.id+'">'+I.trash.replace("<svg","<svg width=15 height=15")+'</button></div>';});}
+  h+='<button class="wl-btn wl-btn-cardio wl-full" style="margin-top:10px" data-act="cardio:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add Cardio</button></div>';
   h+=prSummaryHTML();
   h+=actCatCardHTML("rest","Recovery",d);
   h+=actCatCardHTML("supp","Supplements & Meds",d);
