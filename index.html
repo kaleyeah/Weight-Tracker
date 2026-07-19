@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.232 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.234 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -598,7 +598,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.232";
+var APP_BUILD="2026-07-14.234";
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="34" y="26" width="32" height="12" rx="5" fill="#7C93F5"/><rect x="26" y="44" width="48" height="12" rx="5" fill="#9FB0C9"/><rect x="16" y="62" width="68" height="14" rx="5" fill="#F5B544"/></svg>';
 var deferredPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredPrompt=e;});
 var photoURLs=[],photoMap={},photoDB=null;
@@ -695,6 +695,11 @@ function migrateOrphanLiftTags(){var changed=false;var ls=(state.training&&state
     var filt=arr.filter(function(a){var c=(a&&a.cat)||catFromName(a&&a.name)||"other";if(c!=="lifting")return true;return !!sn[(a&&a.name)||""];});
     if(filt.length!==arr.length){changed=true;if(filt.length)state.workouts[d]=filt;else delete state.workouts[d];}});
   return changed;}
+function resyncAllActivityTags(){var before=JSON.stringify(state.workouts||{});var ds={};
+  var ss=(state.training&&state.training.sessions)||{},ls=(state.training&&state.training.liftSessions)||{};
+  Object.keys(ss).forEach(function(d){ds[d]=1;});Object.keys(ls).forEach(function(d){ds[d]=1;});Object.keys(state.workouts||{}).forEach(function(d){ds[d]=1;});
+  Object.keys(ds).forEach(function(d){syncCardioTags(d);syncLiftTags(d);});
+  return JSON.stringify(state.workouts||{})!==before;}
 function actLabel(a){return a.name?(CATLABEL[a.cat]+": "+a.name):CATLABEL[a.cat];}
 function normPresets(){var raw=state.presets;if(!Array.isArray(raw))return [];
   return raw.map(function(p){if(typeof p==="string")return {name:p,cat:catFromName(p)};return {name:(p&&p.name)||"",cat:(p&&p.cat)||catFromName(p&&p.name)||"other"};});}
@@ -823,7 +828,7 @@ function ghPut(c,sha,cb){
     .catch(function(e){cb&&cb(null,"offline");});}
 function cloudPush(manual){var c=syncCfg();if(!syncOn()){if(manual)toast("Set up sync first");return;}
   if(pushing){clearTimeout(pushTimer);pushTimer=setTimeout(function(){cloudPush(manual);},900);return;}
-  pushing=true;setSync("saving");
+  pushing=true;setSync("saving");resyncAllActivityTags();
   function put(sha,retry){ghPut(c,sha,function(ok,err){
     if(ok){pushing=false;markDirty(false);setLastSync();setSync("ok");if(manual)toast("Pushed to GitHub");return;}
     if(err==="conflict"&&!retry){cloudGet(function(d,e2){if(e2){pushing=false;setSync(e2==="offline"?"offline":"error",e2==="auth"?"bad token or repo access":"");if(manual)toast("Push failed");return;}put(ghSha,true);});return;}
@@ -1233,7 +1238,11 @@ function todayChecklistHTML(sel){
   return h+'</div>';
 }
 function activitySummaryHTML(sel){
-  var log=normActs(sel);
+  var log=[],seen={};
+  function _al(cat,name){var k=cat+":"+(name||"");if(!seen[k]){seen[k]=1;log.push({cat:cat,name:name});}}
+  (((state.training.sessions||{})[sel])||[]).forEach(function(s){if(s.kind==="cardio")_al("cardio",s.type||"Cardio");});
+  (((state.training.liftSessions||{})[sel])||[]).forEach(function(s){_al("lifting",s.name||"Weight training");});
+  normActs(sel).forEach(function(a){if(a.cat!=="cardio"&&a.cat!=="lifting")_al(a.cat,a.name);});
   var h='<div class="wl-card"><div class="wl-card-head"><span>Activity</span><button class="wl-link" data-act="go" data-view="train">Activity tab →</button></div>';
   if(log.length){h+='<div class="wl-preset-list" style="padding-top:2px">';log.forEach(function(a){h+='<span class="wl-achip '+a.cat+' on" style="cursor:default">'+esc(a.name||CATLABEL[a.cat])+'</span>';});h+='</div>';}
   else h+='<div class="wl-hint">No activity logged. Add cardio, lifting, recovery, or supplements from the Activity tab.</div>';
@@ -2798,7 +2807,7 @@ function makeIcon(){
 
 
 /* ---------------- init ---------------- */
-load();loadTraining();loadWorkout();ensureIdentity();if(migrateOrphanLiftTags())save();var _hasSetup=/[#&]setup=/.test(location.hash||"");if(_hasSetup){state.settings.onboarded=true;}else{if(state.settings.onboarded==null)state.settings.onboarded=(state.weights.length>0||num(state.settings.goalWeight)!=null||num(state.settings.startingWeight)!=null||!!(state.settings.name&&(""+state.settings.name).trim()));if(!state.settings.onboarded){state.onboarding=true;state.obStep=0;}}applyTheme(state.settings.theme||"dark");makeIcon();if(state.workout)state.view="train";render();autoSync();if(state.workout)startWoTick();if(_hasSetup)checkSetupLink();
+load();loadTraining();loadWorkout();ensureIdentity();if(resyncAllActivityTags())save();var _hasSetup=/[#&]setup=/.test(location.hash||"");if(_hasSetup){state.settings.onboarded=true;}else{if(state.settings.onboarded==null)state.settings.onboarded=(state.weights.length>0||num(state.settings.goalWeight)!=null||num(state.settings.startingWeight)!=null||!!(state.settings.name&&(""+state.settings.name).trim()));if(!state.settings.onboarded){state.onboarding=true;state.obStep=0;}}applyTheme(state.settings.theme||"dark");makeIcon();if(state.workout)state.view="train";render();autoSync();if(state.workout)startWoTick();if(_hasSetup)checkSetupLink();
 try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(e){}
 try{
   var wlraw=localStorage.getItem("wl_announced")||"";
