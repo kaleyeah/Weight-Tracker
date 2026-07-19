@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.239 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.240 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -608,7 +608,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.239";
+var APP_BUILD="2026-07-14.240";
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="34" y="26" width="32" height="12" rx="5" fill="#7C93F5"/><rect x="26" y="44" width="48" height="12" rx="5" fill="#9FB0C9"/><rect x="16" y="62" width="68" height="14" rx="5" fill="#F5B544"/></svg>';
 var deferredPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredPrompt=e;});
 var photoURLs=[],photoMap={},photoDB=null;
@@ -816,10 +816,13 @@ function scheduleCloudPush(){if(!syncOn())return;markDirty(true);setSync("saving
 var trainingSha=null,trainingPushTimer=null;
 function trainingFile(){var uid=syncCfg().uid;return uid?("t-"+uid+".json"):"training.json";}
 function scheduleTrainingPush(){if(!syncOn())return;clearTimeout(trainingPushTimer);trainingPushTimer=setTimeout(trainingPush,1600);}
-function trainingPush(){var c=syncCfg();if(!syncOn())return;var url=ghUrl(c,trainingFile());var br=c.branch||DEFAULT_BRANCH;
+function trainingPush(retry){var c=syncCfg();if(!syncOn())return;var url=ghUrl(c,trainingFile());var br=c.branch||DEFAULT_BRANCH;
   var body={message:"Update training data",content:b64enc(JSON.stringify(state.training)),branch:br};if(trainingSha)body.sha=trainingSha;
   fetch(url,{method:"PUT",headers:Object.assign({"Content-Type":"application/json"},ghHeaders(c)),body:JSON.stringify(body)})
-    .then(function(r){return r.ok?r.json():null;}).then(function(j){if(j&&j.content&&j.content.sha)trainingSha=j.content.sha;}).catch(function(){});}
+    .then(function(r){if(r.ok)return r.json();
+      if((r.status===409||r.status===422)&&!retry){fetch(url+"?ref="+encodeURIComponent(br)+"&t="+Date.now(),{headers:ghHeaders(c),cache:"no-store"}).then(function(r2){return r2.ok?r2.json():null;}).then(function(j2){trainingSha=(j2&&j2.sha)||null;trainingPush(true);}).catch(function(){});}
+      return null;})
+    .then(function(j){if(j&&j.content&&j.content.sha)trainingSha=j.content.sha;}).catch(function(){});}
 function trainingPull(cb){var c=syncCfg();if(!syncOn()){cb&&cb();return;}var br=c.branch||DEFAULT_BRANCH;
   fetch(ghUrl(c,trainingFile())+"?ref="+encodeURIComponent(br)+"&t="+Date.now(),{headers:ghHeaders(c),cache:"no-store"})
     .then(function(r){if(r.status===404){trainingSha=null;return null;}return r.ok?r.json():null;})
@@ -2534,9 +2537,10 @@ document.addEventListener("click",function(e){
   if(a==="photo:view"){openLightbox(el.getAttribute("data-id"));return;}
   if(a==="openday"){var od=el.getAttribute("data-date");state.selDate=od;var pd=parseISO(od);state.calY=pd.getFullYear();state.calM=pd.getMonth();state.view="overview";render();return;}
   if(a==="day:clear"){var fdd=state.selDate;
-    askConfirm("Clear ALL entries for this day — weight, steps, sleep, calories, macros, activities, note, and photos? This can\u2019t be undone.",function(){
+    askConfirm("Clear ALL entries for this day — weight, steps, sleep, calories, macros, activities, cardio & workout sessions, note, and photos? This can\u2019t be undone.",function(){
       delete state.food[fdd];delete state.steps[fdd];delete state.sleep[fdd];delete state.workouts[fdd];delete state.notes[fdd];delete state.bodyfat[fdd];delete state.waist[fdd];
       state.weights=state.weights.filter(function(x){return x.date!==fdd;});
+      if(state.training){if(state.training.sessions)delete state.training.sessions[fdd];if(state.training.liftSessions)delete state.training.liftSessions[fdd];saveTraining();}
       save();toast("Day cleared");
       try{idbByDate(fdd).then(function(list){list=list.filter(function(p){return p.kind!=="progress";});var t=list.map(function(p){return idbDelete(p.id);});Promise.all(t).then(function(){if(state.selDate===fdd)renderPhotos(fdd);});});}catch(e){}
     },{label:"Clear day"});
