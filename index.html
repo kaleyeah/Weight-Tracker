@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.231 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.232 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -598,7 +598,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.231";
+var APP_BUILD="2026-07-14.232";
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="34" y="26" width="32" height="12" rx="5" fill="#7C93F5"/><rect x="26" y="44" width="48" height="12" rx="5" fill="#9FB0C9"/><rect x="16" y="62" width="68" height="14" rx="5" fill="#F5B544"/></svg>';
 var deferredPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredPrompt=e;});
 var photoURLs=[],photoMap={},photoDB=null;
@@ -698,8 +698,10 @@ function migrateOrphanLiftTags(){var changed=false;var ls=(state.training&&state
 function actLabel(a){return a.name?(CATLABEL[a.cat]+": "+a.name):CATLABEL[a.cat];}
 function normPresets(){var raw=state.presets;if(!Array.isArray(raw))return [];
   return raw.map(function(p){if(typeof p==="string")return {name:p,cat:catFromName(p)};return {name:(p&&p.name)||"",cat:(p&&p.cat)||catFromName(p&&p.name)||"other"};});}
-function dayDots(iso){var seen={},cats=[];
-  normActs(iso).forEach(function(a){if(!seen[a.cat]){seen[a.cat]=1;cats.push(a.cat);}});
+function dayDots(iso){var seen={},cats=[];function _ad(c){if(!seen[c]){seen[c]=1;cats.push(c);}}
+  if((((state.training.sessions||{})[iso])||[]).some(function(s){return s.kind==="cardio";}))_ad("cardio");
+  if(((((state.training.liftSessions||{})[iso])||[]).length))_ad("lifting");
+  normActs(iso).forEach(function(a){if(a.cat!=="cardio"&&a.cat!=="lifting")_ad(a.cat);});
   if(cats.length)return '<span class="wl-cell-dots">'+cats.map(function(c){return '<i class="dot-'+c+'"></i>';}).join("")+'</span>';
   if(dayHasAny(iso))return '<span class="wl-cell-dots"><i class="dot-data"></i></span>';
   return '';}
