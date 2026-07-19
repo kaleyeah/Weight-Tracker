@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.235 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.236 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -598,7 +598,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.235";
+var APP_BUILD="2026-07-14.236";
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="34" y="26" width="32" height="12" rx="5" fill="#7C93F5"/><rect x="26" y="44" width="48" height="12" rx="5" fill="#9FB0C9"/><rect x="16" y="62" width="68" height="14" rx="5" fill="#F5B544"/></svg>';
 var deferredPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredPrompt=e;});
 var photoURLs=[],photoMap={},photoDB=null;
@@ -2443,7 +2443,7 @@ document.addEventListener("click",function(e){
   if(a==="lift:editcancel"){state.liftEdit=null;render();return;}
   if(a==="lift:tofinish"){state.liftEdit="summary";render();return;}
   if(a==="lift:summaryback"){state.liftEdit=(getLiftSession()&&getLiftSession().mode==="full")?"sets":null;render();return;}
-  if(a==="lift:del"){var d=state.liftViewDate||state.selDate;var sid=el.getAttribute("data-id");var arr=(state.training.liftSessions||{})[d]||[];var vic=arr.filter(function(s){return s.id===sid;})[0];askConfirm("Delete this "+((vic&&vic.name)||"workout")+" session? This can\u2019t be undone.",function(){var a2=((state.training.liftSessions||{})[d]||[]).filter(function(s){return s.id!==sid;});if(a2.length)state.training.liftSessions[d]=a2;else delete state.training.liftSessions[d];syncLiftTags(d);saveTraining();save();if(state.view==="liftview"){state.view="train";state.liftEdit=null;}},{label:"Delete"});return;}
+  if(a==="lift:del"){var sid=el.getAttribute("data-id");var ls=state.training.liftSessions||{};var vic=null,vd=null;Object.keys(ls).forEach(function(dt){(ls[dt]||[]).forEach(function(s){if(s.id===sid){vic=s;vd=dt;}});});if(!vd){toast("Session not found");return;}askConfirm("Delete this "+((vic&&vic.name)||"workout")+" session? This can\u2019t be undone.",function(){var a2=(ls[vd]||[]).filter(function(s){return s.id!==sid;});if(a2.length)ls[vd]=a2;else delete ls[vd];syncLiftTags(vd);saveTraining();save();if(state.view==="liftview"){state.view="train";state.liftEdit=null;}},{label:"Delete"});return;}
   if(a==="lift:savedetail"){saveTraining();save();state.view="train";state.liftViewId=null;state.liftEdit=null;toast("Saved");render();return;}
   if(a==="wt:add"){state.view="wtadd";render();return;}
   if(a==="wo:resumeask"){state.woResume=true;render();return;}
