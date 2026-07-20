@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-20.269 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-20.270 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -36,6 +36,7 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 .wl-hdr-brand{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:calc(20px + env(safe-area-inset-top,0px)) 20px 0;}
 .wl-header.hasbanner .wl-hdr-brand{padding-top:14px;}
 .wl-hdr-main{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding:4px 20px 14px;}
+.wl-hdr-back{background:none;border:none;color:var(--muted);font-family:var(--sans);cursor:pointer;flex:none;width:30px;height:36px;display:flex;align-items:center;justify-content:center;padding:0;margin-left:-8px;font-size:30px;line-height:1;}
 .wl-title-slot{flex:1;min-width:0;}
 .wl-hdr-actions{display:flex;align-items:center;gap:10px;flex:none;position:relative;}
 .wl-hdr-nav{display:flex;justify-content:center;padding:0 20px 14px;}
@@ -685,7 +686,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-20.269";
+var APP_BUILD="2026-07-20.270";
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
 var deferredPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredPrompt=e;});
 var photoURLs=[],photoMap={},photoDB=null;
@@ -1891,7 +1892,6 @@ function clearPhotoURLs(){photoURLs.forEach(function(u){try{URL.revokeObjectURL(
 var POSES=[["front","Front"],["left","Left Side"],["right","Right Side"],["back","Back"]];
 function view_photos(){
   var h='<div class="wl-stack">';
-  h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="go" data-view="weight">\u2039</button><span class="wl-cal-title">Progress Photos</span><span style="width:36px;display:inline-block"></span></div>';
   h+='<div class="wl-card"><div class="wl-card-head"><span>This Week</span><span class="wl-count">'+fmtShort(weekStartFor(0))+'</span></div><div id="wl-progweek" class="wl-poserow"><div class="wl-hint">Loading\u2026</div></div><div class="wl-hint" style="margin-top:10px">Tap a slot to add or retake. Photos stay on this device only \u2014 never synced or seen by the coach.</div></div>';
   h+='<div id="wl-progtimeline"></div>';
   return h+'</div>';
@@ -2678,14 +2678,15 @@ function confirmOverlayHTML(){var c=state.pendingConfirm;if(!c)return "";
   return '<div class="wl-confirm"><div class="wl-confirm-card"><div class="wl-confirm-msg">'+esc(c.message)+'</div><div class="wl-confirm-btns"><button class="wl-btn wl-btn-ghost wl-full" data-act="confirm:no">Cancel</button><button class="wl-btn wl-full" style="background:'+(c.danger?"var(--bad)":"var(--accent)")+';color:#fff;border:none" data-act="confirm:yes">'+esc(c.label)+'</button></div></div></div>';}
 function render(){
   clearPhotoURLs();
-  var title=state.view==="settings"?"Settings":state.view==="diary"?"Food Diary":state.view==="exlib"?"":state.view==="routine"?"":state.view==="rlaunch"?"Workout":state.view==="quicklog"?"Quick log":state.view==="workout"?"Workout":state.view==="liftview"?"Workout":state.view==="wtadd"?"Add Weight Training":state.view==="cardioadd"?((state.cardioForm&&state.cardioForm.id)?"Edit Cardio":"Add Cardio"):state.view==="actadd"?(state.actPick==="rest"?"Add Recovery":state.actPick==="supp"?"Add Supplement":"Add"):state.view==="photos"?"":(NAV.filter(function(n){return n[0]===state.view;})[0]||["","" ])[1];var hsub=state.view==="workout"?((state.workout&&state.workout.name)||""):state.view==="liftview"?(((getLiftSession()||{}).name)||""):state.view==="quicklog"?(((state.liftForm&&getRoutine(state.liftForm.routineId))||{}).name||""):state.view==="rlaunch"?(((getRoutine(state.routineId))||{}).name||""):"";
+  var title=state.view==="settings"?"Settings":state.view==="diary"?"Food Diary":state.view==="exlib"?"":state.view==="routine"?"":state.view==="rlaunch"?"Workout":state.view==="quicklog"?"Quick log":state.view==="workout"?"Workout":state.view==="liftview"?"Workout":state.view==="wtadd"?"Add Weight Training":state.view==="cardioadd"?((state.cardioForm&&state.cardioForm.id)?"Edit Cardio":"Add Cardio"):state.view==="actadd"?(state.actPick==="rest"?"Add Recovery":state.actPick==="supp"?"Add Supplement":"Add"):state.view==="photos"?"Progress Photos":(NAV.filter(function(n){return n[0]===state.view;})[0]||["","" ])[1];var hsub=state.view==="workout"?((state.workout&&state.workout.name)||""):state.view==="liftview"?(((getLiftSession()||{}).name)||""):state.view==="quicklog"?(((state.liftForm&&getRoutine(state.liftForm.routineId))||{}).name||""):state.view==="rlaunch"?(((getRoutine(state.routineId))||{}).name||""):"";
   var body=state.view==="overview"?view_overview():(state.view==="food"||state.view==="calendar")?view_overview():state.view==="weight"?view_weight():state.view==="summary"?view_summary():state.view==="diary"?view_diary():state.view==="train"?view_train():state.view==="exlib"?view_exlib():state.view==="routine"?view_routine():state.view==="rlaunch"?view_rlaunch():state.view==="quicklog"?view_quicklog():state.view==="workout"?view_workout():state.view==="liftview"?view_liftview():state.view==="wtadd"?view_wtadd():state.view==="cardioadd"?view_cardio():state.view==="actadd"?view_actadd():state.view==="photos"?view_photos():view_settings();
   var nav='<nav class="wl-nav">'+NAV.map(function(n){return '<button class="wl-navbtn '+(state.view===n[0]||(n[0]==="overview"&&(state.view==="food"||state.view==="diary"))||(n[0]==="weight"&&state.view==="photos")?"on":"")+'" data-act="go" data-view="'+n[0]+'">'+I[n[0]]+'<span>'+n[1]+'</span>'+((n[0]==="overview"&&coachUnreadN())?'<i class="wl-navdot"></i>':'')+'</button>';}).join("")+'</nav>';
   var avatar='<button class="wl-avatar'+(state.view==="settings"?" on":"")+'" data-act="go" data-view="settings" aria-label="Settings"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>';
   var hdrRight=syncOn()?'<button class="wl-syncdot" data-act="syncdot" aria-label="Sync status"><span class="wl-sdot '+syncDotClass()+'" id="wl-sdot"></span></button>':'';
   var maxBtn=isOwner()?'<button class="wl-maxb'+(coachUnreadW()?" hot":"")+'" data-act="max:open" aria-label="Messages from Coach Max">M</button>':'';
+  var backBtn=state.view==="photos"?'<button class="wl-hdr-back" data-act="go" data-view="weight" aria-label="Back">‹</button>':'';
   var _navH=headerNav();var _brand='<span class="wl-mark">'+BRANDMARK+'</span>';var _md=statusFor(todayISO());var _mbanner=_md?('<button class="wl-modebanner" data-act="go" data-view="settings"><span class="wl-mb-em">'+(_md.status.type==="vacation"?"\ud83c\udfd6\ufe0f":"\ud83e\udd12")+'</span><span>'+(_md.status.type==="vacation"?"Vacation Mode":"Recovery Mode")+'</span><span class="wl-mb-go">Settings \u203a</span></button>'):'';
-  document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header'+(_md?" hasbanner":"")+'">'+_mbanner+'<div class="wl-hdr-brand"><div class="wl-brandrow">'+_brand+'<span class="wl-eyebrow">Compound</span></div>'+hdrRight+'</div><div class="wl-hdr-main"><div class="wl-title-slot">'+(title?('<h1 class="wl-title">'+title+'</h1>'):'')+(hsub?'<div class="wl-hsub">'+esc(hsub)+'</div>':'')+'</div><div class="wl-hdr-actions">'+_navH+maxBtn+avatar+'</div></div></header><main class="wl-main">'+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML()+statusSheetHTML()+obOverlayHTML()+deviceSheetHTML()+maxSheetHTML();
+  document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header'+(_md?" hasbanner":"")+'">'+_mbanner+'<div class="wl-hdr-brand"><div class="wl-brandrow">'+_brand+'<span class="wl-eyebrow">Compound</span></div>'+hdrRight+'</div><div class="wl-hdr-main">'+backBtn+'<div class="wl-title-slot">'+(title?('<h1 class="wl-title">'+title+'</h1>'):'')+(hsub?'<div class="wl-hsub">'+esc(hsub)+'</div>':'')+'</div><div class="wl-hdr-actions">'+_navH+maxBtn+avatar+'</div></div></header><main class="wl-main">'+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML()+statusSheetHTML()+obOverlayHTML()+deviceSheetHTML()+maxSheetHTML();
   var hdr=document.querySelector(".wl-header");if(hdr)document.documentElement.style.setProperty("--headh",hdr.offsetHeight+"px");
   if(document.getElementById("wl-photostrip"))renderPhotosStrip(state.selDate);
   if(state.view==="diary")renderDiary();
