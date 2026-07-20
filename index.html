@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.256 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.257 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -672,7 +672,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.256";
+var APP_BUILD="2026-07-14.257";
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="34" y="26" width="32" height="12" rx="5" fill="#7C93F5"/><rect x="26" y="44" width="48" height="12" rx="5" fill="#9FB0C9"/><rect x="16" y="62" width="68" height="14" rx="5" fill="#F5B544"/></svg>';
 var deferredPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredPrompt=e;});
 var photoURLs=[],photoMap={},photoDB=null;
@@ -2390,7 +2390,6 @@ function actPickHTML(){
 function view_train(){
   var d=state.selDate;var cf=state.cardioForm;
   var h='<div class="wl-stack">'+dayBarHTML();
-  h+='<div class="wl-card"><div class="wl-card-head"><span>This Week\u2019s Goals</span></div>'+trainingGoalsHTML(weekStartOf(d))+'</div>';
   var sess=((state.training.sessions||{})[d]||[]).filter(function(s){return s.kind==="cardio";});
   var lsess=((state.training.liftSessions||{})[d]||[]);
   var carMins=0;sess.forEach(function(s){carMins+=(num(s.mins)||0);});
