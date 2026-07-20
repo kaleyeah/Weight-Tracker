@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-20.268 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-20.269 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -33,7 +33,7 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 .wl-header{display:flex;flex-direction:column;position:sticky;top:0;background:var(--bg);z-index:5;}
 .wl-hdr-row{display:flex;align-items:flex-end;justify-content:space-between;padding:calc(20px + env(safe-area-inset-top,0px)) 20px 14px;}
 .wl-header.hasbanner .wl-hdr-row{padding-top:14px;}
-.wl-hdr-brand{padding:calc(20px + env(safe-area-inset-top,0px)) 20px 0;}
+.wl-hdr-brand{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:calc(20px + env(safe-area-inset-top,0px)) 20px 0;}
 .wl-header.hasbanner .wl-hdr-brand{padding-top:14px;}
 .wl-hdr-main{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding:4px 20px 14px;}
 .wl-title-slot{flex:1;min-width:0;}
@@ -573,7 +573,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 .wl-substat-h{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;}
 .wl-substat-h>span{font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;}
 .wl-substat-h .v{color:var(--text);text-transform:none;letter-spacing:0;}
-.wl-syncdot{position:absolute;top:-11px;right:11px;width:18px;height:14px;display:flex;align-items:center;justify-content:center;background:none;border:none;padding:0;}
+.wl-syncdot{position:relative;flex:none;width:22px;height:22px;display:flex;align-items:center;justify-content:center;background:none;border:none;padding:0;cursor:pointer;}
 .wl-sdot{width:7px;height:7px;border-radius:50%;background:var(--faint);}
 .wl-sdot.good{background:var(--good);box-shadow:0 0 0 2px rgba(92,214,160,.18);}
 .wl-sdot.warn{background:var(--accent);box-shadow:0 0 0 2px rgba(245,181,68,.18);}
@@ -685,7 +685,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-20.268";
+var APP_BUILD="2026-07-20.269";
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
 var deferredPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredPrompt=e;});
 var photoURLs=[],photoMap={},photoDB=null;
@@ -2685,7 +2685,7 @@ function render(){
   var hdrRight=syncOn()?'<button class="wl-syncdot" data-act="syncdot" aria-label="Sync status"><span class="wl-sdot '+syncDotClass()+'" id="wl-sdot"></span></button>':'';
   var maxBtn=isOwner()?'<button class="wl-maxb'+(coachUnreadW()?" hot":"")+'" data-act="max:open" aria-label="Messages from Coach Max">M</button>':'';
   var _navH=headerNav();var _brand='<span class="wl-mark">'+BRANDMARK+'</span>';var _md=statusFor(todayISO());var _mbanner=_md?('<button class="wl-modebanner" data-act="go" data-view="settings"><span class="wl-mb-em">'+(_md.status.type==="vacation"?"\ud83c\udfd6\ufe0f":"\ud83e\udd12")+'</span><span>'+(_md.status.type==="vacation"?"Vacation Mode":"Recovery Mode")+'</span><span class="wl-mb-go">Settings \u203a</span></button>'):'';
-  document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header'+(_md?" hasbanner":"")+'">'+_mbanner+'<div class="wl-hdr-brand"><div class="wl-brandrow">'+_brand+'<span class="wl-eyebrow">Compound</span></div></div><div class="wl-hdr-main"><div class="wl-title-slot">'+(title?('<h1 class="wl-title">'+title+'</h1>'):'')+(hsub?'<div class="wl-hsub">'+esc(hsub)+'</div>':'')+'</div><div class="wl-hdr-actions">'+_navH+hdrRight+maxBtn+avatar+'</div></div></header><main class="wl-main">'+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML()+statusSheetHTML()+obOverlayHTML()+deviceSheetHTML()+maxSheetHTML();
+  document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header'+(_md?" hasbanner":"")+'">'+_mbanner+'<div class="wl-hdr-brand"><div class="wl-brandrow">'+_brand+'<span class="wl-eyebrow">Compound</span></div>'+hdrRight+'</div><div class="wl-hdr-main"><div class="wl-title-slot">'+(title?('<h1 class="wl-title">'+title+'</h1>'):'')+(hsub?'<div class="wl-hsub">'+esc(hsub)+'</div>':'')+'</div><div class="wl-hdr-actions">'+_navH+maxBtn+avatar+'</div></div></header><main class="wl-main">'+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML()+statusSheetHTML()+obOverlayHTML()+deviceSheetHTML()+maxSheetHTML();
   var hdr=document.querySelector(".wl-header");if(hdr)document.documentElement.style.setProperty("--headh",hdr.offsetHeight+"px");
   if(document.getElementById("wl-photostrip"))renderPhotosStrip(state.selDate);
   if(state.view==="diary")renderDiary();
