@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.248 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.251 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -262,6 +262,14 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 .wl-mprev{font-size:12.5px;color:var(--muted);margin-top:9px;line-height:1.5;font-style:italic;}
 .wl-navbtn{position:relative;}
 .wl-navdot{position:absolute;top:2px;left:calc(50% + 12px);width:9px;height:9px;border-radius:50%;background:var(--accent);border:2px solid var(--bg);}
+.wl-hubrow{display:flex;align-items:center;gap:11px;width:100%;background:none;border:none;border-top:1px solid var(--line);padding:13px 12px;font-family:var(--sans);color:var(--text);text-align:left;cursor:pointer;}
+.wl-hubrow:first-child{border-top:none;}
+.wl-hubic{width:30px;height:30px;border-radius:9px;flex:none;display:flex;align-items:center;justify-content:center;font-size:15px;background:var(--bg2);border:1px solid var(--line2);}
+.wl-hubl{flex:1;min-width:0;}
+.wl-hubt{font-size:14.5px;font-weight:700;display:block;}
+.wl-hubs{font-size:11.5px;color:var(--faint);display:block;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.wl-hubgo{color:var(--faint);font-size:17px;flex:none;}
+.wl-typex{width:22px;height:22px;border-radius:50%;background:rgba(242,109,91,.22);color:#ffb3a8;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex:none;}
 
 .wl-alert{display:flex;gap:12px;background:rgba(242,109,91,.10);border:1px solid rgba(242,109,91,.35);
   border-radius:14px;padding:14px;color:var(--bad);}
@@ -656,7 +664,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.248";
+var APP_BUILD="2026-07-14.251";
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="34" y="26" width="32" height="12" rx="5" fill="#7C93F5"/><rect x="26" y="44" width="48" height="12" rx="5" fill="#9FB0C9"/><rect x="16" y="62" width="68" height="14" rx="5" fill="#F5B544"/></svg>';
 var deferredPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredPrompt=e;});
 var photoURLs=[],photoMap={},photoDB=null;
@@ -2311,9 +2319,9 @@ function cardioFormHTML(cf){
   h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:14px" data-act="cardio:save">'+(cf.id?"Save changes":"Log cardio")+'</button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="cardio:cancel">Cancel</button>';
   return h+'</div>';
 }
-function cardioPickHTML(cf){var types=normPresets().filter(function(p){return p.cat==="cardio";}).map(function(p){return p.name;});
-  var h='<div class="wl-hint" style="margin-bottom:8px">Choose a cardio type:</div>';
-  if(types.length){h+='<div class="wl-rtlist">';types.forEach(function(t){h+='<button class="wl-rtrow" data-act="cardio:pick" data-type="'+esc(t)+'"><span class="wl-rtrow-info"><span class="wl-rtrow-name">'+esc(t)+'</span></span><span class="wl-rtrow-go">\u203a</span></button>';});h+='</div>';}
+function cardioPickHTML(cf){var ted=!!state.cardioTypeEdit;var types=normPresets().map(function(p,i){return {p:p,i:i};}).filter(function(x){return x.p.cat==="cardio";});
+  var h='<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px"><span class="wl-hint" style="margin:0">'+(ted?'Remove types you don\u2019t use \u2014 logged history is kept.':'Choose a cardio type:')+'</span><button class="wl-link" data-act="cf:typeedit" style="flex:none'+(ted?';color:var(--accent)':'')+'">'+(ted?'Done':'Edit types')+'</button></div>';
+  if(types.length){h+='<div class="wl-rtlist">';types.forEach(function(x){var t=x.p.name;if(ted){h+='<button class="wl-rtrow" data-act="preset:del" data-idx="'+x.i+'"><span class="wl-rtrow-info"><span class="wl-rtrow-name">'+esc(t)+'</span></span><span class="wl-typex">\u2715</span></button>';return;}h+='<button class="wl-rtrow" data-act="cardio:pick" data-type="'+esc(t)+'"><span class="wl-rtrow-info"><span class="wl-rtrow-name">'+esc(t)+'</span></span><span class="wl-rtrow-go">\u203a</span></button>';});h+='</div>';}
   else h+='<div class="wl-hint">No cardio types yet \u2014 add one below.</div>';
   if(cf.newOpen)h+='<div class="wl-row" style="margin-top:10px"><input class="wl-inline-input" id="wl-newcardio" placeholder="New cardio type (e.g. Stairmaster)"><button class="wl-btn wl-btn-ghost" data-act="cf:newtype">Add</button></div>';
   else h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="cf:newtype-toggle">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add Cardio Type</button>';
@@ -2332,33 +2340,17 @@ function view_actadd(){var cat=state.actPick;
   var sel=state.selDate;var pre=normPresets(),log=normActs(sel);
   function onIdx(pr){for(var i=0;i<log.length;i++){if(log[i].name===pr.name&&log[i].cat===pr.cat)return i;}return -1;}
   var items=pre.map(function(p,i){return {p:p,i:i};}).filter(function(x){return x.p.cat===cat;}).sort(function(a,b){return (a.p.name||"").toLowerCase().localeCompare((b.p.name||"").toLowerCase());});
-  h+='<div class="wl-card"><div class="wl-hint" style="margin-bottom:10px">'+fmtLong(parseISO(sel))+(sel===todayISO()?" \u00b7 Today":"")+' \u2014 tap to add or remove.</div>';
+  var ed=!!state.actEdit;
+  h+='<div class="wl-card"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px"><span class="wl-hint" style="margin:0">'+(ed?'Remove types you don\u2019t use \u2014 logged history is kept.':fmtLong(parseISO(sel))+(sel===todayISO()?" \u00b7 Today":"")+' \u2014 tap to add or remove.')+'</span><button class="wl-link" data-act="act:editmode" style="flex:none'+(ed?';color:var(--accent)':'')+'">'+(ed?'Done':'Edit')+'</button></div>';
   h+='<div class="wl-rtlist">';
-  items.forEach(function(x){var on=onIdx(x.p)>=0;h+='<button class="wl-rtrow" data-act="act:toggle" data-idx="'+x.i+'" data-date="'+sel+'"><span class="wl-rtrow-name">'+esc(x.p.name||CATLABEL[cat])+'</span><span class="wl-actcheck'+(on?" on":"")+'">'+(on?"\u2713":"")+'</span></button>';});
+  items.forEach(function(x){if(ed){h+='<button class="wl-rtrow" data-act="preset:del" data-idx="'+x.i+'"><span class="wl-rtrow-name">'+esc(x.p.name||CATLABEL[cat])+'</span><span class="wl-typex">\u2715</span></button>';return;}var on=onIdx(x.p)>=0;h+='<button class="wl-rtrow" data-act="act:toggle" data-idx="'+x.i+'" data-date="'+sel+'"><span class="wl-rtrow-name">'+esc(x.p.name||CATLABEL[cat])+'</span><span class="wl-actcheck'+(on?" on":"")+'">'+(on?"\u2713":"")+'</span></button>';});
   h+='</div>';
   if(state.actAddCat===cat)h+='<div class="wl-row" style="margin-top:12px"><input class="wl-inline-input" id="wl-addact-'+cat+'" placeholder="New '+(cat==="rest"?"recovery":"supplement")+' type" autocomplete="off"><button class="wl-btn wl-btn-ghost" data-act="act:addcat" data-cat="'+cat+'">Add</button></div>';
   else h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:12px" data-act="act:addopen" data-cat="'+cat+'">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add '+(cat==="rest"?"recovery":"supplement")+' type</button>';
   h+='</div>';
   h+='<button class="wl-btn wl-btn-primary wl-full" data-act="actpick:close">Done</button>';
   return h+'</div>';
-}function activityManageHTML(){
-  var op=state.manageOpen;
-  var h='<div class="wl-card"><button class="wl-collapse-head" data-act="manage:toggle"><span>Manage activities</span><span class="wl-chevron'+(op?" open":"")+'">›</span></button>';
-  if(op){h+='<div class="wl-collapse-body">';
-    var mp=normPresets();var byName=function(a,b){return (a.p.name||"").toLowerCase().localeCompare((b.p.name||"").toLowerCase());};
-    [["cardio","Cardio"],["lifting","Weight training"],["supp","Supplements"],["rest","Recovery"]].forEach(function(cd){
-      var cat=cd[0];var items=mp.map(function(p,i){return {p:p,i:i};}).filter(function(x){return x.p.cat===cat;}).sort(byName);
-      h+='<div style="margin:12px 0 6px"><span class="wl-actcat wl-cat-'+cat+'">'+cd[1]+'</span></div><div class="wl-preset-list">';
-      items.forEach(function(x){h+='<span class="wl-mgchip '+cat+'">'+esc(x.p.name)+'<button class="wl-mgchip-x" data-act="preset:del" data-idx="'+x.i+'">✕</button></span>';});
-      if(state.actAddCat===cat)h+='<span class="wl-mgchip '+cat+'"><input class="wl-mgchip-input" id="wl-addact-'+cat+'" placeholder="name…" autocomplete="off"><button class="wl-mgchip-x" data-act="act:addcat" data-cat="'+cat+'">✓</button></span>';
-      else h+='<button class="wl-achip other" data-act="act:addopen" data-cat="'+cat+'">＋ Add</button>';
-      h+='</div>';
-    });
-    h+='<div class="wl-hint" style="margin-top:12px">These are the activities you can tap-log on the Activity tab (Cardio, Recovery, and Supplements cards). Cardio ones also appear in the cardio logger.</div></div>';
-  }
-  return h+'</div>';
-}
-function catIcon(c){var p=(c==="car"||c==="cardio")?'<path d="M3 12h4l2-5 4 10 2-5h6"/>':c==="lift"?'<path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11"/>':c==="rest"?'<path d="M20 14.5A8 8 0 0 1 9.5 4a7 7 0 1 0 10.5 10.5z"/>':'<path d="M10.5 3.5 3.5 10.5a5 5 0 0 0 7 7l7-7a5 5 0 0 0-7-7zM7 7l7 7"/>';return '<span class="wl-caticon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg></span>';}
+}function catIcon(c){var p=(c==="car"||c==="cardio")?'<path d="M3 12h4l2-5 4 10 2-5h6"/>':c==="lift"?'<path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11"/>':c==="rest"?'<path d="M20 14.5A8 8 0 0 1 9.5 4a7 7 0 1 0 10.5 10.5z"/>':'<path d="M10.5 3.5 3.5 10.5a5 5 0 0 0 7 7l7-7a5 5 0 0 0-7-7zM7 7l7 7"/>';return '<span class="wl-caticon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg></span>';}
 function catHead(cat,title,sum){return '<div class="wl-cathead">'+catIcon(cat)+'<div class="wl-catmeta"><div class="wl-cattype">'+title+'</div><div class="wl-catsum">'+sum+'</div></div></div>';}
 function actCatCardHTML(cat,title,date){
   var log=normActs(date);var mine=[];log.forEach(function(a,i){if(a.cat===cat)mine.push({a:a,i:i});});
@@ -2410,11 +2402,31 @@ function view_train(){
   h+=actCatCardHTML("supp","Supplements & Meds",d);
   return h+'</div>';
 }
+function settingsHubHTML(){var f=state.settings;var strat=strategyMode();var sl=strat==="gain"?"Lean Bulk":strat==="maintain"?"Maintenance":"Fat Loss";var cal=num(f.targetCalories);
+  var pv={};
+  pv.profile=(f.name&&(""+f.name).trim())?esc((""+f.name).trim())+(num(f.age)!=null?" \u00b7 "+num(f.age):"")+" \u00b7 "+(f.units||"lbs"):"Set up your profile";
+  var tv=num(f.targetValue);var paceStr=(tv!=null&&strat!=="maintain")?(f.targetType==="percent_bw_per_week"?tv+"%/wk":tv+" "+(f.units||"lbs")+"/wk"):null;
+  pv.strategy=sl+(paceStr?" \u00b7 "+paceStr:"")+(cal!=null?" \u00b7 "+cal.toLocaleString()+" cal":"");
+  var lg=num(f.liftSessGoal),cg=num(f.cardioMinGoal),sg=num(f.stepsGoal);var gp=[];
+  if(lg!=null)gp.push(lg+" lifts");if(cg!=null)gp.push(cg+" min");if(sg!=null)gp.push(Math.round(sg/1000)+"k steps");
+  pv.goals=gp.length?gp.join(" \u00b7 "):"Set weekly goals";
+  pv.coach="Coach Max"+(f.reminderTime?" \u00b7 reminder "+esc(f.reminderTime):"");
+  var th=(THEMES[f.theme]||THEMES.dark||{});pv.appearance=(th.label||"Dark")+" mode";
+  var st=statusFor(todayISO());pv.away=st?((st.status.type==="vacation"?"Vacation":"Recovery")+" mode active"):"No status set";
+  pv.sync=syncOn()?"Connected":"Not set up";
+  pv.data="Export \u00b7 import \u00b7 restore";
+  pv.about="v"+APP_BUILD;
+  var rows=[["profile","\ud83d\udc64","Profile"],["strategy","\ud83e\udded","Strategy"],["goals","\ud83c\udfaf","Goals"],["coach","\ud83c\udf99","Coach"],["appearance","\ud83c\udfa8","Appearance"],["away","\ud83c\udf34","Away & Recovery"],["sync","\ud83d\udd04","Sync & Devices"],["data","\ud83d\udcbe","Data & Backup"],["about","\u2139\ufe0f","About & Reset"]];
+  return '<div class="wl-card" style="padding:6px 4px">'+rows.map(function(r){return '<button class="wl-hubrow" data-act="set:page" data-page="'+r[0]+'"><span class="wl-hubic">'+r[1]+'</span><span class="wl-hubl"><span class="wl-hubt">'+r[2]+'</span><span class="wl-hubs">'+pv[r[0]]+'</span></span><span class="wl-hubgo">\u203a</span></button>';}).join("")+'</div>';}
 function view_settings(){
   applyAutoMacros();
   var f=state.settings;var u=f.units;
   var op=state.open||{};
   var h='<div class="wl-stack">';
+  var pg=state.setPage||"";
+  if(!pg){h+=settingsHubHTML();}
+  else h+='<div><button class="wl-btn wl-btn-ghost" style="width:auto;padding:8px 14px;margin-bottom:2px" data-act="set:back">\u2039 Settings</button></div>';
+  if(pg==="profile"){
   var profOpen=!!op.profile;
   h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="profile"><span>My Profile'+(profileComplete()?'':' <span class="wl-req">Required</span>')+'</span><span class="wl-chevron'+(profOpen?" open":"")+'">›</span></button>';
   if(profOpen){h+='<div class="wl-collapse-body">';
@@ -2428,6 +2440,8 @@ function view_settings(){
     h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:16px 0 8px">Weekly check-in day</div><div class="wl-daypick">'+WEEKDAYS.map(function(dn,i){return '<button class="wl-day'+((parseInt(f.weekStart,10)||0)===i?" on":"")+'" data-act="set:weekstart" data-day="'+i+'">'+dn+'</button>';}).join("")+'</div><div class="wl-hint">Your week runs '+DAYFULL[parseInt(f.weekStart,10)||0]+' through '+DAYFULL[((parseInt(f.weekStart,10)||0)+6)%7]+'.</div>';
     h+='</div>';}
   h+='</div>';
+  }
+  if(pg==="strategy"){
   var stratOpen=!!op.strategy;
   h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="strategy"><span>Strategy</span><span class="wl-chevron'+(stratOpen?" open":"")+'">›</span></button>';
   if(stratOpen){h+='<div class="wl-collapse-body">';
@@ -2446,6 +2460,8 @@ function view_settings(){
     h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:16px 0 8px">Macro targets</div><div class="wl-macrogrid">'+[["targetProtein","Protein","g"],["targetCarbs","Carbs","g"],["targetFat","Fat","g"]].map(function(x){return '<label class="wl-field"><span>'+x[1]+' <em>'+x[2]+'</em></span><input class="wl-num" type="text" inputmode="decimal" data-set="'+x[0]+'" value="'+esc(f[x[0]])+'" placeholder="—"></label>';}).join("")+'</div><div id="wl-macronotice">'+macroNoticeHTML()+'</div><div class="wl-hint"><span id="wl-macropct">'+macroPctHTML()+'</span></div>';
     h+='</div>';}
   h+='</div>';
+  }
+  if(pg==="goals"){
   h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="goals"><span>Goals</span><span class="wl-chevron'+(op.goals?" open":"")+'">›</span></button>';
   if(op.goals){h+='<div class="wl-collapse-body">';
     h+='<label class="wl-field wl-field-full"><span>Daily steps goal</span><input class="wl-num" data-int="1" data-set="stepsGoal" type="text" inputmode="numeric" value="'+esc(f.stepsGoal||"")+'" placeholder="—"></label>';
@@ -2455,20 +2471,29 @@ function view_settings(){
     h+='<div class="wl-hint" style="margin-top:6px">Cardio minutes only count sessions whose average heart rate is zone 2 or higher (a session with no zone logged still counts).</div>';
     h+='</div>';}
   h+='</div>';
-  h+=activityManageHTML();
+  }
+  if(pg==="away"){
   var _sf=statusFor(todayISO());
   if(_sf){var _iv=_sf.status.type==="vacation";var _em=_iv?"\ud83c\udfd6\ufe0f":"\ud83e\udd12";var _rng=_sf.status.end?("until "+fmtShort(parseISO(_sf.status.end))):"ongoing";
     h+='<div class="wl-card wl-modecard '+(_iv?"vac":"sick")+'"><div class="wl-card-head"><span>'+_em+' '+(_iv?"Vacation Mode":"Recovery Mode")+'</span><span class="wl-modeon">ON</span></div>';
     h+='<div class="wl-hint" style="margin-bottom:12px">Active '+_rng+' \u2014 check-ins are relaxed and your coach is easing up. '+(_iv?"Enjoy it.":"Rest up and feel better.")+'</div>';
     h+='<div class="wl-row"><button class="wl-btn wl-btn-ghost" style="flex:1" data-act="status:open">Edit</button><button class="wl-btn wl-btn-primary" style="flex:1" data-act="status:endnow">End '+(_iv?"vacation":"recovery")+'</button></div></div>';
   }else{h+='<div class="wl-card"><div class="wl-card-head"><span>Away &amp; recovery</span></div><div class="wl-hint" style="margin-bottom:10px">Heading out or feeling sick? Set a status so your coach eases up and days still count as checked in.</div><button class="wl-btn wl-btn-ghost wl-full" data-act="status:open">Set a status</button></div>';}
+  }
+  if(pg==="coach"){
   h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="reminder"><span>Daily reminder</span><span class="wl-chevron'+(op.reminder?" open":"")+'">›</span></button>'+(op.reminder?('<div class="wl-collapse-body">'+
     '<label class="wl-field wl-field-full"><span>Remind me to log at</span><input type="time" id="wl-remind-time" value="'+esc(f.reminderTime||"19:00")+'"></label>'+
     '<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="reminder:add">'+I.calendar.replace("<svg","<svg width=16 height=16")+'Add reminder to Calendar</button>'+
     '<div class="wl-hint" style="margin-top:10px">Tap <b>Add reminder to Calendar</b>, then choose <b>Add All</b> — this creates a daily repeating reminder in your Calendar that notifies you even when the app is closed. (iPhone &amp; iPad don\u2019t let a web app send its own scheduled notifications, so this uses your Calendar instead.) To change the time, pick a new one and add it again, then delete the old event.</div></div>'):'')+'</div>';
+  }
+  if(pg==="appearance"){
   h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="theme"><span>Appearance</span><span class="wl-chevron'+(op.theme?" open":"")+'">›</span></button>'+(op.theme?('<div class="wl-collapse-body"><div class="wl-theme-grid">'+themeGrid()+'</div></div>'):'')+'</div>';
+  }
+  if(pg==="data"){
   h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="exportdata"><span>Export data</span><span class="wl-chevron'+(op.exportdata?" open":"")+'">›</span></button>'+(op.exportdata?('<div class="wl-collapse-body"><button class="wl-btn wl-btn-primary wl-full" data-act="sum:exportall">Export all data</button><div class="wl-hint" style="margin-top:8px">CSV of your full history — every logged metric, training, and notes.</div></div>'):'')+'</div>';
+  }
   var sc=syncCfg();
+  if(pg==="sync"){
   if(isOwner()){
   h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="sync"><span>Cloud sync <em>GitHub</em></span><span class="wl-chevron'+(op.sync?" open":"")+'">›</span></button>'+(op.sync?('<div class="wl-collapse-body">'+
     '<label class="wl-field wl-field-full"><span>Access token</span><input type="password" data-sync="token" value="'+esc(sc.token||"")+'" placeholder="github_pat_…" autocapitalize="off" autocorrect="off" spellcheck="false"></label>'+
@@ -2486,12 +2511,16 @@ function view_settings(){
     (state.joinOpen?'<textarea id="wl-joincode" placeholder="Paste the invite code you were sent" style="width:100%;min-height:76px;margin-top:10px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--mono);font-size:11px;padding:10px;box-sizing:border-box;outline:none"></textarea><div class="wl-row" style="margin-top:6px"><button class="wl-btn wl-btn-ghost wl-full" data-act="invite:joincancel">Cancel</button><button class="wl-btn wl-btn-primary wl-full" data-act="invite:join">Join</button></div>':'')+
     (isOwner()?'<div class="wl-hint" style="margin-top:10px">Add people by <b>invite code</b>. Each person gets their own private space tied to that code — it can\u2019t be switched or overwritten from another device. Your <b>activities and macros stay private</b>; only weight-loss progress is shared, on the Home tab.</div><div class="wl-hint">Note: everyone shares one repo &amp; token, so this is trust-based separation (fine for family) rather than a hard wall.</div>':'<div class="wl-hint" style="margin-top:10px">This name shows on your progress card for whoever you\u2019re sharing with. Your weigh-ins, activities, and macros are your own.</div>')
     ):'')+'</div>';
+  }
+  if(pg==="data"){
   if(isOwner())
   h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="backup"><span>Backup &amp; transfer</span><span class="wl-chevron'+(op.backup?" open":"")+'">›</span></button>'+(op.backup?('<div class="wl-collapse-body">'+
     '<div class="wl-row"><button class="wl-btn wl-btn-ghost wl-full" data-act="export">Export / share file</button><button class="wl-btn wl-btn-ghost wl-full" data-act="import">Import file</button></div>'+
     '<div class="wl-row" style="margin-top:10px"><button class="wl-btn wl-btn-ghost wl-full" data-act="copy">Copy backup text</button><button class="wl-btn wl-btn-ghost wl-full" data-act="paste">Restore from text</button></div>'+
     (state.pasteOpen?'<textarea id="wl-paste" placeholder="Paste backup JSON here, then tap Restore" style="width:100%;min-height:120px;margin-top:10px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--mono);font-size:13px;padding:10px;box-sizing:border-box;outline:none"></textarea><div class="wl-row" style="margin-top:8px"><button class="wl-btn wl-btn-ghost wl-full" data-act="paste:cancel">Cancel</button><button class="wl-btn wl-btn-primary wl-full" data-act="paste:do">Restore</button></div>':'')+
     '<div class="wl-hint">Your data lives only on this device. To move or sync it: <b>Export</b> (or <b>Copy</b>) a backup, drop it in your Dropbox/Synology folder, then <b>Import</b> (or paste) it on your other device. On iPad, Export opens the Share sheet so you can pick Save to Files.</div></div>'):'')+'</div>';
+  }
+  if(pg==="about"){
   h+='<div class="wl-card"><div class="wl-card-head"><span>App <em>version '+APP_BUILD+'</em></span></div>'+
     '<button class="wl-btn wl-btn-primary wl-full" data-act="app:update">Update app to latest</button>'+
     '<div class="wl-hint" style="margin-top:10px">Loads the newest version published to GitHub without re-adding to your Home Screen. Publish your change, wait ~1 minute for GitHub to build, then tap this. Your data and login stay put. After it reloads, check the version number above changed.</div></div>';
@@ -2499,6 +2528,7 @@ function view_settings(){
   if(!state.confirmReset)h+='<button class="wl-btn wl-btn-danger wl-full" data-act="reset:ask">'+I.trash.replace("<svg","<svg width=16 height=16")+'Erase all data</button>';
   else h+='<div class="wl-hint">This permanently deletes every weigh-in, food entry, step count, activity, and setting. This can\'t be undone.</div><div class="wl-row"><button class="wl-btn wl-btn-ghost wl-full" data-act="reset:cancel">Cancel</button><button class="wl-btn wl-btn-danger wl-full" data-act="reset:do">Yes, erase everything</button></div>';
   h+='</div>';
+  }
   h+='<div style="text-align:center;margin-top:6px"><button class="wl-btn wl-btn-ghost" style="display:inline-block;width:auto;padding:9px 18px" data-act="ob:start">Replay first-time setup</button></div>';
   h+='<div style="text-align:center;padding:26px 0 8px">'+'<div style="display:inline-flex;align-items:center;gap:9px">'+BRANDMARK.replace("width=\"18\" height=\"18\"","width=\"26\" height=\"26\"")+'<span class="wl-brandword">COMPOUND</span></div>'+'<div style="color:var(--faint);font-size:10px;margin-top:9px;letter-spacing:.22em;text-transform:uppercase">Strength · in reps · over years</div>'+'<div style="color:var(--faint);font-size:11px;margin-top:5px;letter-spacing:.02em;font-family:var(--mono)">v'+APP_BUILD+'</div></div>';
   return h+'</div>';
@@ -2528,7 +2558,9 @@ function render(){
 function toast(msg){var t=document.getElementById("wl-toast");t.textContent=msg;t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(function(){t.classList.remove("show");},1600);}
 document.addEventListener("click",function(e){
   var el=e.target.closest("[data-act]");if(!el)return;var a=el.getAttribute("data-act");
-  if(a==="go"){var _gv=el.getAttribute("data-view");if(_gv==="exlib"&&state.view!=="exlib")state.exlibFrom=state.view;state.view=_gv;if(state.view==="diary")state.diaryWeeks=1;if(state.view==="settings"){state.open={};state.manageOpen=false;}state.alertDismissed=false;state.confirmReset=false;state.pasteOpen=false;state.syncPasteOpen=false;state.inviteCode=null;state.joinOpen=false;render();return;}
+  if(a==="set:page"){var _pgv=el.getAttribute("data-page");state.setPage=_pgv;state.open=state.open||{};({profile:["profile"],strategy:["strategy"],goals:["goals"],coach:["reminder"],appearance:["theme"],data:["exportdata","backup"],sync:["sync","share"]}[_pgv]||[]).forEach(function(k){state.open[k]=true;});render();return;}
+  if(a==="set:back"){state.setPage=null;render();return;}
+  if(a==="go"){var _gv=el.getAttribute("data-view");if(_gv==="exlib"&&state.view!=="exlib")state.exlibFrom=state.view;if(_gv==="settings")state.setPage=null;state.view=_gv;if(state.view==="diary")state.diaryWeeks=1;if(state.view==="settings"){state.open={};state.manageOpen=false;}state.alertDismissed=false;state.confirmReset=false;state.pasteOpen=false;state.syncPasteOpen=false;state.inviteCode=null;state.joinOpen=false;render();return;}
   if(a==="confirm:yes"){var pc=state.pendingConfirm;state.pendingConfirm=null;if(pc&&pc.fn)pc.fn();render();return;}
   if(a==="confirm:no"){state.pendingConfirm=null;render();return;}
   if(a==="alert:dismiss"){state.alertDismissed=true;render();return;}
@@ -2675,14 +2707,13 @@ document.addEventListener("click",function(e){
   if(a==="ex:del"){var did=el.getAttribute("data-id");var dex=(state.training.exercises||[]).filter(function(e){return e.id===did;})[0];if(!dex)return;askConfirm("Remove \""+dex.name+"\" from your library? This can\u2019t be undone.",function(){state.training.exercises=(state.training.exercises||[]).filter(function(e){return e.id!==did;});saveTraining();if(state.exForm&&state.exForm.id===did)state.exForm=null;});return;}
   if(a==="cardio:add"){state.cardioForm={kind:"cardio",id:null,picking:true,type:"",mins:"",zone:2,rpe:"",cal:"",hr:"",hrMax:"",notes:"",newOpen:false};state.view="cardioadd";render();return;}
   if(a==="cardio:edit"){var eid=el.getAttribute("data-id");var es=((state.training.sessions[state.selDate])||[]).filter(function(s){return s.id===eid;})[0];if(es)state.cardioForm={kind:"cardio",id:es.id,type:es.type,mins:es.mins,zone:es.zone||2,rpe:es.rpe!=null?es.rpe:"",cal:es.cal!=null?es.cal:"",hr:es.hr!=null?es.hr:"",hrMax:es.hrMax!=null?es.hrMax:"",notes:es.notes!=null?es.notes:"",picking:false,newOpen:false};state.view="cardioadd";render();return;}
-  if(a==="cardio:pick"){if(state.cardioForm){state.cardioForm.type=el.getAttribute("data-type");state.cardioForm.picking=false;}render();return;}
+  if(a==="cardio:pick"){state.cardioTypeEdit=false;if(state.cardioForm){state.cardioForm.type=el.getAttribute("data-type");state.cardioForm.picking=false;}render();return;}
   if(a==="cardio:repick"){if(state.cardioForm)state.cardioForm.picking=true;render();return;}
   if(a==="cardio:cancel"){state.cardioForm=null;state.view="train";render();return;}
   if(a==="cf:type"){if(state.cardioForm)state.cardioForm.type=el.getAttribute("data-type");render();return;}
   if(a==="cf:zone"){if(state.cardioForm)state.cardioForm.zone=+el.getAttribute("data-zone");render();return;}
   if(a==="cf:newtype-toggle"){if(state.cardioForm)state.cardioForm.newOpen=!state.cardioForm.newOpen;render();return;}
   if(a==="cf:newtype"){var ni=document.getElementById("wl-newcardio");var nv=((ni&&ni.value)||"").trim();if(!nv)return;var prc=normPresets();if(!prc.some(function(p){return p.name.toLowerCase()===nv.toLowerCase()&&p.cat==="cardio";})){prc.push({name:nv,cat:"cardio"});state.presets=prc;save();}if(state.cardioForm){state.cardioForm.type=nv;state.cardioForm.newOpen=false;state.cardioForm.picking=false;}render();return;}
-  if(a==="manage:toggle"){state.manageOpen=!state.manageOpen;state.actAddCat=null;render();return;}
   if(a==="act:addopen"){state.actAddCat=el.getAttribute("data-cat");render();var _ai=document.getElementById("wl-addact-"+state.actAddCat);if(_ai)_ai.focus();return;}
   if(a==="act:addcat"){var ac=el.getAttribute("data-cat");var ai=document.getElementById("wl-addact-"+ac);var av=((ai&&ai.value)||"").trim();if(!av){state.actAddCat=null;render();return;}var prA=normPresets();if(!prA.some(function(p){return p.name.toLowerCase()===av.toLowerCase()&&p.cat===ac;})){prA.push({name:av,cat:ac});state.presets=prA;save();}state.actAddCat=null;render();return;}
   if(a==="cardio:save"){var cf=state.cardioForm;if(!cf)return;var mins=num(cf.mins);
@@ -2725,7 +2756,9 @@ document.addEventListener("click",function(e){
   if(a==="cal:expand"){state.calOpen=!state.calOpen;try{localStorage.setItem("wl_calopen",state.calOpen?"1":"0");}catch(e){}if(state.calOpen){var pd=parseISO(state.selDate);state.calY=pd.getFullYear();state.calM=pd.getMonth();}render();return;}
   if(a==="cal:overwrite"){var d=state.selDate;var e2=Object.assign({},state.food[d]||{});var p=num(e2.protein),c=num(e2.carbs),f=num(e2.fat);e2.calories=String(Math.round((p||0)*4+(c||0)*4+(f||0)*9));e2.calAuto=true;delete e2.calDismiss;state.food[d]=e2;save();render();return;}
   if(a==="cal:ignore"){var d2=state.selDate;var e3=Object.assign({},state.food[d2]||{});e3.calDismiss=true;state.food[d2]=e3;save();var n=document.getElementById("wl-calnotice");if(n)n.innerHTML="";return;}
-  if(a==="act:pick"){state.actPick=el.getAttribute("data-cat");state.actAddCat=null;state.view="actadd";render();return;}
+  if(a==="act:pick"){state.actPick=el.getAttribute("data-cat");state.actAddCat=null;state.actEdit=false;state.view="actadd";render();return;}
+  if(a==="act:editmode"){state.actEdit=!state.actEdit;render();return;}
+  if(a==="cf:typeedit"){state.cardioTypeEdit=!state.cardioTypeEdit;render();return;}
   if(a==="actpick:close"){state.actPick=null;state.actAddCat=null;state.view="train";render();return;}
   if(a==="act:toggle"){var d0=el.getAttribute("data-date")||state.selDate;var pr=normPresets()[+el.getAttribute("data-idx")];if(!pr)return;var list=normActs(d0);var found=-1;for(var i=0;i<list.length;i++){if(list[i].name===pr.name&&list[i].cat===pr.cat){found=i;break;}}if(found>=0)list.splice(found,1);else list.push({cat:pr.cat,name:pr.name});if(list.length)state.workouts[d0]=list;else delete state.workouts[d0];save();render();refreshClearBtn();return;}
   if(a==="act:del"){var d1=el.getAttribute("data-date")||state.selDate;var i1=+el.getAttribute("data-idx");var l0=normActs(d1);var vic1=l0[i1];askConfirm("Remove "+((vic1&&vic1.name)||"this item")+"?",function(){var l1=normActs(d1);l1.splice(i1,1);if(l1.length)state.workouts[d1]=l1;else delete state.workouts[d1];save();render();refreshClearBtn();},{label:"Remove"});return;}
@@ -2763,7 +2796,6 @@ document.addEventListener("click",function(e){
   if(a==="reminder:add"){var ti=document.getElementById("wl-remind-time");var tv=(ti&&ti.value)||"19:00";state.settings.reminderTime=tv;save();shareOrDownload("activity-reminder.ics","text/calendar",reminderICS(tv));return;}
   if(a==="set:ttype"){state.settings.targetType=el.getAttribute("data-type");save();render();return;}
   if(a==="export"){exportData();return;}
-  if(a==="preset:add"){var inp=document.getElementById("wl-newact-name");var sc=document.getElementById("wl-newact-cat");var v=((inp&&inp.value)||"").trim();var c=(sc&&sc.value)||"cardio";if(!v)return;var pr=normPresets();for(var i=0;i<pr.length;i++){if(pr[i].name.toLowerCase()===v.toLowerCase()&&pr[i].cat===c){if(inp)inp.value="";return;}}pr.push({name:v,cat:c});state.presets=pr;state.actAddOpen=false;save();render();return;}
   if(a==="preset:del"){var pr2=normPresets();var pi=+el.getAttribute("data-idx");var pn=(pr2[pi]&&pr2[pi].name)||"";askConfirm("Remove \""+pn+"\" from your activities? It won't be tap-loggable anymore. Days you already logged it on keep it.",function(){var p3=normPresets();p3.splice(pi,1);state.presets=p3;save();},{label:"Remove"});return;}
   if(a==="import"){document.getElementById("wl-import").click();return;}
   if(a==="copy"){copyBackup();return;}
