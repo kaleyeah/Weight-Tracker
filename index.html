@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.245 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.247 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -254,6 +254,14 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 .wl-mz-pv .same{color:var(--muted);}
 .wl-mz-pv .up{color:var(--good);}
 .wl-mz-cool{font-size:11px;color:var(--faint);text-align:center;margin-top:9px;line-height:1.5;}
+.wl-mhead{display:flex;align-items:center;gap:10px;width:100%;text-align:left;}
+.wl-mav{width:34px;height:34px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;border:1px solid var(--line2);background:linear-gradient(145deg,var(--line),#171c24);color:var(--accent);}
+.wl-mtitle{font-weight:700;font-size:14px;display:block;color:var(--text);}
+.wl-msub{font-size:11px;color:var(--faint);display:block;margin-top:1px;}
+.wl-newpill{margin-left:auto;background:var(--accent);color:#20160A;font-size:10px;font-weight:800;letter-spacing:.05em;padding:3px 9px;border-radius:12px;text-transform:uppercase;flex:none;}
+.wl-mprev{font-size:12.5px;color:var(--muted);margin-top:9px;line-height:1.5;font-style:italic;}
+.wl-navbtn{position:relative;}
+.wl-navdot{position:absolute;top:2px;left:calc(50% + 12px);width:9px;height:9px;border-radius:50%;background:var(--accent);border:2px solid var(--bg);}
 
 .wl-alert{display:flex;gap:12px;background:rgba(242,109,91,.10);border:1px solid rgba(242,109,91,.35);
   border-radius:14px;padding:14px;color:var(--bad);}
@@ -648,7 +656,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.245";
+var APP_BUILD="2026-07-14.247";
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="34" y="26" width="32" height="12" rx="5" fill="#7C93F5"/><rect x="26" y="44" width="48" height="12" rx="5" fill="#9FB0C9"/><rect x="16" y="62" width="68" height="14" rx="5" fill="#F5B544"/></svg>';
 var deferredPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredPrompt=e;});
 var photoURLs=[],photoMap={},photoDB=null;
@@ -781,7 +789,7 @@ function load(){
   try{state.calOpen=localStorage.getItem("wl_calopen")==="1";}catch(e){}
 }
 function payload(){return {settings:state.settings,weights:state.weights,food:state.food,workouts:state.workouts,steps:state.steps,notes:state.notes,sleep:state.sleep,bodyfat:state.bodyfat,waist:state.waist,statuses:state.statuses,weeklySummary:state.weeklySummary,nightlySummary:state.nightlySummary,presets:state.presets,skips:state.skips,scriptVer:state.scriptVer};}
-var EXPECTED_SCRIPTS={weekly:"2026-07-14.168",nightly:"2026-07-14.168"};
+var EXPECTED_SCRIPTS={weekly:"2026-07-14.169",nightly:"2026-07-14.169"};
 function scriptVerWarn(){var sv=state.scriptVer||{};var bad=[];if(sv.weekly&&sv.weekly!==EXPECTED_SCRIPTS.weekly)bad.push("weekly "+sv.weekly);if(sv.nightly&&sv.nightly!==EXPECTED_SCRIPTS.nightly)bad.push("nightly "+sv.nightly);return bad.length?bad:null;}
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(payload()));}catch(e){toast("Couldn't save — storage full or blocked");}}
 function save(){saveLocal();scheduleCloudPush();}
@@ -935,7 +943,7 @@ function genSummary(){var c=syncCfg();
     throw new Error("Couldn't start the check-in ("+r.status+")");
   }).then(function(){return pollSummary(prevGen,30);})
   .then(function(sum){state.genBusy=false;
-    if(sum){state.weeklySummary=sum;state.sumOpen=true;saveLocal();toast("Your check-in is ready");}
+    if(sum){state.weeklySummary=sum;state.sumOpen=true;if(sum.week)state.settings.seenWeekly=sum.week;saveLocal();toast("Your check-in is ready");}
     else toast("Still working — it will appear here shortly");
     render();})
   .catch(function(e){state.genBusy=false;render();toast(e.message||"Couldn't generate");});}
@@ -1082,7 +1090,7 @@ function genNightly(){var c=syncCfg();
     throw new Error("Couldn't start the recap ("+r.status+")");
   }).then(function(){return pollNightly(prevGen,30);})
   .then(function(sum){state.nightBusy=false;
-    if(sum){state.nightlySummary=sum;state.nightOpen=true;saveLocal();toast("Today\u2019s recap is ready");}
+    if(sum){state.nightlySummary=sum;state.nightOpen=true;if(sum.date)state.settings.seenNightly=sum.date;saveLocal();toast("Today\u2019s recap is ready");}
     else toast("Still working — it will appear here shortly");
     render();})
   .catch(function(e){state.nightBusy=false;render();toast(e.message||"Couldn't generate");});}
@@ -1303,6 +1311,11 @@ function activitySummaryHTML(sel){
   else h+='<div class="wl-hint">No activity logged. Add cardio, lifting, recovery, or supplements from the Activity tab.</div>';
   return h+'</div>';
 }
+function coachUnreadN(){var ns=state.nightlySummary;return !!(ns&&ns.text&&ns.date&&state.settings.seenNightly!==ns.date);}
+function coachUnreadW(){var ws=state.weeklySummary;return !!(ws&&ws.text&&ws.week&&state.settings.seenWeekly!==ws.week);}
+function msgPreview(t){var x=(""+(t||"")).replace(/[#*_>`\u2022-]/g,"").replace(/\s+/g," ").trim();return x.length>110?x.slice(0,110)+"\u2026":x;}
+function coachHeadHTML(title,dateStr,unread,open){var right=unread?'<span class="wl-newpill">New</span>':(open?'<span class="wl-chevron open" style="margin-left:auto">›</span>':'<span style="margin-left:auto;color:var(--accent);font-weight:600;font-size:13px;flex:none">View ›</span>');
+  return '<span class="wl-mhead"><span class="wl-mav">M</span><span style="min-width:0"><span class="wl-mtitle">'+title+'</span><span class="wl-msub">from Coach Max · '+dateStr+'</span></span>'+right+'</span>';}
 function view_overview(){
   var u=state.settings.units;
   var h='<div class="wl-stack">';h+=dayBarHTML();
@@ -1328,13 +1341,14 @@ function view_overview(){
   h+='<div class="wl-card"><div class="wl-card-head"><span>This Week’s Goals</span></div>'+trainingGoalsHTML(weekStartOf(state.selDate))+'</div>';
   var _wk=toISO(weekStartFor(0));var _sum=(state.weeklySummary&&state.weeklySummary.week===_wk&&state.weeklySummary.text)?state.weeklySummary.text:null;
   var _ciDay=(new Date().getDay()===(parseInt(state.settings.weekStart,10)||0));
-  if(_sum){try{var _seen=localStorage.getItem("wl_sumseen");if(state.weeklySummary.week!==_seen){state.sumOpen=true;localStorage.setItem("wl_sumseen",state.weeklySummary.week);localStorage.setItem("wl_sumopen","1");}}catch(e){}}
   if(state.genBusy||_sum||_ciDay){
   h+='<div class="wl-card" style="border:1px solid var(--accent)">';
   if(state.genBusy){
     h+='<div class="wl-card-head"><span>Weekly check-in</span></div><div class="wl-hint">⏳ Generating your check-in… this takes about a minute. You can keep using the app — it\u2019ll appear here when it\u2019s ready.</div>';
-  }else if(_sum){var _open=state.sumOpen!==false;
-    h+='<button class="wl-collapse-head" data-act="sum:toggle"><span>Weekly check-in'+(_open?' <span class="wl-count" style="margin-left:6px">AI</span>':'')+'</span>'+(_open?'<span class="wl-chevron open">›</span>':'<span style="color:var(--accent);font-weight:600;font-size:13px">View summary ›</span>')+'</button>';
+  }else if(_sum){var _unrdW=coachUnreadW();var _open=_unrdW?false:(state.sumOpen!==false);
+    var _wdate="week of "+fmtShort(parseISO(state.weeklySummary.week));
+    h+='<button class="wl-collapse-head" data-act="sum:toggle">'+coachHeadHTML("Weekly check-in",_wdate,_unrdW,_open)+'</button>';
+    if(_unrdW)h+='<div class="wl-mprev">“'+esc(msgPreview(_sum))+'”</div>';
     if(_open){h+='<div class="wl-ai-summary" style="margin-top:6px">'+renderSummary(_sum)+'</div>';if(_ciDay)h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="ai:gen">↻ Regenerate</button>';}
   }else{
     h+='<div class="wl-card-head"><span>Weekly check-in</span></div><div class="wl-hint" style="margin-bottom:10px">Your recap of last week is ready to generate.</div><button class="wl-btn wl-btn-primary wl-full" data-act="ai:gen">Generate summary</button>';
@@ -1344,9 +1358,9 @@ function view_overview(){
   if(_ciDay)h+='<div class="wl-card"><button class="wl-btn wl-btn-primary wl-full" data-act="go" data-view="photos">\ud83d\udcf7 This Week\u2019s Progress Photos</button><div class="wl-hint" style="margin-top:8px">Check-in day \u2014 capture Front, Left Side, Right Side, and Back to track your visible progress.</div></div>';
   h+=todayChecklistHTML(state.selDate);
   h+=activitySummaryHTML(state.selDate);
-  var _ns=state.nightlySummary;var _sel=state.selDate;var _hasRecap=_ns&&_ns.date===_sel&&_ns.text;
-  if(_hasRecap){var _no=state.nightOpen!==false;
-    h+='<div class="wl-card"><button class="wl-collapse-head" data-act="night:toggle"><span>Daily recap <span class="wl-count" style="margin-left:6px">'+fmtShort(parseISO(_ns.date))+'</span></span>'+(_no?'<span class="wl-chevron open">›</span>':'<span style="color:var(--accent);font-weight:600;font-size:13px">View ›</span>')+'</button>';
+  var _ns=state.nightlySummary;var _sel=state.selDate;var _unrdN=coachUnreadN();var _hasRecap=_ns&&_ns.text&&(_ns.date===_sel||_unrdN);
+  if(_hasRecap){var _no=_unrdN?false:(state.nightOpen!==false);
+    h+='<div class="wl-card"><button class="wl-collapse-head" data-act="night:toggle">'+coachHeadHTML("Daily recap",fmtShort(parseISO(_ns.date)),_unrdN,_no)+'</button>';
     if(_no)h+='<div class="wl-ai-summary" style="margin-top:6px">'+renderSummary(_ns.text)+'</div>';
     h+='</div>';}
     h+='<div class="wl-card"><div class="wl-card-head"><span>Food diary</span><button class="wl-link" data-act="go" data-view="diary">Browse all →</button></div>';
@@ -2495,7 +2509,7 @@ function render(){
   clearPhotoURLs();
   var title=state.view==="settings"?"Settings":state.view==="diary"?"Food Diary":state.view==="exlib"?"":state.view==="routine"?"":state.view==="rlaunch"?"Workout":state.view==="quicklog"?"Quick log":state.view==="workout"?"Workout":state.view==="liftview"?"Workout":state.view==="wtadd"?"Add Weight Training":state.view==="cardioadd"?((state.cardioForm&&state.cardioForm.id)?"Edit Cardio":"Add Cardio"):state.view==="actadd"?(state.actPick==="rest"?"Add Recovery":state.actPick==="supp"?"Add Supplement":"Add"):state.view==="photos"?"":(NAV.filter(function(n){return n[0]===state.view;})[0]||["","" ])[1];var hsub=state.view==="workout"?((state.workout&&state.workout.name)||""):state.view==="liftview"?(((getLiftSession()||{}).name)||""):state.view==="quicklog"?(((state.liftForm&&getRoutine(state.liftForm.routineId))||{}).name||""):state.view==="rlaunch"?(((getRoutine(state.routineId))||{}).name||""):"";
   var body=state.view==="overview"?view_overview():(state.view==="food"||state.view==="calendar")?view_overview():state.view==="weight"?view_weight():state.view==="summary"?view_summary():state.view==="diary"?view_diary():state.view==="train"?view_train():state.view==="exlib"?view_exlib():state.view==="routine"?view_routine():state.view==="rlaunch"?view_rlaunch():state.view==="quicklog"?view_quicklog():state.view==="workout"?view_workout():state.view==="liftview"?view_liftview():state.view==="wtadd"?view_wtadd():state.view==="cardioadd"?view_cardio():state.view==="actadd"?view_actadd():state.view==="photos"?view_photos():view_settings();
-  var nav='<nav class="wl-nav">'+NAV.map(function(n){return '<button class="wl-navbtn '+(state.view===n[0]||(n[0]==="overview"&&(state.view==="food"||state.view==="diary"))||(n[0]==="weight"&&state.view==="photos")?"on":"")+'" data-act="go" data-view="'+n[0]+'">'+I[n[0]]+'<span>'+n[1]+'</span></button>';}).join("")+'</nav>';
+  var nav='<nav class="wl-nav">'+NAV.map(function(n){return '<button class="wl-navbtn '+(state.view===n[0]||(n[0]==="overview"&&(state.view==="food"||state.view==="diary"))||(n[0]==="weight"&&state.view==="photos")?"on":"")+'" data-act="go" data-view="'+n[0]+'">'+I[n[0]]+'<span>'+n[1]+'</span>'+((n[0]==="overview"&&(coachUnreadN()||coachUnreadW()))?'<i class="wl-navdot"></i>':'')+'</button>';}).join("")+'</nav>';
   var avatar='<button class="wl-avatar'+(state.view==="settings"?" on":"")+'" data-act="go" data-view="settings" aria-label="Settings"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>';
   var hdrRight=syncOn()?'<button class="wl-syncdot" data-act="syncdot" aria-label="Sync status"><span class="wl-sdot '+syncDotClass()+'" id="wl-sdot"></span></button>':'';
   var _navH=headerNav();var _brand='<span class="wl-mark">'+BRANDMARK+'</span>';var _md=statusFor(todayISO());var _mbanner=_md?('<button class="wl-modebanner" data-act="go" data-view="settings"><span class="wl-mb-em">'+(_md.status.type==="vacation"?"\ud83c\udfd6\ufe0f":"\ud83e\udd12")+'</span><span>'+(_md.status.type==="vacation"?"Vacation Mode":"Recovery Mode")+'</span><span class="wl-mb-go">Settings \u203a</span></button>'):'';
@@ -2541,8 +2555,8 @@ document.addEventListener("click",function(e){
   if(a==="opentoday"){state.selDate=todayISO();state.calY=new Date().getFullYear();state.calM=new Date().getMonth();state.cardioForm=null;render();return;}
   if(a==="ai:copy"){copyText(weeklyAIText(),"Copied your week — paste into your AI to generate");return;}
   if(a==="ai:gen"){genSummary();return;}
-  if(a==="sum:toggle"){state.sumOpen=(state.sumOpen===false);try{localStorage.setItem("wl_sumopen",state.sumOpen?"1":"0");}catch(e){}render();return;}
-  if(a==="night:toggle"){state.nightOpen=(state.nightOpen===false);render();return;}
+  if(a==="sum:toggle"){var _ws1=state.weeklySummary;if(_ws1&&_ws1.week&&state.settings.seenWeekly!==_ws1.week){state.settings.seenWeekly=_ws1.week;state.sumOpen=true;try{localStorage.setItem("wl_sumopen","1");}catch(e){}save();render();return;}state.sumOpen=(state.sumOpen===false);try{localStorage.setItem("wl_sumopen",state.sumOpen?"1":"0");}catch(e){}render();return;}
+  if(a==="night:toggle"){var _ns1=state.nightlySummary;if(_ns1&&_ns1.date&&state.settings.seenNightly!==_ns1.date){state.settings.seenNightly=_ns1.date;state.nightOpen=true;if(state.selDate!==_ns1.date){state.selDate=_ns1.date;var _np=parseISO(_ns1.date);state.calY=_np.getFullYear();state.calM=_np.getMonth();}save();render();return;}state.nightOpen=(state.nightOpen===false);render();return;}
   if(a==="diary:older"){state.diaryWeeks=(state.diaryWeeks||1)+1;renderDiary();return;}
   if(a==="browse:open"){state.browseOpen=true;state.exForm=null;render();return;}
   if(a==="browse:close"){state.browseOpen=false;render();return;}
