@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.258 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.260 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -270,6 +270,9 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 .wl-maxempty .bigav{width:54px;height:54px;border-radius:50%;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:22px;border:1px solid var(--line2);background:linear-gradient(145deg,var(--line),#171c24);color:var(--accent);}
 .wl-maxempty .t{font-weight:800;font-size:15px;margin-bottom:6px;}
 .wl-maxempty .s{font-size:12.5px;color:var(--muted);line-height:1.55;}
+.wl-hkbtn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;border:1px solid rgba(245,181,68,.5);background:rgba(245,181,68,.10);color:var(--accent);border-radius:12px;padding:12px;font-weight:800;font-size:14px;margin-top:12px;font-family:var(--sans);cursor:pointer;}
+.wl-hkbadge{display:inline-flex;align-items:center;gap:6px;background:rgba(92,214,160,.12);border:1px solid rgba(92,214,160,.4);color:#a9e8cc;font-size:11.5px;font-weight:700;border-radius:16px;padding:5px 11px;margin-top:12px;}
+.wl-hkwait{display:flex;align-items:center;justify-content:space-between;gap:10px;color:var(--muted);font-size:12.5px;margin-top:12px;line-height:1.4;}
 .wl-hubrow{display:flex;align-items:center;gap:11px;width:100%;background:none;border:none;border-top:1px solid var(--line);padding:13px 12px;font-family:var(--sans);color:var(--text);text-align:left;cursor:pointer;}
 .wl-hubrow:first-child{border-top:none;}
 .wl-hubic{width:30px;height:30px;border-radius:9px;flex:none;display:flex;align-items:center;justify-content:center;font-size:15px;background:var(--bg2);border:1px solid var(--line2);}
@@ -672,7 +675,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.258";
+var APP_BUILD="2026-07-14.260";
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
 var deferredPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredPrompt=e;});
 var photoURLs=[],photoMap={},photoDB=null;
@@ -1326,6 +1329,25 @@ function activitySummaryHTML(sel){
   return h+'</div>';
 }
 var wkPhotoHave=null,wkPhotoKey=null;
+function hkTryFetch(){var w=state.hkWait;if(!w)return;
+  if(Date.now()-w.ts>5*60*1000){state.hkWait=null;render();return;}
+  var c=syncCfg();if(!syncOn())return;
+  fetch(ghUrl(c,"health.json")+"?ref="+encodeURIComponent(c.branch||DEFAULT_BRANCH)+"&t="+Date.now(),{headers:ghHeaders(c),cache:"no-store"})
+    .then(function(r){return r.ok?r.json():null;})
+    .then(function(j){var rec=null;
+      if(j&&j.content){try{rec=JSON.parse(b64dec((j.content||"").replace(/\n/g,"")));}catch(e){rec=null;}}
+      var w2=state.hkWait;if(!w2)return;
+      if(!rec||rec.date!==w2.date){
+        w2.tries=(w2.tries||0)+1;
+        if(w2.tries<6){setTimeout(hkTryFetch,2000);}
+        else{state.hkWait=null;toast("No Health data found yet \u2014 run the shortcut and try again");render();}
+        return;}
+      var d=rec.date;var fo=Object.assign({},state.food[d]||{});
+      ["calories","protein","carbs","fat"].forEach(function(k){var v=num(rec[k]);if(v!=null)fo[k]=String(Math.round(v));});
+      state.food[d]=fo;state.hkDone={date:d,ts:Date.now()};state.hkWait=null;
+      save();toast("Imported from Health");render();})
+    .catch(function(){});}
+
 function refreshWeekPhotos(){if(typeof indexedDB==="undefined"){wkPhotoHave=false;return;}var wk=toISO(weekStartFor(0));var key=wk;
   try{var r=indexedDB.open("wl_photos",1);r.onsuccess=function(){var db=r.result;if(!db.objectStoreNames.contains("photos")){wkPhotoHave=false;wkPhotoKey=key;return;}
     var tx=db.transaction("photos","readonly");var rq=tx.objectStore("photos").index("date").openCursor(IDBKeyRange.lowerBound(wk));
@@ -1678,7 +1700,13 @@ function quickEntryHTML(){
     [["protein","Protein","g"],["fat","Fat","g"],["carbs","Carbs","g"]].forEach(function(f){var val=e[f[0]]!=null?e[f[0]]:"";body+='<label class="wl-field"><span>'+f[1]+' <em>'+f[2]+'</em></span><input class="wl-food-input wl-num" data-food="'+f[0]+'" type="text" inputmode="decimal" placeholder="0" value="'+val+'">';if(hasT&&t[f[0]]!=null)body+='<div class="wl-tbar" id="bar-'+f[0]+'">'+barInner(num(val),t[f[0]])+'</div>';body+='</label>';});
     var _cv=e.calories!=null?e.calories:"";
     body+='</div><label class="wl-field wl-field-full" style="margin-top:14px"><span>Total Calories <em>cal</em></span><input class="wl-food-input wl-num" data-food="calories" type="text" inputmode="decimal" placeholder="0" value="'+_cv+'">';if(hasT&&t.calories!=null)body+='<div class="wl-tbar" id="bar-calories">'+barInner(num(_cv),t.calories)+'</div>';body+='</label>';
-    body+='<div id="wl-calnotice">'+calNoticeHTML(sel)+'</div>';var _clk=isSkip(sel,"calories");body+=skipBtn("calories",_clk,"food");}
+    body+='<div id="wl-calnotice">'+calNoticeHTML(sel)+'</div>';var _clk=isSkip(sel,"calories");body+=skipBtn("calories",_clk,"food");
+    if(isOwner()){
+      if(state.hkDone&&state.hkDone.date===sel){var _hd=new Date(state.hkDone.ts);var _hh=_hd.getHours()%12;if(_hh===0)_hh=12;var _hm=(_hd.getMinutes()<10?"0":"")+_hd.getMinutes();
+        body+='<div class="wl-hkbadge">\u2713 Imported from Health \u00b7 '+_hh+':'+_hm+(_hd.getHours()<12?" AM":" PM")+'</div>';}
+      else if(state.hkWait&&state.hkWait.date===sel){body+='<div class="wl-hkwait"><span>\u23f3 Waiting for Health data\u2026 swipe back after the shortcut finishes.</span><button class="wl-link" data-act="hk:cancel" style="flex:none">Cancel</button></div>';}
+      else{body+='<button class="wl-hkbtn" data-act="hk:import">\u2933 Import from Apple Health</button>';}
+    }}
   else if(sec==="notes")body='<textarea class="wl-note-input" placeholder="Any notes for the AI summary (feeling sick, feeling good, on vacation…)" style="width:100%;min-height:96px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:14px;padding:11px 12px;box-sizing:border-box;outline:none;resize:vertical">'+esc(state.notes[sel]||"")+'</textarea>';
   var h='<div class="wl-confirm"><div class="wl-confirm-card">';
   h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><div style="font-weight:800;font-size:17px">'+titles[sec]+'</div><button class="wl-icon-btn" data-act="qe:close">✕</button></div>';
@@ -2568,7 +2596,7 @@ document.addEventListener("click",function(e){
   var el=e.target.closest("[data-act]");if(!el)return;var a=el.getAttribute("data-act");
   if(a==="set:page"){var _pgv=el.getAttribute("data-page");state.setPage=_pgv;state.open=state.open||{};({profile:["profile"],strategy:["strategy"],goals:["goals"],coach:["reminder"],appearance:["theme"],data:["exportdata","backup"],sync:["sync","share"]}[_pgv]||[]).forEach(function(k){state.open[k]=true;});render();return;}
   if(a==="set:back"){state.setPage=null;render();return;}
-  if(a==="go"){var _gv=el.getAttribute("data-view");if(_gv==="exlib"&&state.view!=="exlib")state.exlibFrom=state.view;if(_gv==="settings")state.setPage=null;state.view=_gv;if(state.view==="diary")state.diaryWeeks=1;if(state.view==="settings"){state.open={};state.manageOpen=false;}state.alertDismissed=false;state.confirmReset=false;state.pasteOpen=false;state.syncPasteOpen=false;state.inviteCode=null;state.joinOpen=false;render();return;}
+  if(a==="go"){var _gv=el.getAttribute("data-view");if(_gv==="exlib"&&state.view!=="exlib")state.exlibFrom=state.view;if(_gv==="settings"){if(state.view==="settings"){_gv=state.setFrom||"overview";}else{state.setFrom=state.view;state.setPage=null;}}state.view=_gv;if(state.view==="diary")state.diaryWeeks=1;if(state.view==="settings"){state.open={};state.manageOpen=false;}state.alertDismissed=false;state.confirmReset=false;state.pasteOpen=false;state.syncPasteOpen=false;state.inviteCode=null;state.joinOpen=false;render();return;}
   if(a==="confirm:yes"){var pc=state.pendingConfirm;state.pendingConfirm=null;if(pc&&pc.fn)pc.fn();render();return;}
   if(a==="confirm:no"){state.pendingConfirm=null;render();return;}
   if(a==="alert:dismiss"){state.alertDismissed=true;render();return;}
@@ -2599,6 +2627,10 @@ document.addEventListener("click",function(e){
   if(a==="opentoday"){state.selDate=todayISO();state.calY=new Date().getFullYear();state.calM=new Date().getMonth();state.cardioForm=null;render();return;}
   if(a==="ai:copy"){copyText(weeklyAIText(),"Copied your week — paste into your AI to generate");return;}
   if(a==="ai:gen"){genSummary();return;}
+  if(a==="hk:import"){var _hkd=state.selDate;state.hkWait={date:_hkd,ts:Date.now(),tries:0};state.hkDone=null;render();
+    location.href="shortcuts://run-shortcut?name="+encodeURIComponent("Compound Health Import")+"&input=text&text="+encodeURIComponent(_hkd);
+    setTimeout(hkTryFetch,2500);return;}
+  if(a==="hk:cancel"){state.hkWait=null;render();return;}
   if(a==="max:open"){state.maxOpen=true;var _mws=state.weeklySummary;if(_mws&&_mws.week&&state.settings.seenWeekly!==_mws.week){state.settings.seenWeekly=_mws.week;save();}render();return;}
   if(a==="max:close"){state.maxOpen=false;render();return;}
   if(a==="noop"){return;}
@@ -3036,7 +3068,7 @@ try{
   if(wlseen.indexOf(APP_BUILD)<0){showAppliedBanner(APP_BUILD);wlseen.push(APP_BUILD);if(wlseen.length>15)wlseen=wlseen.slice(wlseen.length-15);localStorage.setItem("wl_announced",wlseen.join(","));}
 }catch(e){}
 checkForUpdate();
-document.addEventListener("visibilitychange",function(){if(!document.hidden)checkForUpdate();});
+document.addEventListener("visibilitychange",function(){if(!document.hidden){checkForUpdate();hkTryFetch();}});
 
 /* ---------------- pull-to-refresh ---------------- */
 (function(){
