@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.252 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.253 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -664,7 +664,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.252";
+var APP_BUILD="2026-07-14.253";
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="34" y="26" width="32" height="12" rx="5" fill="#7C93F5"/><rect x="26" y="44" width="48" height="12" rx="5" fill="#9FB0C9"/><rect x="16" y="62" width="68" height="14" rx="5" fill="#F5B544"/></svg>';
 var deferredPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredPrompt=e;});
 var photoURLs=[],photoMap={},photoDB=null;
@@ -2293,9 +2293,10 @@ function woOverlaysHTML(){var h="";
   if(state.noteEdit&&state.noteEdit.woEi!=null)h+='<div class="wl-confirm"><div class="wl-confirm-card">'+noteEditorHTML()+'</div></div>';
   return h;}
 function view_wtadd(){var h='<div class="wl-stack">';
-  var rts=state.training.routines||[];
-  h+='<div class="wl-card"><div class="wl-card-head"><span>Routines'+(rts.length?' <span class="wl-count">'+rts.length+'</span>':'')+'</span></div>';
-  if(rts.length){h+='<div class="wl-rtlist">';rts.forEach(function(rt){var nEx=(rt.items||[]).length;h+='<button class="wl-rtrow" data-act="rt:open" data-id="'+rt.id+'"><span class="wl-rtrow-info"><span class="wl-rtrow-name">'+esc(rt.name||"Untitled Routine")+'</span><span class="wl-rtrow-sub">'+nEx+' exercise'+(nEx===1?"":"s")+'</span></span><span class="wl-rtrow-go">›</span></button>';});h+='</div>';}
+  var rts=state.training.routines||[];var red=!!state.rtEdit;
+  h+='<div class="wl-card"><div class="wl-card-head"><span>Routines'+(rts.length?' <span class="wl-count">'+rts.length+'</span>':'')+'</span>'+(rts.length?'<button class="wl-link" data-act="rt:editmode" style="'+(red?'color:var(--accent)':'')+'">'+(red?'Done':'Edit')+'</button>':'')+'</div>';
+  if(red)h+='<div class="wl-hint" style="margin-bottom:8px">Remove routines you don\u2019t use \u2014 logged workouts are kept.</div>';
+  if(rts.length){h+='<div class="wl-rtlist">';rts.forEach(function(rt){var nEx=(rt.items||[]).length;if(red){h+='<button class="wl-rtrow" data-act="rt:del" data-id="'+rt.id+'"><span class="wl-rtrow-info"><span class="wl-rtrow-name">'+esc(rt.name||"Untitled Routine")+'</span><span class="wl-rtrow-sub">'+nEx+' exercise'+(nEx===1?"":"s")+'</span></span><span class="wl-typex">\u2715</span></button>';return;}h+='<button class="wl-rtrow" data-act="rt:open" data-id="'+rt.id+'"><span class="wl-rtrow-info"><span class="wl-rtrow-name">'+esc(rt.name||"Untitled Routine")+'</span><span class="wl-rtrow-sub">'+nEx+' exercise'+(nEx===1?"":"s")+'</span></span><span class="wl-rtrow-go">›</span></button>';});h+='</div>';}
   else h+='<div class="wl-hint">No routines yet — create one to get started.</div>';
   h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="rt:new">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add New Routine</button>';
   h+='</div>';
@@ -2660,7 +2661,8 @@ document.addEventListener("click",function(e){
   if(a==="lift:summaryback"){state.liftEdit=(getLiftSession()&&getLiftSession().mode==="full")?"sets":null;render();return;}
   if(a==="lift:del"){var sid=el.getAttribute("data-id");var ls=state.training.liftSessions||{};var vic=null,vd=null;Object.keys(ls).forEach(function(dt){(ls[dt]||[]).forEach(function(s){if(s.id===sid){vic=s;vd=dt;}});});if(!vd){toast("Session not found");return;}askConfirm("Delete this "+((vic&&vic.name)||"workout")+" session? This can\u2019t be undone.",function(){var a2=(ls[vd]||[]).filter(function(s){return s.id!==sid;});if(a2.length)ls[vd]=a2;else delete ls[vd];syncLiftTags(vd);saveTraining();save();if(state.view==="liftview"){state.view="train";state.liftEdit=null;}},{label:"Delete"});return;}
   if(a==="lift:savedetail"){saveTraining();save();state.view="train";state.liftViewId=null;state.liftEdit=null;toast("Saved");render();return;}
-  if(a==="wt:add"){state.view="wtadd";render();return;}
+  if(a==="wt:add"){state.view="wtadd";state.rtEdit=false;render();return;}
+  if(a==="rt:editmode"){state.rtEdit=!state.rtEdit;render();return;}
   if(a==="wo:resumeask"){state.woResume=true;render();return;}
   if(a==="wo:resumecancel"){state.woResume=false;render();return;}
   if(a==="wo:resume"){state.woResume=false;var w=state.workout;if(w&&w.paused){w.paused=false;w.tState="working";w.stateStartTs=Date.now();if(w.startTs==null)w.startTs=Date.now();saveWorkout();}state.view="workout";render();startWoTick();return;}
@@ -2676,7 +2678,7 @@ document.addEventListener("click",function(e){
     state.training.liftSessions=state.training.liftSessions||{};var list=(state.training.liftSessions[d]||[]).slice();list.push(sess);state.training.liftSessions[d]=list;
     syncLiftTags(d);saveTraining();save();state.liftForm=null;state.view="train";toast("Workout logged");render();return;}
   if(a==="rt:openedit_dummy"){return;}
-  if(a==="rt:del"){var rid=el.getAttribute("data-id");var rr=getRoutine(rid);askConfirm("Delete the routine \""+((rr&&rr.name)||"Untitled")+"\"? This can\u2019t be undone. (Your exercise library is unaffected.)",function(){state.training.routines=(state.training.routines||[]).filter(function(r){return r.id!==rid;});saveTraining();state.view="train";state.routineId=null;});return;}
+  if(a==="rt:del"){var rid=el.getAttribute("data-id");var rr=getRoutine(rid);askConfirm("Delete the routine \""+((rr&&rr.name)||"Untitled")+"\"? This can\u2019t be undone. (Your exercise library is unaffected.)",function(){state.training.routines=(state.training.routines||[]).filter(function(r){return r.id!==rid;});saveTraining();if(state.view!=="wtadd"){state.view="train";}state.routineId=null;});return;}
   if(a==="ri:add"){state.riPickOpen=true;state.noteEdit=null;render();return;}
   if(a==="ri:pickclose"){state.riPickOpen=false;render();return;}
   if(a==="ri:pick"){var rt=getRoutine(state.routineId);if(!rt)return;var eid=el.getAttribute("data-eid");if((rt.items||[]).some(function(i){return i.exerciseId===eid;}))return;rt.items=rt.items||[];rt.items.push({id:"i-"+Date.now()+"-"+Math.random().toString(36).slice(2,6),exerciseId:eid,repLow:"",repHigh:"",sets:3,weight:"",notes:[]});saveTraining();render();return;}
