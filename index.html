@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.267 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-20.268 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -680,11 +680,12 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 <div id="wl-toast" class="wl-toast"></div>
 <input type="file" id="wl-import" accept="application/json,.json" style="display:none" />
 <input type="file" id="wl-photo-input" accept="image/*" multiple style="display:none" />
+<input type="file" id="wl-pbk-import" accept="application/json,.json" style="display:none" />
 <script>
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.267";
+var APP_BUILD="2026-07-20.268";
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
 var deferredPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredPrompt=e;});
 var photoURLs=[],photoMap={},photoDB=null;
@@ -1845,6 +1846,47 @@ function processImage(file){return new Promise(function(res){
       cv.toBlob(function(b){res(b||file);},"image/jpeg",0.85);};
     img.onerror=function(){URL.revokeObjectURL(url);res(file);};img.src=url;
   }catch(e){res(file);}});}
+/* ---- progress-photo backup / restore (device-only, never synced) ---- */
+function progressPhotos(){return idbAll().then(function(all){return all.filter(function(p){return p.kind==="progress";});});}
+function blobToDataURL(blob){return new Promise(function(res,rej){var r=new FileReader();r.onload=function(){res(r.result);};r.onerror=function(){rej(r.error);};r.readAsDataURL(blob);});}
+function refreshPbkCount(){var el=document.getElementById("wl-pbk-count");if(!el)return;
+  progressPhotos().then(function(list){if(!list.length){el.textContent="None yet";return;}
+    var wks={};list.forEach(function(p){wks[p.week||p.date]=1;});var nw=Object.keys(wks).length;
+    el.textContent=list.length+" photo"+(list.length===1?"":"s")+" · "+nw+" week"+(nw===1?"":"s");
+  }).catch(function(){el.textContent="";});}
+function exportProgressPhotos(){
+  progressPhotos().then(function(list){
+    if(!list.length){toast("No progress photos to export");return;}
+    toast("Preparing "+list.length+" photo"+(list.length===1?"":"s")+"…");
+    Promise.all(list.map(function(p){return blobToDataURL(p.blob).then(function(du){return {id:p.id,week:p.week||p.date,pose:p.pose,date:p.date,ts:p.ts,dataUrl:du};});})).then(function(recs){
+      var out={app:"compound",kind:"progress-photos",version:1,exported:new Date().toISOString(),count:recs.length,photos:recs};
+      shareOrDownload("compound-progress-photos-"+todayISO()+".json","application/json",JSON.stringify(out));
+    }).catch(function(){toast("Couldn't prepare photos");});
+  }).catch(function(){toast("Photos aren't available on this device");});}
+function importProgressPhotos(text){
+  var data;try{data=JSON.parse(text);}catch(e){toast("That file isn't a valid photo backup");return;}
+  var list=(data&&data.photos)||[];
+  if(!data||data.kind!=="progress-photos"||!list.length){toast("No progress photos found in that file");return;}
+  askConfirm("Import "+list.length+" progress photo"+(list.length===1?"":"s")+" from this file? Any photo for the same week and pose on this device will be replaced.",function(){
+    toast("Importing "+list.length+" photo"+(list.length===1?"":"s")+"…");
+    idbAll().then(function(all){
+      var existingProg=all.filter(function(p){return p.kind==="progress";});
+      var chain=Promise.resolve();var added=0;
+      list.forEach(function(rec){
+        if(!rec||!rec.dataUrl||!rec.pose)return;
+        var wk=rec.week||rec.date;
+        chain=chain.then(function(){
+          var dupes=existingProg.filter(function(p){return (p.week||p.date)===wk&&p.pose===rec.pose;});
+          return Promise.all(dupes.map(function(p){return idbDelete(p.id);})).then(function(){
+            return fetch(rec.dataUrl).then(function(r){return r.blob();}).then(function(blob){
+              return idbAdd({id:rec.id||("prog-"+wk+"-"+rec.pose+"-"+Date.now()+"-"+Math.random().toString(36).slice(2,6)),date:wk,week:wk,pose:rec.pose,kind:"progress",blob:blob,ts:rec.ts||(Date.now()+Math.random())}).then(function(){added++;});
+            });
+          });
+        });
+      });
+      chain.then(function(){toast("Imported "+added+" photo"+(added===1?"":"s"));if(state.view==="photos")renderProgressPhotos();if(document.getElementById("wl-pbk-count"))refreshPbkCount();}).catch(function(){toast("Some photos couldn't be imported");});
+    }).catch(function(){toast("Couldn't import — photos unavailable");});
+  },{label:"Import",danger:false});}
 function clearPhotoURLs(){photoURLs.forEach(function(u){try{URL.revokeObjectURL(u);}catch(e){}});photoURLs=[];photoMap={};}
 var POSES=[["front","Front"],["left","Left Side"],["right","Right Side"],["back","Back"]];
 function view_photos(){
@@ -2608,6 +2650,12 @@ function view_settings(){
     '<div class="wl-row" style="margin-top:10px"><button class="wl-btn wl-btn-ghost wl-full" data-act="copy">Copy backup text</button><button class="wl-btn wl-btn-ghost wl-full" data-act="paste">Restore from text</button></div>'+
     (state.pasteOpen?'<textarea id="wl-paste" placeholder="Paste backup JSON here, then tap Restore" style="width:100%;min-height:120px;margin-top:10px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--mono);font-size:13px;padding:10px;box-sizing:border-box;outline:none"></textarea><div class="wl-row" style="margin-top:8px"><button class="wl-btn wl-btn-ghost wl-full" data-act="paste:cancel">Cancel</button><button class="wl-btn wl-btn-primary wl-full" data-act="paste:do">Restore</button></div>':'')+
     '<div class="wl-hint">Your data lives only on this device. To move or sync it: <b>Export</b> (or <b>Copy</b>) a backup, drop it in your Dropbox/Synology folder, then <b>Import</b> (or paste) it on your other device. On iPad, Export opens the Share sheet so you can pick Save to Files.</div></div>'):'')+'</div>';
+  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="pbkphotos"><span>Progress photos <em>device only</em></span><span class="wl-chevron'+(op.pbkphotos?" open":"")+'">›</span></button>'+(op.pbkphotos?('<div class="wl-collapse-body">'+
+    '<div class="wl-hint" style="display:flex;justify-content:space-between;align-items:center;margin:0 0 12px"><span>On this device</span><span class="wl-count" id="wl-pbk-count">…</span></div>'+
+    '<button class="wl-btn wl-btn-primary wl-full" data-act="pbk:export">Export progress photos</button>'+
+    '<div class="wl-row" style="margin-top:10px"><button class="wl-btn wl-btn-ghost wl-full" data-act="pbk:import">Import progress photos</button></div>'+
+    '<div class="wl-hint" style="margin-top:10px">Your progress photos live only on this device — never synced, never seen by the coach. <b>Export</b> bundles them into one file; tap <b>Save to Files</b> to keep it. <b>Import</b> restores them from that file on any device.</div>'+
+    '</div>'):'')+'</div>';
   }
   if(pg==="about"){
   h+='<div class="wl-card"><div class="wl-card-head"><span>App <em>version '+APP_BUILD+'</em></span></div>'+
@@ -2642,6 +2690,7 @@ function render(){
   if(document.getElementById("wl-photostrip"))renderPhotosStrip(state.selDate);
   if(state.view==="diary")renderDiary();
   if(state.view==="photos")renderProgressPhotos();
+  if(document.getElementById("wl-pbk-count"))refreshPbkCount();
 }
 
 /* ---------------- events ---------------- */
@@ -2896,6 +2945,8 @@ document.addEventListener("click",function(e){
   if(a==="export"){exportData();return;}
   if(a==="preset:del"){var pr2=normPresets();var pi=+el.getAttribute("data-idx");var pn=(pr2[pi]&&pr2[pi].name)||"";askConfirm("Remove \""+pn+"\" from your activities? It won't be tap-loggable anymore. Days you already logged it on keep it.",function(){var p3=normPresets();p3.splice(pi,1);state.presets=p3;save();},{label:"Remove"});return;}
   if(a==="import"){document.getElementById("wl-import").click();return;}
+  if(a==="pbk:export"){exportProgressPhotos();return;}
+  if(a==="pbk:import"){document.getElementById("wl-pbk-import").click();return;}
   if(a==="copy"){copyBackup();return;}
   if(a==="paste"){state.pasteOpen=!state.pasteOpen;render();return;}
   if(a==="paste:cancel"){state.pasteOpen=false;render();return;}
@@ -3015,6 +3066,12 @@ document.addEventListener("change",function(e){var el=e.target;sanityWarn(el);
 document.getElementById("wl-import").addEventListener("change",function(e){
   var file=e.target.files[0];if(!file)return;var rd=new FileReader();
   rd.onload=function(){applyImport(rd.result);};
+  rd.onerror=function(){toast("Couldn't read that file");};
+  rd.readAsText(file);e.target.value="";
+});
+document.getElementById("wl-pbk-import").addEventListener("change",function(e){
+  var file=e.target.files[0];if(!file){return;}var rd=new FileReader();
+  rd.onload=function(){importProgressPhotos(rd.result);};
   rd.onerror=function(){toast("Couldn't read that file");};
   rd.readAsText(file);e.target.value="";
 });
