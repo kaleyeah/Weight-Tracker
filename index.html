@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.257 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.258 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -672,8 +672,8 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.257";
-var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="34" y="26" width="32" height="12" rx="5" fill="#7C93F5"/><rect x="26" y="44" width="48" height="12" rx="5" fill="#9FB0C9"/><rect x="16" y="62" width="68" height="14" rx="5" fill="#F5B544"/></svg>';
+var APP_BUILD="2026-07-14.258";
+var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
 var deferredPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredPrompt=e;});
 var photoURLs=[],photoMap={},photoDB=null;
 function pad(n){return String(n).padStart(2,"0");}
@@ -3015,9 +3015,9 @@ function makeIcon(){
     var g=x.createLinearGradient(0,0,180,180);g.addColorStop(0,"#212836");g.addColorStop(1,"#10131A");
     x.fillStyle=g;x.fillRect(0,0,180,180);
     function rr(bx,by,bw,bh,br){x.beginPath();x.moveTo(bx+br,by);x.arcTo(bx+bw,by,bx+bw,by+bh,br);x.arcTo(bx+bw,by+bh,bx,by+bh,br);x.arcTo(bx,by+bh,bx,by,br);x.arcTo(bx,by,bx+bw,by,br);x.closePath();x.fill();}
-    x.fillStyle="#7C93F5";rr(61,47,58,22,9);
-    x.fillStyle="#9FB0C9";rr(47,79,86,22,9);
-    x.fillStyle="#F5B544";rr(29,111,122,25,9);
+    x.fillStyle="#7C93F5";rr(22,101,40,50,14);
+    x.fillStyle="#9FB0C9";rr(70,72,40,79,14);
+    x.fillStyle="#F5B544";rr(119,29,40,122,14);
     var data=cv.toDataURL("image/png");
     var link=document.createElement("link");link.rel="apple-touch-icon";link.href=data;document.head.appendChild(link);
     var fav=document.createElement("link");fav.rel="icon";fav.href=data;document.head.appendChild(fav);
