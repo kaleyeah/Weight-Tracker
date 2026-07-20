@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.254 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.255 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -73,8 +73,6 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 .wl-planrow>span.acc{color:var(--accent);}
 .wl-coachsig{font-size:15px;color:var(--muted);font-style:italic;margin-top:16px;}
 .wl-coachsig b{color:var(--text);font-style:normal;}
-.wl-scriptwarn{background:rgba(245,181,68,.12);border:1px solid rgba(245,181,68,.42);border-radius:12px;padding:12px 14px;font-size:13px;line-height:1.5;color:var(--text);}
-.wl-scriptwarn b{color:var(--accent);}
 .wl-ob-sub b{color:var(--text);}
 .wl-obdot{width:8px;height:8px;border-radius:50%;background:var(--line2);}
 .wl-obdot.on{background:var(--accent);}
@@ -664,7 +662,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.254";
+var APP_BUILD="2026-07-14.255";
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="34" y="26" width="32" height="12" rx="5" fill="#7C93F5"/><rect x="26" y="44" width="48" height="12" rx="5" fill="#9FB0C9"/><rect x="16" y="62" width="68" height="14" rx="5" fill="#F5B544"/></svg>';
 var deferredPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredPrompt=e;});
 var photoURLs=[],photoMap={},photoDB=null;
@@ -797,8 +795,6 @@ function load(){
   try{state.calOpen=localStorage.getItem("wl_calopen")==="1";}catch(e){}
 }
 function payload(){return {settings:state.settings,weights:state.weights,food:state.food,workouts:state.workouts,steps:state.steps,notes:state.notes,sleep:state.sleep,bodyfat:state.bodyfat,waist:state.waist,statuses:state.statuses,weeklySummary:state.weeklySummary,nightlySummary:state.nightlySummary,presets:state.presets,skips:state.skips,scriptVer:state.scriptVer};}
-var EXPECTED_SCRIPTS={weekly:"2026-07-14.171",nightly:"2026-07-14.171"};
-function scriptVerWarn(){var sv=state.scriptVer||{};var bad=[];if(sv.weekly&&sv.weekly!==EXPECTED_SCRIPTS.weekly)bad.push("weekly "+sv.weekly);if(sv.nightly&&sv.nightly!==EXPECTED_SCRIPTS.nightly)bad.push("nightly "+sv.nightly);return bad.length?bad:null;}
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(payload()));}catch(e){toast("Couldn't save — storage full or blocked");}}
 function save(){saveLocal();scheduleCloudPush();}
 
@@ -1331,7 +1327,6 @@ function coachHeadHTML(title,dateStr,unread,open){var right=unread?'<span class=
 function view_overview(){
   var u=state.settings.units;
   var h='<div class="wl-stack">';h+=dayBarHTML();
-  if(isOwner()){var _svw=scriptVerWarn();if(_svw)h+='<div class="wl-scriptwarn"><b>\u26a0 Coach scripts out of date.</b> Running '+_svw.join(", ")+' \u2014 expected '+EXPECTED_SCRIPTS.weekly+'. Redeploy <b>weekly-checkin.mjs</b> &amp; <b>nightly-checkin.mjs</b>. Clears after the next check-in runs.</div>';}
   var _hsw=sortedWeights(),_hstart=num(state.settings.startingWeight),_hgoal=num(state.settings.goalWeight);
   var _hcur=_hsw.length?_hsw[_hsw.length-1].weight:_hstart;
   var _hlost=(_hstart!=null&&_hcur!=null)?_hstart-_hcur:null;
