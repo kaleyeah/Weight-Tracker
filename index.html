@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-14.261 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-14.262 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -274,6 +274,14 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 .wl-hkbadge{display:inline-flex;align-items:center;gap:6px;background:rgba(92,214,160,.12);border:1px solid rgba(92,214,160,.4);color:#a9e8cc;font-size:11.5px;font-weight:700;border-radius:16px;padding:5px 11px;margin-top:12px;}
 .wl-hkwait{display:flex;align-items:center;justify-content:space-between;gap:10px;color:var(--muted);font-size:12.5px;margin-top:12px;line-height:1.4;}
 .wl-setrow.done .wl-set-input:disabled{opacity:.8;-webkit-text-fill-color:var(--muted);}
+.wl-ne-title{font-size:24px;font-weight:800;letter-spacing:-.01em;margin-top:2px;}
+.wl-ne-sub{font-size:14.5px;color:var(--muted);margin-top:6px;}
+.wl-ne-area{width:100%;min-height:190px;background:var(--bg2);border:1px solid var(--line2);border-radius:12px;color:var(--text);font-size:15px;padding:12px;font-family:var(--sans);margin-top:14px;resize:vertical;line-height:1.5;}
+.wl-ne-pin{display:flex;align-items:center;gap:11px;background:none;border:none;color:var(--text);font-size:14.5px;font-weight:600;padding:4px 0;margin-top:14px;font-family:var(--sans);cursor:pointer;}
+.wl-ne-check{width:26px;height:26px;border-radius:8px;border:1.5px solid var(--line2);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex:none;}
+.wl-ne-check.on{background:var(--accent);border-color:var(--accent);color:#20160A;}
+.wl-ne-foot{display:flex;align-items:center;justify-content:space-between;margin-top:18px;}
+.wl-ne-actions{display:flex;align-items:center;gap:18px;}
 .wl-hubrow{display:flex;align-items:center;gap:11px;width:100%;background:none;border:none;border-top:1px solid var(--line);padding:13px 12px;font-family:var(--sans);color:var(--text);text-align:left;cursor:pointer;}
 .wl-hubrow:first-child{border-top:none;}
 .wl-hubic{width:30px;height:30px;border-radius:9px;flex:none;display:flex;align-items:center;justify-content:center;font-size:15px;background:var(--bg2);border:1px solid var(--line2);}
@@ -676,7 +684,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-14.261";
+var APP_BUILD="2026-07-14.262";
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
 var deferredPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredPrompt=e;});
 var photoURLs=[],photoMap={},photoDB=null;
@@ -2030,10 +2038,16 @@ function exById(id){return (state.training.exercises||[]).filter(function(e){ret
 function getRoutine(id){return (state.training.routines||[]).filter(function(r){return r.id===id;})[0];}
 function rItem(rt,iid){return (rt.items||[]).filter(function(i){return i.id===iid;})[0];}
 function noteEditorHTML(){var ne=state.noteEdit;
-  var h='<div class="wl-note-editor"><input class="wl-noteinput" id="wl-noteinput" type="text" placeholder="One-line note (e.g. 8-12 goal, Bench 30)" value="'+esc(ne.text||"")+'" autocomplete="off">';
-  h+='<button class="wl-achip'+(ne.pinned?" on":"")+'" style="margin-top:10px;'+(ne.pinned?"background:var(--accent);border-color:var(--accent);color:#fff":"")+'" data-act="note:pin"><span class="wl-chip-ic">'+(ne.pinned?"✓":"📌")+'</span>Pin to exercise (shows in every routine)</button>';
-  h+='<div class="wl-row" style="margin-top:10px"><button class="wl-btn wl-btn-primary wl-full" data-act="note:save">Save note</button><button class="wl-btn wl-btn-ghost" data-act="note:cancel">Cancel</button></div>';
-  if(ne.nid)h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="note:del">Delete note</button>';
+  var nm="";
+  if(ne.woEi!=null&&state.workout&&state.workout.entries[ne.woEi])nm=state.workout.entries[ne.woEi].name||"";
+  else{var _rt0=getRoutine(state.routineId);var _it0=_rt0&&rItem(_rt0,ne.iid);var _ex0=_it0&&exById(_it0.exerciseId);nm=(_ex0&&_ex0.name)||"";}
+  var h='<div class="wl-note-editor">';
+  h+='<div style="display:flex;justify-content:flex-end"><button class="wl-maxx" data-act="note:cancel">\u2715</button></div>';
+  h+='<div class="wl-ne-title">Exercise Note</div>';
+  if(nm)h+='<div class="wl-ne-sub">'+esc(nm)+'</div>';
+  h+='<textarea class="wl-noteinput wl-ne-area" id="wl-noteinput" placeholder="Add a note\u2026">'+esc(ne.text||"")+'</textarea>';
+  h+='<button class="wl-ne-pin" data-act="note:pin"><span class="wl-ne-check'+(ne.pinned?" on":"")+'">'+(ne.pinned?"\u2713":"")+'</span>Pin note to exercise</button>';
+  h+='<div class="wl-ne-foot">'+(ne.nid?'<button class="wl-link" style="color:var(--bad)" data-act="note:del">Delete</button>':'<span></span>')+'<span class="wl-ne-actions"><button class="wl-link" data-act="note:cancel">Cancel</button><button class="wl-btn wl-btn-primary" style="padding:11px 24px" data-act="note:save">Save</button></span></div>';
   return h+'</div>';}
 function routineNotesHTML(rt,it,ex){var h='';
   (ex.notes||[]).forEach(function(n){h+='<button class="wl-note" data-act="note:edit" data-iid="'+it.id+'" data-nid="'+n.id+'" data-pinned="1"><span class="wl-note-txt">'+esc(n.text)+'</span><span class="wl-note-pin">📌</span></button>';});
@@ -2126,7 +2140,7 @@ function buildWorkoutEntries(rt,bw){return (rt.items||[]).map(function(it){var e
   var notes=[];(ex.notes||[]).forEach(function(nn){notes.push({text:nn.text,pinned:true});});(it.notes||[]).forEach(function(nn){notes.push({text:nn.text,pinned:false});});
   return {itemId:it.id,exerciseId:it.exerciseId,name:ex.name,muscle:ex.muscle,equipment:ex.equipment,bodyweight:!!ex.bodyweight,repLow:it.repLow,repHigh:it.repHigh,addedWt:num(it.weight)||0,notes:notes,sets:sets};
 }).filter(Boolean);}
-function rebuildEntryNotes(ei){var w=state.workout;if(!w)return;var en=w.entries[ei];if(!en)return;var rt=getRoutine(w.routineId);var it=rt&&rItem(rt,en.itemId);var ex=exById(en.exerciseId);var notes=[];if(ex)(ex.notes||[]).forEach(function(n){notes.push({text:n.text,pinned:true});});if(it)(it.notes||[]).forEach(function(n){notes.push({text:n.text,pinned:false});});en.notes=notes;saveWorkout();}
+function rebuildEntryNotes(ei){var w=state.workout;if(!w)return;var en=w.entries[ei];if(!en)return;var rt=getRoutine(w.routineId);var it=rt&&rItem(rt,en.itemId);var ex=exById(en.exerciseId);var notes=[];if(ex)(ex.notes||[]).forEach(function(n){notes.push({id:n.id,text:n.text,pinned:true});});if(it)(it.notes||[]).forEach(function(n){notes.push({id:n.id,text:n.text,pinned:false});});en.notes=notes;saveWorkout();}
 function startWorkout(rt){var bw=currentBW();  state.workout={routineId:rt.id,name:rt.name||"Weight training",date:todayISO(),startTs:null,tState:"ready",stateStartTs:null,warmupMs:0,workMs:0,restMs:0,bw:bw,entries:buildWorkoutEntries(rt,bw),finishing:false,restHidden:false};
   state.setMenu=null;state.woPrompt=false;state.view="workout";saveWorkout();render();startWoTick();}
 function woTransition(ns){var w=state.workout;if(!w)return;var now=Date.now();var seg=now-w.stateStartTs;if(w.tState==="warmup")w.warmupMs+=seg;else if(w.tState==="working")w.workMs+=seg;else w.restMs+=seg;w.tState=ns;w.stateStartTs=now;saveWorkout();}
@@ -2167,7 +2181,7 @@ function view_workout(){var w=state.workout;
     h+='<div class="wl-exrow-name">'+esc(en.name)+'</div>';
     if(en.bodyweight)h+='<div class="wl-exrow-sub">Bodyweight @ <button class="wl-link" data-act="wo:bw" style="display:inline">'+(w.bw!=null?w.bw+" "+state.settings.units:"set weight")+'</button></div>';
     else if(en.equipment)h+='<div class="wl-exrow-sub">'+esc(en.equipment)+'</div>';
-    (en.notes||[]).forEach(function(n){h+='<div class="wl-note" style="cursor:default"><span class="wl-note-txt">'+esc(n.text)+'</span>'+(n.pinned?'<span class="wl-note-pin">📌</span>':'')+'</div>';});
+    (en.notes||[]).forEach(function(n){h+='<button class="wl-note" data-act="note:edit" data-woei="'+ei+'" data-iid="'+en.itemId+'" data-nid="'+(n.id||"")+'" data-pinned="'+(n.pinned?"1":"0")+'"><span class="wl-note-txt">'+esc(n.text)+'</span>'+(n.pinned?'<span class="wl-note-pin">📌</span>':'')+'</button>';});
     h+='<div class="wl-setgrid wl-sethead" style="margin-top:10px"><span></span><span>WEIGHT</span><span>REPS</span><span>RIR</span><span></span><span>LOG</span></div>';
     en.sets.forEach(function(st,si){h+=setRowHTML(en,ei,st,si);});
     h+='</div>';});
@@ -2729,7 +2743,7 @@ document.addEventListener("click",function(e){
   if(a==="ri:up"||a==="ri:down"){var rt=getRoutine(state.routineId);if(!rt)return;var iid=el.getAttribute("data-iid");var arr=rt.items||[];var ix=-1;for(var i=0;i<arr.length;i++){if(arr[i].id===iid){ix=i;break;}}if(ix<0)return;var ni=a==="ri:up"?ix-1:ix+1;if(ni<0||ni>=arr.length)return;var tmp=arr[ix];arr[ix]=arr[ni];arr[ni]=tmp;saveTraining();render();return;}
   if(a==="ri:setinc"||a==="ri:setdec"){var rt=getRoutine(state.routineId);if(!rt)return;var it=rItem(rt,el.getAttribute("data-iid"));if(!it)return;var s=(+it.sets||0)+(a==="ri:setinc"?1:-1);if(s<1)s=1;if(s>15)s=15;it.sets=s;saveTraining();render();return;}
   if(a==="note:add"){state.noteEdit={iid:el.getAttribute("data-iid"),nid:null,text:"",pinned:false};render();return;}
-  if(a==="note:edit"){var iid=el.getAttribute("data-iid");var nid=el.getAttribute("data-nid");var pinned=el.getAttribute("data-pinned")==="1";var rt=getRoutine(state.routineId);var it=rItem(rt,iid);var ex=it&&exById(it.exerciseId);var src=pinned?(ex&&ex.notes):(it&&it.notes);var note=(src||[]).filter(function(n){return n.id===nid;})[0];state.noteEdit={iid:iid,nid:nid,text:(note&&note.text)||"",pinned:pinned};render();return;}
+  if(a==="note:edit"){var iid=el.getAttribute("data-iid");var nid=el.getAttribute("data-nid");var pinned=el.getAttribute("data-pinned")==="1";var _woei=el.getAttribute("data-woei");if(_woei!=null&&_woei!==""&&state.workout)state.routineId=state.workout.routineId;var rt=getRoutine(state.routineId);var it=rItem(rt,iid);var ex=it&&exById(it.exerciseId);var src=pinned?(ex&&ex.notes):(it&&it.notes);var note=(src||[]).filter(function(n){return n.id===nid;})[0];state.noteEdit={iid:iid,nid:nid,text:(note&&note.text)||"",pinned:pinned,woEi:(_woei!=null&&_woei!=="")?+_woei:undefined};render();return;}
   if(a==="note:pin"){if(state.noteEdit){var ip=document.getElementById("wl-noteinput");if(ip)state.noteEdit.text=ip.value;state.noteEdit.pinned=!state.noteEdit.pinned;}render();return;}
   if(a==="note:cancel"){state.noteEdit=null;render();return;}
   if(a==="note:save"){var ne=state.noteEdit;if(!ne)return;var ip=document.getElementById("wl-noteinput");var txt=((ip&&ip.value)||ne.text||"").trim();var rt=getRoutine(state.routineId);var it=rItem(rt,ne.iid);var ex=it&&exById(it.exerciseId);if(!it||!ex){state.noteEdit=null;render();return;}
