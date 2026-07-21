@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-20.277 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-20.278 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -593,6 +593,8 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 .wl-hnav-lbl>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .wl-hnav.off .wl-hnav-lbl{color:var(--text);}
 .wl-hnav-lbl.month{min-width:122px;justify-content:center;}
+.wl-hnav-arw.off{opacity:.35;}
+.wl-hdr-datebar{padding:0 20px 12px;}
 .wl-substat{margin-top:16px;}
 .wl-substat-h{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;}
 .wl-substat-h>span{font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;}
@@ -709,7 +711,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-20.277";
+var APP_BUILD="2026-07-20.278";
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
 var deferredPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredPrompt=e;});
@@ -725,6 +727,7 @@ function parseISO(s){var p=s.split("-").map(Number);return new Date(p[0],p[1]-1,
 function fmtShort(d){return d.toLocaleDateString(undefined,{month:"short",day:"numeric"});}
 function fmtLong(d){return d.toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"});}
 function fmtFull(d){return d.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"});}
+function fmtWkRange(s,e){var so=s.toLocaleDateString(undefined,{month:"long",day:"numeric"});return (s.getMonth()===e.getMonth())?(so+" – "+e.getDate()):(so+" – "+e.toLocaleDateString(undefined,{month:"long",day:"numeric"}));}
 function num(v){var n=parseFloat(v);return isFinite(n)?n:null;}
 function r1(n){return Math.round(n*10)/10;}
 function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
@@ -745,6 +748,7 @@ var I={
  trend:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 7-8.5 8.5-5-5L2 17"/><path d="M16 7h6v6"/></svg>',
  dumbbell:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6.5 6.5 11 11M21 21l-1-1M3 3l1 1M18 22l4-4M2 6l4-4M3 10l7-7M14 21l7-7"/></svg>',
  plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+ camera:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.997 4a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 1.759-1.048l.489-.904A2 2 0 0 1 10.004 4z"/><circle cx="12" cy="13" r="3"/></svg>',
  summary:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="10" width="3" height="7"/><rect x="12" y="6" width="3" height="11"/><rect x="17" y="13" width="3" height="4"/></svg>',
  check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
  trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
@@ -1489,7 +1493,7 @@ function view_overview(){
   if(_atTop)h+=_recapUnit;
   var _ciDay=(new Date().getDay()===(parseInt(state.settings.weekStart,10)||0));
   if(_ciDay&&wkPhotoKey!==toISO(weekStartFor(0)))refreshWeekPhotos();
-  if(_ciDay&&wkPhotoHave!==true)h+='<div class="wl-card"><button class="wl-btn wl-btn-primary wl-full" data-act="go" data-view="photos">\ud83d\udcf7 This Week\u2019s Progress Photos</button><div class="wl-hint" style="margin-top:8px">Check-in day \u2014 capture Front, Left Side, Right Side, and Back to track your visible progress.</div></div>';
+  if(_ciDay&&wkPhotoHave!==true)h+='<div class="wl-card"><button class="wl-btn wl-btn-primary wl-full" data-act="go" data-view="photos">'+I.camera+'This Week\u2019s Progress Photos</button><div class="wl-hint" style="margin-top:8px">Check-in day \u2014 capture Front, Left Side, Right Side, and Back to track your visible progress.</div></div>';
   h+=todayChecklistHTML(state.selDate);
   if(!_atTop)h+=_recapUnit;
   h+=activitySummaryHTML(state.selDate);
@@ -1498,7 +1502,7 @@ function view_overview(){
     h+='<div class="wl-card"><div class="wl-card-head"><span>Food diary</span><button class="wl-link" data-act="go" data-view="diary">Browse all →</button></div>';
   h+='<div id="wl-photostrip"></div>';
   h+='<div class="wl-mealadd">'+[["breakfast","Breakfast"],["lunch","Lunch"],["snack","Snack"],["dinner","Dinner"]].map(function(m){return '<button class="wl-btn wl-btn-ghost" data-act="photo:add" data-meal="'+m[0]+'">'+I.plus.replace("<svg","<svg width=14 height=14")+m[1]+'</button>';}).join("")+'</div>';
-  h+='<div class="wl-hint" style="margin-top:8px">📷 Kept on this device only — not synced or seen by the AI.</div>';
+  h+='<div class="wl-hint" style="margin-top:8px">'+I.camera.replace("<svg",'<svg width="13" height="13" style="vertical-align:-2px;margin-right:2px"')+' Kept on this device only — not synced or seen by the AI.</div>';
   h+='</div>';
   h+=connectionCards();
   h+='</div>';return h;
@@ -1541,7 +1545,7 @@ function fcCell(label,sub,fc,stalledMsg){
 function addDays(d,n){var x=new Date(d);x.setHours(0,0,0,0);x.setDate(x.getDate()+n);return x;}
 function trendCtx(){
   var mode=state.trendMode||"W",off=state.trendOffset||0;var start,end,gran,label;
-  if(mode==="W"){start=weekStartFor(-off);end=addDays(start,6);gran="day";label=fmtShort(start)+" – "+fmtShort(end);}
+  if(mode==="W"){start=weekStartFor(-off);end=addDays(start,6);gran="day";label=fmtWkRange(start,end);}
   else if(mode==="M"){var now=new Date();var mo=new Date(now.getFullYear(),now.getMonth()-off,1);start=new Date(mo.getFullYear(),mo.getMonth(),1);end=new Date(mo.getFullYear(),mo.getMonth()+1,0);gran="day";label=MONTHS[start.getMonth()]+" "+start.getFullYear();}
   else{var n2=new Date();var em=new Date(n2.getFullYear(),n2.getMonth()-off*6,1);end=new Date(em.getFullYear(),em.getMonth()+1,0);start=new Date(em.getFullYear(),em.getMonth()-5,1);gran="month";label=MONTHS3[start.getMonth()]+" – "+MONTHS3[end.getMonth()]+" "+end.getFullYear();}
   return {mode:mode,off:off,start:start,end:end,gran:gran,label:label};
@@ -1690,8 +1694,8 @@ function forecastCardHTML(){var u=state.settings.units;var sw=sortedWeights();va
 function view_weight(){
   var u=state.settings.units;var ctx=trendCtx();var off=state.trendOffset||0;var perLbl=ctx.gran==="month"?"/mo":"/day";
   var h='<div class="wl-stack">';h+=forecastCardHTML();h+=metabolismCardHTML();
-  h+='<div class="wl-card"><button class="wl-btn wl-btn-primary wl-full" data-act="go" data-view="photos">\ud83d\udcf7 Progress Photos</button><div class="wl-hint" style="margin-top:8px">Weekly Front, Left/Right Side, and Back photos \u2014 compare your change over time.</div></div>';
-  h+='<div class="wl-card"><div class="wl-seg wl-seg-wide">'+["W","M","6M"].map(function(m){return '<button class="'+(ctx.mode===m?"on":"")+'" data-act="trend:mode" data-mode="'+m+'">'+m+'</button>';}).join("")+'</div></div>';
+  h+='<div class="wl-card"><button class="wl-btn wl-btn-primary wl-full" data-act="go" data-view="photos">'+I.camera+'Progress Photos</button><div class="wl-hint" style="margin-top:8px">Weekly Front, Left/Right Side, and Back photos \u2014 compare your change over time.</div></div>';
+  h+='<div class="wl-card"><div class="wl-seg wl-seg-wide">'+["W","M","6M"].map(function(m){return '<button class="'+(ctx.mode===m?"on":"")+'" data-act="trend:mode" data-mode="'+m+'">'+m+'</button>';}).join("")+'</div><div class="wl-hnav" style="justify-content:center;margin-top:10px"><button class="wl-hnav-arw" data-act="trend:prev">‹</button><button class="wl-hnav-lbl" data-act="trend:tocur"><span>'+ctx.label+'</span></button><button class="wl-hnav-arw'+((state.trendOffset||0)>0?'':' off')+'" '+((state.trendOffset||0)>0?'data-act="trend:next"':'disabled')+'>›</button></div></div>';
   var sw=sortedWeights();var startISO=toISO(ctx.start),endISO=toISO(ctx.end);
   var goal=num(state.settings.goalWeight);
   function bcHas(m){return m&&Object.keys(m).length>0;}
@@ -1754,7 +1758,7 @@ function dayBarHTML(){
 function headerNav(){var v=state.view;
   if(v==="overview"||v==="food"||v==="calendar"||v==="train"){
     var sel=state.selDate;var isToday=sel===todayISO();var open=state.calOpen;
-    var lbl=open?(MONTHS[state.calM]):(isToday?('Today, '+parseISO(sel).toLocaleDateString(undefined,{month:"short",day:"numeric"})):fmtLong(parseISO(sel)));
+    var lbl=open?(MONTHS[state.calM]):(isToday?('Today, '+parseISO(sel).toLocaleDateString(undefined,{month:"long",day:"numeric"})):parseISO(sel).toLocaleDateString(undefined,{weekday:"short",month:"long",day:"numeric"}));
     var h='<div class="wl-hnav'+((!isToday&&!open)?" off":"")+'">';
     if(open)h+='<button class="wl-hnav-arw" data-act="cal:prev">‹</button>';
     h+='<button class="wl-hnav-lbl'+(open?" month":"")+'" data-act="cal:expand"><span>'+lbl+'</span></button>';
@@ -1763,15 +1767,10 @@ function headerNav(){var v=state.view;
   if(v==="summary"){var s0=weekStartFor(state.weekOffset),e0=new Date(s0);e0.setDate(s0.getDate()+6);var isThis=state.weekOffset===0;
     var h='<div class="wl-hnav'+(isThis?"":" off")+'">';
     h+='<button class="wl-hnav-arw" data-act="sum:prev">‹</button>';
-    h+='<button class="wl-hnav-lbl" data-act="sum:tocur"><span>'+fmtShort(s0)+' – '+fmtShort(e0)+'</span></button>';
+    h+='<button class="wl-hnav-lbl" data-act="sum:tocur"><span>'+fmtWkRange(s0,e0)+'</span></button>';
     if(!isThis)h+='<button class="wl-hnav-arw" data-act="sum:next">›</button>';
     return h+'</div>';}
-  if(v==="weight"){var ctx=trendCtx();var o2=state.trendOffset||0;
-    var h='<div class="wl-hnav'+(o2<=0?"":" off")+'">';
-    h+='<button class="wl-hnav-arw" data-act="trend:prev">‹</button>';
-    h+='<button class="wl-hnav-lbl" data-act="trend:tocur"><span>'+ctx.label+'</span></button>';
-    if(o2>0)h+='<button class="wl-hnav-arw" data-act="trend:next">›</button>';
-    return h+'</div>';}
+  /* Progress trend window control moved to the chart card (not the header) */
   return '';
 }
 
@@ -1881,7 +1880,7 @@ function view_summary(){
       cl(mv(cc,function(v){return v;}),(tCarb!=null&&cc!=null)?((cc>tCarb&&calOverD)?"bad":"good"):"")+
       '</tr>';});
   h+='</tbody></table><button class="wl-btn wl-btn-primary wl-full" style="margin-top:14px" data-act="sum:exportweek">Export this week</button><div class="wl-hint" style="margin-top:8px">CSV of this week — every logged metric, training, and notes.</div></div>';
-  h+='<div class="wl-card"><button class="wl-btn wl-btn-primary wl-full" data-act="go" data-view="diary">📷 Food Diary</button><div class="wl-hint" style="margin-top:8px">A visual collage of your meal photos by day, with each day\u2019s calories and macros.</div></div>';
+  h+='<div class="wl-card"><button class="wl-btn wl-btn-primary wl-full" data-act="go" data-view="diary">'+I.camera+'Food Diary</button><div class="wl-hint" style="margin-top:8px">A visual collage of your meal photos by day, with each day\u2019s calories and macros.</div></div>';
   return h+'</div>';}
 function csvCell(v){v=(v==null?"":String(v));return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
 function mdyy(iso){var d=parseISO(iso);return (d.getMonth()+1)+"/"+d.getDate()+"/"+String(d.getFullYear()).slice(-2);}
@@ -2017,7 +2016,7 @@ function renderPhotos(date){var host=document.getElementById("wl-photos");if(!ho
 function view_diary(){
   var h='<div class="wl-stack">';
   h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="go" data-view="overview">‹</button><span class="wl-cal-title">Food Diary</span><span style="width:36px;display:inline-block"></span></div>';
-  h+='<div class="wl-hint" style="text-align:center;margin:-4px 0 4px">📷 Your meals by day — kept on this device only, not synced or seen by the AI.</div>';
+  h+='<div class="wl-hint" style="text-align:center;margin:-4px 0 4px">'+I.camera.replace("<svg",'<svg width="13" height="13" style="vertical-align:-2px;margin-right:2px"')+' Your meals by day — kept on this device only, not synced or seen by the AI.</div>';
   h+='<div id="wl-diary"><div class="wl-empty" style="padding:20px 0">Loading…</div></div>';
   h+='</div>';
   return h;
@@ -2824,7 +2823,7 @@ function render(){
   var maxBtn=isOwner()?'<button class="wl-maxb'+(coachUnreadW()?" hot":"")+'" data-act="max:open" aria-label="Messages from Coach Max">M</button>':'';
   var backBtn=state.view==="photos"?'<button class="wl-hdr-back" data-act="go" data-view="weight" aria-label="Back">‹</button>':'';
   var _navH=headerNav();var _brand='<span class="wl-mark">'+BRANDMARK+'</span>';var _md=statusFor(todayISO());var _mbanner=_md?('<button class="wl-modebanner" data-act="go" data-view="settings"><span class="wl-mb-em">'+(_md.status.type==="vacation"?"\ud83c\udfd6\ufe0f":"\ud83e\udd12")+'</span><span>'+(_md.status.type==="vacation"?"Vacation Mode":"Recovery Mode")+'</span><span class="wl-mb-go">Settings \u203a</span></button>'):'';
-  document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header'+(_md?" hasbanner":"")+'">'+_mbanner+'<div class="wl-hdr-brand"><div class="wl-brandrow">'+_brand+'<span class="wl-eyebrow">Compound</span></div>'+hdrRight+'</div><div class="wl-hdr-main">'+backBtn+'<div class="wl-title-slot">'+(title?('<h1 class="wl-title">'+title+'</h1>'):'')+(hsub?'<div class="wl-hsub">'+esc(hsub)+'</div>':'')+'</div><div class="wl-hdr-actions">'+_navH+maxBtn+avatar+'</div></div></header><main class="wl-main">'+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML()+statusSheetHTML()+obOverlayHTML()+deviceSheetHTML()+maxSheetHTML()+infoSheetHTML();
+  document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header'+(_md?" hasbanner":"")+'">'+_mbanner+'<div class="wl-hdr-brand"><div class="wl-brandrow">'+_brand+'<span class="wl-eyebrow">Compound</span></div>'+hdrRight+'</div><div class="wl-hdr-main">'+backBtn+'<div class="wl-title-slot">'+(title?('<h1 class="wl-title">'+title+'</h1>'):'')+(hsub?'<div class="wl-hsub">'+esc(hsub)+'</div>':'')+'</div><div class="wl-hdr-actions">'+maxBtn+avatar+'</div></div>'+(_navH?'<div class="wl-hdr-datebar">'+_navH+'</div>':'')+'</header><main class="wl-main">'+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML()+statusSheetHTML()+obOverlayHTML()+deviceSheetHTML()+maxSheetHTML()+infoSheetHTML();
   var hdr=document.querySelector(".wl-header");if(hdr)document.documentElement.style.setProperty("--headh",hdr.offsetHeight+"px");
   if(document.getElementById("wl-photostrip"))renderPhotosStrip(state.selDate);
   if(state.view==="diary")renderDiary();
