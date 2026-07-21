@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-20.278 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-20.279 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -530,14 +530,12 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 .wl-card.catcard .wl-ip-badge{color:#fff;}
 .wl-card.catcard .wl-achip{color:#fff;border-color:rgba(255,255,255,.35);background:rgba(255,255,255,.10);}
 .wl-card.catcard .wl-achip.on{background:rgba(255,255,255,.92);color:#1a2230;border-color:transparent;}
-.wl-card.catcard.car{background:linear-gradient(150deg,#22509b 0%,#183a71 100%);border-color:#2f5bad;}
-.wl-card.catcard.car .wl-caticon{color:#82abff;}
-.wl-card.catcard.lift{background:linear-gradient(150deg,#1d6b42 0%,#134c2f 100%);border-color:#26804e;}
-.wl-card.catcard.lift .wl-caticon{color:#5ee98f;}
-.wl-card.catcard.rest{background:linear-gradient(150deg,#48566b 0%,#353f52 100%);border-color:#59687e;}
-.wl-card.catcard.rest .wl-caticon{color:#c3d0e2;}
-.wl-card.catcard.supp{background:linear-gradient(150deg,#5a2a89 0%,#411e64 100%);border-color:#7033a8;}
-.wl-card.catcard.supp .wl-caticon{color:#c791fb;}
+.wl-card.catcard.car{background:linear-gradient(150deg,#5b86ff,#2f4fd4);border-color:#5b86ff;box-shadow:0 8px 26px rgba(77,127,255,.32);}
+.wl-card.catcard.lift{background:linear-gradient(150deg,#2fbf6a,#12833f);border-color:#2fbf6a;box-shadow:0 8px 26px rgba(34,197,94,.3);}
+.wl-card.catcard.rest{background:linear-gradient(150deg,#6b7a92,#3f4a5e);border-color:#6b7a92;box-shadow:0 8px 26px rgba(120,140,170,.22);}
+.wl-card.catcard.supp{background:linear-gradient(150deg,#b15cf0,#7c3aed);border-color:#b15cf0;box-shadow:0 8px 26px rgba(168,85,247,.32);}
+.wl-card.catcard .wl-caticon{background:rgba(255,255,255,.2);color:#fff;}
+.wl-card.catcard .wl-btn-lift,.wl-card.catcard .wl-btn-cardio,.wl-card.catcard .wl-btn-rest,.wl-card.catcard .wl-btn-supp{background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.3);}
 .wl-cat-cardio{background:rgba(59,130,246,.15);color:#3b82f6;}
 .wl-cat-lifting{background:rgba(34,197,94,.15);color:#22c55e;}
 .wl-cat-supp{background:rgba(168,85,247,.15);color:#a855f7;}
@@ -711,7 +709,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-20.278";
+var APP_BUILD="2026-07-20.279";
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
 var deferredPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredPrompt=e;});
