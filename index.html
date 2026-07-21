@@ -275,7 +275,8 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 .wl-maxb{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:14px;font-family:var(--sans);border:1px solid var(--line2);background:linear-gradient(145deg,var(--line),#171c24);color:var(--accent);flex:none;padding:0;cursor:pointer;}
 .wl-maxb.hot{border:none;background:var(--accent);color:#20160A;box-shadow:0 0 0 3px rgba(245,181,68,.25),0 2px 12px rgba(245,181,68,.45);}
 .wl-maxbg{position:fixed;inset:0;background:rgba(5,7,10,.72);z-index:60;display:flex;align-items:flex-end;justify-content:center;padding:14px;}
-.wl-maxsheet{background:var(--card);border:1px solid var(--accent);border-radius:18px;padding:16px;width:100%;max-width:520px;max-height:82vh;overflow-y:auto;box-shadow:0 18px 50px rgba(0,0,0,.6);}
+.wl-maxbg.top{align-items:flex-start;padding-top:calc(env(safe-area-inset-top,0px) + 14px);}/* M sheet drops from the top; the info sheets stay bottom-anchored */
+.wl-maxsheet{background:var(--card);border:1px solid var(--accent);border-radius:18px;padding:16px;width:100%;max-width:520px;max-height:82vh;overflow-y:auto;overscroll-behavior:contain;box-shadow:0 18px 50px rgba(0,0,0,.6);}
 .wl-maxsheet.plain{border-color:var(--line);}
 .wl-maxx{margin-left:auto;width:30px;height:30px;border-radius:9px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--muted);background:var(--bg2);flex:none;}
 .wl-maxempty{text-align:center;padding:18px 8px 10px;}
@@ -721,7 +722,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-21.285";
+var APP_BUILD="2026-07-21.286";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -1423,7 +1424,7 @@ function maxSheetHTML(){if(!state.maxOpen)return "";var ws=state.weeklySummary;v
     +(_ciDay?'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:12px" data-act="ai:gen">\u21bb Regenerate</button>':'');}
   else{var dn=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][(parseInt(state.settings.weekStart,10)||0)];
     inner='<div class="wl-mhead"><span style="flex:1"></span><button class="wl-maxx" data-act="max:close">\u2715</button></div><div class="wl-maxempty"><div class="bigav">M</div><div class="t">No messages yet</div><div class="s">This is where Coach Max delivers your weekly check-in.<br>Your next one lands <b style="color:var(--text)">'+dn+' morning</b>.</div></div>';}
-  return '<div class="wl-maxbg" data-act="max:close"><div class="wl-maxsheet'+((ws&&ws.text)||state.genBusy?'':' plain')+'" data-act="noop">'+inner+'</div></div>';}
+  return '<div class="wl-maxbg top" data-act="max:close"><div class="wl-maxsheet'+((ws&&ws.text)||state.genBusy?'':' plain')+'" data-act="noop">'+inner+'</div></div>';}
 /* ---- Coach Max info sheets (tap an ⓘ to learn a concept) ---- */
 var INFO={
   progression:{title:"Double vs Reverse Pyramid",body:[
