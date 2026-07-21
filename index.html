@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-20.271 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-20.272 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -440,6 +440,14 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 .wl-setrng-n{font-size:11px;font-weight:700;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;width:46px;}
 .wl-setrng input{width:44px;text-align:center;background:var(--bg2);border:1px solid var(--line2);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:14px;padding:6px 4px;}
 .wl-setrng-tag{font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;margin-left:auto;}
+.wl-info{width:17px;height:17px;border-radius:50%;border:1.5px solid var(--muted);color:var(--muted);font-size:11px;font-weight:800;line-height:1;display:inline-flex;align-items:center;justify-content:center;background:none;font-family:var(--sans);cursor:pointer;padding:0;vertical-align:middle;flex:none;}
+.wl-infosheet{background:var(--card2);border:1px solid var(--line2);border-radius:20px;width:100%;max-width:460px;padding:16px 16px 22px;max-height:82vh;overflow-y:auto;}
+.wl-infogrip{width:38px;height:4px;border-radius:3px;background:var(--line2);margin:2px auto 12px;}
+.wl-inforow{display:flex;align-items:center;gap:11px;margin-bottom:14px;}
+.wl-infotitle{font-size:18px;font-weight:800;letter-spacing:-.01em;display:block;line-height:1.2;}
+.wl-infobody p{font-size:14.5px;color:#D6DCE6;line-height:1.55;margin:0 0 11px;}
+.wl-infobody p:last-child{margin-bottom:0;}
+.wl-infobody b{color:var(--text);}
 .wl-empty{color:var(--faint);font-size:13px;text-align:center;padding:22px 0;}
 
 .wl-tbar{position:relative;height:16px;background:var(--bg2);border:1px solid var(--line);border-radius:6px;overflow:hidden;margin-top:2px;}
@@ -696,7 +704,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-20.271";
+var APP_BUILD="2026-07-20.272";
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
 var deferredPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredPrompt=e;});
 var photoURLs=[],photoMap={},photoDB=null;
@@ -1384,6 +1392,52 @@ function maxSheetHTML(){if(!state.maxOpen)return "";var ws=state.weeklySummary;v
   else{var dn=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][(parseInt(state.settings.weekStart,10)||0)];
     inner='<div class="wl-mhead"><span style="flex:1"></span><button class="wl-maxx" data-act="max:close">\u2715</button></div><div class="wl-maxempty"><div class="bigav">M</div><div class="t">No messages yet</div><div class="s">This is where Coach Max delivers your weekly check-in.<br>Your next one lands <b style="color:var(--text)">'+dn+' morning</b>.</div></div>';}
   return '<div class="wl-maxbg" data-act="max:close"><div class="wl-maxsheet'+((ws&&ws.text)||state.genBusy?'':' plain')+'" data-act="noop">'+inner+'</div></div>';}
+/* ---- Coach Max info sheets (tap an ⓘ to learn a concept) ---- */
+var INFO={
+  progression:{title:"Double vs Reverse Pyramid",body:[
+    "Two ways to get stronger over time — you pick one per routine. Both work; it's about which fits the lift and how you like to train.",
+    "<b>Double progression</b> is the simple default. Same weight across all your sets, inside a rep range like 8–12. Add reps each week until you hit the top of the range on every set, then add a little weight and start climbing again. Forgiving and hard to mess up.",
+    "<b>Reverse Pyramid</b> puts your heaviest set first, when you're fresh: low reps, pushed close to failure. Then drop the weight about 10% and add reps on each set after. Your first set drives the weight up — hit the top of its range and you add weight there next time.",
+    "My take: newer, or want simple? Use Double. Like going heavy and can grind a hard first set? Reverse Pyramid is excellent. Either way, the method isn't the magic — showing up and adding a little over months is."]},
+  rir:{title:"RIR — Reps in Reserve",body:[
+    "RIR is how many reps you had left in the tank when you stopped. 2 RIR means you could have done two more with clean form; 0 means nothing left.",
+    "It's how we measure effort. To build and keep muscle — especially in a deficit — your working sets should land around <b>0–2 RIR</b>: hard, but good form.",
+    "Log it honestly after each set; it's what tells the app you're ready for more weight. If you're not sure, you probably had more in reserve than you think."]},
+  reprange:{title:"Rep ranges",body:[
+    "A range like <b>6–8</b> is your target window for a set. Fall under the bottom and the weight is too heavy; sail past the top and it's too light.",
+    "Work up through the range week to week, and when you hit the top with real effort, add weight and start over. Ranges keep you progressing without ego-lifting or spinning your wheels."]},
+  metabolism:{title:"Metabolism (your real burn)",body:[
+    "After about 3 weeks of logging food and weigh-ins, I can measure your <b>actual</b> daily burn from your own data — not a generic formula.",
+    "When your trend says your target should change, I'll propose exact new numbers you can apply in one tap. It's the most honest read you'll get, and it sharpens the more you log."]},
+  strategy:{title:"Strategy and your calorie target",body:[
+    "Your strategy (Lose, Maintain, Gain) sets the direction; your weekly rate sets the size of the change.",
+    "Fat loss runs on a <b>small, sustainable deficit</b> — usually 200–500 calories a day, about a pound a week. Bigger isn't better: crash deficits cost you muscle, energy, and adherence. Slow and steady is what actually sticks."]},
+  protein:{title:"Protein target",body:[
+    "Aim for about <b>1 gram per pound of your goal bodyweight</b>. Protein is the priority — it protects muscle while you lose fat, keeps you full, and costs a few calories just to digest.",
+    "Hit protein first each day; your carbs and fat are flexible around it."]},
+  cardiozone:{title:"Cardio zones and the goal",body:[
+    "Zones describe how hard the cardio is. <b>Zone 2–3</b> is the sweet spot — steady, conversational effort. Only zone 2 and up counts toward your weekly cardio-minute goal (zone 1 is fine, it just doesn't count).",
+    "Split cardio across <b>2–3 shorter sessions</b> instead of one long grind — it spares recovery and keeps hunger down."]},
+  steps:{title:"Steps (everyday movement)",body:[
+    "Steps are your free burn — the movement outside the gym. 8,000–10,000 a day quietly adds up to more than any single cardio session, and it helps recovery.",
+    "It's the easiest lever most people ignore."]},
+  targeticons:{title:"Target icons",body:[
+    "The little marks by a logged set show how you did against the target: a <b>green up-arrow</b> means you beat the top of the range (weight is coming up soon), a <b>gold bullseye</b> means right in the range, and a <b>red down-arrow</b> means under the range (the weight may be a touch heavy).",
+    "A quick glance, not a grade."]},
+  modes:{title:"Vacation and Sick mode",body:[
+    "Flip these on when life happens. On <b>Vacation</b> I ease up — a week off won't undo months, and a scale bump is mostly water and travel.",
+    "On <b>Sick</b> days, rest and health come first: I won't push training or a deficit, or read an illness weigh-in as progress or backslide. Turn it off when you're back."]},
+  photos:{title:"Progress photos",body:[
+    "Photos stay <b>only on this device</b> — never synced, never seen by me. When the scale stalls, they're the truest read on real change.",
+    "Same four angles, same light, weekly. And back them up (Settings → Data) before you ever switch phones."]},
+  coach:{title:"What is Coach Max",body:[
+    "That's me. Each night I write a short recap of your day; once a week, a fuller debrief — wins, what to watch, and where you're headed.",
+    "I coach the fundamentals: lift hard, eat your protein, keep a small deficit, move often, sleep well. I'll hold you accountable — but I won't shame a slip. One off-day is nothing; showing up again is everything."]}
+};
+function infoBtn(key){return '<button class="wl-info" data-act="info" data-info="'+key+'" aria-label="What is this?">i</button>';}
+function infoSheetHTML(){if(!state.infoOpen)return "";var d=INFO[state.infoOpen];if(!d)return "";
+  var body=(d.body||[]).map(function(p){return '<p>'+p+'</p>';}).join("");
+  return '<div class="wl-maxbg" data-act="info:close"><div class="wl-infosheet" data-act="noop"><div class="wl-infogrip"></div><div class="wl-inforow"><span class="wl-coachav">M</span><span style="flex:1;min-width:0"><span class="wl-coachwho" style="display:block">Coach Max</span><span class="wl-infotitle">'+esc(d.title)+'</span></span><button class="wl-maxx" data-act="info:close">✕</button></div><div class="wl-infobody">'+body+'</div></div></div>';}
 function migrateCoachSeen(){var st=state.settings;var ch=false;
   if(st.seenWeekly==null&&state.weeklySummary&&state.weeklySummary.week){st.seenWeekly=state.weeklySummary.week;ch=true;}
   if(st.seenNightly==null&&state.nightlySummary&&state.nightlySummary.date){st.seenNightly=state.nightlySummary.date;ch=true;}
@@ -1584,7 +1638,7 @@ function tdeeAnalysis(){var w=tdeeWindow();var res={win:w,state:"gathering"};if(
   res.prop=tdeeBuildProp(tgtCal+(mode==="gain"?trim:-trim),stepAdd,cardAdd);return res;}
 function metabolismCardHTML(){var s=state.settings;if(num(s.targetCalories)==null&&maintenanceCals()==null)return "";
   var an=tdeeAnalysis();var w=an.win;var form=maintenanceCals();var u=s.units;
-  var h='<div class="wl-card"><div class="wl-card-head"><span>Metabolism</span><span class="wl-count">'+(an.state==="gathering"?"gathering":"21-day")+'</span></div>';
+  var h='<div class="wl-card"><div class="wl-card-head"><span>Metabolism '+infoBtn("metabolism")+'</span><span class="wl-count">'+(an.state==="gathering"?"gathering":"21-day")+'</span></div>';
   h+='<div class="wl-forecast-grid"><div class="wl-fc"><div class="wl-fc-label">Formula estimate</div><div class="wl-fc-sub">Mifflin\u2013St Jeor \u00d7 activity</div><div class="wl-fc-weeks" style="color:var(--text)">'+(form!=null?form.toLocaleString():"\u2014")+'<span> cal</span></div></div>';
   h+='<div class="wl-fc wl-mz-meas"><div class="wl-fc-label">Measured TDEE</div><div class="wl-fc-sub">from your logs</div><div class="wl-fc-weeks"'+(an.tdee!=null?'':' style="color:var(--faint)"')+'>'+(an.tdee!=null?an.tdee.toLocaleString():"\u2014")+'<span> cal</span></div></div></div>';
   if(an.state==="gathering"){var pct=Math.round(((Math.min(1,w.foodN/14)+Math.min(1,w.totalW/6))/2)*100);
@@ -2118,10 +2172,10 @@ function routineItemHTML(rt,it,idx){
     var _n=Math.max(1,it.sets||3);var _mv=it.movement||guessMovement(ex.muscle);var _rgs=rptRangesFor(it,_n);
     h+='<div class="wl-mtoggle" style="margin-top:12px"><button class="wl-mvbtn'+(_mv==="compound"?" on":"")+'" data-act="ri:mv" data-iid="'+it.id+'" data-mv="compound">Compound</button><button class="wl-mvbtn'+(_mv==="isolation"?" on":"")+'" data-act="ri:mv" data-iid="'+it.id+'" data-mv="isolation">Isolation</button></div>';
     if(!ex.bodyweight)h+='<label class="wl-field wl-field-full" style="margin-top:10px"><span>Top set weight ('+u+')</span><input class="wl-ri-input wl-num" data-iid="'+it.id+'" data-field="weight" type="text" inputmode="decimal" value="'+esc(it.weight!=null?it.weight:"")+'" placeholder="0"></label>';
-    h+='<div class="wl-cf-label" style="margin:12px 0 2px">Reps per set</div>';
+    h+='<div class="wl-cf-label" style="margin:12px 0 2px">Reps per set '+infoBtn("reprange")+'</div>';
     for(var _si=0;_si<_n;_si++){h+='<div class="wl-setrng"><span class="wl-setrng-n">Set '+(_si+1)+'</span><input class="wl-ri-srng wl-num" data-iid="'+it.id+'" data-si="'+_si+'" data-end="lo" type="text" inputmode="numeric" value="'+_rgs[_si].lo+'"><span style="color:var(--faint)">–</span><input class="wl-ri-srng wl-num" data-iid="'+it.id+'" data-si="'+_si+'" data-end="hi" type="text" inputmode="numeric" value="'+_rgs[_si].hi+'"><span class="wl-setrng-tag">'+(_si===0?"heaviest":"−10%")+'</span></div>';}
   }else{
-  h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Rep range</span><div style="display:flex;align-items:center;gap:6px"><input class="wl-ri-input wl-num" data-iid="'+it.id+'" data-field="repLow" type="text" inputmode="numeric" value="'+esc(it.repLow!=null?it.repLow:"")+'" placeholder="8" style="text-align:center"><span style="color:var(--faint)">–</span><input class="wl-ri-input wl-num" data-iid="'+it.id+'" data-field="repHigh" type="text" inputmode="numeric" value="'+esc(it.repHigh!=null?it.repHigh:"")+'" placeholder="12" style="text-align:center"></div></label>';
+  h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Rep range '+infoBtn("reprange")+'</span><div style="display:flex;align-items:center;gap:6px"><input class="wl-ri-input wl-num" data-iid="'+it.id+'" data-field="repLow" type="text" inputmode="numeric" value="'+esc(it.repLow!=null?it.repLow:"")+'" placeholder="8" style="text-align:center"><span style="color:var(--faint)">–</span><input class="wl-ri-input wl-num" data-iid="'+it.id+'" data-field="repHigh" type="text" inputmode="numeric" value="'+esc(it.repHigh!=null?it.repHigh:"")+'" placeholder="12" style="text-align:center"></div></label>';
   h+='<label class="wl-field"><span>'+(ex.bodyweight?"Added wt <em>optional</em>":"Weight ("+u+")")+'</span><input class="wl-ri-input wl-num" data-iid="'+it.id+'" data-field="weight" type="text" inputmode="decimal" value="'+esc(it.weight!=null?it.weight:"")+'" placeholder="'+(ex.bodyweight?"0 = BW":"0")+'"></label></div>';
   }
   h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px"><span class="wl-cf-label" style="margin:0">Sets</span><div class="wl-stepper"><button data-act="ri:setdec" data-iid="'+it.id+'">−</button><span>'+(it.sets||0)+'</span><button data-act="ri:setinc" data-iid="'+it.id+'">+</button></div></div>';
@@ -2148,7 +2202,7 @@ function view_routine(){
   if(state.riPickOpen)return routinePickHTML(rt);
   h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="rt:save">‹</button><span class="wl-cal-title">Edit Routine</span><span style="width:36px;display:inline-block"></span></div>';
   h+='<div class="wl-card"><label class="wl-field wl-field-full"><span>Routine Name</span><input class="wl-rt-name" type="text" value="'+esc(rt.name||"")+'" placeholder="e.g. Day 1 – Push"></label></div>';
-  h+='<div class="wl-card"><div class="wl-cf-label" style="margin:0 0 8px">Progression</div><div class="wl-seg2"><button class="wl-seg2btn'+((rt.progression||"double")==="double"?" on":"")+'" data-act="rt:prog" data-prog="double">Double progression</button><button class="wl-seg2btn'+((rt.progression||"double")==="rpt"?" on":"")+'" data-act="rt:prog" data-prog="rpt">Reverse Pyramid</button></div>'+((rt.progression||"double")==="rpt"?'<div class="wl-hint" style="margin-top:8px">Heaviest set first, weights auto-drop ~10%/set. <b>Set 1 drives the weight increase.</b></div>':'')+'</div>';
+  h+='<div class="wl-card"><div class="wl-cf-label" style="margin:0 0 8px">Progression '+infoBtn("progression")+'</div><div class="wl-seg2"><button class="wl-seg2btn'+((rt.progression||"double")==="double"?" on":"")+'" data-act="rt:prog" data-prog="double">Double progression</button><button class="wl-seg2btn'+((rt.progression||"double")==="rpt"?" on":"")+'" data-act="rt:prog" data-prog="rpt">Reverse Pyramid</button></div>'+((rt.progression||"double")==="rpt"?'<div class="wl-hint" style="margin-top:8px">Heaviest set first, weights auto-drop ~10%/set. <b>Set 1 drives the weight increase.</b></div>':'')+'</div>';
   if(!(rt.items||[]).length)h+='<div class="wl-card"><div class="wl-hint">No exercises yet. Add them from your library below — they\u2019ll group by muscle automatically.</div></div>';
   (rt.items||[]).forEach(function(it,idx){h+=routineItemHTML(rt,it,idx);});
   h+='<button class="wl-btn wl-btn-ghost wl-full" data-act="ri:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add Exercise</button>';
@@ -2331,7 +2385,7 @@ function view_workout(){var w=state.workout;
     else if(en.equipment)h+='<div class="wl-exrow-sub">'+esc(en.equipment)+'</div>';
     if(en.firstTime&&(num(en.repLow)!=null||num(en.repHigh)!=null))h+='<div class="wl-exrow-sub" style="color:var(--accent)">First time: work up to a weight where '+(en.repLow||"?")+'\u2013'+(en.repHigh||"?")+' reps leaves 0\u20131 RIR.</div>';
     (en.notes||[]).forEach(function(n){h+='<button class="wl-note" data-act="note:edit" data-woei="'+ei+'" data-iid="'+en.itemId+'" data-nid="'+(n.id||"")+'" data-pinned="'+(n.pinned?"1":"0")+'"><span class="wl-note-txt">'+esc(n.text)+'</span>'+(n.pinned?'<span class="wl-note-pin">📌</span>':'')+'</button>';});
-    h+='<div class="wl-setgrid wl-sethead" style="margin-top:10px"><span></span><span>WEIGHT</span><span>REPS</span><span>RIR</span><span></span><span>LOG</span></div>';
+    h+='<div class="wl-setgrid wl-sethead" style="margin-top:10px"><span></span><span>WEIGHT</span><span>REPS</span><span>RIR '+infoBtn("rir")+'</span><span></span><span>LOG</span></div>';
     en.sets.forEach(function(st,si){h+=setRowHTML(en,ei,st,si);});
     h+='</div>';});
   if(w.tState!=="ready")h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:6px" data-act="wo:finish">End workout</button>';
@@ -2446,7 +2500,7 @@ function view_liftview(){var s=getLiftSession();var u=state.settings.units;var m
   if(s.notes)h+='<div class="wl-note" style="cursor:default;margin-top:8px"><span class="wl-note-txt" style="white-space:normal">'+esc(s.notes)+'</span></div>';
   h+='</div>';
   if(s.mode==="full"&&s.entries){s.entries.forEach(function(en,ei){h+='<div class="wl-card"><div style="margin-bottom:6px">'+muscleTagHTML(en.muscle||"other")+'</div><div class="wl-exrow-name">'+esc(en.name)+'</div>';
-    h+='<div class="wl-setgrid wl-sethead" style="grid-template-columns:1fr 1fr 46px 60px;margin-top:8px"><span>WEIGHT</span><span>REPS</span><span>RIR</span><span></span></div>';
+    h+='<div class="wl-setgrid wl-sethead" style="grid-template-columns:1fr 1fr 46px 60px;margin-top:8px"><span>WEIGHT</span><span>REPS</span><span>RIR '+infoBtn("rir")+'</span><span></span></div>';
     en.sets.forEach(function(st,si){var stat=st.status==="skipped"?"skipped":st.status==="done"?"✓":"";
       if(editing)h+='<div class="wl-setgrid wl-setrow" style="grid-template-columns:1fr 1fr 46px 60px"><input class="wl-sv-set wl-set-input" data-ei="'+ei+'" data-si="'+si+'" data-field="weight" type="text" inputmode="decimal" value="'+esc(st.weight!=null?String(st.weight):"")+'"><input class="wl-sv-set wl-set-input" data-ei="'+ei+'" data-si="'+si+'" data-field="reps" type="text" inputmode="numeric" value="'+esc(st.reps!=null?String(st.reps):"")+'"><input class="wl-sv-set wl-set-input wl-set-rir" data-ei="'+ei+'" data-si="'+si+'" data-field="rir" type="text" inputmode="numeric" placeholder="–" value="'+esc(st.rir!=null?String(st.rir):"")+'"><span class="wl-exrow-sub" style="text-align:center">'+stat+'</span></div>';
       else h+='<div class="wl-setgrid" style="grid-template-columns:1fr 1fr 46px 60px;padding:7px 0;border-top:1px solid var(--line)"><span style="text-align:center;font-size:15px">'+(st.weight!=null?st.weight:"–")+'</span><span style="text-align:center;font-size:15px">'+(st.reps!=null?st.reps:"–")+'</span><span style="text-align:center;color:var(--faint)">'+(st.rir!=null?st.rir:"–")+'</span><span class="wl-exrow-sub" style="text-align:center;display:inline-flex;align-items:center;justify-content:center;gap:6px">'+(st.status==="done"?setTargetIcon(st,en):"")+stat+'</span></div>';});
@@ -2754,7 +2808,7 @@ function render(){
   var maxBtn=isOwner()?'<button class="wl-maxb'+(coachUnreadW()?" hot":"")+'" data-act="max:open" aria-label="Messages from Coach Max">M</button>':'';
   var backBtn=state.view==="photos"?'<button class="wl-hdr-back" data-act="go" data-view="weight" aria-label="Back">‹</button>':'';
   var _navH=headerNav();var _brand='<span class="wl-mark">'+BRANDMARK+'</span>';var _md=statusFor(todayISO());var _mbanner=_md?('<button class="wl-modebanner" data-act="go" data-view="settings"><span class="wl-mb-em">'+(_md.status.type==="vacation"?"\ud83c\udfd6\ufe0f":"\ud83e\udd12")+'</span><span>'+(_md.status.type==="vacation"?"Vacation Mode":"Recovery Mode")+'</span><span class="wl-mb-go">Settings \u203a</span></button>'):'';
-  document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header'+(_md?" hasbanner":"")+'">'+_mbanner+'<div class="wl-hdr-brand"><div class="wl-brandrow">'+_brand+'<span class="wl-eyebrow">Compound</span></div>'+hdrRight+'</div><div class="wl-hdr-main">'+backBtn+'<div class="wl-title-slot">'+(title?('<h1 class="wl-title">'+title+'</h1>'):'')+(hsub?'<div class="wl-hsub">'+esc(hsub)+'</div>':'')+'</div><div class="wl-hdr-actions">'+_navH+maxBtn+avatar+'</div></div></header><main class="wl-main">'+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML()+statusSheetHTML()+obOverlayHTML()+deviceSheetHTML()+maxSheetHTML();
+  document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header'+(_md?" hasbanner":"")+'">'+_mbanner+'<div class="wl-hdr-brand"><div class="wl-brandrow">'+_brand+'<span class="wl-eyebrow">Compound</span></div>'+hdrRight+'</div><div class="wl-hdr-main">'+backBtn+'<div class="wl-title-slot">'+(title?('<h1 class="wl-title">'+title+'</h1>'):'')+(hsub?'<div class="wl-hsub">'+esc(hsub)+'</div>':'')+'</div><div class="wl-hdr-actions">'+_navH+maxBtn+avatar+'</div></div></header><main class="wl-main">'+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML()+statusSheetHTML()+obOverlayHTML()+deviceSheetHTML()+maxSheetHTML()+infoSheetHTML();
   var hdr=document.querySelector(".wl-header");if(hdr)document.documentElement.style.setProperty("--headh",hdr.offsetHeight+"px");
   if(document.getElementById("wl-photostrip"))renderPhotosStrip(state.selDate);
   if(state.view==="diary")renderDiary();
@@ -2805,6 +2859,9 @@ document.addEventListener("click",function(e){
   if(a==="hk:cancel"){state.hkWait=null;render();return;}
   if(a==="max:open"){state.maxOpen=true;var _mws=state.weeklySummary;if(_mws&&_mws.week&&state.settings.seenWeekly!==_mws.week){state.settings.seenWeekly=_mws.week;save();}render();return;}
   if(a==="max:close"){state.maxOpen=false;render();return;}
+  if(a==="info"){state.infoOpen=el.getAttribute("data-info");render();return;}
+  if(a==="info:close"){state.infoOpen=null;render();return;}
+  if(a==="noop"){return;}
   if(a==="noop"){return;}
   if(a==="sum:toggle"){var _ws1=state.weeklySummary;if(_ws1&&_ws1.week&&state.settings.seenWeekly!==_ws1.week){state.settings.seenWeekly=_ws1.week;state.sumOpen=true;try{localStorage.setItem("wl_sumopen","1");}catch(e){}save();render();return;}state.sumOpen=(state.sumOpen===false);try{localStorage.setItem("wl_sumopen",state.sumOpen?"1":"0");}catch(e){}render();return;}
   if(a==="night:toggle"){var _ns1=state.nightlySummary;if(_ns1&&_ns1.date&&state.settings.seenNightly!==_ns1.date){state.settings.seenNightly=_ns1.date;state.nightOpen=true;if(state.selDate!==_ns1.date){state.selDate=_ns1.date;var _np=parseISO(_ns1.date);state.calY=_np.getFullYear();state.calM=_np.getMonth();}save();render();return;}state.nightOpen=(state.nightOpen===false);render();return;}
