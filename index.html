@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-21.282 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-21.288 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -722,9 +722,9 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-21.286";
+var APP_BUILD="2026-07-21.288-pb";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
-var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
+var SHOW_TESTBTN=false; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
 var deferredPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredPrompt=e;});
 var photoURLs=[],photoMap={},photoDB=null;
@@ -1411,11 +1411,16 @@ function hkTryFetch(){var w=state.hkWait;if(!w)return;
     .catch(function(){});}
 
 function refreshWeekPhotos(){if(typeof indexedDB==="undefined"){wkPhotoHave=false;return;}var wk=toISO(weekStartFor(0));var key=wk;
-  try{var r=indexedDB.open("wl_photos",1);r.onsuccess=function(){var db=r.result;if(!db.objectStoreNames.contains("photos")){wkPhotoHave=false;wkPhotoKey=key;return;}
+  /* Go through idb() rather than opening the database directly. Opening "wl_photos"
+     at version 1 without an onupgradeneeded handler CREATES it empty, and since the
+     version then already matches, idb()'s handler never runs and the "photos" object
+     store is never created — permanently breaking photos on any device that opens the
+     app before taking its first photo. idb() is the single owner of the schema. */
+  try{idb().then(function(db){
     var tx=db.transaction("photos","readonly");var rq=tx.objectStore("photos").index("date").openCursor(IDBKeyRange.lowerBound(wk));
     rq.onsuccess=function(){var had=wkPhotoHave;wkPhotoHave=!!rq.result;wkPhotoKey=key;if(had!==wkPhotoHave)render();};
-    rq.onerror=function(){wkPhotoHave=false;wkPhotoKey=key;};};
-  r.onerror=function(){wkPhotoHave=false;wkPhotoKey=key;};}catch(e){wkPhotoHave=false;wkPhotoKey=key;}}
+    rq.onerror=function(){wkPhotoHave=false;wkPhotoKey=key;};
+  }).catch(function(){wkPhotoHave=false;wkPhotoKey=key;});}catch(e){wkPhotoHave=false;wkPhotoKey=key;}}
 function maxSheetHTML(){if(!state.maxOpen)return "";var ws=state.weeklySummary;var _ciDay=(new Date().getDay()===(parseInt(state.settings.weekStart,10)||0));
   var inner;
   if(state.genBusy){inner='<div class="wl-mhead"><span class="wl-mav">M</span><span style="min-width:0"><span class="wl-mtitle">Weekly check-in</span><span class="wl-msub">from Coach Max</span></span><button class="wl-maxx" data-act="max:close">\u2715</button></div><div class="wl-hint">\u23f3 Generating your check-in\u2026 this takes about a minute. You can close this and keep using the app.</div>';}
@@ -1941,9 +1946,24 @@ function reminderICS(hhmm){
 function idb(){return new Promise(function(res,rej){
   if(photoDB)return res(photoDB);
   if(typeof indexedDB==="undefined")return rej("no idb");
-  var r=indexedDB.open("wl_photos",1);
-  r.onupgradeneeded=function(){var db=r.result;if(!db.objectStoreNames.contains("photos")){var os=db.createObjectStore("photos",{keyPath:"id"});os.createIndex("date","date",{unique:false});}};
-  r.onsuccess=function(){photoDB=r.result;res(photoDB);};r.onerror=function(){rej(r.error);};});}
+  function mkStore(db){if(!db.objectStoreNames.contains("photos")){var os=db.createObjectStore("photos",{keyPath:"id"});os.createIndex("date","date",{unique:false});}}
+  /* Open with NO version so we get whatever exists. A device may already hold a
+     wl_photos database stuck at version 1 with no object store (an older build
+     opened it without an upgrade handler and created it empty) — opening at
+     version 1 again would succeed with no upgrade event and leave it broken
+     forever. Detect that and bump the version, which is the only way to obtain an
+     upgrade transaction in which the store can be added. Self-heals; a healthy
+     database takes the fast path and never bumps. */
+  var r=indexedDB.open("wl_photos");
+  r.onupgradeneeded=function(){mkStore(r.result);};
+  r.onsuccess=function(){var db=r.result;
+    if(db.objectStoreNames.contains("photos")){photoDB=db;res(db);return;}
+    var v=db.version+1;db.close();
+    var r2=indexedDB.open("wl_photos",v);
+    r2.onupgradeneeded=function(){mkStore(r2.result);};
+    r2.onsuccess=function(){photoDB=r2.result;res(photoDB);};
+    r2.onerror=function(){rej(r2.error);};};
+  r.onerror=function(){rej(r.error);};});}
 function idbAdd(rec){wkPhotoKey=null;return idb().then(function(db){return new Promise(function(res,rej){var tx=db.transaction("photos","readwrite");tx.objectStore("photos").put(rec);tx.oncomplete=function(){res();};tx.onerror=function(){rej(tx.error);};});});}
 function idbByDate(date){return idb().then(function(db){return new Promise(function(res,rej){var out=[];var tx=db.transaction("photos","readonly");var rq=tx.objectStore("photos").index("date").openCursor(IDBKeyRange.only(date));rq.onsuccess=function(){var c=rq.result;if(c){out.push(c.value);c.continue();}else res(out.sort(function(a,b){return a.ts-b.ts;}));};rq.onerror=function(){rej(rq.error);};});});}
 function idbAll(){return idb().then(function(db){return new Promise(function(res,rej){var out=[];var tx=db.transaction("photos","readonly");var rq=tx.objectStore("photos").openCursor();rq.onsuccess=function(){var c=rq.result;if(c){out.push(c.value);c.continue();}else res(out);};rq.onerror=function(){rej(rq.error);};});});}
@@ -2794,22 +2814,9 @@ function view_settings(){
   var sc=syncCfg();
   if(pg==="sync"){
   if(isOwner()){
-  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="sync"><span>Cloud sync <em>GitHub</em></span><span class="wl-chevron'+(op.sync?" open":"")+'">›</span></button>'+(op.sync?('<div class="wl-collapse-body">'+
-    '<label class="wl-field wl-field-full"><span>Access token</span><input type="password" data-sync="token" value="'+esc(sc.token||"")+'" placeholder="github_pat_…" autocapitalize="off" autocorrect="off" spellcheck="false"></label>'+
-    '<div class="wl-row" style="margin-top:12px"><button class="wl-btn wl-btn-ghost wl-full" data-act="sync:test">Test</button><button class="wl-btn wl-btn-ghost wl-full" data-act="sync:pull">Pull</button><button class="wl-btn wl-btn-primary wl-full" data-act="sync:push">Push</button></div>'+
-    '<div class="wl-row" style="margin-top:10px"><button class="wl-btn wl-btn-primary wl-full" data-act="device:open">Set up another device (link)</button></div>'+'<div class="wl-row" style="margin-top:8px"><button class="wl-btn wl-btn-ghost wl-full" data-act="sync:copy">Copy setup</button><button class="wl-btn wl-btn-ghost wl-full" data-act="sync:paste">Paste setup</button></div>'+
-    (state.syncPasteOpen?'<textarea id="wl-syncpaste" placeholder="Paste setup here, then tap Apply" style="width:100%;min-height:80px;margin-top:10px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--mono);font-size:12px;padding:10px;box-sizing:border-box;outline:none"></textarea><div class="wl-row" style="margin-top:8px"><button class="wl-btn wl-btn-ghost wl-full" data-act="sync:pastecancel">Cancel</button><button class="wl-btn wl-btn-primary wl-full" data-act="sync:pasteapply">Apply</button></div>':'')+
-    '<div class="wl-hint" style="margin-top:10px"><b>Status:</b> <span id="wl-sync-status">'+syncStatusHTML()+'</span></div>'+
-    '<div class="wl-hint">Synced with <b>kaleyeah/weight-data</b>. Enter your token once, tap <b>Test</b>, then <b>Push</b>. Setting up a new device? Tap <b>Copy setup</b> here and <b>Paste setup</b> there — no retyping the token. Your token is stored on this device only, never in the app\u2019s code.</div></div>'):'')+'</div>';
+  h+=pbAccountCardHTML(op);
   }
-  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="share"><span>'+(isOwner()?'Sharing <em>invite</em>':'Your profile')+'</span>'+'<span class="wl-chevron'+(op.share?" open":"")+'">›</span></button>'+(op.share?('<div class="wl-collapse-body">'+
-    '<label class="wl-field wl-field-full"><span>Your name</span><input type="text" data-set="name" value="'+esc(f.name||"")+'" placeholder="e.g. Alex" autocapitalize="words" autocorrect="off"></label>'+
-    (isOwner()?connectionsHTML():'')+
-    (isOwner()?'<div class="wl-row" style="margin-top:12px"><button class="wl-btn wl-btn-primary wl-full" data-act="invite:create">Create invite code</button></div>':'')+'<div class="wl-row" style="margin-top:8px"><button class="wl-btn wl-btn-ghost wl-full" data-act="invite:open">'+(isOwner()?'Enter a code (join someone)':'Enter an invite code')+'</button></div>'+
-    (state.inviteCode?'<div class="wl-hint" style="margin-top:10px">Send this code to the person you\u2019re adding, then have them tap <b>Enter a code</b> on their device:</div><textarea readonly onclick="this.select()" style="width:100%;min-height:76px;margin-top:6px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--mono);font-size:11px;padding:10px;box-sizing:border-box;outline:none">'+esc(state.inviteCode)+'</textarea><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:6px" data-act="invite:copy">Copy code</button>':'')+
-    (state.joinOpen?'<textarea id="wl-joincode" placeholder="Paste the invite code you were sent" style="width:100%;min-height:76px;margin-top:10px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--mono);font-size:11px;padding:10px;box-sizing:border-box;outline:none"></textarea><div class="wl-row" style="margin-top:6px"><button class="wl-btn wl-btn-ghost wl-full" data-act="invite:joincancel">Cancel</button><button class="wl-btn wl-btn-primary wl-full" data-act="invite:join">Join</button></div>':'')+
-    (isOwner()?'<div class="wl-hint" style="margin-top:10px">Add people by <b>invite code</b>. Each person gets their own private space tied to that code — it can\u2019t be switched or overwritten from another device. Your <b>activities and macros stay private</b>; only weight-loss progress is shared, on the Home tab.</div><div class="wl-hint">Note: everyone shares one repo &amp; token, so this is trust-based separation (fine for family) rather than a hard wall.</div>':'<div class="wl-hint" style="margin-top:10px">This name shows on your progress card for whoever you\u2019re sharing with. Your weigh-ins, activities, and macros are your own.</div>')
-    ):'')+'</div>';
+  h+=pbProfileCardHTML(op,f);
   }
   if(pg==="data"){
   if(isOwner())
@@ -2822,7 +2829,7 @@ function view_settings(){
     '<div class="wl-hint" style="display:flex;justify-content:space-between;align-items:center;margin:0 0 12px"><span>On this device</span><span class="wl-count" id="wl-pbk-count">…</span></div>'+
     '<button class="wl-btn wl-btn-primary wl-full" data-act="pbk:export">Export progress photos</button>'+
     '<div class="wl-row" style="margin-top:10px"><button class="wl-btn wl-btn-ghost wl-full" data-act="pbk:import">Import progress photos</button></div>'+
-    '<div class="wl-hint" style="margin-top:10px">Your progress photos live only on this device — never synced, never seen by the coach. <b>Export</b> bundles them into one file; tap <b>Save to Files</b> to keep it. <b>Import</b> restores them from that file on any device.</div>'+
+    '<div class="wl-hint" style="margin-top:10px">Your progress photos sync privately to your own server, so they follow you to any device you log in on. Only you can see them — never the coach. <b>Export</b> bundles them into one file; tap <b>Save to Files</b> to keep it. <b>Import</b> restores them from that file on any device.</div>'+
     '</div>'):'')+'</div>';
   }
   if(pg==="about"){
@@ -3355,8 +3362,395 @@ function makeIcon(){
 }
 
 
+
+/* ============================================================
+   PocketBase adapter  (generated by tools/pb-port.mjs)
+   Replaces the GitHub Contents API sync with a self-hosted
+   PocketBase backend: real accounts, hard per-user isolation.
+   ============================================================ */
+var PB_DEFAULT_BASE="https://rack.tail6fa16c.ts.net";
+var PB_KEY="wl_pb";
+function pbCfg(){try{return JSON.parse(localStorage.getItem(PB_KEY))||{};}catch(e){return {};}}
+function setPbCfg(c){try{localStorage.setItem(PB_KEY,JSON.stringify(c));}catch(e){}}
+function pbBase(){var c=pbCfg();return String(c.base||PB_DEFAULT_BASE).replace(/\/+$/,"");}
+function pbTok(){return pbCfg().token||"";}
+function pbUid(){return pbCfg().uid||"";}
+function pbEmail(){return pbCfg().email||"";}
+function pbHeaders(json){var h={};var t=pbTok();if(t)h.Authorization=t;if(json)h["Content-Type"]="application/json";return h;}
+
+/* the app asks "is sync configured?" everywhere — now it means "logged in" */
+function syncOn(){return !!(pbTok()&&pbUid());}
+
+/* every account owns its own data, so the old multi-profile uid tagging is moot */
+function myUid(){return "owner";}
+function isOwner(){return true;}
+function connectionList(){return [];}
+function pullConnections(){}
+
+/* ---- auth ---- */
+function pbLogin(email,password,cb){
+  var base=pbBase();
+  fetch(base+"/api/collections/users/auth-with-password",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({identity:email,password:password})})
+    .then(function(r){if(r.status===400)return Promise.reject("bad");if(!r.ok)return Promise.reject("error");return r.json();})
+    .then(function(j){var c=pbCfg();c.base=base;c.token=j.token;c.uid=j.record.id;c.email=j.record.email;setPbCfg(c);cb&&cb(true);})
+    .catch(function(e){cb&&cb(false,(e==="bad")?"bad":(e==="error")?"error":"offline");});}
+
+/* silently extend the session on every open so a 90-day token never lapses mid-use */
+function pbRefresh(cb){
+  if(!syncOn()){cb&&cb(false);return;}
+  fetch(pbBase()+"/api/collections/users/auth-refresh",{method:"POST",headers:pbHeaders(true)})
+    .then(function(r){if(r.status===401||r.status===403)return Promise.reject("auth");if(!r.ok)return Promise.reject("error");return r.json();})
+    .then(function(j){var c=pbCfg();c.token=j.token;c.uid=j.record.id;c.email=j.record.email;setPbCfg(c);cb&&cb(true);})
+    .catch(function(e){if(e==="auth"){pbForceLogout();}cb&&cb(false);});}
+
+/* wipe every trace of the previous account — a shared iPad must not leak data */
+function pbForceLogout(){
+  try{localStorage.removeItem(PB_KEY);}catch(e){}
+  try{localStorage.removeItem(KEY);localStorage.removeItem(TKEY);localStorage.removeItem(WOKEY);
+      localStorage.removeItem(DIRTY_KEY);localStorage.removeItem(LAST_KEY);}catch(e){}
+  pbRecId=null;}
+function pbLogout(){
+  askConfirm("Log out on this device? Your data stays safe on the server — log back in any time.",function(){
+    pbForceLogout();location.reload();
+  },{label:"Log out",danger:true});}
+
+/* ---- the single appdata record ---- */
+var pbRecId=null;
+function pbGetRecord(cb){
+  if(!syncOn()){cb&&cb(null,"not configured");return;}
+  fetch(pbBase()+"/api/collections/appdata/records?perPage=1&filter="+encodeURIComponent('user="'+pbUid()+'"')+"&t="+Date.now(),
+    {headers:pbHeaders(),cache:"no-store"})
+    .then(function(r){if(r.status===401||r.status===403)return Promise.reject("auth");if(!r.ok)return Promise.reject("error");return r.json();})
+    .then(function(p){var rec=(p.items&&p.items[0])||null;if(rec)pbRecId=rec.id;cb&&cb(rec,null);})
+    .catch(function(e){cb&&cb(null,(e==="auth")?"auth":(e==="error")?"error":"offline");});}
+
+function pbSave(fields,cb){
+  if(!syncOn()){cb&&cb(false,"not configured");return;}
+  var base=pbBase();
+  function write(id){
+    var url=base+"/api/collections/appdata/records"+(id?("/"+id):"");
+    var body=id?fields:Object.assign({user:pbUid()},fields);
+    return fetch(url,{method:id?"PATCH":"POST",headers:pbHeaders(true),body:JSON.stringify(body)})
+      .then(function(r){
+        if(r.status===401||r.status===403)return Promise.reject("auth");
+        if(r.status===404&&id){pbRecId=null;return Promise.reject("gone");}
+        if(!r.ok)return Promise.reject("error");
+        return r.json();});}
+  var run=pbRecId?write(pbRecId):new Promise(function(res,rej){
+    pbGetRecord(function(rec,err){if(err)return rej(err);write(rec?rec.id:null).then(res,rej);});});
+  run.then(function(j){if(j&&j.id)pbRecId=j.id;cb&&cb(true,null);})
+     .catch(function(e){
+       if(e==="gone"){pbSave(fields,cb);return;}
+       cb&&cb(false,(e==="auth")?"auth":(e==="error")?"error":"offline");});}
+
+/* ---- drop-in replacements for the GitHub primitives ----
+   Same callback contracts, so cloudPull/autoSync/the status dot are untouched. */
+function cloudGet(cb){
+  pbGetRecord(function(rec,err){
+    if(err){cb&&cb(null,err);return;}
+    cb&&cb((rec&&rec.data)||{},null);});}
+
+function cloudPush(manual){
+  if(!syncOn()){if(manual)toast("Log in first");return;}
+  if(pushing){clearTimeout(pushTimer);pushTimer=setTimeout(function(){cloudPush(manual);},900);return;}
+  pushing=true;setSync("saving");resyncAllActivityTags();
+  pbSave({data:payload()},function(ok,err){
+    pushing=false;
+    if(ok){markDirty(false);setLastSync();setSync("ok");if(manual)toast("Saved to your server");return;}
+    setSync(err==="offline"?"offline":"error",err==="auth"?"session expired — log in again":"");
+    if(manual)toast(err==="offline"?"No connection":err==="auth"?"Please log in again":"Save failed");});}
+
+function trainingPush(){
+  if(!syncOn())return;
+  pbSave({training:state.training},function(){});}
+
+function trainingPull(cb){
+  if(!syncOn()){cb&&cb();return;}
+  pbGetRecord(function(rec){
+    var d=rec&&rec.training;
+    if(d&&typeof d==="object"&&(d.exercises||d.routines||d.sessions||d.liftSessions)){
+      state.training={cardioTypes:(Array.isArray(d.cardioTypes)&&d.cardioTypes.length)?d.cardioTypes:state.training.cardioTypes,
+        sessions:d.sessions||{},exercises:d.exercises||[],routines:d.routines||[],liftSessions:d.liftSessions||{}};
+      saveTrainingLocal();}
+    cb&&cb();});}
+
+function cloudTest(){
+  setSync("syncing");
+  cloudGet(function(d,err){
+    if(err){setSync(err==="offline"?"offline":"error",err==="auth"?"session expired":"");
+      toast(err==="offline"?"No connection":err==="auth"?"Please log in again":"Failed");return;}
+    var n=(d.weights||[]).length,fd=Object.keys(d.food||{}).length;
+    setLastSync();setSync("ok","server has "+n+" weigh-ins, "+fd+" food days");
+    toast("Connected to your server");render();});}
+
+function pushDataPromise(){
+  return new Promise(function(res,rej){
+    pbSave({data:payload()},function(ok,err){ok?res():rej(new Error(err==="offline"?"No connection":"Couldn't save your data first"));});});}
+
+/* ---- Apple Health bridge ----
+   A PWA cannot read HealthKit at all, so the iOS Shortcut stays the only path.
+   What changes is the drop box: the Shortcut used to PUT health.json into the
+   GitHub repo and the app polled that file. Now the Shortcut PATCHes the health
+   field on this user's appdata record and the app polls the record. The polling
+   contract (state.hkWait, 6 tries, 2s apart, 5-minute ceiling) is unchanged. */
+function hkTryFetch(){
+  var w=state.hkWait;if(!w)return;
+  if(Date.now()-w.ts>5*60*1000){state.hkWait=null;render();return;}
+  if(!syncOn())return;
+  pbGetRecord(function(rec,err){
+    var w2=state.hkWait;if(!w2)return;
+    var h=(!err&&rec&&rec.health)||null;
+    if(!h||h.date!==w2.date){
+      w2.tries=(w2.tries||0)+1;
+      if(w2.tries<6){setTimeout(hkTryFetch,2000);}
+      else{state.hkWait=null;toast("No Health data found yet — run the shortcut and try again");render();}
+      return;}
+    var d=h.date;var fo=Object.assign({},state.food[d]||{});
+    ["calories","protein","carbs","fat"].forEach(function(k){var v=num(h[k]);if(v!=null)fo[k]=String(Math.round(v));});
+    state.food[d]=fo;state.hkDone={date:d,ts:Date.now()};state.hkWait=null;
+    save();toast("Imported from Health");render();});}
+
+/* ---- Settings > Sync becomes an Account card ---- */
+function pbAccountCardHTML(op){
+  var c=pbCfg();
+  var host=pbBase().replace(/^https?:\/\//,"");
+  return '<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="sync"><span>Account <em>your server</em></span><span class="wl-chevron'+(op.sync?" open":"")+'">›</span></button>'+
+    (op.sync?('<div class="wl-collapse-body">'+
+      '<div class="wl-pbrow"><span class="wl-pbrow-k">Signed in as</span><span class="wl-pbrow-v">'+esc(pbEmail()||"—")+'</span></div>'+
+      '<div class="wl-pbrow"><span class="wl-pbrow-k">Server</span><span class="wl-pbrow-v">'+esc(host)+'</span></div>'+
+      '<div class="wl-hint" style="margin-top:10px"><b>Status:</b> <span id="wl-sync-status">'+syncStatusHTML()+'</span></div>'+
+      '<div class="wl-row" style="margin-top:12px"><button class="wl-btn wl-btn-ghost wl-full" data-act="sync:test">Test</button><button class="wl-btn wl-btn-ghost wl-full" data-act="sync:pull">Pull</button><button class="wl-btn wl-btn-primary wl-full" data-act="sync:push">Save</button></div>'+
+      '<div class="wl-row" style="margin-top:10px"><button class="wl-btn wl-btn-ghost wl-full" data-act="pb:logout">Log out</button></div>'+
+      '<div class="wl-hint" style="margin-top:10px">Your data lives on your own server. Only you can read it — every request is checked against your account, so no other user can ever see your numbers or photos.</div>'+
+    '</div>'):'')+'</div>';}
+
+/* Replaces the Sharing/invite card at cutover. Real accounts make invite codes
+   meaningless — every user has their own login and their own isolated data — so all
+   that's left worth keeping from that card is the name field. */
+function pbProfileCardHTML(op,f){
+  return '<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="share"><span>Your profile</span><span class="wl-chevron'+(op.share?" open":"")+'">›</span></button>'+
+    (op.share?('<div class="wl-collapse-body">'+
+      '<label class="wl-field wl-field-full"><span>Your name</span><input type="text" data-set="name" value="'+esc((f&&f.name)||"")+'" placeholder="e.g. Alex" autocapitalize="words" autocorrect="off"></label>'+
+      '<div class="wl-hint" style="margin-top:10px">Coach Max uses your name when he writes to you.</div>'+
+    '</div>'):'')+'</div>';}
+
+/* ---- login screen ---- */
+var pbLoginState={busy:false,err:"",advanced:false};
+function pbLoginHTML(){
+  var c=pbCfg();
+  return '<div class="wl-login">'+
+    '<div class="wl-login-inner">'+
+      '<div class="wl-login-brand"><span class="wl-mark">'+BRANDMARK+'</span><span class="wl-login-word">Compound</span></div>'+
+      '<div class="wl-login-tag">Log in to reach your data on any device.</div>'+
+      '<form class="wl-login-form" id="wl-loginform" autocomplete="on">'+
+        '<label class="wl-field wl-field-full"><span>Email</span><input type="email" id="wl-pb-email" value="'+esc(c.email||"")+'" placeholder="you@example.com" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="username"></label>'+
+        '<label class="wl-field wl-field-full" style="margin-top:10px"><span>Password</span><input type="password" id="wl-pb-pass" placeholder="••••••••" autocomplete="current-password"></label>'+
+        (pbLoginState.err?'<div class="wl-login-err">'+esc(pbLoginState.err)+'</div>':'')+
+        '<button type="submit" class="wl-btn wl-btn-primary wl-full wl-login-go"'+(pbLoginState.busy?' disabled':'')+'>'+(pbLoginState.busy?"Signing in…":"Log in")+'</button>'+
+      '</form>'+
+      '<button class="wl-login-adv" data-act="pb:adv">'+(pbLoginState.advanced?"Hide server settings":"Server settings")+'</button>'+
+      (pbLoginState.advanced?('<label class="wl-field wl-field-full"><span>Server URL</span><input type="url" id="wl-pb-base" value="'+esc(c.base||PB_DEFAULT_BASE)+'" autocapitalize="off" autocorrect="off" spellcheck="false"></label>'+
+        '<div class="wl-hint" style="margin-top:8px">Your device must be on the same Tailscale network as the server.</div>'):'')+
+    '</div>'+
+  '</div>';}
+
+function pbRenderLogin(){
+  document.getElementById("app").innerHTML=pbLoginHTML()+confirmOverlayHTML();
+  var f=document.getElementById("wl-loginform");
+  if(f)f.addEventListener("submit",function(e){e.preventDefault();pbDoLogin();});
+  var em=document.getElementById("wl-pb-email");
+  if(em&&!em.value)em.focus();}
+
+function pbDoLogin(){
+  if(pbLoginState.busy)return;
+  var em=(document.getElementById("wl-pb-email")||{}).value||"";
+  var pw=(document.getElementById("wl-pb-pass")||{}).value||"";
+  var bs=(document.getElementById("wl-pb-base")||{}).value||"";
+  em=em.trim();
+  if(!em||!pw){pbLoginState.err="Enter your email and password.";pbRenderLogin();return;}
+  if(bs){var c=pbCfg();c.base=bs.trim();setPbCfg(c);}
+  pbLoginState.busy=true;pbLoginState.err="";pbRenderLogin();
+  pbLogin(em,pw,function(ok,why){
+    pbLoginState.busy=false;
+    if(!ok){
+      pbLoginState.err=(why==="bad")?"That email and password don’t match.":(why==="offline")?"Can’t reach the server. Is Tailscale on?":"Something went wrong. Try again.";
+      pbRenderLogin();return;}
+    pbLoginState.err="";
+    /* fresh account on this device: take the server's copy as the truth */
+    setSync("syncing");
+    cloudGet(function(d,err){
+      if(!err&&d)applyCloud(d);
+      trainingPull(function(){
+        setLastSync();setSync("ok");render();
+        toast("Welcome back"+(state.settings.name?(", "+state.settings.name):""));
+        /* pull this account's photos down onto this device in the background */
+        photoSync(function(r){
+          if(r&&r.downloaded)toast(r.downloaded+" photo"+(r.downloaded===1?"":"s")+" restored");});});});});}
+
+/* gate the whole app behind login without duplicating render()'s body */
+var _pbOrigRender=render;
+render=function(){
+  if(!syncOn()){pbRenderLogin();return;}
+  _pbOrigRender();};
+
+/* extra acts (the original listener ignores acts it doesn't know) */
+document.addEventListener("click",function(e){
+  var el=e.target.closest("[data-act]");if(!el)return;
+  var a=el.getAttribute("data-act");
+  if(a==="pb:logout"){pbLogout();return;}
+  if(a==="pb:adv"){pbLoginState.advanced=!pbLoginState.advanced;pbRenderLogin();return;}
+});
+
+/* ============================================================
+   PHOTOS — server-backed sync on top of the existing IndexedDB store.
+   IndexedDB stays the local cache so every existing photo view keeps
+   working untouched; PocketBase becomes the backbone that makes photos
+   appear on any device you log into.
+   ============================================================ */
+var PB_PMAP="wl_photomap";
+function pbPhotoMap(){try{return JSON.parse(localStorage.getItem(PB_PMAP))||{};}catch(e){return {};}}
+function setPbPhotoMap(m){try{localStorage.setItem(PB_PMAP,JSON.stringify(m));}catch(e){}}
+
+/* protected files need a short-lived token — an unguessable URL is not enough */
+function pbFileToken(){
+  return fetch(pbBase()+"/api/files/token",{method:"POST",headers:pbHeaders(true)})
+    .then(function(r){return r.ok?r.json():Promise.reject(r.status);})
+    .then(function(j){return j.token;});}
+
+function pbPhotoList(){
+  return fetch(pbBase()+"/api/collections/photos/records?perPage=500&filter="
+      +encodeURIComponent('user="'+pbUid()+'"')+"&t="+Date.now(),{headers:pbHeaders(),cache:"no-store"})
+    .then(function(r){return r.ok?r.json():Promise.reject(r.status);})
+    .then(function(p){return p.items||[];});}
+
+function pbPhotoUpload(rec){
+  var fd=new FormData();
+  var type=(rec.blob&&rec.blob.type)||"image/jpeg";
+  var ext=({"image/png":"png","image/webp":"webp","image/heic":"heic"})[type]||"jpg";
+  fd.append("user",pbUid());
+  fd.append("kind",rec.kind==="progress"?"progress":"food");
+  fd.append("date",String(rec.date||"").slice(0,10));
+  if(rec.week)fd.append("week",String(rec.week).slice(0,10));
+  if(rec.pose)fd.append("pose",String(rec.pose).slice(0,20));
+  fd.append("localId",String(rec.id));
+  fd.append("ts",String(rec.ts||Date.now()));
+  fd.append("file",rec.blob,(rec.pose||rec.kind||"photo")+"."+ext);
+  var h={};var t=pbTok();if(t)h.Authorization=t; /* no Content-Type — the browser sets the multipart boundary */
+  return fetch(pbBase()+"/api/collections/photos/records",{method:"POST",headers:h,body:fd})
+    .then(function(r){return r.ok?r.json():Promise.reject(r.status);});}
+
+function pbPhotoDelete(serverId){
+  return fetch(pbBase()+"/api/collections/photos/records/"+serverId,{method:"DELETE",headers:pbHeaders()})
+    .then(function(r){return (r.ok||r.status===404)?true:Promise.reject(r.status);});}
+
+function pbPhotoFetchBlob(srec,token){
+  return fetch(pbBase()+"/api/files/photos/"+srec.id+"/"+srec.file+"?token="+encodeURIComponent(token))
+    .then(function(r){return r.ok?r.blob():Promise.reject(r.status);});}
+
+/* ---- the sync itself ---- */
+var pbPhotoSyncing=false;
+function photoSync(done){
+  if(!syncOn()||pbPhotoSyncing||typeof indexedDB==="undefined"){done&&done();return;}
+  pbPhotoSyncing=true;
+  var uploaded=0,downloaded=0,removed=0;
+  /* mapStart is the set of photos we KNEW were on the server before this run.
+     Deletion-propagation must test against this snapshot, not the live map —
+     otherwise a photo uploaded moments ago (absent from the server listing we
+     already fetched) would look like a remote deletion and be wiped locally. */
+  var mapStart=pbPhotoMap(),map=pbPhotoMap();
+
+  function finish(){
+    setPbPhotoMap(map);pbPhotoSyncing=false;
+    if(uploaded||downloaded||removed){
+      try{wkPhotoKey=null;refreshWeekPhotos();}catch(e){}
+      if(state.view==="photos"||state.view==="diary")render();}
+    done&&done({uploaded:uploaded,downloaded:downloaded,removed:removed});}
+
+  Promise.all([idbAll(),pbPhotoList()]).then(function(res){
+    var local=res[0]||[],server=res[1]||[];
+    var byLocalId={};server.forEach(function(s){if(s.localId)byLocalId[s.localId]=s;});
+    var localIds={};local.forEach(function(l){localIds[l.id]=l;});
+
+    /* 1. push anything this device has that the server doesn't.
+          The UNIQUE (user, localId) index makes a re-run harmless. */
+    var ups=local.filter(function(l){return l.blob&&!byLocalId[l.id];}).map(function(l){
+      return pbPhotoUpload(l).then(function(s){map[l.id]=s.id;uploaded++;})
+        .catch(function(){/* one bad photo must not abort the whole sweep */});});
+
+    return Promise.all(ups)
+      .then(function(){
+        /* 2. pull anything the server has that this device doesn't */
+        var missing=server.filter(function(s){return s.localId&&!localIds[s.localId];});
+        if(!missing.length)return null;
+        return pbFileToken().then(function(tok){
+          return Promise.all(missing.map(function(s){
+            return pbPhotoFetchBlob(s,tok).then(function(b){
+              map[s.localId]=s.id;downloaded++;
+              /* idbAddLocal, not idbAdd — this came FROM the server, re-uploading it
+                 would just bounce off the unique index and waste a round trip */
+              return idbAddLocal({id:s.localId,date:s.date,week:s.week||s.date,pose:s.pose||"",
+                kind:s.kind||"progress",blob:b,ts:s.ts||Date.now()});
+            }).catch(function(){});}));});})
+      .then(function(){
+        /* 3. propagate deletions: a photo we previously synced, now absent from the
+              server, was deleted on another device — mirror that deletion here. */
+        var gone=local.filter(function(l){return mapStart[l.id]&&!byLocalId[l.id];});
+        return Promise.all(gone.map(function(l){
+          delete map[l.id];removed++;
+          return idbDeleteLocal(l.id).catch(function(){});}));})
+      .then(finish);
+  }).catch(function(){pbPhotoSyncing=false;done&&done();});
+}
+
+/* Keep the original local-only ops, then make the public ones sync through.
+   ⚠️ These MUST be assignments, NOT function-declaration overrides. Declarations
+   hoist, so a declared override would already own the name by the time this line ran
+   and idbAddLocal would capture the override itself — infinite recursion. Same
+   wrap-don't-redeclare pattern as the render() gate above. */
+var idbAddLocal=idbAdd,idbDeleteLocal=idbDelete,idbClearAllLocal=idbClearAll;
+
+idbAdd=function(rec){
+  return idbAddLocal(rec).then(function(r){
+    if(syncOn()&&rec.blob){
+      pbPhotoUpload(rec).then(function(s){var m=pbPhotoMap();m[rec.id]=s.id;setPbPhotoMap(m);})
+        .catch(function(){/* stays local; the next photoSync() retries it */});}
+    return r;});};
+
+idbDelete=function(id){
+  var m=pbPhotoMap(),sid=m[id];
+  if(syncOn()&&sid){pbPhotoDelete(sid).then(function(){var mm=pbPhotoMap();delete mm[id];setPbPhotoMap(mm);}).catch(function(){});}
+  return idbDeleteLocal(id);};
+
+idbClearAll=function(){
+  if(syncOn()){
+    pbPhotoList().then(function(list){
+      return Promise.all(list.map(function(s){return pbPhotoDelete(s.id).catch(function(){});}));
+    }).then(function(){setPbPhotoMap({});}).catch(function(){});}
+  return idbClearAllLocal();};
+
+/* login-screen styling */
+(function(){
+  var css=document.createElement("style");
+  css.textContent=".wl-login{min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box}"+
+    ".wl-login-inner{width:100%;max-width:360px}"+
+    ".wl-login-brand{display:flex;align-items:center;gap:10px;justify-content:center}"+
+    ".wl-login-brand .wl-mark{display:inline-flex}"+
+    ".wl-login-word{font-size:22px;font-weight:700;letter-spacing:-.02em;color:var(--text)}"+
+    ".wl-login-tag{margin:10px 0 26px;text-align:center;color:var(--muted);font-size:13.5px;line-height:1.45}"+
+    ".wl-login-form{display:block}"+
+    ".wl-login-go{margin-top:16px}"+
+    ".wl-login-err{margin-top:12px;padding:10px 12px;border-radius:10px;background:color-mix(in srgb,var(--bad) 14%,transparent);border:1px solid color-mix(in srgb,var(--bad) 40%,transparent);color:var(--bad);font-size:13px;line-height:1.4}"+
+    ".wl-login-adv{display:block;margin:18px auto 0;background:none;border:0;color:var(--faint);font-size:12.5px;text-decoration:underline;text-underline-offset:3px;cursor:pointer;font-family:inherit}"+
+    ".wl-pbrow{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:7px 0;border-bottom:1px solid var(--line)}"+
+    ".wl-pbrow:last-of-type{border-bottom:0}"+
+    ".wl-pbrow-k{color:var(--muted);font-size:13px}"+
+    ".wl-pbrow-v{color:var(--text);font-size:13px;font-weight:600;text-align:right;word-break:break-all}";
+  document.head.appendChild(css);
+})();
+
 /* ---------------- init ---------------- */
-load();loadTraining();loadWorkout();ensureIdentity();try{refreshWeekPhotos();}catch(e){}if(resyncAllActivityTags())save();var _hasSetup=/[#&]setup=/.test(location.hash||"");if(_hasSetup){state.settings.onboarded=true;}else{if(state.settings.onboarded==null)state.settings.onboarded=(state.weights.length>0||num(state.settings.goalWeight)!=null||num(state.settings.startingWeight)!=null||!!(state.settings.name&&(""+state.settings.name).trim()));if(!state.settings.onboarded){state.onboarding=true;state.obStep=0;}}applyTheme(state.settings.theme||"dark");makeIcon();if(state.workout)state.view="train";render();autoSync();if(state.workout)startWoTick();if(_hasSetup)checkSetupLink();
+load();loadTraining();loadWorkout();ensureIdentity();try{refreshWeekPhotos();}catch(e){}if(resyncAllActivityTags())save();var _hasSetup=/[#&]setup=/.test(location.hash||"");if(_hasSetup){state.settings.onboarded=true;}else{if(state.settings.onboarded==null)state.settings.onboarded=(state.weights.length>0||num(state.settings.goalWeight)!=null||num(state.settings.startingWeight)!=null||!!(state.settings.name&&(""+state.settings.name).trim()));if(!state.settings.onboarded){state.onboarding=true;state.obStep=0;}}applyTheme(state.settings.theme||"dark");makeIcon();if(state.workout)state.view="train";render();if(syncOn()){pbRefresh(function(){autoSync();photoSync();});}if(state.workout)startWoTick();if(_hasSetup)checkSetupLink();
 try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(e){}
 try{
   var wlraw=localStorage.getItem("wl_announced")||"";
