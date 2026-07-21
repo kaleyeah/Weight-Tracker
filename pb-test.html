@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-21.287 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-21.288 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -722,7 +722,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-21.287-pbtest";
+var APP_BUILD="2026-07-21.288-pbtest";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -1946,9 +1946,24 @@ function reminderICS(hhmm){
 function idb(){return new Promise(function(res,rej){
   if(photoDB)return res(photoDB);
   if(typeof indexedDB==="undefined")return rej("no idb");
-  var r=indexedDB.open("wl_photos",1);
-  r.onupgradeneeded=function(){var db=r.result;if(!db.objectStoreNames.contains("photos")){var os=db.createObjectStore("photos",{keyPath:"id"});os.createIndex("date","date",{unique:false});}};
-  r.onsuccess=function(){photoDB=r.result;res(photoDB);};r.onerror=function(){rej(r.error);};});}
+  function mkStore(db){if(!db.objectStoreNames.contains("photos")){var os=db.createObjectStore("photos",{keyPath:"id"});os.createIndex("date","date",{unique:false});}}
+  /* Open with NO version so we get whatever exists. A device may already hold a
+     wl_photos database stuck at version 1 with no object store (an older build
+     opened it without an upgrade handler and created it empty) — opening at
+     version 1 again would succeed with no upgrade event and leave it broken
+     forever. Detect that and bump the version, which is the only way to obtain an
+     upgrade transaction in which the store can be added. Self-heals; a healthy
+     database takes the fast path and never bumps. */
+  var r=indexedDB.open("wl_photos");
+  r.onupgradeneeded=function(){mkStore(r.result);};
+  r.onsuccess=function(){var db=r.result;
+    if(db.objectStoreNames.contains("photos")){photoDB=db;res(db);return;}
+    var v=db.version+1;db.close();
+    var r2=indexedDB.open("wl_photos",v);
+    r2.onupgradeneeded=function(){mkStore(r2.result);};
+    r2.onsuccess=function(){photoDB=r2.result;res(photoDB);};
+    r2.onerror=function(){rej(r2.error);};};
+  r.onerror=function(){rej(r.error);};});}
 function idbAdd(rec){wkPhotoKey=null;return idb().then(function(db){return new Promise(function(res,rej){var tx=db.transaction("photos","readwrite");tx.objectStore("photos").put(rec);tx.oncomplete=function(){res();};tx.onerror=function(){rej(tx.error);};});});}
 function idbByDate(date){return idb().then(function(db){return new Promise(function(res,rej){var out=[];var tx=db.transaction("photos","readonly");var rq=tx.objectStore("photos").index("date").openCursor(IDBKeyRange.only(date));rq.onsuccess=function(){var c=rq.result;if(c){out.push(c.value);c.continue();}else res(out.sort(function(a,b){return a.ts-b.ts;}));};rq.onerror=function(){rej(rq.error);};});});}
 function idbAll(){return idb().then(function(db){return new Promise(function(res,rej){var out=[];var tx=db.transaction("photos","readonly");var rq=tx.objectStore("photos").openCursor();rq.onsuccess=function(){var c=rq.result;if(c){out.push(c.value);c.continue();}else res(out);};rq.onerror=function(){rej(rq.error);};});});}
@@ -3479,6 +3494,29 @@ function cloudTest(){
 function pushDataPromise(){
   return new Promise(function(res,rej){
     pbSave({data:payload()},function(ok,err){ok?res():rej(new Error(err==="offline"?"No connection":"Couldn't save your data first"));});});}
+
+/* ---- Apple Health bridge ----
+   A PWA cannot read HealthKit at all, so the iOS Shortcut stays the only path.
+   What changes is the drop box: the Shortcut used to PUT health.json into the
+   GitHub repo and the app polled that file. Now the Shortcut PATCHes the health
+   field on this user's appdata record and the app polls the record. The polling
+   contract (state.hkWait, 6 tries, 2s apart, 5-minute ceiling) is unchanged. */
+function hkTryFetch(){
+  var w=state.hkWait;if(!w)return;
+  if(Date.now()-w.ts>5*60*1000){state.hkWait=null;render();return;}
+  if(!syncOn())return;
+  pbGetRecord(function(rec,err){
+    var w2=state.hkWait;if(!w2)return;
+    var h=(!err&&rec&&rec.health)||null;
+    if(!h||h.date!==w2.date){
+      w2.tries=(w2.tries||0)+1;
+      if(w2.tries<6){setTimeout(hkTryFetch,2000);}
+      else{state.hkWait=null;toast("No Health data found yet — run the shortcut and try again");render();}
+      return;}
+    var d=h.date;var fo=Object.assign({},state.food[d]||{});
+    ["calories","protein","carbs","fat"].forEach(function(k){var v=num(h[k]);if(v!=null)fo[k]=String(Math.round(v));});
+    state.food[d]=fo;state.hkDone={date:d,ts:Date.now()};state.hkWait=null;
+    save();toast("Imported from Health");render();});}
 
 /* ---- Settings > Sync becomes an Account card ---- */
 function pbAccountCardHTML(op){
