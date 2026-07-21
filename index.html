@@ -3370,8 +3370,17 @@ function makeIcon(){
    ============================================================ */
 var PB_DEFAULT_BASE="https://rack.tail6fa16c.ts.net";
 var PB_KEY="wl_pb";
-function pbCfg(){try{return JSON.parse(localStorage.getItem(PB_KEY))||{};}catch(e){return {};}}
-function setPbCfg(c){try{localStorage.setItem(PB_KEY,JSON.stringify(c));}catch(e){}}
+/* "Remember me" decides WHERE the session lives, not whether one exists:
+   localStorage survives closing the app; sessionStorage dies with the tab. Reads
+   check session first so an un-remembered login always wins over a stale one. */
+function pbCfg(){
+  try{var s=sessionStorage.getItem(PB_KEY);if(s)return JSON.parse(s)||{};}catch(e){}
+  try{return JSON.parse(localStorage.getItem(PB_KEY))||{};}catch(e){return {};}}
+function setPbCfg(c){
+  try{
+    if(c&&c.remember===false){sessionStorage.setItem(PB_KEY,JSON.stringify(c));localStorage.removeItem(PB_KEY);}
+    else{localStorage.setItem(PB_KEY,JSON.stringify(c));try{sessionStorage.removeItem(PB_KEY);}catch(e){}}
+  }catch(e){}}
 function pbBase(){var c=pbCfg();return String(c.base||PB_DEFAULT_BASE).replace(/\/+$/,"");}
 function pbTok(){return pbCfg().token||"";}
 function pbUid(){return pbCfg().uid||"";}
@@ -3388,13 +3397,36 @@ function connectionList(){return [];}
 function pullConnections(){}
 
 /* ---- auth ---- */
-function pbLogin(email,password,cb){
+function pbLogin(email,password,cb,remember){
   var base=pbBase();
   fetch(base+"/api/collections/users/auth-with-password",{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({identity:email,password:password})})
     .then(function(r){if(r.status===400)return Promise.reject("bad");if(!r.ok)return Promise.reject("error");return r.json();})
-    .then(function(j){var c=pbCfg();c.base=base;c.token=j.token;c.uid=j.record.id;c.email=j.record.email;setPbCfg(c);cb&&cb(true);})
+    .then(function(j){var c=pbCfg();c.base=base;c.token=j.token;c.uid=j.record.id;c.email=j.record.email;
+      if(remember!==undefined)c.remember=!!remember;
+      setPbCfg(c);cb&&cb(true);})
     .catch(function(e){cb&&cb(false,(e==="bad")?"bad":(e==="error")?"error":"offline");});}
+
+/* PocketBase requires the CURRENT password to change it (min 8 chars for the new
+   one). Note it does NOT invalidate tokens on other devices — they stay signed in. */
+function pbChangePassword(oldPw,newPw,confirmPw,cb){
+  if(!oldPw||!newPw){cb(false,"Fill in every field.");return;}
+  if(newPw.length<8){cb(false,"New password must be at least 8 characters.");return;}
+  if(newPw!==confirmPw){cb(false,"The new passwords don’t match.");return;}
+  if(newPw===oldPw){cb(false,"That’s the same as your current password.");return;}
+  fetch(pbBase()+"/api/collections/users/records/"+pbUid(),{method:"PATCH",headers:pbHeaders(true),
+    body:JSON.stringify({oldPassword:oldPw,password:newPw,passwordConfirm:confirmPw})})
+    .then(function(r){return r.json().then(function(j){return r.ok?j:Promise.reject(j);});})
+    .then(function(){
+      /* re-authenticate so this device keeps a token minted against the new password */
+      var c=pbCfg();
+      pbLogin(pbEmail(),newPw,function(ok){cb(true,ok?null:"Password changed — please log in again.");},c.remember!==false);})
+    .catch(function(j){
+      var msg="Couldn’t change your password.";
+      if(j&&j.data&&j.data.oldPassword)msg="Your current password isn’t right.";
+      else if(j&&j.data&&j.data.password&&j.data.password.message)msg=j.data.password.message;
+      else if(!j||!j.data)msg="Can’t reach the server. Is Tailscale on?";
+      cb(false,msg);});}
 
 /* silently extend the session on every open so a 90-day token never lapses mid-use */
 function pbRefresh(cb){
@@ -3407,6 +3439,7 @@ function pbRefresh(cb){
 /* wipe every trace of the previous account — a shared iPad must not leak data */
 function pbForceLogout(){
   try{localStorage.removeItem(PB_KEY);}catch(e){}
+  try{sessionStorage.removeItem(PB_KEY);}catch(e){}
   try{localStorage.removeItem(KEY);localStorage.removeItem(TKEY);localStorage.removeItem(WOKEY);
       localStorage.removeItem(DIRTY_KEY);localStorage.removeItem(LAST_KEY);}catch(e){}
   pbRecId=null;}
@@ -3521,6 +3554,18 @@ function pbAccountCardHTML(op){
       '<div class="wl-pbrow"><span class="wl-pbrow-k">Server</span><span class="wl-pbrow-v">'+esc(host)+'</span></div>'+
       '<div class="wl-hint" style="margin-top:10px"><b>Status:</b> <span id="wl-sync-status">'+syncStatusHTML()+'</span></div>'+
       '<div class="wl-row" style="margin-top:12px"><button class="wl-btn wl-btn-ghost wl-full" data-act="sync:test">Test</button><button class="wl-btn wl-btn-ghost wl-full" data-act="sync:pull">Pull</button><button class="wl-btn wl-btn-primary wl-full" data-act="sync:push">Save</button></div>'+
+      '<div class="wl-row" style="margin-top:10px"><button class="wl-btn wl-btn-ghost wl-full" data-act="pb:pwtoggle">'+(state.pwOpen?"Cancel":"Change password")+'</button></div>'+
+      (state.pwOpen?(
+        '<div class="wl-pwbox">'+
+          '<label class="wl-field wl-field-full"><span>Current password</span><input type="password" id="wl-pw-old" autocomplete="current-password"></label>'+
+          '<label class="wl-field wl-field-full" style="margin-top:10px"><span>New password</span><input type="password" id="wl-pw-new" autocomplete="new-password"></label>'+
+          '<label class="wl-field wl-field-full" style="margin-top:10px"><span>Confirm new password</span><input type="password" id="wl-pw-new2" autocomplete="new-password"></label>'+
+          /* rendered once and updated in place — a re-render would blank all three
+             fields and force the user to retype everything after any error */
+          '<div class="wl-login-err" id="wl-pw-err" style="display:none"></div>'+
+          '<div class="wl-hint" style="margin-top:10px">At least 8 characters. Your other devices stay signed in — changing this doesn’t sign them out.</div>'+
+          '<div class="wl-row" style="margin-top:12px"><button class="wl-btn wl-btn-primary wl-full" id="wl-pw-save" data-act="pb:pwsave">Save new password</button></div>'+
+        '</div>'):'')+
       '<div class="wl-row" style="margin-top:10px"><button class="wl-btn wl-btn-ghost wl-full" data-act="pb:logout">Log out</button></div>'+
       '<div class="wl-hint" style="margin-top:10px">Your data lives on your own server. Only you can read it — every request is checked against your account, so no other user can ever see your numbers or photos.</div>'+
     '</div>'):'')+'</div>';}
@@ -3536,16 +3581,19 @@ function pbProfileCardHTML(op,f){
     '</div>'):'')+'</div>';}
 
 /* ---- login screen ---- */
-var pbLoginState={busy:false,err:"",advanced:false};
+var pbLoginState={busy:false,err:"",advanced:false,remember:true};
 function pbLoginHTML(){
   var c=pbCfg();
   return '<div class="wl-login">'+
     '<div class="wl-login-inner">'+
       '<div class="wl-login-brand"><span class="wl-mark">'+BRANDMARK+'</span><span class="wl-login-word">Compound</span></div>'+
       '<div class="wl-login-tag">Log in to reach your data on any device.</div>'+
-      '<form class="wl-login-form" id="wl-loginform" autocomplete="on">'+
-        '<label class="wl-field wl-field-full"><span>Email</span><input type="email" id="wl-pb-email" value="'+esc(c.email||"")+'" placeholder="you@example.com" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="username"></label>'+
-        '<label class="wl-field wl-field-full" style="margin-top:10px"><span>Password</span><input type="password" id="wl-pb-pass" placeholder="••••••••" autocomplete="current-password"></label>'+
+      /* method/action + name attributes are what make iOS offer to save this in
+         iCloud Keychain — which is how you then get Face ID autofill for free. */
+      '<form class="wl-login-form" id="wl-loginform" method="post" action="#" autocomplete="on">'+
+        '<label class="wl-field wl-field-full"><span>Email</span><input type="email" id="wl-pb-email" name="username" value="'+esc(c.email||"")+'" placeholder="you@example.com" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="username"></label>'+
+        '<label class="wl-field wl-field-full" style="margin-top:10px"><span>Password</span><input type="password" id="wl-pb-pass" name="password" placeholder="••••••••" autocomplete="current-password"></label>'+
+        '<label class="wl-remember"><input type="checkbox" id="wl-pb-remember"'+(pbLoginState.remember?' checked':'')+'><span>Keep me signed in on this device</span></label>'+
         (pbLoginState.err?'<div class="wl-login-err">'+esc(pbLoginState.err)+'</div>':'')+
         '<button type="submit" class="wl-btn wl-btn-primary wl-full wl-login-go"'+(pbLoginState.busy?' disabled':'')+'>'+(pbLoginState.busy?"Signing in…":"Log in")+'</button>'+
       '</form>'+
@@ -3567,6 +3615,9 @@ function pbDoLogin(){
   var em=(document.getElementById("wl-pb-email")||{}).value||"";
   var pw=(document.getElementById("wl-pb-pass")||{}).value||"";
   var bs=(document.getElementById("wl-pb-base")||{}).value||"";
+  var rmEl=document.getElementById("wl-pb-remember");
+  var remember=rmEl?!!rmEl.checked:true;
+  pbLoginState.remember=remember;
   em=em.trim();
   if(!em||!pw){pbLoginState.err="Enter your email and password.";pbRenderLogin();return;}
   if(bs){var c=pbCfg();c.base=bs.trim();setPbCfg(c);}
@@ -3586,7 +3637,7 @@ function pbDoLogin(){
         toast("Welcome back"+(state.settings.name?(", "+state.settings.name):""));
         /* pull this account's photos down onto this device in the background */
         photoSync(function(r){
-          if(r&&r.downloaded)toast(r.downloaded+" photo"+(r.downloaded===1?"":"s")+" restored");});});});});}
+          if(r&&r.downloaded)toast(r.downloaded+" photo"+(r.downloaded===1?"":"s")+" restored");});});});},remember);}
 
 /* gate the whole app behind login without duplicating render()'s body */
 var _pbOrigRender=render;
@@ -3600,6 +3651,21 @@ document.addEventListener("click",function(e){
   var a=el.getAttribute("data-act");
   if(a==="pb:logout"){pbLogout();return;}
   if(a==="pb:adv"){pbLoginState.advanced=!pbLoginState.advanced;pbRenderLogin();return;}
+  if(a==="pb:pwtoggle"){state.pwOpen=!state.pwOpen;state.pwErr="";render();return;}
+  if(a==="pb:pwsave"){
+    if(state.pwBusy)return;
+    var o=(document.getElementById("wl-pw-old")||{}).value||"";
+    var n=(document.getElementById("wl-pw-new")||{}).value||"";
+    var n2=(document.getElementById("wl-pw-new2")||{}).value||"";
+    var btn=document.getElementById("wl-pw-save"),ev=document.getElementById("wl-pw-err");
+    function pwErr(msg){state.pwErr=msg;if(ev){ev.textContent=msg;ev.style.display=msg?"":"none";}}
+    function busy(b){state.pwBusy=b;if(btn){btn.disabled=b;btn.textContent=b?"Saving…":"Save new password";}}
+    busy(true);pwErr("");
+    pbChangePassword(o,n,n2,function(ok,msg){
+      busy(false);
+      if(ok){state.pwErr="";state.pwOpen=false;render();toast(msg||"Password changed");}
+      else pwErr(msg||"Couldn’t change your password.");});
+    return;}
 });
 
 /* ============================================================
@@ -3745,7 +3811,12 @@ idbClearAll=function(){
     ".wl-pbrow{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:7px 0;border-bottom:1px solid var(--line)}"+
     ".wl-pbrow:last-of-type{border-bottom:0}"+
     ".wl-pbrow-k{color:var(--muted);font-size:13px}"+
-    ".wl-pbrow-v{color:var(--text);font-size:13px;font-weight:600;text-align:right;word-break:break-all}";
+    ".wl-pbrow-v{color:var(--text);font-size:13px;font-weight:600;text-align:right;word-break:break-all}"+
+    ".wl-remember{display:flex;align-items:center;gap:9px;margin-top:14px;cursor:pointer;user-select:none}"+
+    ".wl-remember input{width:18px;height:18px;accent-color:var(--accent);flex:0 0 auto;margin:0}"+
+    ".wl-remember span{color:var(--muted);font-size:13px;line-height:1.3}"+
+    ".wl-pwbox{margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}"+
+    ".wl-pwok{margin-top:12px;padding:10px 12px;border-radius:10px;background:color-mix(in srgb,var(--good) 14%,transparent);border:1px solid color-mix(in srgb,var(--good) 40%,transparent);color:var(--good);font-size:13px}";
   document.head.appendChild(css);
 })();
 
