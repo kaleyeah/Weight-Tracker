@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-20.279 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-21.281 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -264,6 +264,14 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 .wl-maxb{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:14px;font-family:var(--sans);border:1px solid var(--line2);background:linear-gradient(145deg,var(--line),#171c24);color:var(--accent);flex:none;padding:0;cursor:pointer;}
 .wl-maxb.hot{border:none;background:var(--accent);color:#20160A;box-shadow:0 0 0 3px rgba(245,181,68,.25),0 2px 12px rgba(245,181,68,.45);}
 .wl-maxbg{position:fixed;inset:0;background:rgba(5,7,10,.72);z-index:60;display:flex;align-items:flex-end;justify-content:center;padding:14px;}
+.wl-msgrow{display:flex;flex-direction:column;align-items:stretch;gap:6px;width:100%;margin-top:10px;padding:12px;border-radius:12px;background:var(--bg2);border:1px solid var(--line);font-family:var(--sans);text-align:left;cursor:pointer;}
+.wl-msgrow-top{display:flex;align-items:center;gap:10px;}
+.wl-msgrow-p{font-size:13px;line-height:1.45;color:var(--muted);text-align:left;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.wl-msgrow.new{border-color:rgba(245,181,68,.55);box-shadow:0 0 0 1px rgba(245,181,68,.22),0 6px 24px rgba(245,181,68,.12);}
+.wl-msgrow-t{font-weight:700;font-size:14px;color:var(--text);}
+.wl-msgrow-s{font-size:12px;color:var(--muted);margin-left:auto;}
+.wl-msgrow-go{color:var(--accent);font-weight:600;font-size:13px;flex:none;}
+.wl-msgsec{margin-top:16px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);}
 .wl-maxsheet{background:var(--card);border:1px solid var(--accent);border-radius:18px;padding:16px;width:100%;max-width:520px;max-height:82vh;overflow-y:auto;box-shadow:0 18px 50px rgba(0,0,0,.6);}
 .wl-maxsheet.plain{border-color:var(--line);}
 .wl-maxx{margin-left:auto;width:30px;height:30px;border-radius:9px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--muted);background:var(--bg2);flex:none;}
@@ -709,7 +717,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-20.279";
+var APP_BUILD="2026-07-21.281";
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
 var deferredPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredPrompt=e;});
@@ -1392,14 +1400,20 @@ function refreshWeekPhotos(){if(typeof indexedDB==="undefined"){wkPhotoHave=fals
     rq.onerror=function(){wkPhotoHave=false;wkPhotoKey=key;};};
   r.onerror=function(){wkPhotoHave=false;wkPhotoKey=key;};}catch(e){wkPhotoHave=false;wkPhotoKey=key;}}
 function maxSheetHTML(){if(!state.maxOpen)return "";var ws=state.weeklySummary;var _ciDay=(new Date().getDay()===(parseInt(state.settings.weekStart,10)||0));
+  var _ns=state.nightlySummary;var _hasRc=!!(_ns&&_ns.text&&_ns.date);var _hasW=!!(ws&&ws.text);var _rcNew=_hasRc&&coachUnreadN();
+  var _top='<div class="wl-mhead"><span class="wl-mav">M</span><span style="min-width:0"><span class="wl-mtitle">Coach Max</span><span class="wl-msub">Messages</span></span><button class="wl-maxx" data-act="max:close">\u2715</button></div>';
+  /* latest daily recap lives here as a tappable message; Home only shows a recap on its own day */
+  var _rcRow=_hasRc?'<button class="wl-msgrow'+(_rcNew?' new':'')+'" data-act="recap:open" data-date="'+_ns.date+'"><span class="wl-msgrow-top"><span class="wl-msgrow-t">Daily recap</span><span class="wl-msgrow-s">'+fmtShort(parseISO(_ns.date))+'</span>'+(_rcNew?'<span class="wl-newpill">New</span>':'<span class="wl-msgrow-go">View \u203a</span>')+'</span><span class="wl-msgrow-p">'+esc(msgPreview(_ns.text))+'</span></button>':'';
   var inner;
-  if(state.genBusy){inner='<div class="wl-mhead"><span class="wl-mav">M</span><span style="min-width:0"><span class="wl-mtitle">Weekly check-in</span><span class="wl-msub">from Coach Max</span></span><button class="wl-maxx" data-act="max:close">\u2715</button></div><div class="wl-hint">\u23f3 Generating your check-in\u2026 this takes about a minute. You can close this and keep using the app.</div>';}
-  else if(ws&&ws.text){inner='<div class="wl-mhead"><span class="wl-mav">M</span><span style="min-width:0"><span class="wl-mtitle">Weekly check-in</span><span class="wl-msub">from Coach Max \u00b7 week of '+fmtShort(parseISO(ws.week))+'</span></span><button class="wl-maxx" data-act="max:close">\u2715</button></div>'
+  if(state.genBusy){inner=_top+_rcRow+'<div class="wl-msgsec">Weekly check-in</div><div class="wl-hint">\u23f3 Generating your check-in\u2026 this takes about a minute. You can close this and keep using the app.</div>';}
+  else if(_hasW){inner=_top+_rcRow+'<div class="wl-msgsec">Weekly check-in \u00b7 week of '+fmtShort(parseISO(ws.week))+'</div>'
     +'<div class="wl-ai-summary" style="margin-top:6px">'+renderSummary(ws.text)+'</div>'
     +(_ciDay?'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:12px" data-act="ai:gen">\u21bb Regenerate</button>':'');}
   else{var dn=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][(parseInt(state.settings.weekStart,10)||0)];
-    inner='<div class="wl-mhead"><span style="flex:1"></span><button class="wl-maxx" data-act="max:close">\u2715</button></div><div class="wl-maxempty"><div class="bigav">M</div><div class="t">No messages yet</div><div class="s">This is where Coach Max delivers your weekly check-in.<br>Your next one lands <b style="color:var(--text)">'+dn+' morning</b>.</div></div>';}
-  return '<div class="wl-maxbg" data-act="max:close"><div class="wl-maxsheet'+((ws&&ws.text)||state.genBusy?'':' plain')+'" data-act="noop">'+inner+'</div></div>';}
+    inner=_top+_rcRow+(_hasRc
+      ?'<div class="wl-msgsec">Weekly check-in</div><div class="wl-hint">Your next one lands <b style="color:var(--text)">'+dn+' morning</b>.</div>'
+      :'<div class="wl-maxempty"><div class="bigav">M</div><div class="t">No messages yet</div><div class="s">This is where Coach Max delivers your daily recaps and weekly check-in.<br>Your next check-in lands <b style="color:var(--text)">'+dn+' morning</b>.</div></div>');}
+  return '<div class="wl-maxbg" data-act="max:close"><div class="wl-maxsheet'+(_hasW||state.genBusy||_hasRc?'':' plain')+'" data-act="noop">'+inner+'</div></div>';}
 /* ---- Coach Max info sheets (tap an ⓘ to learn a concept) ---- */
 var INFO={
   progression:{title:"Double vs Reverse Pyramid",body:[
@@ -1463,7 +1477,7 @@ function view_overview(){
   var _rcDates=Object.keys(_log).filter(function(d){return _log[d]&&_log[d].text;});
   if(state.nightlySummary&&state.nightlySummary.text&&_nsD&&_rcDates.indexOf(_nsD)<0)_rcDates.push(_nsD);
   _rcDates.sort();
-  var _rcDate=_rcFor(_sel)?_sel:(_unrdN&&_nsD?_nsD:(_rcDates.length?_rcDates[_rcDates.length-1]:null));
+  var _rcDate=_rcFor(_sel)?_sel:null;/* recap shows only for the viewed day; no fallback to yesterday's recap on an uncompleted day */
   var _rc=_rcDate?_rcFor(_rcDate):null;var _recapCard="";var _atTop=false;
   if(_rc){var _unrdThis=_unrdN&&_rcDate===_nsD;_atTop=_unrdThis;var _no=_unrdThis?false:(state.nightOpen!==false);
     var _pi=_rcDates.indexOf(_rcDate);var _prev=_pi>0?_rcDates[_pi-1]:null;var _next=(_pi>=0&&_pi<_rcDates.length-1)?_rcDates[_pi+1]:null;
@@ -2815,10 +2829,10 @@ function render(){
   clearPhotoURLs();
   var title=state.view==="settings"?"Settings":state.view==="diary"?"Food Diary":state.view==="exlib"?"":state.view==="routine"?"":state.view==="rlaunch"?"Workout":state.view==="quicklog"?"Quick log":state.view==="workout"?"Workout":state.view==="liftview"?"Workout":state.view==="wtadd"?"Add Weight Training":state.view==="cardioadd"?((state.cardioForm&&state.cardioForm.id)?"Edit Cardio":"Add Cardio"):state.view==="actadd"?(state.actPick==="rest"?"Add Recovery":state.actPick==="supp"?"Add Supplement":"Add"):state.view==="photos"?"Progress Photos":(NAV.filter(function(n){return n[0]===state.view;})[0]||["","" ])[1];var hsub=state.view==="workout"?((state.workout&&state.workout.name)||""):state.view==="liftview"?(((getLiftSession()||{}).name)||""):state.view==="quicklog"?(((state.liftForm&&getRoutine(state.liftForm.routineId))||{}).name||""):state.view==="rlaunch"?(((getRoutine(state.routineId))||{}).name||""):"";
   var body=state.view==="overview"?view_overview():(state.view==="food"||state.view==="calendar")?view_overview():state.view==="weight"?view_weight():state.view==="summary"?view_summary():state.view==="diary"?view_diary():state.view==="train"?view_train():state.view==="exlib"?view_exlib():state.view==="routine"?view_routine():state.view==="rlaunch"?view_rlaunch():state.view==="quicklog"?view_quicklog():state.view==="workout"?view_workout():state.view==="liftview"?view_liftview():state.view==="wtadd"?view_wtadd():state.view==="cardioadd"?view_cardio():state.view==="actadd"?view_actadd():state.view==="photos"?view_photos():view_settings();
-  var nav='<nav class="wl-nav">'+NAV.map(function(n){return '<button class="wl-navbtn '+(state.view===n[0]||(n[0]==="overview"&&(state.view==="food"||state.view==="diary"))||(n[0]==="weight"&&state.view==="photos")?"on":"")+'" data-act="go" data-view="'+n[0]+'">'+I[n[0]]+'<span>'+n[1]+'</span>'+((n[0]==="overview"&&coachUnreadN())?'<i class="wl-navdot"></i>':'')+'</button>';}).join("")+'</nav>';
+  var nav='<nav class="wl-nav">'+NAV.map(function(n){return '<button class="wl-navbtn '+(state.view===n[0]||(n[0]==="overview"&&(state.view==="food"||state.view==="diary"))||(n[0]==="weight"&&state.view==="photos")?"on":"")+'" data-act="go" data-view="'+n[0]+'">'+I[n[0]]+'<span>'+n[1]+'</span></button>';/* unread-recap nudge now lives on the M avatar, not the Home tab */}).join("")+'</nav>';
   var avatar='<button class="wl-avatar'+(state.view==="settings"?" on":"")+'" data-act="go" data-view="settings" aria-label="Settings"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>';
   var hdrRight=syncOn()?'<button class="wl-syncdot" data-act="syncdot" aria-label="Sync status"><span class="wl-sdot '+syncDotClass()+'" id="wl-sdot"></span></button>':'';
-  var maxBtn=isOwner()?'<button class="wl-maxb'+(coachUnreadW()?" hot":"")+'" data-act="max:open" aria-label="Messages from Coach Max">M</button>':'';
+  var maxBtn=isOwner()?'<button class="wl-maxb'+(coachUnreadW()||coachUnreadN()?" hot":"")+'" data-act="max:open" aria-label="Messages from Coach Max">M</button>':'';
   var backBtn=state.view==="photos"?'<button class="wl-hdr-back" data-act="go" data-view="weight" aria-label="Back">‹</button>':'';
   var _navH=headerNav();var _brand='<span class="wl-mark">'+BRANDMARK+'</span>';var _md=statusFor(todayISO());var _mbanner=_md?('<button class="wl-modebanner" data-act="go" data-view="settings"><span class="wl-mb-em">'+(_md.status.type==="vacation"?"\ud83c\udfd6\ufe0f":"\ud83e\udd12")+'</span><span>'+(_md.status.type==="vacation"?"Vacation Mode":"Recovery Mode")+'</span><span class="wl-mb-go">Settings \u203a</span></button>'):'';
   document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header'+(_md?" hasbanner":"")+'">'+_mbanner+'<div class="wl-hdr-brand"><div class="wl-brandrow">'+_brand+'<span class="wl-eyebrow">Compound</span></div>'+hdrRight+'</div><div class="wl-hdr-main">'+backBtn+'<div class="wl-title-slot">'+(title?('<h1 class="wl-title">'+title+'</h1>'):'')+(hsub?'<div class="wl-hsub">'+esc(hsub)+'</div>':'')+'</div><div class="wl-hdr-actions">'+maxBtn+avatar+'</div></div>'+(_navH?'<div class="wl-hdr-datebar">'+_navH+'</div>':'')+'</header><main class="wl-main">'+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML()+statusSheetHTML()+obOverlayHTML()+deviceSheetHTML()+maxSheetHTML()+infoSheetHTML();
@@ -2878,6 +2892,10 @@ document.addEventListener("click",function(e){
   if(a==="noop"){return;}
   if(a==="sum:toggle"){var _ws1=state.weeklySummary;if(_ws1&&_ws1.week&&state.settings.seenWeekly!==_ws1.week){state.settings.seenWeekly=_ws1.week;state.sumOpen=true;try{localStorage.setItem("wl_sumopen","1");}catch(e){}save();render();return;}state.sumOpen=(state.sumOpen===false);try{localStorage.setItem("wl_sumopen",state.sumOpen?"1":"0");}catch(e){}render();return;}
   if(a==="night:toggle"){var _ns1=state.nightlySummary;if(_ns1&&_ns1.date&&state.settings.seenNightly!==_ns1.date){state.settings.seenNightly=_ns1.date;state.nightOpen=true;if(state.selDate!==_ns1.date){state.selDate=_ns1.date;var _np=parseISO(_ns1.date);state.calY=_np.getFullYear();state.calM=_np.getMonth();}save();render();return;}state.nightOpen=(state.nightOpen===false);render();return;}
+  if(a==="recap:open"){var _rd=el.getAttribute("data-date");state.maxOpen=false;
+    if(_rd){state.selDate=_rd;var _rp=parseISO(_rd);state.calY=_rp.getFullYear();state.calM=_rp.getMonth();state.nightOpen=true;state.view="overview";
+      if((state.nightlySummary||{}).date===_rd&&state.settings.seenNightly!==_rd)state.settings.seenNightly=_rd;}
+    save();render();return;}
   if(a==="recap:go"){var _d=el.getAttribute("data-date");if(_d){state.selDate=_d;var _dp=parseISO(_d);state.calY=_dp.getFullYear();state.calM=_dp.getMonth();state.nightOpen=true;if((state.nightlySummary||{}).date===_d&&state.settings.seenNightly!==_d)state.settings.seenNightly=_d;save();render();}return;}
   if(a==="diary:older"){state.diaryWeeks=(state.diaryWeeks||1)+1;renderDiary();return;}
   if(a==="browse:open"){state.browseOpen=true;state.exForm=null;render();return;}
