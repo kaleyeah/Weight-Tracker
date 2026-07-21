@@ -709,7 +709,8 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-21.282";
+var APP_BUILD="2026-07-21.283";
+var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
 var deferredPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredPrompt=e;});
@@ -1207,7 +1208,10 @@ function prepChart(src){
   var sw=(src||state.weights).slice().sort(function(a,b){return a.date.localeCompare(b.date);});if(!sw.length)return {data:[],slope:null,intercept:null};
   var pts=sw.map(function(x){return {ts:parseISO(x.date).getTime(),weight:x.weight,date:x.date};});
   var slope=null,intercept=null;
-  if(pts.length>=2){var n=pts.length,mx=0,my=0;
+  /* a regression needs real data behind it: 2 points always fit a line perfectly and report a
+     confident weekly rate that is pure noise. Below PACE_MIN_WEIGHINS there is no slope at all,
+     which blanks the pace chip, the chart trend line and the observed forecast together. */
+  if(pts.length>=PACE_MIN_WEIGHINS){var n=pts.length,mx=0,my=0;
     pts.forEach(function(p){mx+=p.ts;my+=p.weight;});mx/=n;my/=n;
     var sxy=0,sxx=0;pts.forEach(function(p){sxy+=(p.ts-mx)*(p.weight-my);sxx+=(p.ts-mx)*(p.ts-mx);});
     if(sxx!==0){slope=sxy/sxx;intercept=my-slope*mx;}}
@@ -1264,7 +1268,7 @@ function buildChart(c,goal,unit,compact,rmin,rmax){
   s+='</svg>';
   var last=data[data.length-1];
   s+='<div class="wl-readout" id="wl-readout"><b>'+r1(last.weight)+'</b> '+unit+' · '+fmtShort(new Date(last.ts))+' (latest)</div>';
-  if(!compact)s+='<div class="wl-legend"><span><i style="background:'+CH.actual+'"></i>Actual</span><span><i style="background:'+CH.avg+'"></i>7-day avg</span><span><i style="background:'+CH.reg+'"></i>Trend</span><span><i style="background:'+CH.goal+'"></i>Goal</span></div>';
+  if(!compact)s+='<div class="wl-legend"><span><i style="background:'+CH.actual+'"></i>Actual</span><span><i style="background:'+CH.avg+'"></i>7-day avg</span>'+(c.slope!=null?'<span><i style="background:'+CH.reg+'"></i>Trend</span>':'')+'<span><i style="background:'+CH.goal+'"></i>Goal</span></div>';
   return s;
 }
 
@@ -1476,9 +1480,11 @@ function view_overview(){
   var _htoGo=(_hgoal!=null&&_hcur!=null)?_hcur-_hgoal:null;
   var _hprog=null;if(_hstart!=null&&_hgoal!=null&&_hcur!=null&&_hstart!==_hgoal){_hprog=Math.max(0,Math.min(1,(_hstart-_hcur)/(_hstart-_hgoal)));}
   if(_hstart!=null&&_hgoal!=null){var _hcAll=prepChart(),_hfc=computeForecasts(_hcur,_hgoal,_hcAll.slope);
-    var _hrate=(_hcAll.slope!=null)?(-_hcAll.slope*7*DAY):null;
+    var _wN=(state.weights||[]).length;
+    var _hrate=(_hcAll.slope!=null&&_wN>=PACE_MIN_WEIGHINS)?(-_hcAll.slope*7*DAY):null;
     var _paceHTML;
-    if(_hrate==null)_paceHTML='<span class="wl-pace dim">\u2014 '+u+'/wk</span>';
+    if(_wN<PACE_MIN_WEIGHINS)_paceHTML='<span class="wl-pace dim">'+_wN+' of '+PACE_MIN_WEIGHINS+' weigh-ins</span>';
+    else if(_hrate==null)_paceHTML='<span class="wl-pace dim">\u2014 '+u+'/wk</span>';
     else if(Math.abs(_hrate)<(u==="kg"?0.09:0.2))_paceHTML='<span class="wl-pace dim">holding steady</span>';
     else{var _losing=_hrate>0;_paceHTML='<span class="wl-pace'+(_losing?"":" dim")+'">'+(_losing?"\u25bc ":"\u25b2 ")+'<b>'+r1(Math.abs(_hrate))+'</b> '+u+'/wk</span>';}
     var _etaHTML=(_hfc.target&&_hfc.target.date)?'<span class="pe-eta">\u2248 '+fmtShort(_hfc.target.date)+'</span>':'';
@@ -1537,7 +1543,7 @@ function connectionsHTML(){var list=connectionList();
 function fcCell(label,sub,fc,stalledMsg){
   var h='<div class="wl-fc"><div class="wl-fc-label">'+label+'</div><div class="wl-fc-sub">'+sub+'</div>';
   if(fc&&!fc.stalled)h+='<div class="wl-fc-weeks">'+r1(fc.weeks)+'<span> wks</span></div><div class="wl-fc-date">≈ '+fmtFull(fc.date)+'</div>';
-  else h+='<div class="wl-fc-na">'+(fc&&fc.stalled?stalledMsg:"Add more data")+'</div>';
+  else h+='<div class="wl-fc-na">'+(stalledMsg||"Add more data")+'</div>';/* stalledMsg now also covers "no forecast at all" (too few weigh-ins to fit a slope) */
   return h+'</div>';
 }
 function addDays(d,n){var x=new Date(d);x.setHours(0,0,0,0);x.setDate(x.getDate()+n);return x;}
@@ -1686,8 +1692,9 @@ function forecastCardHTML(){var u=state.settings.units;var sw=sortedWeights();va
   var cur=sw.length?sw[sw.length-1].weight:st;if(st==null||g==null||cur==null)return "";
   var pc=prepChart(),fc=computeForecasts(cur,g,pc.slope);
   var h='<div class="wl-card"><div class="wl-card-head"><span>Forecast to goal</span></div>';
+  var _fcWhy=sw.length<PACE_MIN_WEIGHINS?("Needs "+PACE_MIN_WEIGHINS+" weigh-ins before a pace means anything \u2014 you have "+sw.length+"."):"Not enough downward trend yet \u2014 keep logging weigh-ins.";
   if(fc.done)h+='<div class="wl-empty">You\u2019re at or below your goal weight. Nice work.</div>';
-  else h+='<div class="wl-forecast-grid">'+fcCell("At your target",state.settings.targetType==="percent_bw_per_week"?state.settings.targetValue+"% / week":state.settings.targetValue+" "+u+" / week",fc.target,"")+fcCell("At your current pace",(fc.observed&&fc.observed.rate!=null)?r1(fc.observed.rate)+" "+u+" / week":"based on your data",fc.observed,"Not enough downward trend yet \u2014 keep logging weigh-ins.")+'</div>';
+  else h+='<div class="wl-forecast-grid">'+fcCell("At your target",state.settings.targetType==="percent_bw_per_week"?state.settings.targetValue+"% / week":state.settings.targetValue+" "+u+" / week",fc.target,"")+fcCell("At your current pace",(fc.observed&&fc.observed.rate!=null)?r1(fc.observed.rate)+" "+u+" / week":"based on your data",fc.observed,_fcWhy)+'</div>';
   return h+'</div>';}
 function view_weight(){
   var u=state.settings.units;var ctx=trendCtx();var off=state.trendOffset||0;var perLbl=ctx.gran==="month"?"/mo":"/day";
