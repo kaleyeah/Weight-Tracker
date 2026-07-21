@@ -234,6 +234,17 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 .wl-fc-date{font-size:11px;color:var(--muted);margin-top:4px;font-family:var(--mono);}
 .wl-fc-na{font-size:12px;color:var(--faint);line-height:1.4;margin-top:4px;}
 .wl-mz-meas{border-color:rgba(245,181,68,.45);}
+/* "measuring" state: each requirement gets its own row + bar, instead of one run-on sentence */
+.wl-mzreq{margin-top:13px;display:flex;flex-direction:column;gap:11px;}
+.wl-mzr-top{display:flex;align-items:center;gap:8px;}
+.wl-mzr-t{font-size:12.5px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:6px;}
+.wl-mzr-t svg{width:13px;height:13px;color:var(--good);}
+.wl-mzr-n{margin-left:auto;font-family:var(--mono);font-size:11.5px;color:var(--faint);}
+.wl-mzr-n.done{color:var(--good);}
+.wl-mzr-bar{height:5px;background:var(--bg2);border-radius:3px;overflow:hidden;margin-top:6px;}
+.wl-mzr-bar i{display:block;height:100%;background:var(--steel);border-radius:3px;}
+.wl-mzr-bar i.done{background:var(--good);}
+.wl-mzsoon{font-size:13px;font-weight:600;color:var(--faint);font-family:var(--sans);letter-spacing:.02em;}
 .wl-mzline{font-size:12px;color:var(--muted);margin-top:11px;line-height:1.55;}
 .wl-mzline b{color:var(--text);}
 .wl-mz-ok{margin-top:12px;border:1px solid rgba(92,214,160,.4);background:rgba(92,214,160,.07);border-radius:12px;padding:12px 14px;font-size:12.5px;color:#a9e8cc;line-height:1.5;}
@@ -710,7 +721,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-21.284";
+var APP_BUILD="2026-07-21.285";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -1671,12 +1682,17 @@ function tdeeAnalysis(){var w=tdeeWindow();var res={win:w,state:"gathering"};if(
   res.prop=tdeeBuildProp(tgtCal+(mode==="gain"?trim:-trim),stepAdd,cardAdd);return res;}
 function metabolismCardHTML(){var s=state.settings;if(num(s.targetCalories)==null&&maintenanceCals()==null)return "";
   var an=tdeeAnalysis();var w=an.win;var form=maintenanceCals();var u=s.units;
-  var h='<div class="wl-card"><div class="wl-card-head"><span>Metabolism '+infoBtn("metabolism")+'</span><span class="wl-count">'+(an.state==="gathering"?"gathering":"21-day")+'</span></div>';
+  var h='<div class="wl-card"><div class="wl-card-head"><span>Metabolism '+infoBtn("metabolism")+'</span><span class="wl-count">'+(an.state==="gathering"?"measuring":"21-day")+'</span></div>';
   h+='<div class="wl-forecast-grid"><div class="wl-fc"><div class="wl-fc-label">Formula estimate</div><div class="wl-fc-sub">Mifflin\u2013St Jeor \u00d7 activity</div><div class="wl-fc-weeks" style="color:var(--text)">'+(form!=null?form.toLocaleString():"\u2014")+'<span> cal</span></div></div>';
-  h+='<div class="wl-fc wl-mz-meas"><div class="wl-fc-label">Measured TDEE</div><div class="wl-fc-sub">from your logs</div><div class="wl-fc-weeks"'+(an.tdee!=null?'':' style="color:var(--faint)"')+'>'+(an.tdee!=null?an.tdee.toLocaleString():"\u2014")+'<span> cal</span></div></div></div>';
-  if(an.state==="gathering"){var pct=Math.round(((Math.min(1,w.foodN/14)+Math.min(1,w.totalW/6))/2)*100);
-    h+='<div class="wl-goalbar" style="margin-top:11px"><div class="wl-goalbar-fill" style="width:'+pct+'%;background:var(--steel)"></div></div>';
-    h+='<div class="wl-mzline"><b>'+w.foodN+' of 14</b> food days \u00b7 <b>'+Math.min(w.totalW,6)+' of 6</b> weigh-ins in the last 21 days'+((w.headN<2||w.tailN<2)?' \u2014 need weigh-ins near both ends of the window':'')+'. Keep logging \u2014 your measured burn rate appears when there\u2019s enough clean data.</div>';
+  h+='<div class="wl-fc wl-mz-meas"><div class="wl-fc-label">Measured TDEE</div><div class="wl-fc-sub">from your logs</div>'+(an.tdee!=null?'<div class="wl-fc-weeks">'+an.tdee.toLocaleString()+'<span> cal</span></div>':'<div class="wl-fc-weeks"><span class="wl-mzsoon">measuring\u2026</span></div>')+'</div></div>';
+  if(an.state==="gathering"){
+    /* one row per requirement so it is obvious WHICH one is holding the measurement back */
+    var _reqs=[["Days of food logged",w.foodN,14],["Weigh-ins",Math.min(w.totalW,6),6]];
+    h+='<div class="wl-mzreq">'+_reqs.map(function(r){var _dn=r[1]>=r[2];var _p=Math.round(Math.min(1,r[1]/r[2])*100);
+      return '<div><div class="wl-mzr-top"><span class="wl-mzr-t">'+(_dn?I.check:'')+r[0]+'</span><span class="wl-mzr-n'+(_dn?' done':'')+'">'+r[1]+' / '+r[2]+'</span></div><div class="wl-mzr-bar"><i class="'+(_dn?'done':'')+'" style="width:'+_p+'%"></i></div></div>';}).join("")+'</div>';
+    h+='<div class="wl-mzline">'+((w.headN<2||w.tailN<2)
+      ?'Spread your weigh-ins across the window \u2014 some early, some this week. The burn rate is measured between those two points, so a cluster on one end can\u2019t be read.'
+      :'Keep logging. Your real burn rate appears here the moment there\u2019s enough clean data to trust it.')+'</div>';
   }else{
     h+='<div class="wl-mzline">Intake averaged <b>'+an.intake.toLocaleString()+'</b> \u00b7 trend '+(an.rate<=0?"fell ":"rose ")+'<b>'+r1(Math.abs(an.rate))+' '+u+'/wk</b> \u2192 your body burns ~<b>'+an.tdee.toLocaleString()+'/day</b>.</div>';
     if(an.state==="ok"){h+='<div class="wl-mz-ok"><b>No changes needed.</b> '+(an.targetRate?('Moving at '+r1(Math.abs(an.rate))+' '+u+'/wk against a '+r1(an.targetRate)+' target \u2014 inside the band. Targets hold.'):'Trend and targets agree \u2014 keep going.')+'</div>';}
