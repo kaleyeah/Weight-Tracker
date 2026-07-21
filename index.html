@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-20.273 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-20.274 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -704,7 +704,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-20.273";
+var APP_BUILD="2026-07-20.274";
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
 var deferredPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredPrompt=e;});
 var photoURLs=[],photoMap={},photoDB=null;
@@ -2171,7 +2171,7 @@ function routineItemHTML(rt,it,idx){
   if((rt.progression||"double")==="rpt"){
     var _n=Math.max(1,it.sets||3);var _mv=it.movement||guessMovement(ex.muscle);var _rgs=rptRangesFor(it,_n);
     h+='<div class="wl-mtoggle" style="margin-top:12px"><button class="wl-mvbtn'+(_mv==="compound"?" on":"")+'" data-act="ri:mv" data-iid="'+it.id+'" data-mv="compound">Compound</button><button class="wl-mvbtn'+(_mv==="isolation"?" on":"")+'" data-act="ri:mv" data-iid="'+it.id+'" data-mv="isolation">Isolation</button></div>';
-    if(!ex.bodyweight)h+='<label class="wl-field wl-field-full" style="margin-top:10px"><span>Top set weight ('+u+')</span><input class="wl-ri-input wl-num" data-iid="'+it.id+'" data-field="weight" type="text" inputmode="decimal" value="'+esc(it.weight!=null?it.weight:"")+'" placeholder="0"></label>';
+    if(!ex.bodyweight)h+='<label class="wl-field wl-field-full" style="margin-top:10px"><span>Top set weight ('+u+')</span><input class="wl-ri-input wl-num" data-iid="'+it.id+'" data-field="weight" type="text" inputmode="decimal" value="'+esc(it.weight!=null?it.weight:"")+'" placeholder="—"></label>';
     h+='<div class="wl-cf-label" style="margin:12px 0 2px">Reps per set '+infoBtn("reprange")+'</div>';
     for(var _si=0;_si<_n;_si++){h+='<div class="wl-setrng"><span class="wl-setrng-n">Set '+(_si+1)+'</span><input class="wl-ri-srng wl-num" data-iid="'+it.id+'" data-si="'+_si+'" data-end="lo" type="text" inputmode="numeric" value="'+_rgs[_si].lo+'"><span style="color:var(--faint)">–</span><input class="wl-ri-srng wl-num" data-iid="'+it.id+'" data-si="'+_si+'" data-end="hi" type="text" inputmode="numeric" value="'+_rgs[_si].hi+'"><span class="wl-setrng-tag">'+(_si===0?"heaviest":"−10%")+'</span></div>';}
   }else{
@@ -2250,7 +2250,7 @@ function buildWorkoutEntries(rt,bw){return (rt.items||[]).map(function(it){var e
   for(var k=0;k<n;k++){var w,r;
     if(last&&last[k]){w=last[k].weight;r=last[k].reps;}
     else if(last&&last.length){w=last[last.length-1].weight;r=last[last.length-1].reps;}
-    else{w=ex.bodyweight?((bw!=null?bw:0)+(num(it.weight)||0)):(num(it.weight)!=null?it.weight:"");r=(it.repHigh!=null&&it.repHigh!=="")?it.repHigh:"";}
+    else{w=ex.bodyweight?((bw!=null?bw:0)+(num(it.weight)||0)):(num(it.weight)>0?it.weight:"");r=(it.repHigh!=null&&it.repHigh!=="")?it.repHigh:"";}
     sets.push({weight:(w===""||w==null)?"":String(w),reps:(r===""||r==null)?"":String(r),rir:"",status:"pending"});}
   var notes=[];(ex.notes||[]).forEach(function(nn){notes.push({text:nn.text,pinned:true});});(it.notes||[]).forEach(function(nn){notes.push({text:nn.text,pinned:false});});
   return {itemId:it.id,exerciseId:it.exerciseId,name:ex.name,muscle:ex.muscle,equipment:ex.equipment,bodyweight:!!ex.bodyweight,repLow:it.repLow,repHigh:it.repHigh,movement:it.movement||guessMovement(ex.muscle),setRanges:rptRangesFor(it,n),addedWt:num(it.weight)||0,notes:notes,sets:sets};
@@ -2303,7 +2303,7 @@ function sugForEntry(en,routineId){
   if(mode==="rpt"&&!bw){
     var n=en.sets.length;var ranges=(en.setRanges&&en.setRanges.length)?en.setRanges:rptRangesFor(rt&&rItem(rt,en.itemId),n);
     var lastS1W=num(done[0].weight),lastS1R=num(done[0].reps);
-    if(lastS1W==null)return en.sets.map(function(){return null;});
+    if(lastS1W==null||lastS1W<=0)return en.sets.map(function(){return null;});
     var s1=ranges[0]||{lo:6,hi:8};
     var jumped=lastS1R!=null&&lastS1R>=s1.hi;
     var s1w=jumped?lastS1W+inc:lastS1W;
