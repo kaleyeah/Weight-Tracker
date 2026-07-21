@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-20.276 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-20.277 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -452,6 +452,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 .wl-recapnav{display:flex;gap:4px;flex:none;}
 .wl-recaparw{width:30px;height:30px;border-radius:8px;background:var(--bg2);border:1px solid var(--line);color:var(--muted);font-size:18px;line-height:0;display:flex;align-items:center;justify-content:center;flex:none;font-family:var(--sans);cursor:pointer;padding:0;}
 .wl-recaparw.off{opacity:.35;}
+.wl-recap-new{border-color:rgba(245,181,68,.55);box-shadow:0 0 0 1px rgba(245,181,68,.22),0 6px 24px rgba(245,181,68,.12);}
 .wl-empty{color:var(--faint);font-size:13px;text-align:center;padding:22px 0;}
 
 .wl-tbar{position:relative;height:16px;background:var(--bg2);border:1px solid var(--line);border-radius:6px;overflow:hidden;margin-top:2px;}
@@ -708,7 +709,8 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-20.276";
+var APP_BUILD="2026-07-20.277";
+var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
 var deferredPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredPrompt=e;});
 var photoURLs=[],photoMap={},photoDB=null;
@@ -1339,7 +1341,7 @@ function todayChecklistHTML(sel){
     mh+=(steps!=null)?ckRow(true,"Steps",Math.round(steps).toLocaleString(),"steps",false):ckRowSkip("Steps","Optional","steps");
     mh+=hasCal?ckCalories(sel):ckRowSkip("Calories","Optional","calories");
     mh+=(sleep!=null)?ckRow(true,"Sleep",minToHM(sleep),"sleep",false):ckRowSkip("Sleep","Optional","sleep");
-    mh+=ckNotes(sel);mh+=completeBtnHTML(sel);return mh+'</div>';}
+    mh+=ckNotes(sel);return mh+'</div>';}
   var wSkip=isSkip(sel,"weight"),stSkip=isSkip(sel,"steps"),slSkip=isSkip(sel,"sleep"),calSkip=isSkip(sel,"calories");
   var done=((wt!=null||wSkip)?1:0)+((steps!=null||stSkip)?1:0)+((hasCal||calSkip)?1:0)+((sleep!=null||slSkip)?1:0);
   var h='<div class="wl-card wl-check"><div class="wl-ck-head"><span class="wl-ck-title">'+(sel===todayISO()?"Today":"This day")+'\u2019s Check-in</span><span class="wl-ck-cnt">'+done+' of 4 done</span></div>';
@@ -1347,7 +1349,7 @@ function todayChecklistHTML(sel){
   h+=(wt!=null)?ckRow(true,"Weight",r1(wt)+" "+u,"weight",false):(wSkip?ckRowSkip("Weight","Skipped","weight"):ckRow(false,"Weight","Add","weight",false));
   h+=(hasCal||!calSkip)?ckCalories(sel):ckRowSkip("Calories","Skipped","calories");
   h+=(steps!=null)?ckRow(true,"Steps",Math.round(steps).toLocaleString(),"steps",false):(stSkip?ckRowSkip("Steps","Skipped","steps"):ckRow(false,"Steps","Add","steps",false));
-  h+=ckNotes(sel);h+=completeBtnHTML(sel);
+  h+=ckNotes(sel);
   return h+'</div>';
 }
 function activitySummaryHTML(sel){
@@ -1454,6 +1456,18 @@ function coachHeadHTML(title,dateStr,unread,open){var right=unread?'<span class=
 function view_overview(){
   var u=state.settings.units;
   var h='<div class="wl-stack">';h+=dayBarHTML();
+  var _log=state.nightlyLog||{};var _sel=state.selDate;var _unrdN=coachUnreadN();var _nsD=(state.nightlySummary||{}).date;
+  var _rcFor=function(d){var r=_log[d];if(r&&r.text)return r;return (state.nightlySummary&&state.nightlySummary.date===d&&state.nightlySummary.text)?state.nightlySummary:null;};
+  var _rcDates=Object.keys(_log).filter(function(d){return _log[d]&&_log[d].text;});
+  if(state.nightlySummary&&state.nightlySummary.text&&_nsD&&_rcDates.indexOf(_nsD)<0)_rcDates.push(_nsD);
+  _rcDates.sort();
+  var _rcDate=_rcFor(_sel)?_sel:(_unrdN&&_nsD?_nsD:(_rcDates.length?_rcDates[_rcDates.length-1]:null));
+  var _rc=_rcDate?_rcFor(_rcDate):null;var _recapCard="";var _atTop=false;
+  if(_rc){var _unrdThis=_unrdN&&_rcDate===_nsD;_atTop=_unrdThis;var _no=_unrdThis?false:(state.nightOpen!==false);
+    var _pi=_rcDates.indexOf(_rcDate);var _prev=_pi>0?_rcDates[_pi-1]:null;var _next=(_pi>=0&&_pi<_rcDates.length-1)?_rcDates[_pi+1]:null;
+    var _nav=(_rcDates.length>1)?('<span class="wl-recapnav">'+(_prev?'<button class="wl-recaparw" data-act="recap:go" data-date="'+_prev+'" aria-label="Older recap">‹</button>':'<span class="wl-recaparw off">‹</span>')+(_next?'<button class="wl-recaparw" data-act="recap:go" data-date="'+_next+'" aria-label="Newer recap">›</button>':'<span class="wl-recaparw off">›</span>')+'</span>'):'';
+    _recapCard='<div class="wl-card'+(_unrdThis?' wl-recap-new':'')+'"><div class="wl-recaphead"><button class="wl-collapse-head" style="flex:1;min-width:0" data-act="night:toggle">'+coachHeadHTML("Daily recap",fmtShort(parseISO(_rcDate)),_unrdThis,_no)+'</button>'+_nav+'</div>'+(_no?'<div class="wl-ai-summary" style="margin-top:6px">'+renderSummary(_rc.text)+'</div>':'')+'</div>';}
+  var _recapUnit=_recapCard+(SHOW_TESTBTN?completeBtnHTML(_sel):"");
   var _hsw=sortedWeights(),_hstart=num(state.settings.startingWeight),_hgoal=num(state.settings.goalWeight);
   var _hcur=_hsw.length?_hsw[_hsw.length-1].weight:_hstart;
   var _hlost=(_hstart!=null&&_hcur!=null)?_hstart-_hcur:null;
@@ -1472,25 +1486,15 @@ function view_overview(){
     h+=_paceHTML+'</div>';
     h+='</div><div class="wl-progress-track"><div class="wl-progress-fill" style="width:'+((_hprog||0)*100)+'%"></div>'+(_hprog!=null?'<div class="wl-progress-marker" style="left:'+(_hprog*100)+'%"></div>':'')+'</div><div class="wl-progress-ends"><span><b>'+r1(_hstart)+'</b> start</span><span class="wl-togo">'+(_htoGo!=null&&_htoGo>0?r1(_htoGo)+" "+u+" to go":"Goal reached")+'</span><span class="pe-r"><span><b>'+r1(_hgoal)+'</b> goal</span>'+_etaHTML+'</span></div></div>';
   }
+  if(_atTop)h+=_recapUnit;
   var _ciDay=(new Date().getDay()===(parseInt(state.settings.weekStart,10)||0));
   if(_ciDay&&wkPhotoKey!==toISO(weekStartFor(0)))refreshWeekPhotos();
   if(_ciDay&&wkPhotoHave!==true)h+='<div class="wl-card"><button class="wl-btn wl-btn-primary wl-full" data-act="go" data-view="photos">\ud83d\udcf7 This Week\u2019s Progress Photos</button><div class="wl-hint" style="margin-top:8px">Check-in day \u2014 capture Front, Left Side, Right Side, and Back to track your visible progress.</div></div>';
   h+=todayChecklistHTML(state.selDate);
+  if(!_atTop)h+=_recapUnit;
   h+=activitySummaryHTML(state.selDate);
   h+='<div class="wl-card"><div class="wl-card-head"><span>This Week’s Goals</span></div>'+trainingGoalsHTML(weekStartOf(state.selDate))+'</div>';
-  var _log=state.nightlyLog||{};var _sel=state.selDate;var _unrdN=coachUnreadN();var _nsD=(state.nightlySummary||{}).date;
-  var _rcFor=function(d){var r=_log[d];if(r&&r.text)return r;return (state.nightlySummary&&state.nightlySummary.date===d&&state.nightlySummary.text)?state.nightlySummary:null;};
-  var _rcDates=Object.keys(_log).filter(function(d){return _log[d]&&_log[d].text;});
-  if(state.nightlySummary&&state.nightlySummary.text&&_nsD&&_rcDates.indexOf(_nsD)<0)_rcDates.push(_nsD);
-  _rcDates.sort();
-  var _rcDate=_rcFor(_sel)?_sel:(_unrdN&&_nsD?_nsD:(_rcDates.length?_rcDates[_rcDates.length-1]:null));
-  var _rc=_rcDate?_rcFor(_rcDate):null;
-  if(_rc){var _unrdThis=_unrdN&&_rcDate===_nsD;var _no=_unrdThis?false:(state.nightOpen!==false);
-    var _pi=_rcDates.indexOf(_rcDate);var _prev=_pi>0?_rcDates[_pi-1]:null;var _next=(_pi>=0&&_pi<_rcDates.length-1)?_rcDates[_pi+1]:null;
-    var _nav=(_rcDates.length>1)?('<span class="wl-recapnav">'+(_prev?'<button class="wl-recaparw" data-act="recap:go" data-date="'+_prev+'" aria-label="Older recap">‹</button>':'<span class="wl-recaparw off">‹</span>')+(_next?'<button class="wl-recaparw" data-act="recap:go" data-date="'+_next+'" aria-label="Newer recap">›</button>':'<span class="wl-recaparw off">›</span>')+'</span>'):'';
-    h+='<div class="wl-card"><div class="wl-recaphead"><button class="wl-collapse-head" style="flex:1;min-width:0" data-act="night:toggle">'+coachHeadHTML("Daily recap",fmtShort(parseISO(_rcDate)),_unrdThis,_no)+'</button>'+_nav+'</div>';
-    if(_no)h+='<div class="wl-ai-summary" style="margin-top:6px">'+renderSummary(_rc.text)+'</div>';
-    h+='</div>';}
+  /* daily recap now rendered above via _recapUnit (dynamic placement) */
     h+='<div class="wl-card"><div class="wl-card-head"><span>Food diary</span><button class="wl-link" data-act="go" data-view="diary">Browse all →</button></div>';
   h+='<div id="wl-photostrip"></div>';
   h+='<div class="wl-mealadd">'+[["breakfast","Breakfast"],["lunch","Lunch"],["snack","Snack"],["dinner","Dinner"]].map(function(m){return '<button class="wl-btn wl-btn-ghost" data-act="photo:add" data-meal="'+m[0]+'">'+I.plus.replace("<svg","<svg width=14 height=14")+m[1]+'</button>';}).join("")+'</div>';
