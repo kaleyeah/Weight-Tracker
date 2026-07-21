@@ -3415,7 +3415,9 @@ function pbLogin(email,password,cb,remember){
     .catch(function(e){cb&&cb(false,(e==="bad")?"bad":(e==="error")?"error":"offline");});}
 
 /* PocketBase requires the CURRENT password to change it (min 8 chars for the new
-   one). Note it does NOT invalidate tokens on other devices — they stay signed in. */
+   one). Other devices' existing tokens can still READ afterwards, but auth-refresh
+   returns 401 — and since the app refreshes on every open, they are effectively
+   signed out and will need the new password. */
 function pbChangePassword(oldPw,newPw,confirmPw,cb){
   if(!oldPw||!newPw){cb(false,"Fill in every field.");return;}
   if(newPw.length<8){cb(false,"New password must be at least 8 characters.");return;}
@@ -3441,15 +3443,39 @@ function pbRefresh(cb){
   fetch(pbBase()+"/api/collections/users/auth-refresh",{method:"POST",headers:pbHeaders(true)})
     .then(function(r){if(r.status===401||r.status===403)return Promise.reject("auth");if(!r.ok)return Promise.reject("error");return r.json();})
     .then(function(j){var c=pbCfg();c.token=j.token;c.uid=j.record.id;c.email=j.record.email;setPbCfg(c);cb&&cb(true);})
-    .catch(function(e){if(e==="auth"){pbForceLogout();}cb&&cb(false);});}
+    .catch(function(e){
+      if(e==="auth"){
+        /* the session is dead (most often: the password was changed on another
+           device). Drop the token but KEEP local data, and say why — the app
+           otherwise appears signed in and then abruptly boots you. */
+        pbClearSession(true);
+        pbLoginState.err="Your session ended — that usually means the password was changed on another device. Please sign in again.";
+        try{render();}catch(_e){}
+      }
+      cb&&cb(false);});}
 
-/* wipe every trace of the previous account — a shared iPad must not leak data */
-function pbForceLogout(){
+/* Clears ONLY the session. Local data survives, so a session that expires or gets
+   invalidated (e.g. the password was changed on another device) can never destroy
+   changes this device hadn't uploaded yet. */
+function pbClearSession(keepEmail){
+  var c=pbCfg(),keep={};
+  /* keep the server URL — it is configuration, not session. Dropping it silently
+     reverts a custom server to the compiled-in default on any expiry. */
+  if(c.base)keep.base=c.base;
+  if(c.remember!==undefined)keep.remember=c.remember;
+  if(keepEmail&&c.email)keep.email=c.email;   /* pre-fill the login form again */
   try{localStorage.removeItem(PB_KEY);}catch(e){}
   try{sessionStorage.removeItem(PB_KEY);}catch(e){}
-  try{localStorage.removeItem(KEY);localStorage.removeItem(TKEY);localStorage.removeItem(WOKEY);
-      localStorage.removeItem(DIRTY_KEY);localStorage.removeItem(LAST_KEY);}catch(e){}
+  try{if(keep.base||keep.email)localStorage.setItem(PB_KEY,JSON.stringify(keep));}catch(e){}
   pbRecId=null;}
+
+/* Full logout: session AND this device's cached copy. Only for an explicit "Log out",
+   where wiping is the point — a shared iPad must not leak the previous account, so
+   the email is dropped too. */
+function pbForceLogout(){
+  pbClearSession(false);
+  try{localStorage.removeItem(KEY);localStorage.removeItem(TKEY);localStorage.removeItem(WOKEY);
+      localStorage.removeItem(DIRTY_KEY);localStorage.removeItem(LAST_KEY);}catch(e){}}
 function pbLogout(){
   askConfirm("Log out on this device? Your data stays safe on the server — log back in any time.",function(){
     pbForceLogout();location.reload();
@@ -3570,7 +3596,7 @@ function pbAccountCardHTML(op){
           /* rendered once and updated in place — a re-render would blank all three
              fields and force the user to retype everything after any error */
           '<div class="wl-login-err" id="wl-pw-err" style="display:none"></div>'+
-          '<div class="wl-hint" style="margin-top:10px">At least 8 characters. Your other devices stay signed in — changing this doesn’t sign them out.</div>'+
+          '<div class="wl-hint" style="margin-top:10px">At least 8 characters. Your other devices will be signed out and will need the new password next time they open the app.</div>'+
           '<div class="wl-row" style="margin-top:12px"><button class="wl-btn wl-btn-primary wl-full" id="wl-pw-save" data-act="pb:pwsave">Save new password</button></div>'+
         '</div>'):'')+
       '<div class="wl-row" style="margin-top:10px"><button class="wl-btn wl-btn-ghost wl-full" data-act="pb:logout">Log out</button></div>'+
@@ -3635,16 +3661,25 @@ function pbDoLogin(){
       pbLoginState.err=(why==="bad")?"That email and password don’t match.":(why==="offline")?"Can’t reach the server. Is Tailscale on?":"Something went wrong. Try again.";
       pbRenderLogin();return;}
     pbLoginState.err="";
-    /* fresh account on this device: take the server's copy as the truth */
     setSync("syncing");
     cloudGet(function(d,err){
+      function finish(){
+        trainingPull(function(){
+          setLastSync();setSync("ok");render();
+          toast("Welcome back"+(state.settings.name?(", "+state.settings.name):""));
+          /* pull this account's photos down onto this device in the background */
+          photoSync(function(r){
+            if(r&&r.downloaded)toast(r.downloaded+" photo"+(r.downloaded===1?"":"s")+" restored");});});}
+      /* Normally the server is the truth on login. But if this device still holds
+         changes it never managed to upload, taking the server copy silently would
+         throw them away — so ask, rather than pick for them. */
+      if(!err&&d&&isDirty()&&localHasData()&&!cloudEmpty(d)){
+        askConfirm("This device has changes that were never saved to the server. Upload them, or replace them with the server’s copy?",
+          function(){cloudPush(false);finish();},
+          {label:"Upload mine",danger:false,onNo:function(){applyCloud(d);finish();}});
+        return;}
       if(!err&&d)applyCloud(d);
-      trainingPull(function(){
-        setLastSync();setSync("ok");render();
-        toast("Welcome back"+(state.settings.name?(", "+state.settings.name):""));
-        /* pull this account's photos down onto this device in the background */
-        photoSync(function(r){
-          if(r&&r.downloaded)toast(r.downloaded+" photo"+(r.downloaded===1?"":"s")+" restored");});});});},remember);}
+      finish();});},remember);}
 
 /* gate the whole app behind login without duplicating render()'s body */
 var _pbOrigRender=render;
@@ -3652,10 +3687,21 @@ render=function(){
   if(!syncOn()){pbRenderLogin();return;}
   _pbOrigRender();};
 
+/* The app's confirm dialog only calls back on YES; "No" just closes. For a genuine
+   two-way choice we need the No branch too, so wrap askConfirm and remember the
+   handler ourselves — the app's own listener nulls state.pendingConfirm before our
+   listener runs, so we can't read it from there.
+   ⚠️ Assignment, not a function-declaration override — a hoisted declaration would
+   capture itself on the line above and recurse forever. */
+var _pbAskConfirm=askConfirm,pbOnNo=null;
+askConfirm=function(msg,fn,opts){pbOnNo=(opts&&opts.onNo)||null;return _pbAskConfirm(msg,fn,opts);};
+
 /* extra acts (the original listener ignores acts it doesn't know) */
 document.addEventListener("click",function(e){
   var el=e.target.closest("[data-act]");if(!el)return;
   var a=el.getAttribute("data-act");
+  if(a==="confirm:yes"){pbOnNo=null;return;}
+  if(a==="confirm:no"){var _no=pbOnNo;pbOnNo=null;if(_no)setTimeout(_no,0);return;}
   if(a==="pb:logout"){pbLogout();return;}
   if(a==="pb:adv"){pbLoginState.advanced=!pbLoginState.advanced;pbRenderLogin();return;}
   if(a==="pb:pwtoggle"){state.pwOpen=!state.pwOpen;state.pwErr="";render();return;}
