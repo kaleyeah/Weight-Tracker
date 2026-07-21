@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-20.272 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-20.273 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -704,7 +704,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-20.272";
+var APP_BUILD="2026-07-20.273";
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
 var deferredPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredPrompt=e;});
 var photoURLs=[],photoMap={},photoDB=null;
@@ -1956,7 +1956,7 @@ function clearPhotoURLs(){photoURLs.forEach(function(u){try{URL.revokeObjectURL(
 var POSES=[["front","Front"],["left","Left Side"],["right","Right Side"],["back","Back"]];
 function view_photos(){
   var h='<div class="wl-stack">';
-  h+='<div class="wl-card"><div class="wl-card-head"><span>This Week</span><span class="wl-count">'+fmtShort(weekStartFor(0))+'</span></div><div id="wl-progweek" class="wl-poserow"><div class="wl-hint">Loading\u2026</div></div><div class="wl-hint" style="margin-top:10px">Tap a slot to add or retake. Photos stay on this device only \u2014 never synced or seen by the coach.</div></div>';
+  h+='<div class="wl-card"><div class="wl-card-head"><span>This Week '+infoBtn("photos")+'</span><span class="wl-count">'+fmtShort(weekStartFor(0))+'</span></div><div id="wl-progweek" class="wl-poserow"><div class="wl-hint">Loading\u2026</div></div><div class="wl-hint" style="margin-top:10px">Tap a slot to add or retake. Photos stay on this device only \u2014 never synced or seen by the coach.</div></div>';
   h+='<div id="wl-progtimeline"></div>';
   return h+'</div>';
 }
@@ -2385,7 +2385,7 @@ function view_workout(){var w=state.workout;
     else if(en.equipment)h+='<div class="wl-exrow-sub">'+esc(en.equipment)+'</div>';
     if(en.firstTime&&(num(en.repLow)!=null||num(en.repHigh)!=null))h+='<div class="wl-exrow-sub" style="color:var(--accent)">First time: work up to a weight where '+(en.repLow||"?")+'\u2013'+(en.repHigh||"?")+' reps leaves 0\u20131 RIR.</div>';
     (en.notes||[]).forEach(function(n){h+='<button class="wl-note" data-act="note:edit" data-woei="'+ei+'" data-iid="'+en.itemId+'" data-nid="'+(n.id||"")+'" data-pinned="'+(n.pinned?"1":"0")+'"><span class="wl-note-txt">'+esc(n.text)+'</span>'+(n.pinned?'<span class="wl-note-pin">📌</span>':'')+'</button>';});
-    h+='<div class="wl-setgrid wl-sethead" style="margin-top:10px"><span></span><span>WEIGHT</span><span>REPS</span><span>RIR '+infoBtn("rir")+'</span><span></span><span>LOG</span></div>';
+    h+='<div class="wl-setgrid wl-sethead" style="margin-top:10px"><span></span><span>WEIGHT</span><span>REPS</span><span>RIR '+infoBtn("rir")+'</span><span>'+infoBtn("targeticons")+'</span><span>LOG</span></div>';
     en.sets.forEach(function(st,si){h+=setRowHTML(en,ei,st,si);});
     h+='</div>';});
   if(w.tState!=="ready")h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:6px" data-act="wo:finish">End workout</button>';
@@ -2704,23 +2704,23 @@ function view_settings(){
     if(alOpen)h+='<div class="wl-optlist">'+ALEVELS.map(function(x){var on=alSel===x[0];return '<button class="wl-opt'+(on?" on":"")+'" data-act="set:activity" data-level="'+x[0]+'"><span>'+x[1]+'</span>'+(on?'<span class="wl-opt-ck">'+I.check.replace("<svg","<svg width=15 height=15")+'</span>':'')+'</button>';}).join("")+'</div>';
     else h+='<button class="wl-opt on" data-act="al:change"><span>'+alLabel(alSel)+'</span><span style="color:var(--accent);font-size:13px;font-weight:600">Change</span></button>';
     h+='<div class="wl-hint" style="margin-top:12px"><span id="wl-calread">'+calSummaryHTML()+'</span> <span style="color:var(--faint)">(Mifflin–St Jeor · info only)</span></div>';
-    h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:16px 0 8px">Strategy</div><div class="wl-seg wl-seg-wide">'+[["lose","Fat Loss"],["maintain","Maintenance"],["gain","Lean Bulk"]].map(function(x){return '<button class="'+(strategyMode()===x[0]?"on":"")+'" data-act="set:strategy" data-strat="'+x[0]+'">'+x[1]+'</button>';}).join("")+'</div>';
+    h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:16px 0 8px">Strategy '+infoBtn("strategy")+'</div><div class="wl-seg wl-seg-wide">'+[["lose","Fat Loss"],["maintain","Maintenance"],["gain","Lean Bulk"]].map(function(x){return '<button class="'+(strategyMode()===x[0]?"on":"")+'" data-act="set:strategy" data-strat="'+x[0]+'">'+x[1]+'</button>';}).join("")+'</div>';
     h+='<div class="wl-hint" style="margin-top:8px">'+(strategyMode()==="gain"?"Targets a surplus — protein stays high to build muscle.":strategyMode()==="maintain"?"Targets maintenance — protein stays high to hold muscle.":"Targets a deficit — protein stays high to protect muscle.")+'</div>';
     if(strategyMode()!=="maintain"){var gain=strategyMode()==="gain";
       h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:16px 0 8px">Weekly '+(gain?"gain":"loss")+' target</div><div class="wl-row" style="align-items:flex-end"><label class="wl-field" style="flex:1"><span>'+(f.targetType==="percent_bw_per_week"?"% / week":u+" / week")+'</span><input class="wl-num" type="text" inputmode="decimal" data-set="targetValue" value="'+esc(f.targetValue)+'" placeholder="—"></label><div class="wl-seg" style="flex:1.25"><button class="'+(f.targetType==="lbs_per_week"?"on":"")+'" data-act="set:ttype" data-type="lbs_per_week">'+u+'/wk</button><button class="'+(f.targetType==="percent_bw_per_week"?"on":"")+'" data-act="set:ttype" data-type="percent_bw_per_week">% BW/wk</button></div></div><div class="wl-hint">'+(f.targetType==="percent_bw_per_week"?"e.g. 1 = "+(gain?"gain":"lose")+" 1% of bodyweight/week.":"e.g. 1 = "+(gain?"gain":"lose")+" 1 "+u+"/week (0.5–1 common).")+'</div>';}
     h+='<label class="wl-field wl-field-full" style="margin-top:16px"><span>Daily calorie target</span><input class="wl-num" data-int="1" type="text" inputmode="numeric" data-set="targetCalories" value="'+esc(f.targetCalories)+'" placeholder="'+(targetIntake()!=null?targetIntake():"complete Profile")+'"></label>';
     h+='<div class="wl-hint" style="margin-top:6px">'+(f.calTargetAuto===false?'Manually set. <button class="wl-link" data-act="cal:usecalc" style="display:inline">Use calculated target</button>':(targetIntake()!=null?'Auto-calculated from your maintenance calories and strategy above. Edit it to override.':'Complete your Profile and target weight to auto-calculate this.'))+'</div>';
-    h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:16px 0 8px">Macro targets</div><div class="wl-macrogrid">'+[["targetProtein","Protein","g"],["targetCarbs","Carbs","g"],["targetFat","Fat","g"]].map(function(x){return '<label class="wl-field"><span>'+x[1]+' <em>'+x[2]+'</em></span><input class="wl-num" type="text" inputmode="decimal" data-set="'+x[0]+'" value="'+esc(f[x[0]])+'" placeholder="—"></label>';}).join("")+'</div><div id="wl-macronotice">'+macroNoticeHTML()+'</div><div class="wl-hint"><span id="wl-macropct">'+macroPctHTML()+'</span></div>';
+    h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:16px 0 8px">Macro targets '+infoBtn("protein")+'</div><div class="wl-macrogrid">'+[["targetProtein","Protein","g"],["targetCarbs","Carbs","g"],["targetFat","Fat","g"]].map(function(x){return '<label class="wl-field"><span>'+x[1]+' <em>'+x[2]+'</em></span><input class="wl-num" type="text" inputmode="decimal" data-set="'+x[0]+'" value="'+esc(f[x[0]])+'" placeholder="—"></label>';}).join("")+'</div><div id="wl-macronotice">'+macroNoticeHTML()+'</div><div class="wl-hint"><span id="wl-macropct">'+macroPctHTML()+'</span></div>';
     h+='</div>';}
   h+='</div>';
   }
   if(pg==="goals"){
   h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="goals"><span>Goals</span><span class="wl-chevron'+(op.goals?" open":"")+'">›</span></button>';
   if(op.goals){h+='<div class="wl-collapse-body">';
-    h+='<label class="wl-field wl-field-full"><span>Daily steps goal</span><input class="wl-num" data-int="1" data-set="stepsGoal" type="text" inputmode="numeric" value="'+esc(f.stepsGoal||"")+'" placeholder="—"></label>';
+    h+='<label class="wl-field wl-field-full"><span>Daily steps goal '+infoBtn("steps")+'</span><input class="wl-num" data-int="1" data-set="stepsGoal" type="text" inputmode="numeric" value="'+esc(f.stepsGoal||"")+'" placeholder="—"></label>';
     h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:16px 0 8px">Sleep goal</div><div class="wl-row"><label class="wl-field"><span>Hours</span><input class="wl-num wl-goalsleep-h" data-int="1" type="text" inputmode="numeric" placeholder="—" value="'+(num(f.sleepGoal)!=null?Math.floor(num(f.sleepGoal)/60):"")+'"></label><label class="wl-field"><span>Minutes</span><input class="wl-num wl-goalsleep-m" data-int="1" type="text" inputmode="numeric" placeholder="—" value="'+(num(f.sleepGoal)!=null?num(f.sleepGoal)%60:"")+'"></label></div>';
     h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:16px 0 8px">Weekly training goals</div>';
-    h+='<div class="wl-row"><label class="wl-field"><span>Cardio minutes / week <em>zone 2+</em></span><input class="wl-num" data-int="1" data-set="cardioMinGoal" type="text" inputmode="numeric" value="'+esc(f.cardioMinGoal||"")+'" placeholder="—"></label><label class="wl-field"><span>Lifting sessions / week</span><input class="wl-num" data-int="1" data-set="liftSessGoal" type="text" inputmode="numeric" value="'+esc(f.liftSessGoal||"")+'" placeholder="—"></label></div>';
+    h+='<div class="wl-row"><label class="wl-field"><span>Cardio minutes / week <em>zone 2+</em> '+infoBtn("cardiozone")+'</span><input class="wl-num" data-int="1" data-set="cardioMinGoal" type="text" inputmode="numeric" value="'+esc(f.cardioMinGoal||"")+'" placeholder="—"></label><label class="wl-field"><span>Lifting sessions / week</span><input class="wl-num" data-int="1" data-set="liftSessGoal" type="text" inputmode="numeric" value="'+esc(f.liftSessGoal||"")+'" placeholder="—"></label></div>';
     h+='<div class="wl-hint" style="margin-top:6px">Cardio minutes only count sessions whose average heart rate is zone 2 or higher (a session with no zone logged still counts).</div>';
     h+='</div>';}
   h+='</div>';
@@ -2731,7 +2731,7 @@ function view_settings(){
     h+='<div class="wl-card wl-modecard '+(_iv?"vac":"sick")+'"><div class="wl-card-head"><span>'+_em+' '+(_iv?"Vacation Mode":"Recovery Mode")+'</span><span class="wl-modeon">ON</span></div>';
     h+='<div class="wl-hint" style="margin-bottom:12px">Active '+_rng+' \u2014 check-ins are relaxed and your coach is easing up. '+(_iv?"Enjoy it.":"Rest up and feel better.")+'</div>';
     h+='<div class="wl-row"><button class="wl-btn wl-btn-ghost" style="flex:1" data-act="status:open">Edit</button><button class="wl-btn wl-btn-primary" style="flex:1" data-act="status:endnow">End '+(_iv?"vacation":"recovery")+'</button></div></div>';
-  }else{h+='<div class="wl-card"><div class="wl-card-head"><span>Away &amp; recovery</span></div><div class="wl-hint" style="margin-bottom:10px">Heading out or feeling sick? Set a status so your coach eases up and days still count as checked in.</div><button class="wl-btn wl-btn-ghost wl-full" data-act="status:open">Set a status</button></div>';}
+  }else{h+='<div class="wl-card"><div class="wl-card-head"><span>Away &amp; recovery '+infoBtn("modes")+'</span></div><div class="wl-hint" style="margin-bottom:10px">Heading out or feeling sick? Set a status so your coach eases up and days still count as checked in.</div><button class="wl-btn wl-btn-ghost wl-full" data-act="status:open">Set a status</button></div>';}
   }
   if(pg==="coach"){
   h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="reminder"><span>Daily reminder</span><span class="wl-chevron'+(op.reminder?" open":"")+'">›</span></button>'+(op.reminder?('<div class="wl-collapse-body">'+
