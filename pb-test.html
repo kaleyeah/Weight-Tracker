@@ -1426,7 +1426,7 @@ function maxSheetHTML(){if(!state.maxOpen)return "";var ws=state.weeklySummary;v
   if(state.genBusy){inner='<div class="wl-mhead"><span class="wl-mav">M</span><span style="min-width:0"><span class="wl-mtitle">Weekly check-in</span><span class="wl-msub">from Coach Max</span></span><button class="wl-maxx" data-act="max:close">\u2715</button></div><div class="wl-hint">\u23f3 Generating your check-in\u2026 this takes about a minute. You can close this and keep using the app.</div>';}
   else if(ws&&ws.text){inner='<div class="wl-mhead"><span class="wl-mav">M</span><span style="min-width:0"><span class="wl-mtitle">Weekly check-in</span><span class="wl-msub">from Coach Max \u00b7 week of '+fmtShort(parseISO(ws.week))+'</span></span><button class="wl-maxx" data-act="max:close">\u2715</button></div>'
     +'<div class="wl-ai-summary" style="margin-top:6px">'+renderSummary(ws.text)+'</div>'
-    +(_ciDay?'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:12px" data-act="ai:gen">\u21bb Regenerate</button>':'');}
+    ;}
   else{var dn=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][(parseInt(state.settings.weekStart,10)||0)];
     inner='<div class="wl-mhead"><span style="flex:1"></span><button class="wl-maxx" data-act="max:close">\u2715</button></div><div class="wl-maxempty"><div class="bigav">M</div><div class="t">No messages yet</div><div class="s">This is where Coach Max delivers your weekly check-in.<br>Your next one lands <b style="color:var(--text)">'+dn+' morning</b>.</div></div>';}
   return '<div class="wl-maxbg top" data-act="max:close"><div class="wl-maxsheet'+((ws&&ws.text)||state.genBusy?'':' plain')+'" data-act="noop">'+inner+'</div></div>';}
@@ -3396,6 +3396,22 @@ function pbHeaders(json){var h={};var t=pbTok();if(t)h.Authorization=t;if(json)h
 
 /* the app asks "is sync configured?" everywhere — now it means "logged in" */
 function syncOn(){return !!(pbTok()&&pbUid());}
+
+/* ---- GitHub is retired ----
+   A lot of GitHub code survives as unreachable leftovers, but "unreachable" is a
+   claim that rots. Make it structurally true instead: the old config is now
+   permanently empty, so no surviving path can ever produce an Authorization header,
+   and the stored Personal Access Token is deleted from this device — it is a real
+   credential sitting in localStorage with nothing left that should use it. */
+function syncCfg(){return {};}
+function setSyncCfg(){}
+try{localStorage.removeItem(SYNC_KEY);}catch(e){}
+
+/* These two POST workflow_dispatch to GitHub. The weekly one is genuinely reachable
+   (the "Regenerate" button in the Coach Max sheet on check-in day), so it can't just
+   be left to fail — Coach Max is scheduled on the Synology now. */
+function genSummary(){toast("Coach Max writes your check-in on your own server now.");}
+function genNightly(){toast("Coach Max writes your recap on your own server now.");}
 
 /* every account owns its own data, so the old multi-profile uid tagging is moot */
 function myUid(){return "owner";}
