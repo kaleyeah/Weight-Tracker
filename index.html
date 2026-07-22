@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-22.305 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-22.306 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -752,7 +752,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-22.305-pb";
+var APP_BUILD="2026-07-22.306-pb";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -2406,12 +2406,25 @@ function _fbFirstOfMuscle(w,ei){
   for(var i=0;i<ei;i++){if(((w.entries[i]||{}).muscle||"other")===mus)return false;}
   return true;}
 /* Every question currently on the sheet has an answer. */
+/* Which questions a given sheet shows. kind "sore" is the early, one-question
+   prompt; kind "end" is joint pain plus the day's verdicts. */
+function fbNeeds(){
+  var fs_=state.fbSheet;var w=state.workout;
+  if(!fs_||!w)return null;
+  var en=w.entries[fs_.ei];if(!en)return null;
+  var mus=en.muscle||"other";
+  var m=(w.mfb||{})[mus]||{};
+  if(fs_.kind==="sore")return {muscle:mus,joint:false,sore:true,pump:false,vol:false};
+  return {muscle:mus,joint:true,sore:!m.sore&&fs_.askMuscle,pump:!!fs_.askMuscle,vol:!!fs_.askMuscle};}
 function fbAnswered(){
   var fs_=state.fbSheet;var w=state.workout;if(!fs_||!w)return false;
   var en=w.entries[fs_.ei];if(!en)return false;
-  if(!(en.fb&&en.fb.joint))return false;
-  if(fs_.askMuscle){var m=(w.mfb||{})[en.muscle||"other"]||{};
-    if(!m.sore||!m.pump||!m.vol)return false;}
+  var need=fbNeeds();if(!need)return false;
+  var m=(w.mfb||{})[need.muscle]||{};
+  if(need.joint&&!(en.fb&&en.fb.joint))return false;
+  if(need.sore&&!m.sore)return false;
+  if(need.pump&&!m.pump)return false;
+  if(need.vol&&!m.vol)return false;
   return true;}
 /* Trained, not merely finished: a set has to have been logged for feedback to mean
    anything, so an all-skipped exercise never asks. */
@@ -2440,26 +2453,29 @@ function fbSheetHTML(){
   var fs_=state.fbSheet;if(!fs_)return "";
   var w=state.workout;if(!w)return "";
   var en=w.entries[fs_.ei];if(!en)return "";
-  var muscle=en.muscle||"other";
-  var askMuscle=fs_.askMuscle;
+  var need=fbNeeds();if(!need)return "";
+  var muscle=need.muscle;
   var mlab=muscleInfo(muscle).label;
+  var m=(w.mfb||{})[muscle]||{};
+  var first=true;
   var h='<div class="wl-confirm"><div class="wl-confirm-card wl-fbcard">';
   h+='<div class="wl-fbtitle">Feedback</div>';
-  h+='<div class="wl-fbq">Joint pain '+infoBtn("fbjoint")+'</div>';
-  h+='<div class="wl-fbsub">How did your joints feel during '+esc(en.name)+'?</div>';
-  h+=fbOptsHTML("joint",FB_JOINT,(en.fb||{}).joint);
-  if(askMuscle){
-    var m=(w.mfb||{})[muscle]||{};
-    h+='<div class="wl-fbq" style="margin-top:16px">'+esc(mlab)+' soreness '+infoBtn("fbsore")+'</div>';
+  if(need.joint){
+    h+='<div class="wl-fbq">Joint pain '+infoBtn("fbjoint")+'</div>';
+    h+='<div class="wl-fbsub">How did your joints feel during '+esc(en.name)+'?</div>';
+    h+=fbOptsHTML("joint",FB_JOINT,(en.fb||{}).joint);first=false;}
+  if(need.sore){
+    h+='<div class="wl-fbq"'+(first?'':' style="margin-top:16px"')+'>'+esc(mlab)+' soreness '+infoBtn("fbsore")+'</div>';
     h+='<div class="wl-fbsub">How sore did you get in your '+esc(mlab.toLowerCase())+' AFTER training them LAST TIME?</div>';
-    h+=fbOptsHTML("sore",FB_SORE,m.sore,muscle);
-    h+='<div class="wl-fbq" style="margin-top:16px">'+esc(mlab)+' pump '+infoBtn("fbpump")+'</div>';
+    h+=fbOptsHTML("sore",FB_SORE,m.sore,muscle);first=false;}
+  if(need.pump){
+    h+='<div class="wl-fbq"'+(first?'':' style="margin-top:16px"')+'>'+esc(mlab)+' pump '+infoBtn("fbpump")+'</div>';
     h+='<div class="wl-fbsub">How much of a pump did you get today?</div>';
-    h+=fbOptsHTML("pump",FB_PUMP,m.pump,muscle);
-    h+='<div class="wl-fbq" style="margin-top:16px">'+esc(mlab)+' volume '+infoBtn("fbvol")+'</div>';
+    h+=fbOptsHTML("pump",FB_PUMP,m.pump,muscle);first=false;}
+  if(need.vol){
+    h+='<div class="wl-fbq"'+(first?'':' style="margin-top:16px"')+'>'+esc(mlab)+' volume '+infoBtn("fbvol")+'</div>';
     h+='<div class="wl-fbsub">How was the amount of work (number of hard sets)?</div>';
-    h+=fbOptsHTML("vol",FB_VOL,m.vol,muscle);
-  }
+    h+=fbOptsHTML("vol",FB_VOL,m.vol,muscle);}
   var _ok=fbAnswered();
   h+='<div class="wl-fbreq">'+(_ok?"Thanks \u2014 this shapes what I show you next session.":"Answer every question to continue.")+'</div>';
   h+='<div class="wl-fbbtns"><button class="wl-btn wl-btn-primary wl-full'+(_ok?"":" off")+'" data-act="fb:done">Done</button></div>';
@@ -3177,9 +3193,12 @@ document.addEventListener("click",function(e){
     if(vi==null||vi<0)need.push("RIR");
     if(need.length){state.logWarn={ei:ei,si:si,msg:"Enter "+need.join(", ")+" before you can log this set"};render();return;}
     stt.status="done";if(si===0)rptAfterSet1(en);state.logWarn=null;woTransition("resting");
+  var _mus=en.muscle||"other";
   if(fbEntryComplete(en)&&fbEntryTrained(en)&&!(en.fb&&en.fb.joint)){
-    var _mus=en.muscle||"other";
-    state.fbSheet={ei:ei,askMuscle:fbMuscleDone(w,_mus,ei)&&!((w.mfb||{})[_mus])};}
+    state.fbSheet={ei:ei,kind:"end",askMuscle:fbMuscleDone(w,_mus,ei)};}
+  else if(!((w.mfb||{})[_mus]||{}).sore&&_fbFirstOfMuscle(w,ei)){
+    /* how sore you arrived is knowable now, not at the end of the session */
+    state.fbSheet={ei:ei,kind:"sore"};}
   saveWorkout();render();return;}
   if(a==="fb:set"){var w=state.workout;var fsx=state.fbSheet;if(!w||!fsx)return;
     var kind=el.getAttribute("data-kind"),val=el.getAttribute("data-val"),mus=el.getAttribute("data-muscle");
@@ -3191,7 +3210,7 @@ document.addEventListener("click",function(e){
   if(a==="wo:fbopen"){var w=state.workout;if(!w)return;var ei=+el.getAttribute("data-ei");var en=w.entries[ei];if(!en)return;
     if(!fbEntryComplete(en)||!fbEntryTrained(en)){state.exMenu=null;toast("Log this exercise first \u2014 then you can answer for it");render();return;}
     var mu=en.muscle||"other";
-    state.fbSheet={ei:ei,askMuscle:fbMuscleDone(w,mu,ei)};state.exMenu=null;render();return;}
+    state.fbSheet={ei:ei,kind:"end",askMuscle:fbMuscleDone(w,mu,ei)};state.exMenu=null;render();return;}
   if(a==="wo:setmenu"){state.setMenu={ei:+el.getAttribute("data-ei"),si:+el.getAttribute("data-si")};render();return;}
   if(a==="wo:setmenu:close"){state.setMenu=null;render();return;}
   if(a==="wo:addset"){var w=state.workout,sm=state.setMenu;if(!w||!sm)return;var s0=w.entries[sm.ei].sets[sm.si];w.entries[sm.ei].sets.splice(sm.si+1,0,{weight:s0?s0.weight:"",reps:"",rir:"",status:"pending"});state.setMenu=null;saveWorkout();render();persistSetCount(w.entries[sm.ei]);return;}
