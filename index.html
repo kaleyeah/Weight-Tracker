@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-22.311 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-22.312 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -758,7 +758,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-22.311-pb";
+var APP_BUILD="2026-07-22.312-pb";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -2574,6 +2574,18 @@ function rptRetarget(en,si){
   if(t==null)return;
   nx.tgtLo=t;nx.tgtHi=t;nx.sugR=null;
   if(!nx.repsTouched)nx.reps=String(t);}
+/* Bring an in-progress workout's targets up to date — used after a reload, since
+   applying an app update mid-session drops you back here with sets already logged. */
+function rptRetargetAll(){
+  var w=state.workout;if(!w||!w.entries)return;
+  w.entries.forEach(function(en){
+    if((en.progression||"double")!=="rpt")return;
+    for(var i=0;i+1<(en.sets||[]).length;i++){
+      if(en.sets[i].status!=="done")continue;
+      var nx=en.sets[i+1];
+      if(nx.status==="done"||nx.status==="skipped")continue;
+      if(num(nx.tgtLo)!=null&&num(nx.tgtLo)===num(nx.tgtHi))continue; /* already predicted */
+      rptRetarget(en,i);}});}
 /* Recompute back-off weights after Set 1 is logged (RPT): bump with Set 1, or hold last week's on a compound jump where Set 1 fell below its range bottom. */
 function rptAfterSet1(en){
   if(!en||en.bodyweight)return;var w=state.workout;if(!w)return;
@@ -4409,7 +4421,7 @@ function openLightbox(id){
 })();
 
 /* ---------------- init ---------------- */
-load();loadTraining();migrateProgressionTypes();loadWorkout();ensureIdentity();try{refreshWeekPhotos();}catch(e){}if(resyncAllActivityTags())save();var _hasSetup=/[#&]setup=/.test(location.hash||"");if(_hasSetup){state.settings.onboarded=true;}else{if(state.settings.onboarded==null)state.settings.onboarded=(state.weights.length>0||num(state.settings.goalWeight)!=null||num(state.settings.startingWeight)!=null||!!(state.settings.name&&(""+state.settings.name).trim()));if(!state.settings.onboarded){state.onboarding=true;state.obStep=0;}}applyTheme(state.settings.theme||"dark");makeIcon();if(state.workout)state.view="train";render();if(syncOn()){pbRefresh(function(){autoSync();photoSync();});}if(state.workout)startWoTick();if(_hasSetup)checkSetupLink();
+load();loadTraining();migrateProgressionTypes();loadWorkout();rptRetargetAll();ensureIdentity();try{refreshWeekPhotos();}catch(e){}if(resyncAllActivityTags())save();var _hasSetup=/[#&]setup=/.test(location.hash||"");if(_hasSetup){state.settings.onboarded=true;}else{if(state.settings.onboarded==null)state.settings.onboarded=(state.weights.length>0||num(state.settings.goalWeight)!=null||num(state.settings.startingWeight)!=null||!!(state.settings.name&&(""+state.settings.name).trim()));if(!state.settings.onboarded){state.onboarding=true;state.obStep=0;}}applyTheme(state.settings.theme||"dark");makeIcon();if(state.workout)state.view="train";render();if(syncOn()){pbRefresh(function(){autoSync();photoSync();});}if(state.workout)startWoTick();if(_hasSetup)checkSetupLink();
 try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(e){}
 try{
   var wlraw=localStorage.getItem("wl_announced")||"";
