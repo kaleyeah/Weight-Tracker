@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-22.290 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-22.291 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -722,7 +722,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-22.290-pb";
+var APP_BUILD="2026-07-22.291-pb";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -3855,6 +3855,8 @@ function pbPhotoUpload(rec){
   fd.append("date",String(rec.date||"").slice(0,10));
   if(rec.week)fd.append("week",String(rec.week).slice(0,10));
   if(rec.pose)fd.append("pose",String(rec.pose).slice(0,20));
+  /* food photos carry their meal label — dropping it strips the diary's grouping */
+  if(rec.meal)fd.append("meal",String(rec.meal).slice(0,20));
   fd.append("localId",String(rec.id));
   fd.append("ts",String(rec.ts||Date.now()));
   fd.append("file",rec.blob,(rec.pose||rec.kind||"photo")+"."+ext);
@@ -3911,9 +3913,27 @@ function photoSync(done){
               map[s.localId]=s.id;downloaded++;
               /* idbAddLocal, not idbAdd — this came FROM the server, re-uploading it
                  would just bounce off the unique index and waste a round trip */
-              return idbAddLocal({id:s.localId,date:s.date,week:s.week||s.date,pose:s.pose||"",
-                kind:s.kind||"progress",blob:b,ts:s.ts||Date.now()});
+              var nrec={id:s.localId,date:s.date,week:s.week||s.date,pose:s.pose||"",
+                kind:s.kind||"progress",blob:b,ts:s.ts||Date.now()};
+              if(s.meal)nrec.meal=s.meal;
+              return idbAddLocal(nrec);
             }).catch(function(){});}));});})
+      .then(function(){
+        /* 2b. metadata repair — for photos BOTH sides have, reconcile the meal label.
+           Server label wins when it has one (a device that downloaded before the
+           label existed gets repaired); a device holding a label the server lacks
+           pushes it up. Blobs are never re-transferred for this. */
+        var fixes=[];
+        local.forEach(function(l){
+          var s=byLocalId[l.id];if(!s)return;
+          if(s.meal&&(l.meal||"")!==s.meal){
+            var patched=Object.assign({},l,{meal:s.meal});
+            fixes.push(idbAddLocal(patched).then(function(){downloaded++;}).catch(function(){}));
+          }else if(l.meal&&!s.meal){
+            fixes.push(fetch(pbBase()+"/api/collections/photos/records/"+s.id,{method:"PATCH",
+              headers:pbHeaders(true),body:JSON.stringify({meal:l.meal})}).catch(function(){}));
+          }});
+        return Promise.all(fixes);})
       .then(function(){
         /* 3. propagate deletions: a photo we previously synced, now absent from the
               server, was deleted on another device — mirror that deletion here. */
