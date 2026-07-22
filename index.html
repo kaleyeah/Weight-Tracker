@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-22.289 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-22.290 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -722,7 +722,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-22.289-pb";
+var APP_BUILD="2026-07-22.290-pb";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -3767,13 +3767,19 @@ function pbDoLogin(){
           /* pull this account's photos down onto this device in the background */
           photoSync(function(r){
             if(r&&r.downloaded)toast(r.downloaded+" photo"+(r.downloaded===1?"":"s")+" restored");});});}
-      /* Normally the server is the truth on login. But if this device still holds
-         changes it never managed to upload, taking the server copy silently would
-         throw them away — so ask, rather than pick for them. */
-      if(!err&&d&&isDirty()&&localHasData()&&!cloudEmpty(d)){
-        askConfirm("This device has changes that were never saved to the server. Upload them, or replace them with the server’s copy?",
-          function(){cloudPush(false);finish();},
-          {label:"Upload mine",danger:false,onNo:function(){applyCloud(d);finish();}});
+      /* Normally the server is the truth on login. A device holding unsynced
+         changes is only worth asking about when its data is at least as RECENT as
+         the server's — a stale cache (an old Safari visit, a long-dormant device)
+         must never be offered as something to upload. That path already destroyed
+         the server copy once: months-old Safari storage + "Upload mine" as the
+         primary button = the iPad stale-push disaster, reproduced. Recency check
+         first, and the safe choice is the primary one. */
+      function newestDate(w){var m="";(w||[]).forEach(function(x){if(x.date>m)m=x.date;});return m;}
+      var localNewer=newestDate(state.weights)>newestDate(d&&d.weights);
+      if(!err&&d&&isDirty()&&localHasData()&&!cloudEmpty(d)&&localNewer){
+        askConfirm("This device has newer entries that were never saved to the server. Keep the server’s copy, or upload this device’s?",
+          function(){applyCloud(d);finish();},
+          {label:"Use server copy",danger:false,onNo:function(){cloudPush(false);finish();}});
         return;}
       if(!err&&d)applyCloud(d);
       finish();});},remember);}
