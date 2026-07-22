@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-22.312 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-22.313 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -153,6 +153,8 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 .wl-setrow{padding:5px 0;border-top:1px solid var(--line);}
 .wl-setrow.skipped .wl-set-input{opacity:.5;}
 .wl-set-menu{background:none;border:none;color:var(--faint);font-size:18px;cursor:pointer;padding:0;line-height:1;}
+.wl-upnext{margin-top:14px;font-size:13px;color:var(--muted);line-height:1.4}
+.wl-upnext-l{display:block;font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-bottom:3px}
 .wl-restwhy{text-align:left;margin:2px 0 16px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.03)}
 .wl-restwhy-h{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin-bottom:8px}
 .wl-restwhy-l{margin:0;padding-left:18px;font-size:12.5px;line-height:1.5;color:var(--muted)}
@@ -758,7 +760,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-22.312-pb";
+var APP_BUILD="2026-07-22.313-pb";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -2576,6 +2578,16 @@ function rptRetarget(en,si){
   if(!nx.repsTouched)nx.reps=String(t);}
 /* Bring an in-progress workout's targets up to date — used after a reload, since
    applying an app update mid-session drops you back here with sets already logged. */
+/* The next exercise with unfinished sets, in the order they appear. Returns null
+   when it is the same exercise you are resting inside, or when nothing is left. */
+function woUpNext(){
+  var w=state.workout;if(!w||!w.entries)return null;
+  for(var i=0;i<w.entries.length;i++){
+    var en=w.entries[i];
+    if(!(en.sets||[]).some(function(s){return s.status!=="done"&&s.status!=="skipped";}))continue;
+    if(w.lastEi!=null&&i===w.lastEi)return null;
+    return en.name||null;}
+  return null;}
 function rptRetargetAll(){
   var w=state.workout;if(!w||!w.entries)return;
   w.entries.forEach(function(en){
@@ -2919,7 +2931,7 @@ function woOverlaysHTML(){var h="";
       items.forEach(function(e){h+='<button class="wl-exrow-main" data-act="wo:replacepick" data-eid="'+e.id+'" style="width:100%;padding:9px 0;border-bottom:1px solid var(--line)"><span class="wl-exrow-name">'+esc(e.name)+'</span></button>';});});
     h+='</div></div>';}
   if(state.workout&&state.workout.tState==="resting"){var b=woBuckets();
-    h+='<div class="wl-confirm"><div class="wl-confirm-card" style="text-align:center"><div style="font-size:12px;color:var(--faint);text-transform:uppercase;letter-spacing:.1em;font-weight:800">Rest</div><div class="wl-tb-total" id="wl-rest-time" style="font-size:52px;margin:12px 0;color:#3b82f6">'+fmtDur(b.segMs)+'</div><div class="wl-restwhy"><div class="wl-restwhy-h">Rest long enough to</div><ol class="wl-restwhy-l"><li>No longer be breathing heavily.</li><li>Feel mentally ready for another hard set.</li><li>Not be crampy in a supporting muscle \u2014 a fatigued lower back before another squat set, say.</li><li>Have enough back in the target muscle for at least 5 reps.</li></ol></div><button class="wl-btn wl-btn-primary wl-full" data-act="wo:endrest">Begin next set</button></div></div>';}
+    h+='<div class="wl-confirm"><div class="wl-confirm-card" style="text-align:center"><div style="font-size:12px;color:var(--faint);text-transform:uppercase;letter-spacing:.1em;font-weight:800">Rest</div><div class="wl-tb-total" id="wl-rest-time" style="font-size:52px;margin:12px 0;color:#3b82f6">'+fmtDur(b.segMs)+'</div><div class="wl-restwhy"><div class="wl-restwhy-h">Rest long enough to</div><ol class="wl-restwhy-l"><li>No longer be breathing heavily.</li><li>Feel mentally ready for another hard set.</li><li>Not be crampy in a supporting muscle \u2014 a fatigued lower back before another squat set, say.</li><li>Have enough back in the target muscle for at least 5 reps.</li></ol></div><button class="wl-btn wl-btn-primary wl-full" data-act="wo:endrest">Begin next set</button>'+(function(){var _un=woUpNext();return _un?'<div class="wl-upnext"><span class="wl-upnext-l">Up next</span>'+esc(_un)+'</div>':"";})()+'</div></div>';}
   h+=fbSheetHTML();
   if(state.woResume){var w=state.workout;var paused=w&&w.paused;
     h+='<div class="wl-confirm"><div class="wl-confirm-card"><div class="wl-confirm-msg" style="font-weight:700;margin-bottom:4px">'+esc((w&&w.name)||"Workout")+'</div><div class="wl-hint" style="margin-bottom:14px">'+(paused?"Paused — resume where you left off. The time in between isn\u2019t counted.":"You have a workout in progress.")+'</div><button class="wl-btn wl-btn-primary wl-full" data-act="wo:resume">Resume workout</button>'+(paused?"":'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:finishlater">Finish later <em style="color:var(--faint);font-style:normal">(pause)</em></button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:endnow">End &amp; save</button>')+'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="wo:discardnow">Discard</button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:12px" data-act="wo:resumecancel">Cancel</button></div></div>';}
@@ -3274,7 +3286,7 @@ document.addEventListener("click",function(e){
     if(vr==null||vr<=0)need.push("reps above 0");
     if(vi==null||vi<0)need.push("RIR");
     if(need.length){state.logWarn={ei:ei,si:si,msg:"Enter "+need.join(", ")+" before you can log this set"};render();return;}
-    stt.status="done";if(si===0)rptAfterSet1(en);rptRetarget(en,si);state.logWarn=null;woTransition("resting");
+    stt.status="done";w.lastEi=ei;if(si===0)rptAfterSet1(en);rptRetarget(en,si);state.logWarn=null;woTransition("resting");
   var _mus=en.muscle||"other";
   if(fbEntryComplete(en)&&fbEntryTrained(en)&&!(en.fb&&en.fb.joint)){
     state.fbSheet={ei:ei,kind:"end",askMuscle:fbMuscleDone(w,_mus,ei)};}
