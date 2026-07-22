@@ -3407,11 +3407,46 @@ function syncCfg(){return {};}
 function setSyncCfg(){}
 try{localStorage.removeItem(SYNC_KEY);}catch(e){}
 
-/* These two POST workflow_dispatch to GitHub. The weekly one is genuinely reachable
-   (the "Regenerate" button in the Coach Max sheet on check-in day), so it can't just
-   be left to fail — Coach Max is scheduled on the Synology now. */
+/* Weekly regenerate had no shipping UI; the scheduled run covers it. */
 function genSummary(){toast("Coach Max writes your check-in on your own server now.");}
-function genNightly(){toast("Coach Max writes your recap on your own server now.");}
+
+/* "Complete today" — part of the daily ritual: finish logging, tap, read the recap.
+   It used to dispatch a GitHub Actions run; now it sets a request flag on the record
+   that the Synology coach picks up on its next polling pass, then watches for the
+   recap to appear. Latency = polling interval + ~10s of generation. */
+function genNightly(){
+  if(!syncOn()){toast("Log in first");return;}
+  if(state.nightBusy||state.genBusy)return;
+  var sel=state.selDate;
+  var miss=dayMissing(sel);
+  if(miss.length){toast("Log "+miss.join(", ")+" first to complete "+(sel===todayISO()?"today":"this day"));return;}
+  state.nightBusy=true;render();
+  var prevGen=(state.nightlyLog&&state.nightlyLog[sel]&&state.nightlyLog[sel].generated)||null;
+  pushDataPromise().then(function(){
+    return new Promise(function(res,rej){
+      pbSave({coachreq:{day:sel,ts:Date.now()}},function(ok){ok?res():rej(new Error("Couldn't reach your server"));});});
+  }).then(function(){
+    /* poll for the recap: every 6s for up to 7 minutes (covers a 5-min coach cadence) */
+    return new Promise(function(resolve){
+      var n=0,MAX=70;
+      function tick(){n++;
+        pbGetRecord(function(rec){
+          var d=rec&&rec.data;
+          var got=d&&d.nightlyLog&&d.nightlyLog[sel];
+          if(got&&got.text&&got.generated!==prevGen){resolve(d);return;}
+          if(n>=MAX){resolve(null);return;}
+          setTimeout(tick,6000);});}
+      setTimeout(tick,8000);});
+  }).then(function(d){
+    state.nightBusy=false;
+    if(d){
+      applyCloud(d);
+      state.settings.seenNightly=sel;save();
+      state.nightOpen=true;
+      toast((sel===todayISO()?"Today":"That day")+"’s recap is ready");
+    }else toast("Still working — it will appear here shortly");
+    render();
+  }).catch(function(e){state.nightBusy=false;render();toast(e.message||"Couldn’t generate");});}
 
 /* every account owns its own data, so the old multi-profile uid tagging is moot */
 function myUid(){return "owner";}

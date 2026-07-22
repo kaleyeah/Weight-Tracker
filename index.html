@@ -724,7 +724,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 var DAY=86400000;
 var APP_BUILD="2026-07-21.288-pb";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
-var SHOW_TESTBTN=false; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
+var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
 var deferredPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredPrompt=e;});
 var photoURLs=[],photoMap={},photoDB=null;
@@ -1356,7 +1356,7 @@ function ckNotes(sel){
 }
 function ckRowSkip(label,val,sec){return '<button class="wl-ck-row" data-act="dl:open" data-sec="'+sec+'"><span class="wl-ck-l"><span class="wl-ck-ic"></span><span class="wl-ck-lab">'+label+'</span></span><span class="wl-ck-val" style="color:var(--faint);font-style:italic">'+val+'</span><span class="wl-ck-go">›</span></button>';}
 function skipBtn(sec,on,word){return '<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="skip:'+sec+'">'+(on?"Un-skip \u2014 I\u2019ll log "+word:"Not tracking "+word+" today")+'</button>'+(on?'<div class="wl-hint" style="margin-top:8px">Marked skipped \u2014 still counts as checked in. Logging when you can gives your coach a truer read over time.</div>':'');}
-function completeBtnHTML(sel){var selToday=sel===todayISO();if(state.nightBusy)return '<div class="wl-hint" style="margin-top:12px;text-align:center">⏳ Completing… generating your recap.</div>';var ns=state.nightlySummary;var hasRecap=ns&&ns.date===sel&&ns.text;if(hasRecap)return '<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:12px" data-act="night:gen">↻ Regenerate recap</button>';return '<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="night:gen">Complete '+(selToday?"today":"this day")+'</button>';}
+function completeBtnHTML(sel){var selToday=sel===todayISO();if(state.nightBusy)return '<div class="wl-hint" style="margin-top:12px;text-align:center">⏳ Completing… generating your recap.</div>';var ns=state.nightlySummary;var hasRecap=ns&&ns.date===sel&&ns.text;if(hasRecap)return '';return '<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="night:gen">Complete '+(selToday?"today":"this day")+'</button>';}
 function todayChecklistHTML(sel){
   var u=state.settings.units;var f=state.food[sel]||{};
   var wt=null;for(var i=0;i<state.weights.length;i++){if(state.weights[i].date===sel){wt=state.weights[i].weight;break;}}
@@ -3400,11 +3400,46 @@ function syncCfg(){return {};}
 function setSyncCfg(){}
 try{localStorage.removeItem(SYNC_KEY);}catch(e){}
 
-/* These two POST workflow_dispatch to GitHub. The weekly one is genuinely reachable
-   (the "Regenerate" button in the Coach Max sheet on check-in day), so it can't just
-   be left to fail — Coach Max is scheduled on the Synology now. */
+/* Weekly regenerate had no shipping UI; the scheduled run covers it. */
 function genSummary(){toast("Coach Max writes your check-in on your own server now.");}
-function genNightly(){toast("Coach Max writes your recap on your own server now.");}
+
+/* "Complete today" — part of the daily ritual: finish logging, tap, read the recap.
+   It used to dispatch a GitHub Actions run; now it sets a request flag on the record
+   that the Synology coach picks up on its next polling pass, then watches for the
+   recap to appear. Latency = polling interval + ~10s of generation. */
+function genNightly(){
+  if(!syncOn()){toast("Log in first");return;}
+  if(state.nightBusy||state.genBusy)return;
+  var sel=state.selDate;
+  var miss=dayMissing(sel);
+  if(miss.length){toast("Log "+miss.join(", ")+" first to complete "+(sel===todayISO()?"today":"this day"));return;}
+  state.nightBusy=true;render();
+  var prevGen=(state.nightlyLog&&state.nightlyLog[sel]&&state.nightlyLog[sel].generated)||null;
+  pushDataPromise().then(function(){
+    return new Promise(function(res,rej){
+      pbSave({coachreq:{day:sel,ts:Date.now()}},function(ok){ok?res():rej(new Error("Couldn't reach your server"));});});
+  }).then(function(){
+    /* poll for the recap: every 6s for up to 7 minutes (covers a 5-min coach cadence) */
+    return new Promise(function(resolve){
+      var n=0,MAX=70;
+      function tick(){n++;
+        pbGetRecord(function(rec){
+          var d=rec&&rec.data;
+          var got=d&&d.nightlyLog&&d.nightlyLog[sel];
+          if(got&&got.text&&got.generated!==prevGen){resolve(d);return;}
+          if(n>=MAX){resolve(null);return;}
+          setTimeout(tick,6000);});}
+      setTimeout(tick,8000);});
+  }).then(function(d){
+    state.nightBusy=false;
+    if(d){
+      applyCloud(d);
+      state.settings.seenNightly=sel;save();
+      state.nightOpen=true;
+      toast((sel===todayISO()?"Today":"That day")+"’s recap is ready");
+    }else toast("Still working — it will appear here shortly");
+    render();
+  }).catch(function(e){state.nightBusy=false;render();toast(e.message||"Couldn’t generate");});}
 
 /* every account owns its own data, so the old multi-profile uid tagging is moot */
 function myUid(){return "owner";}
