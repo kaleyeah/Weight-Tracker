@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-22.302 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-22.304 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -664,6 +664,19 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 .wl-mseg .k{font-size:10px;text-transform:uppercase;letter-spacing:.05em;font-weight:700;white-space:nowrap;line-height:1.2;}
 .wl-mseg .v{font-size:14px;font-weight:800;color:var(--text);margin-top:2px;line-height:1.1;white-space:nowrap;}
 #dl-weight,#dl-steps,#dl-sleep,#dl-calories,#dl-notes{scroll-margin-top:calc(var(--headh,70px) + 14px);}
+.wl-fbcard{text-align:left;max-height:82vh;overflow-y:auto}
+.wl-fbtitle{font-size:20px;font-weight:800;margin-bottom:14px}
+.wl-fbq{font-size:15px;font-weight:700;margin-bottom:2px}
+.wl-fbsub{font-size:12.5px;color:var(--faint);line-height:1.4;margin-bottom:8px}
+.wl-fbopts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.wl-fbopt{padding:11px 8px;border-radius:10px;border:1px solid var(--line);background:var(--bg2,#141922);color:var(--text);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer;line-height:1.25}
+.wl-fbopt.on{background:var(--accent);border-color:var(--accent);color:#20160A}
+.wl-fbreq{font-size:12px;color:var(--faint);text-align:center;margin-top:16px}
+.wl-fbbtns{display:flex;gap:10px;margin-top:10px}
+.wl-btn.off{opacity:.4}
+.wl-fbbtns .wl-btn{flex:1}
+.wl-fbwarn{font-size:12.5px;line-height:1.45;color:#f5b544;background:rgba(245,181,68,.10);border:1px solid rgba(245,181,68,.35);border-radius:8px;padding:7px 9px;margin:6px 0}
+.wl-fbnote{font-size:12.5px;line-height:1.45;color:var(--muted);background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:8px;padding:7px 9px;margin:6px 0}
 .wl-maxmood{display:flex;justify-content:center;margin:2px 0 12px}
 .wl-maxmood-img{width:76px;height:76px;border-radius:50%;display:block;border:2px solid var(--line);background:var(--card2,#141922)}
 .wl-ai-summary{font-size:13.5px;line-height:1.55;color:var(--text);}
@@ -738,7 +751,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-22.302-pb";
+var APP_BUILD="2026-07-22.304-pb";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -1473,7 +1486,30 @@ var INFO={
     "<b>Double progression</b> is the simple default. Same weight across all your sets, inside a rep range like 8–12. Add reps each week until you hit the top of the range on every set, then add a little weight and start climbing again. Forgiving and hard to mess up.",
     "<b>Reverse Pyramid</b> puts your heaviest set first, when you're fresh: low reps, pushed close to failure. Then drop the weight about 10% and add reps on each set after. Your first set drives the weight up — hit the top of its range and you add weight there next time.",
     "My take: newer, or want simple? Use Double. Like going heavy and can grind a hard first set? Reverse Pyramid is excellent. Either way, the method isn't the magic — showing up and adding a little over months is."]},
-  rir:{title:"RIR — Reps in Reserve",body:[
+  fbjoint:{title:"Joint pain ratings",body:[
+"<b>None</b> — my joints felt great, no problems.",
+"<b>Low pain</b> — my joints felt ok, but I can definitely feel them being loaded.",
+"<b>Moderate pain</b> — my joints are taking a bit of a beating. They don\u2019t love this exercise right now.",
+"<b>A lot of pain</b> — my joints hurt BAD, something is up.",
+"Moderate or worse shows up as a caution next time you run this routine. It never changes your weights on its own \u2014 that call stays yours."]},
+fbsore:{title:"Soreness ratings",body:[
+"<b>Never got sore</b> — no soreness at all last time, and I could have trained it hard the next day.",
+"<b>Healed a while ago</b> — a tiny bit sore, but healed well before this session.",
+"<b>Healed just on time</b> — recovered right on time and the muscle feels good.",
+"<b>I\u2019m still sore!</b> — still sore, fatigued, or weak from last time.",
+"Still sore each week usually means too much volume, not enough recovery, or both."]},
+fbpump:{title:"Pump ratings",body:[
+"<b>Low pump</b> — about as full as usual; on pump alone I couldn\u2019t tell I trained.",
+"<b>Moderate pump</b> — definitely tighter and fuller than if I hadn\u2019t trained.",
+"<b>Amazing pump</b> — unreal, tight even without flexing.",
+"Pump is the softest of these signals. It\u2019s context for your coach rather than something the app acts on."]},
+fbvol:{title:"Volume ratings",body:[
+"<b>Not enough</b> — barely felt like work; I could easily have done more sets.",
+"<b>Just right</b> — a good amount; I could have done more if I had to.",
+"<b>Pushed my limits</b> — right at my limit; not sure I could have done more sets.",
+"<b>Too much</b> — way too much; quality and focus would have been better with fewer sets.",
+"Too much or not enough comes back as a suggestion next time. Changing the set count is still your call."]},
+rir:{title:"RIR — Reps in Reserve",body:[
     "RIR is how many reps you had left in the tank when you stopped. 2 RIR means you could have done two more with clean form; 0 means nothing left.",
     "It's how we measure effort. To build and keep muscle — especially in a deficit — your working sets should land around <b>0–2 RIR</b>: hard, but good form.",
     "Log it honestly after each set; it's what tells the app you're ready for more weight. If you're not sure, you probably had more in reserve than you think."]},
@@ -2349,6 +2385,84 @@ function liftFormHTML(lf){
   h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:14px" data-act="lift:save">Log workout</button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="lift:cancel">Cancel</button>';
   return h+'</div>';
 }
+/* ---- exercise feedback (joint pain per exercise; soreness/pump/volume per muscle) ---- */
+var FB_JOINT=[["none","None"],["low","Low pain"],["mod","Moderate pain"],["alot","A lot of pain"]];
+var FB_SORE=[["never","Never got sore"],["early","Healed a while ago"],["ontime","Healed just on time"],["still","I\u2019m still sore!"]];
+var FB_PUMP=[["low","Low pump"],["mod","Moderate pump"],["amazing","Amazing pump"]];
+var FB_VOL=[["low","Not enough"],["right","Just right"],["limit","Pushed my limits"],["much","Too much"]];
+function fbLabel(scale,v){var out="";scale.forEach(function(o){if(o[0]===v)out=o[1];});return out;}
+/* Which muscles still have unfinished work? Used to decide whether this exercise
+   is the last one for its muscle, i.e. the moment to ask the muscle questions. */
+function fbMuscleDone(w,muscle,exceptEi){
+  var done=true;
+  (w.entries||[]).forEach(function(en,i){
+    if(i===exceptEi||(en.muscle||"other")!==muscle)return;
+    if((en.sets||[]).some(function(s){return s.status!=="done"&&s.status!=="skipped";}))done=false;});
+  return done;}
+/* Show a muscle-level note once per muscle, on its first exercise in the session. */
+function _fbFirstOfMuscle(w,ei){
+  var mus=(w.entries[ei]||{}).muscle||"other";
+  for(var i=0;i<ei;i++){if(((w.entries[i]||{}).muscle||"other")===mus)return false;}
+  return true;}
+/* Every question currently on the sheet has an answer. */
+function fbAnswered(){
+  var fs_=state.fbSheet;var w=state.workout;if(!fs_||!w)return false;
+  var en=w.entries[fs_.ei];if(!en)return false;
+  if(!(en.fb&&en.fb.joint))return false;
+  if(fs_.askMuscle){var m=(w.mfb||{})[en.muscle||"other"]||{};
+    if(!m.sore||!m.pump||!m.vol)return false;}
+  return true;}
+/* Trained, not merely finished: a set has to have been logged for feedback to mean
+   anything, so an all-skipped exercise never asks. */
+function fbEntryTrained(en){return (en.sets||[]).some(function(s){return s.status==="done";});}
+function fbEntryComplete(en){return (en.sets||[]).length>0&&(en.sets||[]).every(function(s){return s.status==="done"||s.status==="skipped";});}
+/* Most recent logged feedback for an exercise / muscle, newest session first. */
+function fbLastFor(exId){
+  var ls=state.training.liftSessions||{};var ds=Object.keys(ls).sort().reverse();
+  for(var i=0;i<ds.length;i++){var arr=ls[ds[i]]||[];
+    for(var j=arr.length-1;j>=0;j--){var s=arr[j];if(!s||!s.entries)continue;
+      for(var k=0;k<s.entries.length;k++){var e=s.entries[k];
+        if(e.exerciseId===exId&&e.fb&&e.fb.joint)return {date:ds[i],joint:e.fb.joint};}}}
+  return null;}
+function fbLastMuscle(muscle){
+  var ls=state.training.liftSessions||{};var ds=Object.keys(ls).sort().reverse();
+  for(var i=0;i<ds.length;i++){var arr=ls[ds[i]]||[];
+    for(var j=arr.length-1;j>=0;j--){var s=arr[j];
+      if(s&&s.mfb&&s.mfb[muscle])return Object.assign({date:ds[i]},s.mfb[muscle]);}}
+  return null;}
+function fbOptsHTML(kind,scale,cur,muscle){
+  var h='<div class="wl-fbopts">';
+  scale.forEach(function(o){
+    h+='<button class="wl-fbopt'+(cur===o[0]?" on":"")+'" data-act="fb:set" data-kind="'+kind+'" data-val="'+o[0]+'"'+(muscle?' data-muscle="'+muscle+'"':'')+'>'+esc(o[1])+'</button>';});
+  return h+'</div>';}
+function fbSheetHTML(){
+  var fs_=state.fbSheet;if(!fs_)return "";
+  var w=state.workout;if(!w)return "";
+  var en=w.entries[fs_.ei];if(!en)return "";
+  var muscle=en.muscle||"other";
+  var askMuscle=fs_.askMuscle;
+  var mlab=muscleInfo(muscle).label;
+  var h='<div class="wl-confirm"><div class="wl-confirm-card wl-fbcard">';
+  h+='<div class="wl-fbtitle">Feedback</div>';
+  h+='<div class="wl-fbq">Joint pain '+infoBtn("fbjoint")+'</div>';
+  h+='<div class="wl-fbsub">How did your joints feel during '+esc(en.name)+'?</div>';
+  h+=fbOptsHTML("joint",FB_JOINT,(en.fb||{}).joint);
+  if(askMuscle){
+    var m=(w.mfb||{})[muscle]||{};
+    h+='<div class="wl-fbq" style="margin-top:16px">'+esc(mlab)+' soreness '+infoBtn("fbsore")+'</div>';
+    h+='<div class="wl-fbsub">How sore did you get in your '+esc(mlab.toLowerCase())+' AFTER training them LAST TIME?</div>';
+    h+=fbOptsHTML("sore",FB_SORE,m.sore,muscle);
+    h+='<div class="wl-fbq" style="margin-top:16px">'+esc(mlab)+' pump '+infoBtn("fbpump")+'</div>';
+    h+='<div class="wl-fbsub">How much of a pump did you get today?</div>';
+    h+=fbOptsHTML("pump",FB_PUMP,m.pump,muscle);
+    h+='<div class="wl-fbq" style="margin-top:16px">'+esc(mlab)+' volume '+infoBtn("fbvol")+'</div>';
+    h+='<div class="wl-fbsub">How was the amount of work (number of hard sets)?</div>';
+    h+=fbOptsHTML("vol",FB_VOL,m.vol,muscle);
+  }
+  var _ok=fbAnswered();
+  h+='<div class="wl-fbreq">'+(_ok?"Thanks \u2014 this shapes what I show you next session.":"Answer every question to continue.")+'</div>';
+  h+='<div class="wl-fbbtns"><button class="wl-btn wl-btn-primary wl-full'+(_ok?"":" off")+'" data-act="fb:done">Done</button></div>';
+  return h+'</div></div>';}
 /* ---- live workout ---- */
 var WOKEY="wl_workout_v1";
 function saveWorkout(){try{if(state.workout)localStorage.setItem(WOKEY,JSON.stringify(state.workout));else localStorage.removeItem(WOKEY);}catch(e){}}
@@ -2365,7 +2479,9 @@ function buildWorkoutEntries(rt,bw){return (rt.items||[]).map(function(it){var e
     else{w=ex.bodyweight?((bw!=null?bw:0)+(num(it.weight)||0)):(num(it.weight)>0?it.weight:"");r=(it.repHigh!=null&&it.repHigh!=="")?it.repHigh:"";}
     sets.push({weight:(w===""||w==null)?"":String(w),reps:(r===""||r==null)?"":String(r),rir:"",status:"pending"});}
   var notes=[];(ex.notes||[]).forEach(function(nn){notes.push({text:nn.text,pinned:true});});(it.notes||[]).forEach(function(nn){notes.push({text:nn.text,pinned:false});});
-  return {itemId:it.id,progression:it.progression||rt.progression||"double",exerciseId:it.exerciseId,name:ex.name,muscle:ex.muscle,equipment:ex.equipment,bodyweight:!!ex.bodyweight,repLow:it.repLow,repHigh:it.repHigh,movement:it.movement||guessMovement(ex.muscle),setRanges:rptRangesFor(it,n),addedWt:num(it.weight)||0,notes:notes,sets:sets};
+  var _lf=fbLastFor(it.exerciseId);
+    var _lm=fbLastMuscle(ex.muscle||"other");
+    return {itemId:it.id,progression:it.progression||rt.progression||"double",lastJoint:(_lf&&(_lf.joint==="mod"||_lf.joint==="alot"))?_lf:null,lastMus:_lm,exerciseId:it.exerciseId,name:ex.name,muscle:ex.muscle,equipment:ex.equipment,bodyweight:!!ex.bodyweight,repLow:it.repLow,repHigh:it.repHigh,movement:it.movement||guessMovement(ex.muscle),setRanges:rptRangesFor(it,n),addedWt:num(it.weight)||0,notes:notes,sets:sets};
 }).filter(Boolean);}
 function rebuildEntryNotes(ei){var w=state.workout;if(!w)return;var en=w.entries[ei];if(!en)return;var rt=getRoutine(w.routineId);var it=rt&&rItem(rt,en.itemId);var ex=exById(en.exerciseId);var notes=[];if(ex)(ex.notes||[]).forEach(function(n){notes.push({id:n.id,text:n.text,pinned:true});});if(it)(it.notes||[]).forEach(function(n){notes.push({id:n.id,text:n.text,pinned:false});});en.notes=notes;saveWorkout();}
 function sugInvertReps(E,w){E=num(E);w=num(w);if(E==null||w==null||w<=0)return null;var r=Math.round(30*(E/w-1));if(r<1)r=1;if(r>30)r=30;return r;}
@@ -2541,6 +2657,8 @@ function view_workout(){var w=state.workout;
   if(w.tState==="ready")h+='<div class="wl-hint" style="text-align:center;margin:2px 0 4px">Review your workout below, then tap <b>Start</b> — your warmup begins first. Tap <b>End warmup</b> when you\u2019re ready to lift.</div>';
   w.entries.forEach(function(en,ei){h+='<div class="wl-card" id="wo-ex-'+ei+'"><div style="margin-bottom:6px;display:flex;align-items:center;justify-content:space-between">'+muscleTagHTML(en.muscle||"other")+'<span style="display:inline-flex;gap:2px"><button class="wl-icon-btn" data-act="wo:hist" data-ei="'+ei+'">'+I.history.replace("<svg","<svg width=18 height=18")+'</button><button class="wl-icon-btn" data-act="wo:exmenu" data-ei="'+ei+'" style="font-size:20px">⋮</button></span></div>';
     h+='<div class="wl-exrow-name">'+esc(en.name)+'</div>';
+    if(en.lastJoint)h+='<div class="wl-fbwarn">'+I.info.replace("<svg","<svg width=13 height=13")+' Joint pain last time \u2014 <b>'+esc(fbLabel(FB_JOINT,en.lastJoint.joint))+'</b> on '+fmtShort(parseISO(en.lastJoint.date))+'. Ease in and stop if it bites.</div>';
+    if(en.lastMus&&(en.lastMus.vol==="much"||en.lastMus.vol==="low"||en.lastMus.sore==="still")&&_fbFirstOfMuscle(w,ei))h+='<div class="wl-fbnote">'+I.info.replace("<svg","<svg width=13 height=13")+' Last time: '+(en.lastMus.sore==="still"?'still sore from the session before':'')+((en.lastMus.sore==="still"&&en.lastMus.vol!=="right"&&en.lastMus.vol)?' \u00b7 ':'')+(en.lastMus.vol==="much"?'volume felt like too much \u2014 consider fewer sets':(en.lastMus.vol==="low"?'volume felt light \u2014 you could add a set':''))+'.</div>';
     if(en.bodyweight)h+='<div class="wl-exrow-sub">Bodyweight @ <button class="wl-link" data-act="wo:bw" style="display:inline">'+(w.bw!=null?w.bw+" "+state.settings.units:"set weight")+'</button></div>';
     else if(en.equipment)h+='<div class="wl-exrow-sub">'+esc(en.equipment)+'</div>';
     if(en.firstTime){var _rr=(en.progression==="rpt"&&en.setRanges&&en.setRanges[0])?en.setRanges[0]:{lo:en.repLow,hi:en.repHigh};if(num(_rr.lo)!=null||num(_rr.hi)!=null)h+='<div class="wl-exrow-sub" style="color:var(--accent)">First time: work up to a weight where '+(_rr.lo||"?")+'\u2013'+(_rr.hi||"?")+' reps leaves 0\u20131 RIR.</div>';}
@@ -2690,6 +2808,7 @@ function woOverlaysHTML(){var h="";
     (ei>0?'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:exmove" data-ei="'+ei+'" data-dir="up">Move up</button>':'')+
     (w&&ei<w.entries.length-1?'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:exmove" data-ei="'+ei+'" data-dir="down">Move down</button>':'')+
     '<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:exreplace" data-ei="'+ei+'">Replace exercise</button>'+
+    '<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:fbopen" data-ei="'+ei+'">Feedback</button>'+
     '<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:exprog" data-ei="'+ei+'">'+((en&&en.progression)==="rpt"?"Change to Progressive Overload":"Change to Reverse Pyramid")+'</button>'+
     '<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:exaddset" data-ei="'+ei+'">Add set</button>'+
     '<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="wo:exremove" data-ei="'+ei+'">Remove exercise</button>'+
@@ -2702,6 +2821,7 @@ function woOverlaysHTML(){var h="";
     h+='</div></div>';}
   if(state.workout&&state.workout.tState==="resting"){var b=woBuckets();
     h+='<div class="wl-confirm"><div class="wl-confirm-card" style="text-align:center"><div style="font-size:12px;color:var(--faint);text-transform:uppercase;letter-spacing:.1em;font-weight:800">Rest</div><div class="wl-tb-total" id="wl-rest-time" style="font-size:52px;margin:12px 0;color:#3b82f6">'+fmtDur(b.segMs)+'</div><button class="wl-btn wl-btn-primary wl-full" data-act="wo:endrest">Begin next set</button></div></div>';}
+  h+=fbSheetHTML();
   if(state.woResume){var w=state.workout;var paused=w&&w.paused;
     h+='<div class="wl-confirm"><div class="wl-confirm-card"><div class="wl-confirm-msg" style="font-weight:700;margin-bottom:4px">'+esc((w&&w.name)||"Workout")+'</div><div class="wl-hint" style="margin-bottom:14px">'+(paused?"Paused — resume where you left off. The time in between isn\u2019t counted.":"You have a workout in progress.")+'</div><button class="wl-btn wl-btn-primary wl-full" data-act="wo:resume">Resume workout</button>'+(paused?"":'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:finishlater">Finish later <em style="color:var(--faint);font-style:normal">(pause)</em></button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:endnow">End &amp; save</button>')+'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="wo:discardnow">Discard</button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:12px" data-act="wo:resumecancel">Cancel</button></div></div>';}
   if(state.noteEdit&&state.noteEdit.woEi!=null)h+='<div class="wl-confirm"><div class="wl-confirm-card">'+noteEditorHTML()+'</div></div>';
@@ -3055,7 +3175,22 @@ document.addEventListener("click",function(e){
     if(vr==null||vr<=0)need.push("reps above 0");
     if(vi==null||vi<0)need.push("RIR");
     if(need.length){state.logWarn={ei:ei,si:si,msg:"Enter "+need.join(", ")+" before you can log this set"};render();return;}
-    stt.status="done";if(si===0)rptAfterSet1(en);state.logWarn=null;woTransition("resting");saveWorkout();render();return;}
+    stt.status="done";if(si===0)rptAfterSet1(en);state.logWarn=null;woTransition("resting");
+  if(fbEntryComplete(en)&&fbEntryTrained(en)&&!(en.fb&&en.fb.joint)){
+    var _mus=en.muscle||"other";
+    state.fbSheet={ei:ei,askMuscle:fbMuscleDone(w,_mus,ei)&&!((w.mfb||{})[_mus])};}
+  saveWorkout();render();return;}
+  if(a==="fb:set"){var w=state.workout;var fsx=state.fbSheet;if(!w||!fsx)return;
+    var kind=el.getAttribute("data-kind"),val=el.getAttribute("data-val"),mus=el.getAttribute("data-muscle");
+    var en=w.entries[fsx.ei];if(!en)return;
+    if(kind==="joint"){en.fb=en.fb||{};en.fb.joint=(en.fb.joint===val)?null:val;}
+    else{w.mfb=w.mfb||{};w.mfb[mus]=w.mfb[mus]||{};w.mfb[mus][kind]=(w.mfb[mus][kind]===val)?null:val;}
+    saveWorkout();render();return;}
+  if(a==="fb:done"){if(!fbAnswered()){toast("Answer every question first");return;}state.fbSheet=null;saveWorkout();render();return;}
+  if(a==="wo:fbopen"){var w=state.workout;if(!w)return;var ei=+el.getAttribute("data-ei");var en=w.entries[ei];if(!en)return;
+    if(!fbEntryComplete(en)||!fbEntryTrained(en)){state.exMenu=null;toast("Log this exercise first \u2014 then you can answer for it");render();return;}
+    var mu=en.muscle||"other";
+    state.fbSheet={ei:ei,askMuscle:fbMuscleDone(w,mu,ei)};state.exMenu=null;render();return;}
   if(a==="wo:setmenu"){state.setMenu={ei:+el.getAttribute("data-ei"),si:+el.getAttribute("data-si")};render();return;}
   if(a==="wo:setmenu:close"){state.setMenu=null;render();return;}
   if(a==="wo:addset"){var w=state.workout,sm=state.setMenu;if(!w||!sm)return;var s0=w.entries[sm.ei].sets[sm.si];w.entries[sm.ei].sets.splice(sm.si+1,0,{weight:s0?s0.weight:"",reps:"",rir:"",status:"pending"});state.setMenu=null;saveWorkout();render();persistSetCount(w.entries[sm.ei]);return;}
@@ -3086,8 +3221,8 @@ document.addEventListener("click",function(e){
   if(a==="wo:hist"){var w=state.workout;var en=w&&w.entries[+el.getAttribute("data-ei")];if(en)openHistory(en.exerciseId,en.name);return;}
   if(a==="wo:histclose"){state.histView=null;render();return;}
   if(a==="wo:savesession"){var w=state.workout;if(!w)return;var b=woBuckets();var ff=w.finishForm||{};var mxh=effMaxHR(),hrv=num(ff.hr);var zone=(hrv!=null&&mxh!=null)?zoneFromHR(hrv,mxh):(ff.zone||null);
-    var entries=w.entries.map(function(en){return {exerciseId:en.exerciseId,name:en.name,muscle:en.muscle,repLow:en.repLow,repHigh:en.repHigh,sets:en.sets.map(function(s){return {weight:num(s.weight),reps:num(s.reps),rir:num(s.rir),status:s.status,sugR:num(s.sugR),sugW:num(s.sugW)};})};});
-    var sess={id:"l-"+Date.now()+"-"+Math.random().toString(36).slice(2,6),routineId:w.routineId,name:w.name,mode:"full",date:w.date,mins:Math.round(b.total/60000),warmupSec:Math.round(b.warmup/1000),workSec:Math.round(b.work/1000),restSec:Math.round(b.rest/1000),hr:num(ff.hr),hrMax:num(ff.hrMax),zone:zone,cal:num(ff.cal),rpe:num(ff.rpe),notes:(ff.notes||"").trim(),bw:w.bw,entries:entries,ts:Date.now()};
+    var entries=w.entries.map(function(en){return {exerciseId:en.exerciseId,name:en.name,muscle:en.muscle,fb:en.fb||null,repLow:en.repLow,repHigh:en.repHigh,sets:en.sets.map(function(s){return {weight:num(s.weight),reps:num(s.reps),rir:num(s.rir),status:s.status,sugR:num(s.sugR),sugW:num(s.sugW)};})};});
+    var sess={id:"l-"+Date.now()+"-"+Math.random().toString(36).slice(2,6),routineId:w.routineId,name:w.name,mode:"full",date:w.date,mins:Math.round(b.total/60000),warmupSec:Math.round(b.warmup/1000),workSec:Math.round(b.work/1000),restSec:Math.round(b.rest/1000),mfb:w.mfb||null,hr:num(ff.hr),hrMax:num(ff.hrMax),zone:zone,cal:num(ff.cal),rpe:num(ff.rpe),notes:(ff.notes||"").trim(),bw:w.bw,entries:entries,ts:Date.now()};
     state.training.liftSessions=state.training.liftSessions||{};var d=w.date;var list=(state.training.liftSessions[d]||[]).slice();list.push(sess);state.training.liftSessions[d]=list;
     syncLiftTags(d);saveTraining();save();state.workout=null;saveWorkout();if(woTimer)clearInterval(woTimer);state.liftViewDate=d;state.liftViewId=sess.id;state.liftEdit=null;state.view="liftview";toast("Workout saved");render();return;}
   if(a==="lift:view"){state.liftViewDate=state.selDate;state.liftViewId=el.getAttribute("data-id");state.liftEdit=null;state.view="liftview";render();return;}
