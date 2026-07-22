@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-22.294 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-22.295 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -710,8 +710,15 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 .wl-lb-nav.prev{left:10px;}
 .wl-lb-nav.next{right:10px;}
 .wl-lb-count{position:absolute;top:calc(env(safe-area-inset-top,0px) + 16px);left:0;right:0;text-align:center;color:rgba(255,255,255,.85);font-size:13px;font-weight:700;letter-spacing:.05em;}
-.wl-progtag{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.04em;padding:2px 6px;border-radius:5px;color:var(--muted);border:1px solid var(--line);margin-right:6px;vertical-align:1px}
+.wl-progtag{flex:none;display:inline-flex;align-items:center;font-size:9.5px;line-height:1;font-weight:800;letter-spacing:.04em;padding:4px 7px;border-radius:6px;color:var(--muted);border:1px solid var(--line)}
 .wl-progtag.rpt{color:var(--accent);border-color:var(--accent)}
+.wl-prow{align-items:stretch}
+.wl-prow-in{flex:1;min-width:0;display:flex;flex-direction:column;gap:7px}
+.wl-prow-top{display:flex;align-items:flex-start;gap:8px}
+.wl-prow-mtag{flex:none;font-size:9.5px;padding:4px 8px;margin-top:1px}
+.wl-prow-name{flex:1;min-width:0;line-height:1.3}
+.wl-prow-bot{display:flex;align-items:center;gap:7px;min-width:0}
+.wl-prow-bot .wl-exrow-sub{min-width:0;overflow-wrap:anywhere}
 </style>
 </head>
 <body>
@@ -724,7 +731,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-22.294-pb";
+var APP_BUILD="2026-07-22.295-pb";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -2286,10 +2293,15 @@ function routinePreviewHTML(rt){var h='';
     var rng=(it.repLow||it.repHigh)?((it.repLow||"?")+"–"+(it.repHigh||"?")):"";
     var _prog=it.progression||rt.progression||"double";
     var _scheme;
-    if(_prog==="rpt"){var _pn=Math.max(1,it.sets||3);_scheme=_pn+" sets · "+rptRangesFor(it,_pn).map(function(r){return r.lo+"–"+r.hi;}).join(" / ")+" reps";}
-    else _scheme=(it.sets||0)+" sets"+(rng?" · "+rng+" reps":"");
+    var _setn=function(n){return n+(n===1?" set":" sets");};
+    if(_prog==="rpt"){var _pn=Math.max(1,it.sets||3);_scheme=_setn(_pn)+" · "+rptRangesFor(it,_pn).map(function(r){return r.lo+"–"+r.hi;}).join(" / ")+" reps";}
+    else _scheme=_setn(it.sets||0)+(rng?" · "+rng+" reps":"");
     var wt=ex.bodyweight?("BW"+(num(it.weight)?" +"+it.weight:"")):(num(it.weight)!=null?it.weight+" "+state.settings.units:"");
-    h+='<div class="wl-exrow"><div style="flex:1"><span class="wl-mtag on" style="--mc:'+muscleInfo(ex.muscle).color+';background:'+muscleInfo(ex.muscle).color+';border-color:'+muscleInfo(ex.muscle).color+';color:#fff;font-size:9.5px;padding:3px 7px;vertical-align:middle;margin-right:6px">'+muscleInfo(ex.muscle).label.toUpperCase()+'</span><span class="wl-exrow-name" style="display:inline">'+esc(ex.name)+'</span><div class="wl-exrow-sub"><span class="wl-progtag'+(_prog==="rpt"?" rpt":"")+'">'+(_prog==="rpt"?"RPT":"PO")+'</span>'+_scheme+(wt?' · '+wt:'')+'</div></div></div>';});
+    var _mi=muscleInfo(ex.muscle);
+    h+='<div class="wl-exrow wl-prow"><div class="wl-prow-in">'+
+       '<div class="wl-prow-top"><span class="wl-mtag on wl-prow-mtag" style="--mc:'+_mi.color+';background:'+_mi.color+';border-color:'+_mi.color+'">'+_mi.label.toUpperCase()+'</span><span class="wl-exrow-name wl-prow-name">'+esc(ex.name)+'</span></div>'+
+       '<div class="wl-prow-bot"><span class="wl-progtag'+(_prog==="rpt"?" rpt":"")+'">'+(_prog==="rpt"?"RPT":"PO")+'</span><span class="wl-exrow-sub">'+_scheme+(wt?' · '+wt:'')+'</span></div>'+
+       '</div></div>';});
   return h;}
 function view_rlaunch(){
   var rt=getRoutine(state.routineId);var h='<div class="wl-stack">';
