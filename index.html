@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-22.295 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-22.296 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -731,7 +731,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-22.295-pb";
+var APP_BUILD="2026-07-22.296-pb";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -2270,7 +2270,9 @@ function routinePickHTML(rt){
     items.forEach(function(e){var already=(rt.items||[]).some(function(i){return i.exerciseId===e.id;});
       h+='<div class="wl-exrow"><button class="wl-exrow-main" data-act="ri:pick" data-eid="'+e.id+'"><span class="wl-exrow-name">'+esc(e.name)+'</span>'+((e.equipment||e.bodyweight)?'<span class="wl-exrow-sub">'+esc(e.equipment||"")+(e.bodyweight?(e.equipment?" · ":"")+"Bodyweight":"")+'</span>':'')+'</button>'+(already?'<span class="wl-note-pin" style="font-size:13px;color:var(--good)">✓ added</span>':'<button class="wl-btn wl-btn-ghost" data-act="ri:pick" data-eid="'+e.id+'" style="padding:6px 12px">Add</button>')+'</div>';});
     h+='</div>';});
-  h+='<button class="wl-btn wl-btn-primary wl-full" data-act="ri:pickclose">Done</button>';
+  h+='<div class="wl-hint" style="text-align:center;margin-top:2px">Not in the list? Add it to your library first.</div>';
+h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:6px" data-act="go" data-view="exlib">Exercise Library'+(exs.length?' <span class="wl-count">'+exs.length+'</span>':'')+'</button>';
+h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:8px" data-act="ri:pickclose">Done</button>';
   return h+'</div>';
 }
 function view_routine(){
@@ -2283,7 +2285,6 @@ function view_routine(){
   if(!(rt.items||[]).length)h+='<div class="wl-card"><div class="wl-hint">No exercises yet. Add them from your library below — they\u2019ll group by muscle automatically.</div></div>';
   (rt.items||[]).forEach(function(it,idx){h+=routineItemHTML(rt,it,idx);});
   h+='<button class="wl-btn wl-btn-ghost wl-full" data-act="ri:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add Exercise</button>';
-  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="go" data-view="exlib">Exercise Library'+((state.training.exercises||[]).length?' <span class="wl-count">'+(state.training.exercises||[]).length+'</span>':'')+'</button>';
   h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:8px" data-act="rt:save">'+I.check.replace("<svg","<svg width=16 height=16")+'Save Routine</button>';
   h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="rt:del" data-id="'+rt.id+'">Delete Routine</button>';
   return h+'</div>';
