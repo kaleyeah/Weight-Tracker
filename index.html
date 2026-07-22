@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-22.304 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-22.305 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -454,6 +454,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 .wl-setrng input{width:44px;text-align:center;background:var(--bg2);border:1px solid var(--line2);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:14px;padding:6px 4px;}
 .wl-setrng-tag{font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;margin-left:auto;}
 .wl-info{width:17px;height:17px;border-radius:50%;border:1.5px solid var(--muted);color:var(--muted);font-size:11px;font-weight:800;line-height:1;display:inline-flex;align-items:center;justify-content:center;background:none;font-family:var(--sans);cursor:pointer;padding:0;vertical-align:middle;flex:none;}
+.wl-infobg{z-index:2100}
 .wl-infosheet{background:var(--card2);border:1px solid var(--line2);border-radius:20px;width:100%;max-width:460px;padding:16px 16px 22px;max-height:82vh;overflow-y:auto;}
 .wl-infogrip{width:38px;height:4px;border-radius:3px;background:var(--line2);margin:2px auto 12px;}
 .wl-inforow{display:flex;align-items:center;gap:11px;margin-bottom:14px;}
@@ -751,7 +752,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-22.304-pb";
+var APP_BUILD="2026-07-22.305-pb";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -1547,7 +1548,7 @@ rir:{title:"RIR — Reps in Reserve",body:[
 function infoBtn(key){return '<button class="wl-info" data-act="info" data-info="'+key+'" aria-label="What is this?">i</button>';}
 function infoSheetHTML(){if(!state.infoOpen)return "";var d=INFO[state.infoOpen];if(!d)return "";
   var body=(d.body||[]).map(function(p){return '<p>'+p+'</p>';}).join("");
-  return '<div class="wl-maxbg" data-act="info:close"><div class="wl-infosheet" data-act="noop"><div class="wl-infogrip"></div><div class="wl-inforow"><span class="wl-coachav">M</span><span style="flex:1;min-width:0"><span class="wl-coachwho" style="display:block">Coach Max</span><span class="wl-infotitle">'+esc(d.title)+'</span></span><button class="wl-maxx" data-act="info:close">✕</button></div><div class="wl-infobody">'+body+'</div></div></div>';}
+  return '<div class="wl-maxbg wl-infobg'+(state.fbSheet?" top":"")+'" data-act="info:close"><div class="wl-infosheet" data-act="noop"><div class="wl-infogrip"></div><div class="wl-inforow"><span class="wl-coachav">M</span><span style="flex:1;min-width:0"><span class="wl-coachwho" style="display:block">Coach Max</span><span class="wl-infotitle">'+esc(d.title)+'</span></span><button class="wl-maxx" data-act="info:close">✕</button></div><div class="wl-infobody">'+body+'</div></div></div>';}
 function migrateCoachSeen(){var st=state.settings;var ch=false;
   if(st.seenWeekly==null&&state.weeklySummary&&state.weeklySummary.week){st.seenWeekly=state.weeklySummary.week;ch=true;}
   if(st.seenNightly==null&&state.nightlySummary&&state.nightlySummary.date){st.seenNightly=state.nightlySummary.date;ch=true;}
@@ -3186,7 +3187,7 @@ document.addEventListener("click",function(e){
     if(kind==="joint"){en.fb=en.fb||{};en.fb.joint=(en.fb.joint===val)?null:val;}
     else{w.mfb=w.mfb||{};w.mfb[mus]=w.mfb[mus]||{};w.mfb[mus][kind]=(w.mfb[mus][kind]===val)?null:val;}
     saveWorkout();render();return;}
-  if(a==="fb:done"){if(!fbAnswered()){toast("Answer every question first");return;}state.fbSheet=null;saveWorkout();render();return;}
+  if(a==="fb:done"){if(!fbAnswered()){toast("Answer every question first");return;}state.fbSheet=null;state.infoOpen=null;saveWorkout();render();return;}
   if(a==="wo:fbopen"){var w=state.workout;if(!w)return;var ei=+el.getAttribute("data-ei");var en=w.entries[ei];if(!en)return;
     if(!fbEntryComplete(en)||!fbEntryTrained(en)){state.exMenu=null;toast("Log this exercise first \u2014 then you can answer for it");render();return;}
     var mu=en.muscle||"other";
