@@ -3583,6 +3583,10 @@ function hkTryFetch(){
   pbGetRecord(function(rec,err){
     var w2=state.hkWait;if(!w2)return;
     var h=(!err&&rec&&rec.health)||null;
+    /* Shortcuts can leave a trailing newline or space around an inserted variable,
+       which is invisible on screen but would make the date fail to match and the
+       import look broken for no visible reason. Compare on the trimmed value. */
+    if(h&&h.date!=null)h.date=String(h.date).trim();
     if(!h||h.date!==w2.date){
       w2.tries=(w2.tries||0)+1;
       if(w2.tries<6){setTimeout(hkTryFetch,2000);}
