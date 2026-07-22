@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-22.291 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-22.292 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -722,7 +722,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-22.291-pb";
+var APP_BUILD="2026-07-22.292-pb";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -3971,6 +3971,77 @@ idbClearAll=function(){
     }).then(function(){setPbPhotoMap({});}).catch(function(){});}
   return idbClearAllLocal();};
 
+/* ---- lightbox with "Edit meal type" ----
+   Full replacement of the app's openLightbox: identical navigation, delete, swipe
+   and close-rerender behavior, plus — for FOOD photos only — an "Edit meal type"
+   button in the bar. Tapping it reveals the four meal options; tapping one
+   reassigns immediately (no confirm — it's fully reversible), collapses the row,
+   and the diary regroups on close. Chips are hidden behind the button on purpose:
+   always-visible chips invite accidental taps. */
+function openLightbox(id){
+  var ids=[].slice.call(document.querySelectorAll('[data-act="photo:view"]')).map(function(b){return b.getAttribute("data-id");});
+  if(ids.indexOf(id)<0)ids=[id];
+  var MEALS=[["breakfast","Breakfast"],["lunch","Lunch"],["snack","Snack"],["dinner","Dinner"]];
+  var ov=document.createElement("div");ov.className="wl-lightbox";
+  ov.innerHTML='<div class="wl-lb-count"></div><button class="wl-lb-nav prev" data-lb="prev">‹</button><img class="wl-lb-img" alt=""><button class="wl-lb-nav next" data-lb="next">›</button>'+
+    '<div class="wl-lb-meals" style="display:none"></div>'+
+    '<div class="wl-lb-bar"><button class="wl-btn wl-btn-ghost" data-lb="close">Close</button><button class="wl-btn wl-btn-ghost" data-lb="mealedit" style="display:none">Edit</button><button class="wl-btn wl-btn-danger" data-lb="del">Delete</button></div>';
+  var img=ov.querySelector(".wl-lb-img"),countEl=ov.querySelector(".wl-lb-count"),prevB=ov.querySelector(".wl-lb-nav.prev"),nextB=ov.querySelector(".wl-lb-nav.next");
+  var mealsRow=ov.querySelector(".wl-lb-meals"),mealBtn=ov.querySelector('[data-lb="mealedit"]');
+  var urls={},recs={},idx=Math.max(0,ids.indexOf(id)),dirty=false;
+  function curRec(){return recs[ids[idx]]||null;}
+  function isFood(r){return !!r&&r.kind!=="progress";}
+  function renderMeals(){
+    var r=curRec();if(!r){mealsRow.style.display="none";return;}
+    mealsRow.innerHTML=MEALS.map(function(m){
+      return '<button class="wl-lb-mealchip'+((r.meal||"")===m[0]?" on":"")+'" data-lb="meal" data-meal="'+m[0]+'">'+m[1]+'</button>';}).join("");}
+  function show(){
+    img.src=urls[ids[idx]]||"";countEl.textContent=ids.length>1?(idx+1)+" / "+ids.length:"";
+    prevB.style.visibility=idx>0?"visible":"hidden";nextB.style.visibility=idx<ids.length-1?"visible":"hidden";
+    var food=isFood(curRec());
+    mealBtn.style.display=food?"":"none";
+    mealsRow.style.display="none"; /* collapse when navigating between photos */
+  }
+  function go(d){var ni=idx+d;if(ni<0||ni>=ids.length)return;idx=ni;show();}
+  function close(){document.removeEventListener("keydown",key);Object.keys(urls).forEach(function(k){try{URL.revokeObjectURL(urls[k]);}catch(e){}});if(ov.parentNode)document.body.removeChild(ov);if(dirty){if(state.view==="diary")renderDiary();
+    if(state.view==="photos")renderProgressPhotos();else renderPhotosStrip(state.selDate);}}
+  function key(e){if(e.key==="ArrowLeft")go(-1);else if(e.key==="ArrowRight")go(1);else if(e.key==="Escape")close();}
+  document.addEventListener("keydown",key);
+  ov.addEventListener("click",function(e){var b=e.target.closest("[data-lb]");
+  if(!b){if(e.target===ov)close();return;}
+  var act=b.getAttribute("data-lb");
+  if(act==="close")close();
+  else if(act==="prev")go(-1);
+  else if(act==="next")go(1);
+  else if(act==="mealedit"){
+    if(mealsRow.style.display==="none"){renderMeals();mealsRow.style.display="";}
+    else mealsRow.style.display="none";}
+  else if(act==="meal"){
+    var r=curRec();if(!r)return;
+    var m=b.getAttribute("data-meal");
+    if((r.meal||"")===m){mealsRow.style.display="none";return;}
+    r.meal=m;
+    idbAddLocal(r).then(function(){
+      dirty=true;
+      var label="";MEALS.forEach(function(x){if(x[0]===m)label=x[1];});
+      toast("Moved to "+label);
+      renderMeals();
+      setTimeout(function(){mealsRow.style.display="none";},350);
+      /* mirror to the server; if unreachable, the photo-sync up-sync pass
+         pushes the label the next time it runs */
+      var sid=pbPhotoMap()[r.id];
+      if(syncOn()&&sid){
+        fetch(pbBase()+"/api/collections/photos/records/"+sid,{method:"PATCH",
+          headers:pbHeaders(true),body:JSON.stringify({meal:m})}).catch(function(){});}
+    }).catch(function(){toast("Couldn’t move the photo");});}
+  else if(act==="del"){var pid=ids[idx];askConfirm("Delete this photo?",function(){idbDelete(pid).then(function(){dirty=true;try{URL.revokeObjectURL(urls[pid]);}catch(e){}delete urls[pid];ids.splice(idx,1);if(!ids.length){close();return;}if(idx>=ids.length)idx=ids.length-1;show();});});}});
+  var sx=0,sy=0;
+  ov.addEventListener("touchstart",function(e){if(!e.touches.length)return;sx=e.touches[0].clientX;sy=e.touches[0].clientY;},{passive:true});
+  ov.addEventListener("touchend",function(e){if(!e.changedTouches||!e.changedTouches.length)return;var dx=e.changedTouches[0].clientX-sx,dy=e.changedTouches[0].clientY-sy;if(Math.abs(dx)>45&&Math.abs(dx)>Math.abs(dy)+10){if(dx<0)go(1);else go(-1);}},{passive:true});
+  document.body.appendChild(ov);
+  idbAll().then(function(all){var map={};all.forEach(function(p){map[p.id]=p.blob;recs[p.id]=p;});ids=ids.filter(function(i){return map[i];});idx=Math.max(0,ids.indexOf(id));ids.forEach(function(i){urls[i]=URL.createObjectURL(map[i]);});if(!ids.length){close();return;}show();}).catch(function(){});
+}
+
 /* login-screen styling */
 (function(){
   var css=document.createElement("style");
@@ -3992,7 +4063,10 @@ idbClearAll=function(){
     ".wl-remember input{width:18px;height:18px;accent-color:var(--accent);flex:0 0 auto;margin:0}"+
     ".wl-remember span{color:var(--muted);font-size:13px;line-height:1.3}"+
     ".wl-pwbox{margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}"+
-    ".wl-pwok{margin-top:12px;padding:10px 12px;border-radius:10px;background:color-mix(in srgb,var(--good) 14%,transparent);border:1px solid color-mix(in srgb,var(--good) 40%,transparent);color:var(--good);font-size:13px}";
+    ".wl-pwok{margin-top:12px;padding:10px 12px;border-radius:10px;background:color-mix(in srgb,var(--good) 14%,transparent);border:1px solid color-mix(in srgb,var(--good) 40%,transparent);color:var(--good);font-size:13px}"+
+    ".wl-lb-meals{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:12px}"+
+    ".wl-lb-mealchip{background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.22);color:#e8ecf2;font-size:13.5px;font-weight:650;border-radius:18px;padding:8px 15px;cursor:pointer;font-family:inherit}"+
+    ".wl-lb-mealchip.on{background:var(--accent);border-color:var(--accent);color:#111}";
   document.head.appendChild(css);
 })();
 
