@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-22.308 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-22.311 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -153,6 +153,12 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 .wl-setrow{padding:5px 0;border-top:1px solid var(--line);}
 .wl-setrow.skipped .wl-set-input{opacity:.5;}
 .wl-set-menu{background:none;border:none;color:var(--faint);font-size:18px;cursor:pointer;padding:0;line-height:1;}
+.wl-restwhy{text-align:left;margin:2px 0 16px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.03)}
+.wl-restwhy-h{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin-bottom:8px}
+.wl-restwhy-l{margin:0;padding-left:18px;font-size:12.5px;line-height:1.5;color:var(--muted)}
+.wl-restwhy-l li{margin-bottom:5px}
+.wl-restwhy-l li:last-child{margin-bottom:0}
+.wl-set-input::placeholder{color:var(--faint);opacity:1;font-size:14px}
 .wl-set-input{background:var(--bg2);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:var(--sans);font-size:16px;text-align:center;padding:9px 4px;width:100%;box-sizing:border-box;outline:none;}
 .wl-set-input:focus{border-color:var(--accent);}
 .wl-set-rir{font-size:14px;}
@@ -752,7 +758,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-22.308-pb";
+var APP_BUILD="2026-07-22.311-pb";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -2714,7 +2720,13 @@ function setRowHTML(en,ei,st,si){var done=st.status==="done",sk=st.status==="ski
   var h='<div class="wl-setgrid wl-setrow'+(done?" done":"")+(sk?" skipped":"")+'">';
   h+='<button class="wl-set-menu" data-act="wo:setmenu" data-ei="'+ei+'" data-si="'+si+'">⋮</button>';
   h+='<input class="wl-set-input" data-wo="weight" data-ei="'+ei+'" data-si="'+si+'" type="text" inputmode="decimal" value="'+esc(st.weight||"")+'"'+((sk||done)?" disabled":"")+'>';
-  if(sk)h+='<span class="wl-set-skip">skipped</span>';else h+='<input class="wl-set-input" data-wo="reps" data-ei="'+ei+'" data-si="'+si+'" type="text" inputmode="numeric" value="'+esc(st.reps||"")+'"'+(done?" disabled":"")+'>';
+  var _rp="";
+if(!done&&!sk&&!(st.reps!=null&&st.reps!=="")){
+  var _lo=null,_hi=null;
+  if((en.progression||"double")==="rpt"&&en.setRanges&&en.setRanges[si]){_lo=num(en.setRanges[si].lo);_hi=num(en.setRanges[si].hi);}
+  else{_lo=num(en.repLow);_hi=num(en.repHigh);}
+  if(_lo!=null&&_hi!=null)_rp=_lo+"–"+_hi;else if(_lo!=null)_rp=String(_lo);else if(_hi!=null)_rp=String(_hi);}
+if(sk)h+='<span class="wl-set-skip">skipped</span>';else h+='<input class="wl-set-input" data-wo="reps" data-ei="'+ei+'" data-si="'+si+'" type="text" inputmode="numeric"'+(_rp?' placeholder="'+_rp+'"':'')+' value="'+esc(st.reps||"")+'"'+(done?" disabled":"")+'>';
   h+='<input class="wl-set-input wl-set-rir" data-wo="rir" data-ei="'+ei+'" data-si="'+si+'" type="text" inputmode="numeric" placeholder="–" value="'+esc(st.rir||"")+'"'+((sk||done)?" disabled":"")+'>';
   h+='<span class="wl-set-tgt">'+(done&&!sk?setTargetIcon(st,en):"")+'</span>';
   h+='<button class="wl-set-log'+(done?" done":"")+(sk?" skipped":"")+'" data-act="wo:log" data-ei="'+ei+'" data-si="'+si+'">'+(done?"✓":sk?"–":"")+'</button>';
@@ -2727,7 +2739,10 @@ function view_workout(){var w=state.workout;
   
   h+=timerBarHTML();
   if(w.tState==="ready")h+='<div class="wl-hint" style="text-align:center;margin:2px 0 4px">Review your workout below, then tap <b>Start</b> — your warmup begins first. Tap <b>End warmup</b> when you\u2019re ready to lift.</div>';
-  w.entries.forEach(function(en,ei){h+='<div class="wl-card" id="wo-ex-'+ei+'"><div style="margin-bottom:6px;display:flex;align-items:center;justify-content:space-between">'+muscleTagHTML(en.muscle||"other")+'<span style="display:inline-flex;gap:2px"><button class="wl-icon-btn" data-act="wo:hist" data-ei="'+ei+'">'+I.history.replace("<svg","<svg width=18 height=18")+'</button><button class="wl-icon-btn" data-act="wo:exmenu" data-ei="'+ei+'" style="font-size:20px">⋮</button></span></div>';
+  w.entries.forEach(function(en,ei){var _pg=(en.progression||"double")==="rpt"?"rpt":"double";
+  h+='<div class="wl-card" id="wo-ex-'+ei+'"><div style="margin-bottom:6px;display:flex;align-items:center;justify-content:space-between">'+
+  '<span style="display:inline-flex;align-items:center;gap:7px;min-width:0">'+muscleTagHTML(en.muscle||"other")+'<span class="wl-progtag'+(_pg==="rpt"?" rpt":"")+'">'+(_pg==="rpt"?"RPT":"PO")+'</span></span>'+
+  '<span style="display:inline-flex;gap:2px"><button class="wl-icon-btn" data-act="wo:hist" data-ei="'+ei+'">'+I.history.replace("<svg","<svg width=18 height=18")+'</button><button class="wl-icon-btn" data-act="wo:exmenu" data-ei="'+ei+'" style="font-size:20px">⋮</button></span></div>';
     h+='<div class="wl-exrow-name">'+esc(en.name)+'</div>';
     if(en.lastJoint)h+='<div class="wl-fbwarn">'+I.info.replace("<svg","<svg width=13 height=13")+' Joint pain last time \u2014 <b>'+esc(fbLabel(FB_JOINT,en.lastJoint.joint))+'</b> on '+fmtShort(parseISO(en.lastJoint.date))+'. Ease in and stop if it bites.</div>';
     if(en.lastMus&&(en.lastMus.vol==="much"||en.lastMus.vol==="low"||en.lastMus.sore==="still")&&_fbFirstOfMuscle(w,ei))h+='<div class="wl-fbnote">'+I.info.replace("<svg","<svg width=13 height=13")+' Last time: '+(en.lastMus.sore==="still"?'still sore from the session before':'')+((en.lastMus.sore==="still"&&en.lastMus.vol!=="right"&&en.lastMus.vol)?' \u00b7 ':'')+(en.lastMus.vol==="much"?'volume felt like too much \u2014 consider fewer sets':(en.lastMus.vol==="low"?'volume felt light \u2014 you could add a set':''))+'.</div>';
@@ -2892,7 +2907,7 @@ function woOverlaysHTML(){var h="";
       items.forEach(function(e){h+='<button class="wl-exrow-main" data-act="wo:replacepick" data-eid="'+e.id+'" style="width:100%;padding:9px 0;border-bottom:1px solid var(--line)"><span class="wl-exrow-name">'+esc(e.name)+'</span></button>';});});
     h+='</div></div>';}
   if(state.workout&&state.workout.tState==="resting"){var b=woBuckets();
-    h+='<div class="wl-confirm"><div class="wl-confirm-card" style="text-align:center"><div style="font-size:12px;color:var(--faint);text-transform:uppercase;letter-spacing:.1em;font-weight:800">Rest</div><div class="wl-tb-total" id="wl-rest-time" style="font-size:52px;margin:12px 0;color:#3b82f6">'+fmtDur(b.segMs)+'</div><button class="wl-btn wl-btn-primary wl-full" data-act="wo:endrest">Begin next set</button></div></div>';}
+    h+='<div class="wl-confirm"><div class="wl-confirm-card" style="text-align:center"><div style="font-size:12px;color:var(--faint);text-transform:uppercase;letter-spacing:.1em;font-weight:800">Rest</div><div class="wl-tb-total" id="wl-rest-time" style="font-size:52px;margin:12px 0;color:#3b82f6">'+fmtDur(b.segMs)+'</div><div class="wl-restwhy"><div class="wl-restwhy-h">Rest long enough to</div><ol class="wl-restwhy-l"><li>No longer be breathing heavily.</li><li>Feel mentally ready for another hard set.</li><li>Not be crampy in a supporting muscle \u2014 a fatigued lower back before another squat set, say.</li><li>Have enough back in the target muscle for at least 5 reps.</li></ol></div><button class="wl-btn wl-btn-primary wl-full" data-act="wo:endrest">Begin next set</button></div></div>';}
   h+=fbSheetHTML();
   if(state.woResume){var w=state.workout;var paused=w&&w.paused;
     h+='<div class="wl-confirm"><div class="wl-confirm-card"><div class="wl-confirm-msg" style="font-weight:700;margin-bottom:4px">'+esc((w&&w.name)||"Workout")+'</div><div class="wl-hint" style="margin-bottom:14px">'+(paused?"Paused — resume where you left off. The time in between isn\u2019t counted.":"You have a workout in progress.")+'</div><button class="wl-btn wl-btn-primary wl-full" data-act="wo:resume">Resume workout</button>'+(paused?"":'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:finishlater">Finish later <em style="color:var(--faint);font-style:normal">(pause)</em></button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:endnow">End &amp; save</button>')+'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="wo:discardnow">Discard</button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:12px" data-act="wo:resumecancel">Cancel</button></div></div>';}
