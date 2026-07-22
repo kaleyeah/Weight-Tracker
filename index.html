@@ -3581,10 +3581,51 @@ function hkTryFetch(){
       if(w2.tries<6){setTimeout(hkTryFetch,2000);}
       else{state.hkWait=null;toast("No Health data found yet — run the shortcut and try again");render();}
       return;}
-    var d=h.date;var fo=Object.assign({},state.food[d]||{});
-    ["calories","protein","carbs","fat"].forEach(function(k){var v=num(h[k]);if(v!=null)fo[k]=String(Math.round(v));});
-    state.food[d]=fo;state.hkDone={date:d,ts:Date.now()};state.hkWait=null;
-    save();toast("Imported from Health");render();});}
+    var d=h.date,got=0;
+    /* Shortcuts can hand back a display-formatted number, and the app's num() uses
+       parseFloat — so "8,016" would silently become 8 steps. Strip anything that
+       isn't part of the number first: separators, unit suffixes ("34.25 in"), spaces.
+       An empty string (Health had no sample for that type) becomes null, which is
+       what lets every value be safely quoted in the Shortcut's JSON. */
+    function hnum(v){
+      if(v==null)return null;
+      var s=String(v).replace(/[^0-9.\-]/g,"");
+      if(!s||s==="."||s==="-")return null;
+      var n=parseFloat(s);return isFinite(n)?n:null;}
+    /* Only positive values count as data. Health returns 0 for "no samples today",
+       and a 0 lb weigh-in or 0% body fat would be worse than importing nothing. */
+    function val(k){var v=hnum(h[k]);return (v!=null&&v>0)?v:null;}
+    var r1=function(v){return Math.round(v*10)/10;};
+
+    /* macros live on the day's food entry, stored as strings like the app's own inputs */
+    var fo=Object.assign({},state.food[d]||{});
+    ["calories","protein","carbs","fat"].forEach(function(k){
+      var v=val(k);if(v!=null){fo[k]=String(Math.round(v));got++;}});
+    state.food[d]=fo;
+
+    /* weight is an ARRAY, not a per-day map — replace the day's entry, don't append a second */
+    var w=val("weight");
+    if(w!=null){
+      state.weights=state.weights.filter(function(x){return x.date!==d;});
+      state.weights.push({date:d,weight:r1(w)});
+      try{setSkip(d,"weight",false);}catch(e){}
+      got++;}
+
+    /* per-day numeric maps. Body fat can arrive as a fraction (0.229) or a percent
+       (22.9) depending on how it is read — normalise, since nobody is 0.2% body fat. */
+    var bf=val("bodyfat");
+    if(bf!=null&&bf<=1)bf=bf*100;
+    [["steps",state.steps,val("steps"),0],
+     ["sleep",state.sleep,(val("sleep")!=null?val("sleep"):(val("sleepHours")!=null?val("sleepHours")*60:null)),0],
+     ["bodyfat",state.bodyfat,bf,1],
+     ["waist",state.waist,val("waist"),1]].forEach(function(t){
+      var v=t[2];if(v==null)return;
+      t[1][d]=t[3]?r1(v):Math.round(v);
+      try{setSkip(d,t[0],false);}catch(e){}
+      got++;});
+
+    state.hkDone={date:d,ts:Date.now()};state.hkWait=null;
+    save();toast(got?("Imported "+got+" value"+(got===1?"":"s")+" from Health"):"Nothing to import for that day");render();});}
 
 /* ---- Settings > Sync becomes an Account card ---- */
 function pbAccountCardHTML(op){
