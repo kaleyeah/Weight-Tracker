@@ -1829,7 +1829,7 @@ function quickEntryHTML(){
     body+='<div id="wl-calnotice">'+calNoticeHTML(sel)+'</div>';var _clk=isSkip(sel,"calories");body+=skipBtn("calories",_clk,"food");
     if(isOwner()){
       if(state.hkDone&&state.hkDone.date===sel){var _hd=new Date(state.hkDone.ts);var _hh=_hd.getHours()%12;if(_hh===0)_hh=12;var _hm=(_hd.getMinutes()<10?"0":"")+_hd.getMinutes();
-        body+='<div class="wl-hkbadge">\u2713 Imported from Health \u00b7 '+_hh+':'+_hm+(_hd.getHours()<12?" AM":" PM")+'</div>';}
+        body+='<button class="wl-hkbadge" data-act="hk:import" style="cursor:pointer">\u2713 Imported \u00b7 '+_hh+':'+_hm+(_hd.getHours()<12?" AM":" PM")+' \u00b7 tap to import again</button>';}
       else if(state.hkWait&&state.hkWait.date===sel){body+='<div class="wl-hkwait"><span>\u23f3 Waiting for Health data\u2026 swipe back after the shortcut finishes.</span><button class="wl-link" data-act="hk:cancel" style="flex:none">Cancel</button></div>';}
       else{body+='<button class="wl-hkbtn" data-act="hk:import">\u2933 Import from Apple Health</button>';}
     }}
@@ -3609,6 +3609,10 @@ function hkTryFetch(){
     var fo=Object.assign({},state.food[d]||{});
     ["calories","protein","carbs","fat"].forEach(function(k){
       var v=val(k);if(v!=null){fo[k]=String(Math.round(v));got++;}});
+    /* An imported calorie total is an explicit value, same as typing one — without
+       this the calAuto flag recomputes 4/4/9 from the macros and overrides it
+       (Health said 1804, macro math said 1866: fiber and rounding differ). */
+    if(val("calories")!=null){fo.calAuto=false;delete fo.calDismiss;}
     state.food[d]=fo;
 
     /* weight is an ARRAY, not a per-day map — replace the day's entry, don't append a second */
