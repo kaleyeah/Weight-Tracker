@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-22.313 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-22.315 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -153,6 +153,10 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 .wl-setrow{padding:5px 0;border-top:1px solid var(--line);}
 .wl-setrow.skipped .wl-set-input{opacity:.5;}
 .wl-set-menu{background:none;border:none;color:var(--faint);font-size:18px;cursor:pointer;padding:0;line-height:1;}
+.wl-wusub{font-size:13px;line-height:1.5;color:var(--muted)}
+.wl-wusug{margin-top:12px;padding:10px 12px;border:1px solid var(--accent);border-radius:10px;color:var(--accent);font-size:13px;text-align:center}
+.wl-set-log.warmup{border-color:var(--line2);color:var(--faint);font-weight:800;font-size:12px}
+.wl-setrow .wl-set-log.warmup{background:transparent}
 .wl-upnext{margin-top:14px;font-size:13px;color:var(--muted);line-height:1.4}
 .wl-upnext-l{display:block;font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-bottom:3px}
 .wl-restwhy{text-align:left;margin:2px 0 16px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.03)}
@@ -760,7 +764,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-22.313-pb";
+var APP_BUILD="2026-07-22.315-pb";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -2437,7 +2441,8 @@ function fbAnswered(){
 /* Trained, not merely finished: a set has to have been logged for feedback to mean
    anything, so an all-skipped exercise never asks. */
 function fbEntryTrained(en){return (en.sets||[]).some(function(s){return s.status==="done";});}
-function fbEntryComplete(en){return (en.sets||[]).length>0&&(en.sets||[]).every(function(s){return s.status==="done"||s.status==="skipped";});}
+/* "warmup" counts as resolved for completeness, like "skipped" */
+function fbEntryComplete(en){return (en.sets||[]).length>0&&(en.sets||[]).every(function(s){return s.status==="done"||s.status==="skipped"||s.status==="warmup";});}
 /* Most recent logged feedback for an exercise / muscle, newest session first. */
 function fbLastFor(exId){
   var ls=state.training.liftSessions||{};var ds=Object.keys(ls).sort().reverse();
@@ -2457,6 +2462,20 @@ function fbOptsHTML(kind,scale,cur,muscle){
   scale.forEach(function(o){
     h+='<button class="wl-fbopt'+(cur===o[0]?" on":"")+'" data-act="fb:set" data-kind="'+kind+'" data-val="'+o[0]+'"'+(muscle?' data-muscle="'+muscle+'"':'')+'>'+esc(o[1])+'</button>';});
   return h+'</div>';}
+function warmupAskHTML(){
+  var a=state.warmupAsk;if(!a)return "";
+  var w=state.workout;if(!w)return "";
+  var en=w.entries[a.ei];if(!en)return "";
+  var c=warmupCandidate(en,a.si);if(!c)return "";
+  var sw=warmupSuggestWeight(en,a.si);
+  var u=state.settings.units;
+  var h='<div class="wl-confirm"><div class="wl-confirm-card wl-fbcard">';
+  h+='<div class="wl-fbtitle">That looked like a warm-up</div>';
+  h+='<div class="wl-wusub">You did <b>'+c.reps+' reps at '+esc(en.sets[a.si].weight)+' '+u+'</b> with <b>'+c.rir+' left in reserve</b>, against a target of '+c.lo+'\u2013'+c.hi+'. That is a lot lighter than a working set.</div>';
+  h+='<div class="wl-wusub" style="margin-top:10px">'+(sw!=null?'Mark it as a warm-up and go again at the weight below \u2014 or override and count it as a real set.':'Mark it as a warm-up and go again heavier \u2014 or override and count it as a real set.')+'</div>';
+  if(sw!=null)h+='<div class="wl-wusug">Suggested working weight <b>'+sw+' '+u+'</b></div>';
+  h+='<div class="wl-fbbtns"><button class="wl-btn wl-btn-ghost" data-act="wu:no">No, it counts</button><button class="wl-btn wl-btn-primary" data-act="wu:yes">Warm-up</button></div>';
+  return h+'</div></div>';}
 function fbSheetHTML(){
   var fs_=state.fbSheet;if(!fs_)return "";
   var w=state.workout;if(!w)return "";
@@ -2588,6 +2607,54 @@ function woUpNext(){
     if(w.lastEi!=null&&i===w.lastEi)return null;
     return en.name||null;}
   return null;}
+/* Reps needed to call a set a warm-up: RIR >= 2 and >= 5 reps past the range top. */
+var WARMUP_RIR_MIN=2,WARMUP_OVER=5;
+function warmupCandidate(en,si){
+  if(!en||(en.progression||"double")!=="rpt")return null;
+  var st=en.sets[si];if(!st||st.status!=="done")return null;
+  var r=num(st.reps),i=num(st.rir);
+  if(r==null||i==null||i<WARMUP_RIR_MIN)return null;
+  var rgs=(en.setRanges&&en.setRanges.length)?en.setRanges:rptDefRanges(en.movement||"compound",en.sets.length);
+  var rg=rgs[si]||rgs[rgs.length-1];if(!rg)return null;
+  var top=num(rg.hi);if(top==null)return null;
+  if(r<top+WARMUP_OVER)return null;
+  return {reps:r,rir:i,lo:num(rg.lo),hi:top};}
+/* The weight that WOULD have put this set inside its range at ~1 RIR, from the
+   warm-up's own numbers. Rounded to the bar's increment. */
+function warmupSuggestWeight(en,si){
+  var st=en.sets[si];var w=num(st.weight),r=num(st.reps),i=num(st.rir);
+  if(w==null||w<=0||r==null)return null;
+  var rgs=(en.setRanges&&en.setRanges.length)?en.setRanges:rptDefRanges(en.movement||"compound",en.sets.length);
+  var rg=rgs[si]||{lo:6,hi:8};
+  var aim=Math.round(((num(rg.lo)||6)+(num(rg.hi)||8))/2);
+  var E=w*(1+(r+(i||0))/30);
+  var nw=rptRound(E/(1+(aim+1)/30));
+  if(!isFinite(nw)||nw<=0)return null;
+  return nw;}
+function markWarmup(ei,si){
+  var w=state.workout;if(!w)return;var en=w.entries[ei];if(!en)return;
+  var st=en.sets[si];if(!st)return;
+  st.status="warmup";st.tgtLo=null;st.tgtHi=null;
+  /* keep the planned working sets intact — session only, never persisted */
+  var fresh={weight:"",reps:"",rir:"",status:"pending"};
+  var sw=warmupSuggestWeight(en,si);
+  var nx=en.sets[si+1];
+  if(nx&&nx.status!=="done"&&nx.status!=="skipped"){
+    if(sw!=null){nx.weight=String(sw);nx.repsTouched=false;}
+    nx.reps="";nx.tgtLo=null;nx.tgtHi=null;
+    en.sets.splice(en.sets.length,0,fresh);
+  }else{
+    if(sw!=null)fresh.weight=String(sw);
+    en.sets.splice(si+1,0,fresh);}
+  /* show the rest of the pyramid off the suggested weight right away; logging the
+     real top set recomputes it from what actually happened */
+  if(sw!=null){var prev=sw;
+    for(var q=si+2;q<en.sets.length;q++){var qs=en.sets[q];
+      if(qs.status==="done"||qs.status==="skipped"||qs.status==="warmup")continue;
+      prev=rptRound(prev*0.9);qs.weight=String(prev);qs.reps="";qs.tgtLo=null;qs.tgtHi=null;}}
+  state.warmupAsk=null;saveWorkout();
+  toast(sw!=null?("Marked as warm-up \u2014 try "+sw+" "+state.settings.units):"Marked as warm-up");
+  render();}
 function rptRetargetAll(){
   var w=state.workout;if(!w||!w.entries)return;
   w.entries.forEach(function(en){
@@ -2599,21 +2666,26 @@ function rptRetargetAll(){
       if(num(nx.tgtLo)!=null&&num(nx.tgtLo)===num(nx.tgtHi))continue; /* already predicted */
       rptRetarget(en,i);}});}
 /* Recompute back-off weights after Set 1 is logged (RPT): bump with Set 1, or hold last week's on a compound jump where Set 1 fell below its range bottom. */
+/* The first set that actually counts — warm-ups sit in front of it. */
+function rptTopIndex(en){
+  var s=(en&&en.sets)||[];
+  for(var i=0;i<s.length;i++){if(s[i].status!=="warmup")return i;}
+  return 0;}
 function rptAfterSet1(en){
   if(!en||en.bodyweight)return;var w=state.workout;if(!w)return;
   var rt=getRoutine(w.routineId);if(!rt)return;if((en.progression||rt.progression||"double")!=="rpt")return;
-  var n=en.sets.length;if(n<2)return;
+  var n=en.sets.length;var t=rptTopIndex(en);if(n-t<2)return;
   var ranges=(en.setRanges&&en.setRanges.length)?en.setRanges:rptRangesFor(rItem(rt,en.itemId),n);
-  var s1w=num(en.sets[0].weight),s1r=num(en.sets[0].reps);if(s1w==null)return;
+  var s1w=num(en.sets[t].weight),s1r=num(en.sets[t].reps);if(s1w==null)return;
   var last=sugLastEntry(en.exerciseId,w.routineId);
   var lastDone=last?(last.sets||[]).filter(function(d){return d.status==="done"&&num(d.reps)!=null;}):[];
   var lastS1W=lastDone.length?num(lastDone[0].weight):null;
   var lastBackoff=lastDone.slice(1).map(function(d){return num(d.weight);});
   var jumped=lastS1W!=null&&s1w>lastS1W;
   var below=s1r!=null&&s1r<((ranges[0]&&ranges[0].lo)||6);
-  var hold=jumped&&below&&lastBackoff.length>=(n-1);
-  for(var i=1;i<n;i++){var st=en.sets[i];if(st.status==="done"||st.status==="skipped")continue;
-    var nw=hold?lastBackoff[i-1]:rptRound((i===1?s1w:num(en.sets[i-1].weight))*0.9);
+  var hold=jumped&&below&&lastBackoff.length>=(n-t-1);
+  for(var i=t+1;i<n;i++){var st=en.sets[i];if(st.status==="done"||st.status==="skipped"||st.status==="warmup")continue;
+    var nw=hold?lastBackoff[i-t-1]:rptRound((i===t+1?s1w:num(en.sets[i-1].weight))*0.9);
     if(nw!=null&&isFinite(nw))st.weight=String(nw);}
   saveWorkout();}
 /* Mid-workout progression switch — PERMANENT (the workout is also an editor).
@@ -2740,7 +2812,8 @@ function timerBarHTML(){var w=state.workout;var b=woBuckets();
   else if(w.tState==="warmup")h+='<button class="wl-btn wl-btn-primary" data-act="wo:startroutine" style="padding:9px 14px">End warmup</button>';
   h+='</div></div>';
   return h;}
-function setRowHTML(en,ei,st,si){var done=st.status==="done",sk=st.status==="skipped";
+function setRowHTML(en,ei,st,si){var done=st.status==="done",sk=st.status==="skipped",wu=st.status==="warmup";
+  if(wu)done=true;
   var h='<div class="wl-setgrid wl-setrow'+(done?" done":"")+(sk?" skipped":"")+'">';
   h+='<button class="wl-set-menu" data-act="wo:setmenu" data-ei="'+ei+'" data-si="'+si+'">⋮</button>';
   h+='<input class="wl-set-input" data-wo="weight" data-ei="'+ei+'" data-si="'+si+'" type="text" inputmode="decimal" value="'+esc(st.weight||"")+'"'+((sk||done)?" disabled":"")+'>';
@@ -2753,7 +2826,7 @@ if(!done&&!sk&&!(st.reps!=null&&st.reps!=="")){
 if(sk)h+='<span class="wl-set-skip">skipped</span>';else h+='<input class="wl-set-input" data-wo="reps" data-ei="'+ei+'" data-si="'+si+'" type="text" inputmode="numeric"'+(_rp?' placeholder="'+_rp+'"':'')+' value="'+esc(st.reps||"")+'"'+(done?" disabled":"")+'>';
   h+='<input class="wl-set-input wl-set-rir" data-wo="rir" data-ei="'+ei+'" data-si="'+si+'" type="text" inputmode="numeric" placeholder="–" value="'+esc(st.rir||"")+'"'+((sk||done)?" disabled":"")+'>';
   h+='<span class="wl-set-tgt">'+(done&&!sk?setTargetIcon(st,en):"")+'</span>';
-  h+='<button class="wl-set-log'+(done?" done":"")+(sk?" skipped":"")+'" data-act="wo:log" data-ei="'+ei+'" data-si="'+si+'">'+(done?"✓":sk?"–":"")+'</button>';
+  h+='<button class="wl-set-log'+(done&&!wu?" done":"")+(sk?" skipped":"")+(wu?" warmup":"")+'" data-act="wo:log" data-ei="'+ei+'" data-si="'+si+'">'+(wu?"W":done?"✓":sk?"–":"")+'</button>';
   var _rw=(state.logWarn&&state.logWarn.ei===ei&&state.logWarn.si===si)?'<div class="wl-rirwarn"><span class="wl-rirwarn-ic">!</span><span>'+esc(state.logWarn.msg)+'</span></div>':'';
   return h+'</div>'+_rw;}
 function view_workout(){var w=state.workout;
@@ -2933,6 +3006,7 @@ function woOverlaysHTML(){var h="";
   if(state.workout&&state.workout.tState==="resting"){var b=woBuckets();
     h+='<div class="wl-confirm"><div class="wl-confirm-card" style="text-align:center"><div style="font-size:12px;color:var(--faint);text-transform:uppercase;letter-spacing:.1em;font-weight:800">Rest</div><div class="wl-tb-total" id="wl-rest-time" style="font-size:52px;margin:12px 0;color:#3b82f6">'+fmtDur(b.segMs)+'</div><div class="wl-restwhy"><div class="wl-restwhy-h">Rest long enough to</div><ol class="wl-restwhy-l"><li>No longer be breathing heavily.</li><li>Feel mentally ready for another hard set.</li><li>Not be crampy in a supporting muscle \u2014 a fatigued lower back before another squat set, say.</li><li>Have enough back in the target muscle for at least 5 reps.</li></ol></div><button class="wl-btn wl-btn-primary wl-full" data-act="wo:endrest">Begin next set</button>'+(function(){var _un=woUpNext();return _un?'<div class="wl-upnext"><span class="wl-upnext-l">Up next</span>'+esc(_un)+'</div>':"";})()+'</div></div>';}
   h+=fbSheetHTML();
+  h+=warmupAskHTML();
   if(state.woResume){var w=state.workout;var paused=w&&w.paused;
     h+='<div class="wl-confirm"><div class="wl-confirm-card"><div class="wl-confirm-msg" style="font-weight:700;margin-bottom:4px">'+esc((w&&w.name)||"Workout")+'</div><div class="wl-hint" style="margin-bottom:14px">'+(paused?"Paused — resume where you left off. The time in between isn\u2019t counted.":"You have a workout in progress.")+'</div><button class="wl-btn wl-btn-primary wl-full" data-act="wo:resume">Resume workout</button>'+(paused?"":'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:finishlater">Finish later <em style="color:var(--faint);font-style:normal">(pause)</em></button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:endnow">End &amp; save</button>')+'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="wo:discardnow">Discard</button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:12px" data-act="wo:resumecancel">Cancel</button></div></div>';}
   if(state.noteEdit&&state.noteEdit.woEi!=null)h+='<div class="wl-confirm"><div class="wl-confirm-card">'+noteEditorHTML()+'</div></div>';
@@ -3286,7 +3360,9 @@ document.addEventListener("click",function(e){
     if(vr==null||vr<=0)need.push("reps above 0");
     if(vi==null||vi<0)need.push("RIR");
     if(need.length){state.logWarn={ei:ei,si:si,msg:"Enter "+need.join(", ")+" before you can log this set"};render();return;}
-    stt.status="done";w.lastEi=ei;if(si===0)rptAfterSet1(en);rptRetarget(en,si);state.logWarn=null;woTransition("resting");
+    stt.status="done";w.lastEi=ei;if(si===rptTopIndex(en))rptAfterSet1(en);rptRetarget(en,si);state.logWarn=null;
+  var _wu=warmupCandidate(en,si);
+  if(_wu&&!en.warmupAsked){en.warmupAsked=true;state.warmupAsk={ei:ei,si:si};}woTransition("resting");
   var _mus=en.muscle||"other";
   if(fbEntryComplete(en)&&fbEntryTrained(en)&&!(en.fb&&en.fb.joint)){
     state.fbSheet={ei:ei,kind:"end",askMuscle:fbMuscleDone(w,_mus,ei)};}
@@ -3300,6 +3376,8 @@ document.addEventListener("click",function(e){
     if(kind==="joint"){en.fb=en.fb||{};en.fb.joint=(en.fb.joint===val)?null:val;}
     else{w.mfb=w.mfb||{};w.mfb[mus]=w.mfb[mus]||{};w.mfb[mus][kind]=(w.mfb[mus][kind]===val)?null:val;}
     saveWorkout();render();return;}
+  if(a==="wu:yes"){var aw=state.warmupAsk;if(aw)markWarmup(aw.ei,aw.si);return;}
+  if(a==="wu:no"){state.warmupAsk=null;saveWorkout();render();return;}
   if(a==="fb:done"){if(!fbAnswered()){toast("Answer every question first");return;}state.fbSheet=null;state.infoOpen=null;saveWorkout();render();return;}
   if(a==="wo:fbopen"){var w=state.workout;if(!w)return;var ei=+el.getAttribute("data-ei");var en=w.entries[ei];if(!en)return;
     if(!fbEntryComplete(en)||!fbEntryTrained(en)){state.exMenu=null;toast("Log this exercise first \u2014 then you can answer for it");render();return;}
