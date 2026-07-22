@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-22.306 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-22.308 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -752,7 +752,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-22.306-pb";
+var APP_BUILD="2026-07-22.308-pb";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -2513,6 +2513,61 @@ function rptDefRanges(movement,n){var out=[];n=Math.max(1,n|0);
 function rptRangesFor(it,n){n=Math.max(1,n|0);var def=rptDefRanges((it&&it.movement)||"compound",n);
   var sr=it&&it.setRanges;if(Array.isArray(sr)){for(var i=0;i<n;i++){if(sr[i]){var lo=num(sr[i].lo),hi=num(sr[i].hi);if(lo!=null)def[i].lo=lo;if(hi!=null)def[i].hi=hi;}}}
   return def;}
+/* How many reps of capacity this lifter loses from one set to the next, learned
+   from their own consecutive sets. Each pair contributes one estimate: predict the
+   second set's capacity from the first via Epley, then see how far short it fell.
+   Newest sessions first, capped at 6 samples so it tracks current conditioning.
+   Default 3 — Griffin's measured average across six exercises before any RPT data
+   existed. */
+var FB_FATIGUE_DEFAULT=3;
+function rptFatigueFor(exId){
+  var ls=state.training.liftSessions||{};var ds=Object.keys(ls).sort().reverse();
+  var vals=[];
+  for(var i=0;i<ds.length&&vals.length<6;i++){
+    var arr=ls[ds[i]]||[];
+    for(var j=arr.length-1;j>=0&&vals.length<6;j--){
+      var s=arr[j];if(!s||!s.entries)continue;
+      for(var k=0;k<s.entries.length&&vals.length<6;k++){
+        var e=s.entries[k];if(e.exerciseId!==exId)continue;
+        var done=(e.sets||[]).filter(function(d){return d.status==="done"&&num(d.reps)!=null;});
+        for(var p=0;p+1<done.length&&vals.length<6;p++){
+          var a=done[p],b=done[p+1];
+          var wa=num(a.weight),wb=num(b.weight);
+          var tfa=num(a.reps)+(num(a.rir)||0),tfb=num(b.reps)+(num(b.rir)||0);
+          if(wa==null||wb==null||wa<=0||wb<=0||!(tfa>0))continue;
+          var E=wa*(1+tfa/30);
+          var cap=30*(E/wb-1);
+          var drop=cap-tfb;
+          if(isFinite(drop)&&drop>-4&&drop<14)vals.push(drop);}}}}
+  if(!vals.length)return FB_FATIGUE_DEFAULT;
+  var sum=0;vals.forEach(function(v){sum+=v;});
+  var avg=sum/vals.length;
+  if(avg<0)avg=0;if(avg>8)avg=8;
+  return Math.round(avg*2)/2;}
+/* Predict reps for the set after si, from what was actually just done. */
+function rptPredictReps(en,si){
+  var a=en.sets[si],b=en.sets[si+1];
+  if(!a||!b)return null;
+  var wa=num(a.weight),wb=num(b.weight),ra=num(a.reps),ia=num(a.rir);
+  if(wa==null||wb==null||wa<=0||wb<=0||ra==null||ra<=0)return null;
+  var tfa=ra+(ia||0);
+  var E=wa*(1+tfa/30);
+  var cap=30*(E/wb-1);
+  var tgt=Math.round(cap-rptFatigueFor(en.exerciseId)-(ia||0));
+  if(!isFinite(tgt))return null;
+  if(tgt<1)tgt=1;if(tgt>40)tgt=40;
+  return tgt;}
+/* After a set is logged, give the next one a target based on it. The prediction
+   takes over from the configured rep range (Griffin's call), and a rep count he
+   has already typed himself is never overwritten. */
+function rptRetarget(en,si){
+  if(!en||(en.progression||"double")!=="rpt")return;
+  var nx=en.sets[si+1];
+  if(!nx||nx.status==="done"||nx.status==="skipped")return;
+  var t=rptPredictReps(en,si);
+  if(t==null)return;
+  nx.tgtLo=t;nx.tgtHi=t;nx.sugR=null;
+  if(!nx.repsTouched)nx.reps=String(t);}
 /* Recompute back-off weights after Set 1 is logged (RPT): bump with Set 1, or hold last week's on a compound jump where Set 1 fell below its range bottom. */
 function rptAfterSet1(en){
   if(!en||en.bodyweight)return;var w=state.workout;if(!w)return;
@@ -3192,7 +3247,7 @@ document.addEventListener("click",function(e){
     if(vr==null||vr<=0)need.push("reps above 0");
     if(vi==null||vi<0)need.push("RIR");
     if(need.length){state.logWarn={ei:ei,si:si,msg:"Enter "+need.join(", ")+" before you can log this set"};render();return;}
-    stt.status="done";if(si===0)rptAfterSet1(en);state.logWarn=null;woTransition("resting");
+    stt.status="done";if(si===0)rptAfterSet1(en);rptRetarget(en,si);state.logWarn=null;woTransition("resting");
   var _mus=en.muscle||"other";
   if(fbEntryComplete(en)&&fbEntryTrained(en)&&!(en.fb&&en.fb.joint)){
     state.fbSheet={ei:ei,kind:"end",askMuscle:fbMuscleDone(w,_mus,ei)};}
