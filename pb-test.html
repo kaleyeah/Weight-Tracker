@@ -3583,6 +3583,10 @@ function hkTryFetch(){
   pbGetRecord(function(rec,err){
     var w2=state.hkWait;if(!w2)return;
     var h=(!err&&rec&&rec.health)||null;
+    /* Shortcuts makes it easy to send a JSON *string* (a Text field in the request
+       body) and hard to send a real nested object. Accept either — parsing here is
+       far kinder than making someone build a nested dictionary in the Shortcuts UI. */
+    if(typeof h==="string"){try{h=JSON.parse(h);}catch(e){h=null;}}
     /* Shortcuts can leave a trailing newline or space around an inserted variable,
        which is invisible on screen but would make the date fail to match and the
        import look broken for no visible reason. Compare on the trimmed value. */
