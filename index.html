@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-22.292 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-22.294 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -710,6 +710,8 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 .wl-lb-nav.prev{left:10px;}
 .wl-lb-nav.next{right:10px;}
 .wl-lb-count{position:absolute;top:calc(env(safe-area-inset-top,0px) + 16px);left:0;right:0;text-align:center;color:rgba(255,255,255,.85);font-size:13px;font-weight:700;letter-spacing:.05em;}
+.wl-progtag{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.04em;padding:2px 6px;border-radius:5px;color:var(--muted);border:1px solid var(--line);margin-right:6px;vertical-align:1px}
+.wl-progtag.rpt{color:var(--accent);border-color:var(--accent)}
 </style>
 </head>
 <body>
@@ -722,7 +724,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-22.292-pb";
+var APP_BUILD="2026-07-22.294-pb";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -2168,6 +2170,8 @@ function exFormHTML(xf){
   var h='<div class="wl-card" style="border:1px solid var(--accent)"><div class="wl-card-head"><span>'+(xf.id?"Edit Exercise":"New Exercise")+'</span></div>';
   h+='<label class="wl-field wl-field-full"><span>Name</span><input class="wl-ex-input" data-xf="name" type="text" placeholder="e.g. Smith Machine Bench Press" value="'+esc(xf.name||"")+'"></label>';
   h+='<div class="wl-cf-label" style="margin-top:14px">Muscle Group</div><div class="wl-preset-list">'+MUSCLES.map(function(m){return '<button class="wl-mtag'+(xf.muscle===m[0]?" on":"")+'" data-act="ex:muscle" data-muscle="'+m[0]+'" style="--mc:'+m[2]+'">'+m[1]+'</button>';}).join("")+'</div>';
+  var _xmv=xf.movement||guessMovement(xf.muscle);
+  h+='<div class="wl-cf-label" style="margin-top:14px">Movement <em style="text-transform:none;letter-spacing:0">— info only, doesn\u2019t change targets</em></div><div class="wl-seg2"><button class="wl-seg2btn'+(_xmv==="compound"?" on":"")+'" data-act="ex:mv" data-mv="compound">Compound</button><button class="wl-seg2btn'+(_xmv==="isolation"?" on":"")+'" data-act="ex:mv" data-mv="isolation">Isolation</button></div>';
   h+='<label class="wl-field wl-field-full" style="margin-top:14px"><span>Equipment <em>optional</em></span><input class="wl-ex-input" data-xf="equipment" type="text" placeholder="e.g. Dumbbell, Cable, Smith Machine" value="'+esc(xf.equipment||"")+'"></label>';
   h+='<div style="margin-top:12px"><button class="wl-achip'+(xf.bodyweight?" on":"")+'" data-act="ex:bw">'+(xf.bodyweight?"✓ ":"")+'Bodyweight Exercise</button></div>';
   h+='<div class="wl-hint" style="margin-top:6px">Turn on for pull-ups, dips, etc. — sets will use your bodyweight (plus any added load) when logging.</div>';
@@ -2197,7 +2201,7 @@ function view_exlib(){
     var items=exs.map(function(e,i){return {e:e,i:i};}).filter(function(x){return (x.e.muscle||"other")===m[0];}).sort(function(a,b){return (a.e.name||"").toLowerCase().localeCompare((b.e.name||"").toLowerCase());});
     if(!items.length)return;
     h+='<div class="wl-card"><div style="margin-bottom:8px">'+muscleTagHTML(m[0])+'</div>';
-    items.forEach(function(x){var sub=[];if(x.e.equipment)sub.push(esc(x.e.equipment));if(x.e.bodyweight)sub.push("Bodyweight");
+    items.forEach(function(x){var sub=[((x.e.movement||guessMovement(x.e.muscle))==="isolation")?"Isolation":"Compound"];if(x.e.equipment)sub.push(esc(x.e.equipment));if(x.e.bodyweight)sub.push("Bodyweight");
       h+='<div class="wl-exrow"><button class="wl-exrow-main" data-act="ex:edit" data-id="'+x.e.id+'"><span class="wl-exrow-name">'+esc(x.e.name)+'</span>'+(sub.length?'<span class="wl-exrow-sub">'+sub.join(" · ")+'</span>':'')+'</button><button class="wl-exrow-del" data-act="ex:del" data-id="'+x.e.id+'">'+I.trash.replace("<svg","<svg width=17 height=17")+'</button></div>';});
     h+='</div>';});}
   if(xf)h+=exFormHTML(xf);
@@ -2234,13 +2238,14 @@ function routineItemHTML(rt,it,idx){
   h+='<div style="margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">'+muscleTagHTML(ex.muscle||"other")+'<span class="wl-ri-actions">'+(idx>0?'<button class="wl-icon-btn" data-act="ri:up" data-iid="'+it.id+'">'+I.up.replace("<svg","<svg width=17 height=17")+'</button>':'')+(idx<rt.items.length-1?'<button class="wl-icon-btn" data-act="ri:down" data-iid="'+it.id+'">'+I.down.replace("<svg","<svg width=17 height=17")+'</button>':'')+'<button class="wl-icon-btn" data-act="ri:remove" data-iid="'+it.id+'">'+I.trash.replace("<svg","<svg width=16 height=16")+'</button></span></div>';
   h+='<div class="wl-exrow-name">'+esc(ex.name)+'</div>'+((ex.equipment||ex.bodyweight)?'<div class="wl-exrow-sub" style="margin-bottom:8px">'+esc(ex.equipment||"")+(ex.bodyweight?(ex.equipment?" · ":"")+"Bodyweight":"")+'</div>':'<div style="height:6px"></div>');
   h+=routineNotesHTML(rt,it,ex);
-  if((rt.progression||"double")==="rpt"){
+  h+='<div class="wl-cf-label" style="margin:12px 0 6px">Progression '+infoBtn("progression")+'</div><div class="wl-seg2"><button class="wl-seg2btn'+(it.progression==="double"?" on":"")+'" data-act="ri:prog" data-iid="'+it.id+'" data-prog="double">Progressive Overload</button><button class="wl-seg2btn'+(it.progression==="rpt"?" on":"")+'" data-act="ri:prog" data-iid="'+it.id+'" data-prog="rpt">Reverse Pyramid</button></div>';
+  if(!it.progression){h+='<div class="wl-hint" style="margin-top:8px;color:var(--accent)">Choose how this exercise progresses — required before saving.</div>';}
+  else if(it.progression==="rpt"){
     var _n=Math.max(1,it.sets||3);var _mv=it.movement||guessMovement(ex.muscle);var _rgs=rptRangesFor(it,_n);
-    h+='<div class="wl-mtoggle" style="margin-top:12px"><button class="wl-mvbtn'+(_mv==="compound"?" on":"")+'" data-act="ri:mv" data-iid="'+it.id+'" data-mv="compound">Compound</button><button class="wl-mvbtn'+(_mv==="isolation"?" on":"")+'" data-act="ri:mv" data-iid="'+it.id+'" data-mv="isolation">Isolation</button></div>';
     if(!ex.bodyweight)h+='<label class="wl-field wl-field-full" style="margin-top:10px"><span>Top set weight ('+u+')</span><input class="wl-ri-input wl-num" data-iid="'+it.id+'" data-field="weight" type="text" inputmode="decimal" value="'+esc(it.weight!=null?it.weight:"")+'" placeholder="—"></label>';
     h+='<div class="wl-cf-label" style="margin:12px 0 2px">Reps per set '+infoBtn("reprange")+'</div>';
     for(var _si=0;_si<_n;_si++){h+='<div class="wl-setrng"><span class="wl-setrng-n">Set '+(_si+1)+'</span><input class="wl-ri-srng wl-num" data-iid="'+it.id+'" data-si="'+_si+'" data-end="lo" type="text" inputmode="numeric" value="'+_rgs[_si].lo+'"><span style="color:var(--faint)">–</span><input class="wl-ri-srng wl-num" data-iid="'+it.id+'" data-si="'+_si+'" data-end="hi" type="text" inputmode="numeric" value="'+_rgs[_si].hi+'"><span class="wl-setrng-tag">'+(_si===0?"heaviest":"−10%")+'</span></div>';}
-  }else{
+  }else if(it.progression==="double"){
   h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Rep range '+infoBtn("reprange")+'</span><div style="display:flex;align-items:center;gap:6px"><input class="wl-ri-input wl-num" data-iid="'+it.id+'" data-field="repLow" type="text" inputmode="numeric" value="'+esc(it.repLow!=null?it.repLow:"")+'" placeholder="8" style="text-align:center"><span style="color:var(--faint)">–</span><input class="wl-ri-input wl-num" data-iid="'+it.id+'" data-field="repHigh" type="text" inputmode="numeric" value="'+esc(it.repHigh!=null?it.repHigh:"")+'" placeholder="12" style="text-align:center"></div></label>';
   h+='<label class="wl-field"><span>'+(ex.bodyweight?"Added wt <em>optional</em>":"Weight ("+u+")")+'</span><input class="wl-ri-input wl-num" data-iid="'+it.id+'" data-field="weight" type="text" inputmode="decimal" value="'+esc(it.weight!=null?it.weight:"")+'" placeholder="'+(ex.bodyweight?"0 = BW":"0")+'"></label></div>';
   }
@@ -2268,7 +2273,6 @@ function view_routine(){
   if(state.riPickOpen)return routinePickHTML(rt);
   h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="rt:save">‹</button><span class="wl-cal-title">Edit Routine</span><span style="width:36px;display:inline-block"></span></div>';
   h+='<div class="wl-card"><label class="wl-field wl-field-full"><span>Routine Name</span><input class="wl-rt-name" type="text" value="'+esc(rt.name||"")+'" placeholder="e.g. Day 1 – Push"></label></div>';
-  h+='<div class="wl-card"><div class="wl-cf-label" style="margin:0 0 8px">Progression '+infoBtn("progression")+'</div><div class="wl-seg2"><button class="wl-seg2btn'+((rt.progression||"double")==="double"?" on":"")+'" data-act="rt:prog" data-prog="double">Double progression</button><button class="wl-seg2btn'+((rt.progression||"double")==="rpt"?" on":"")+'" data-act="rt:prog" data-prog="rpt">Reverse Pyramid</button></div>'+((rt.progression||"double")==="rpt"?'<div class="wl-hint" style="margin-top:8px">Heaviest set first, weights auto-drop ~10%/set. <b>Set 1 drives the weight increase.</b></div>':'')+'</div>';
   if(!(rt.items||[]).length)h+='<div class="wl-card"><div class="wl-hint">No exercises yet. Add them from your library below — they\u2019ll group by muscle automatically.</div></div>';
   (rt.items||[]).forEach(function(it,idx){h+=routineItemHTML(rt,it,idx);});
   h+='<button class="wl-btn wl-btn-ghost wl-full" data-act="ri:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add Exercise</button>';
@@ -2280,8 +2284,12 @@ function view_routine(){
 function routinePreviewHTML(rt){var h='';
   (rt.items||[]).forEach(function(it){var ex=exById(it.exerciseId);if(!ex)return;
     var rng=(it.repLow||it.repHigh)?((it.repLow||"?")+"–"+(it.repHigh||"?")):"";
+    var _prog=it.progression||rt.progression||"double";
+    var _scheme;
+    if(_prog==="rpt"){var _pn=Math.max(1,it.sets||3);_scheme=_pn+" sets · "+rptRangesFor(it,_pn).map(function(r){return r.lo+"–"+r.hi;}).join(" / ")+" reps";}
+    else _scheme=(it.sets||0)+" sets"+(rng?" · "+rng+" reps":"");
     var wt=ex.bodyweight?("BW"+(num(it.weight)?" +"+it.weight:"")):(num(it.weight)!=null?it.weight+" "+state.settings.units:"");
-    h+='<div class="wl-exrow"><div style="flex:1"><span class="wl-mtag on" style="--mc:'+muscleInfo(ex.muscle).color+';background:'+muscleInfo(ex.muscle).color+';border-color:'+muscleInfo(ex.muscle).color+';color:#fff;font-size:9.5px;padding:3px 7px;vertical-align:middle;margin-right:6px">'+muscleInfo(ex.muscle).label.toUpperCase()+'</span><span class="wl-exrow-name" style="display:inline">'+esc(ex.name)+'</span><div class="wl-exrow-sub">'+(it.sets||0)+' sets'+(rng?' · '+rng+' reps':'')+(wt?' · '+wt:'')+'</div></div></div>';});
+    h+='<div class="wl-exrow"><div style="flex:1"><span class="wl-mtag on" style="--mc:'+muscleInfo(ex.muscle).color+';background:'+muscleInfo(ex.muscle).color+';border-color:'+muscleInfo(ex.muscle).color+';color:#fff;font-size:9.5px;padding:3px 7px;vertical-align:middle;margin-right:6px">'+muscleInfo(ex.muscle).label.toUpperCase()+'</span><span class="wl-exrow-name" style="display:inline">'+esc(ex.name)+'</span><div class="wl-exrow-sub"><span class="wl-progtag'+(_prog==="rpt"?" rpt":"")+'">'+(_prog==="rpt"?"RPT":"PO")+'</span>'+_scheme+(wt?' · '+wt:'')+'</div></div></div>';});
   return h;}
 function view_rlaunch(){
   var rt=getRoutine(state.routineId);var h='<div class="wl-stack">';
@@ -2319,7 +2327,7 @@ function buildWorkoutEntries(rt,bw){return (rt.items||[]).map(function(it){var e
     else{w=ex.bodyweight?((bw!=null?bw:0)+(num(it.weight)||0)):(num(it.weight)>0?it.weight:"");r=(it.repHigh!=null&&it.repHigh!=="")?it.repHigh:"";}
     sets.push({weight:(w===""||w==null)?"":String(w),reps:(r===""||r==null)?"":String(r),rir:"",status:"pending"});}
   var notes=[];(ex.notes||[]).forEach(function(nn){notes.push({text:nn.text,pinned:true});});(it.notes||[]).forEach(function(nn){notes.push({text:nn.text,pinned:false});});
-  return {itemId:it.id,exerciseId:it.exerciseId,name:ex.name,muscle:ex.muscle,equipment:ex.equipment,bodyweight:!!ex.bodyweight,repLow:it.repLow,repHigh:it.repHigh,movement:it.movement||guessMovement(ex.muscle),setRanges:rptRangesFor(it,n),addedWt:num(it.weight)||0,notes:notes,sets:sets};
+  return {itemId:it.id,progression:it.progression||rt.progression||"double",exerciseId:it.exerciseId,name:ex.name,muscle:ex.muscle,equipment:ex.equipment,bodyweight:!!ex.bodyweight,repLow:it.repLow,repHigh:it.repHigh,movement:it.movement||guessMovement(ex.muscle),setRanges:rptRangesFor(it,n),addedWt:num(it.weight)||0,notes:notes,sets:sets};
 }).filter(Boolean);}
 function rebuildEntryNotes(ei){var w=state.workout;if(!w)return;var en=w.entries[ei];if(!en)return;var rt=getRoutine(w.routineId);var it=rt&&rItem(rt,en.itemId);var ex=exById(en.exerciseId);var notes=[];if(ex)(ex.notes||[]).forEach(function(n){notes.push({id:n.id,text:n.text,pinned:true});});if(it)(it.notes||[]).forEach(function(n){notes.push({id:n.id,text:n.text,pinned:false});});en.notes=notes;saveWorkout();}
 function sugInvertReps(E,w){E=num(E);w=num(w);if(E==null||w==null||w<=0)return null;var r=Math.round(30*(E/w-1));if(r<1)r=1;if(r>30)r=30;return r;}
@@ -2328,7 +2336,7 @@ function rptInc(){return state.settings.units==="kg"?2.5:5;}
 function rptRound(w){var i=rptInc();return Math.round(num(w)/i)*i;}
 function guessMovement(muscle){return (muscle==="biceps"||muscle==="triceps")?"isolation":"compound";}
 function rptDefRanges(movement,n){var out=[];n=Math.max(1,n|0);
-  if(movement==="isolation"){for(var i=0;i<n;i++)out.push({lo:12,hi:15});}
+  if(movement==="isolation"){for(var i=0;i<n;i++)out.push({lo:6+2*i,hi:8+2*i});}
   else{for(var i=0;i<n;i++)out.push({lo:6+2*i,hi:8+2*i});}
   return out;}
 function rptRangesFor(it,n){n=Math.max(1,n|0);var def=rptDefRanges((it&&it.movement)||"compound",n);
@@ -2337,7 +2345,7 @@ function rptRangesFor(it,n){n=Math.max(1,n|0);var def=rptDefRanges((it&&it.movem
 /* Recompute back-off weights after Set 1 is logged (RPT): bump with Set 1, or hold last week's on a compound jump where Set 1 fell below its range bottom. */
 function rptAfterSet1(en){
   if(!en||en.bodyweight)return;var w=state.workout;if(!w)return;
-  var rt=getRoutine(w.routineId);if(!rt||(rt.progression||"double")!=="rpt")return;
+  var rt=getRoutine(w.routineId);if(!rt)return;if((en.progression||rt.progression||"double")!=="rpt")return;
   var n=en.sets.length;if(n<2)return;
   var ranges=(en.setRanges&&en.setRanges.length)?en.setRanges:rptRangesFor(rItem(rt,en.itemId),n);
   var s1w=num(en.sets[0].weight),s1r=num(en.sets[0].reps);if(s1w==null)return;
@@ -2347,11 +2355,59 @@ function rptAfterSet1(en){
   var lastBackoff=lastDone.slice(1).map(function(d){return num(d.weight);});
   var jumped=lastS1W!=null&&s1w>lastS1W;
   var below=s1r!=null&&s1r<((ranges[0]&&ranges[0].lo)||6);
-  var hold=(en.movement==="compound")&&jumped&&below&&lastBackoff.length>=(n-1);
+  var hold=jumped&&below&&lastBackoff.length>=(n-1);
   for(var i=1;i<n;i++){var st=en.sets[i];if(st.status==="done"||st.status==="skipped")continue;
     var nw=hold?lastBackoff[i-1]:rptRound((i===1?s1w:num(en.sets[i-1].weight))*0.9);
     if(nw!=null&&isFinite(nw))st.weight=String(nw);}
   saveWorkout();}
+/* Mid-workout progression switch — PERMANENT (the workout is also an editor).
+   Completed sets never change. Remaining sets re-target from the agreed seed rule:
+   the last completed set is the reference — to RPT it becomes the top set and
+   back-offs chain at −10% from it; to PO remaining sets hold its weight at the
+   exercise's rep range. With nothing completed yet, the first pending set keeps its
+   suggested weight as the anchor. */
+function switchEntryProgression(ei){var w=state.workout;if(!w)return;var en=w.entries[ei];if(!en)return;
+  var to=(en.progression==="rpt")?"double":"rpt";
+  en.progression=to;
+  var rt=getRoutine(w.routineId);var it=rt&&rItem(rt,en.itemId);
+  if(it){it.progression=to;saveTraining();}
+  var n=en.sets.length;
+  var lastDone=-1;for(var i=0;i<n;i++){if(en.sets[i].status==="done")lastDone=i;}
+  var refW=lastDone>=0?num(en.sets[lastDone].weight):null;
+  if(to==="rpt"){
+    en.movement=en.movement||guessMovement(en.muscle);
+    if(!en.setRanges||!en.setRanges.length)en.setRanges=rptDefRanges(en.movement,n);
+    var chain=refW;
+    for(var j=lastDone+1;j<n;j++){var st=en.sets[j];if(st.status==="skipped")continue;
+      var rg=en.setRanges[j]||en.setRanges[en.setRanges.length-1]||{lo:6,hi:8};
+      st.tgtLo=rg.lo;st.tgtHi=rg.hi;
+      if(!en.bodyweight){
+        if(chain==null){chain=num(st.weight);}
+        else{chain=rptRound(chain*0.9);if(chain!=null&&isFinite(chain))st.weight=String(chain);}
+      }}
+  }else{
+    var lo=num(en.repLow);if(lo==null)lo=8;var hi=num(en.repHigh);if(hi==null)hi=12;
+    var wgt=refW;
+    for(var k=lastDone+1;k<n;k++){var st2=en.sets[k];if(st2.status==="skipped")continue;
+      st2.tgtLo=lo;st2.tgtHi=hi;
+      if(!en.bodyweight){if(wgt==null)wgt=num(st2.weight);else st2.weight=String(wgt);}}
+  }
+  state.exMenu=null;saveWorkout();
+  toast(to==="rpt"?"Now Reverse Pyramid — heaviest set first, −10% each set":"Now Progressive Overload — same weight across sets");
+  render();}
+/* One-time: stamp the old routine-level type onto each exercise, then drop it. */
+function migrateProgressionTypes(){var ch=false;
+  (state.training.exercises||[]).forEach(function(ex){if(!ex.movement){ex.movement=guessMovement(ex.muscle);ch=true;}});
+  (state.training.routines||[]).forEach(function(rt){var m=rt.progression;
+    (rt.items||[]).forEach(function(it){if(!it.progression){it.progression=m||"double";ch=true;}});
+    if(m!==undefined){delete rt.progression;ch=true;}});
+  if(ch)saveTrainingLocal();}
+/* Mid-workout set add/remove writes the new count back to the saved routine. */
+function persistSetCount(en){var w=state.workout;if(!w||!en)return;
+  var rt=getRoutine(w.routineId);var it=rt&&rItem(rt,en.itemId);
+  if(it&&it.sets!==en.sets.length){it.sets=en.sets.length;
+    if(Array.isArray(it.setRanges))it.setRanges=rptRangesFor(it,it.sets);
+    saveTraining();}}
 function sugLastEntry(exId,routineId){var ls=state.training.liftSessions||{};var dates=Object.keys(ls).sort().reverse();var fallback=null;
   for(var i=0;i<dates.length;i++){var arr=ls[dates[i]]||[];for(var j=arr.length-1;j>=0;j--){var s=arr[j];if(s.mode!=="full"||!s.entries)continue;
     var e=s.entries.filter(function(x){return x.exerciseId===exId&&(x.sets||[]).some(function(d){return d.status==="done"&&num(d.reps)!=null;});})[0];
@@ -2360,7 +2416,7 @@ function sugLastEntry(exId,routineId){var ls=state.training.liftSessions||{};var
     if(!fallback)fallback=e;}}
   return fallback;}
 function sugForEntry(en,routineId){
-  var rt=getRoutine(routineId);var mode=(rt&&rt.progression)||"double";
+  var rt=getRoutine(routineId);var mode=en.progression||((rt&&rt.progression)||"double");
   var last=sugLastEntry(en.exerciseId,routineId);if(!last)return null;
   var done=(last.sets||[]).filter(function(d){return d.status==="done"&&num(d.reps)!=null;});
   if(!done.length)return null;
@@ -2449,7 +2505,7 @@ function view_workout(){var w=state.workout;
     h+='<div class="wl-exrow-name">'+esc(en.name)+'</div>';
     if(en.bodyweight)h+='<div class="wl-exrow-sub">Bodyweight @ <button class="wl-link" data-act="wo:bw" style="display:inline">'+(w.bw!=null?w.bw+" "+state.settings.units:"set weight")+'</button></div>';
     else if(en.equipment)h+='<div class="wl-exrow-sub">'+esc(en.equipment)+'</div>';
-    if(en.firstTime){var _rr=((getRoutine(w.routineId)||{}).progression==="rpt"&&en.setRanges&&en.setRanges[0])?en.setRanges[0]:{lo:en.repLow,hi:en.repHigh};if(num(_rr.lo)!=null||num(_rr.hi)!=null)h+='<div class="wl-exrow-sub" style="color:var(--accent)">First time: work up to a weight where '+(_rr.lo||"?")+'\u2013'+(_rr.hi||"?")+' reps leaves 0\u20131 RIR.</div>';}
+    if(en.firstTime){var _rr=(en.progression==="rpt"&&en.setRanges&&en.setRanges[0])?en.setRanges[0]:{lo:en.repLow,hi:en.repHigh};if(num(_rr.lo)!=null||num(_rr.hi)!=null)h+='<div class="wl-exrow-sub" style="color:var(--accent)">First time: work up to a weight where '+(_rr.lo||"?")+'\u2013'+(_rr.hi||"?")+' reps leaves 0\u20131 RIR.</div>';}
     (en.notes||[]).forEach(function(n){h+='<button class="wl-note" data-act="note:edit" data-woei="'+ei+'" data-iid="'+en.itemId+'" data-nid="'+(n.id||"")+'" data-pinned="'+(n.pinned?"1":"0")+'"><span class="wl-note-txt">'+esc(n.text)+'</span>'+(n.pinned?'<span class="wl-note-pin">📌</span>':'')+'</button>';});
     h+='<div class="wl-setgrid wl-sethead" style="margin-top:10px"><span></span><span>WEIGHT</span><span>REPS</span><span>RIR '+infoBtn("rir")+'</span><span>'+infoBtn("targeticons")+'</span><span>LOG</span></div>';
     en.sets.forEach(function(st,si){h+=setRowHTML(en,ei,st,si);});
@@ -2596,6 +2652,7 @@ function woOverlaysHTML(){var h="";
     (ei>0?'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:exmove" data-ei="'+ei+'" data-dir="up">Move up</button>':'')+
     (w&&ei<w.entries.length-1?'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:exmove" data-ei="'+ei+'" data-dir="down">Move down</button>':'')+
     '<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:exreplace" data-ei="'+ei+'">Replace exercise</button>'+
+    '<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:exprog" data-ei="'+ei+'">'+((en&&en.progression)==="rpt"?"Change to Progressive Overload":"Change to Reverse Pyramid")+'</button>'+
     '<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:exaddset" data-ei="'+ei+'">Add set</button>'+
     '<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="wo:exremove" data-ei="'+ei+'">Remove exercise</button>'+
     '<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:12px" data-act="wo:exmenu:close">Cancel</button></div></div>';}
@@ -2927,6 +2984,8 @@ document.addEventListener("click",function(e){
     if(existing){state.training.exercises=xl.filter(function(e){return e.id!==existing.id;});saveTraining();render();return;}
     xl.push({id:"x-"+Date.now()+"-"+Math.random().toString(36).slice(2,6),name:sd.n,muscle:sd.m,equipment:sd.e||"",bodyweight:!!sd.bw,notes:[]});state.training.exercises=xl;saveTraining();render();return;}
   if(a==="rt:save"){var rt=getRoutine(state.routineId);
+    if(rt){var _noprog=(rt.items||[]).filter(function(i){return !i.progression;});
+      if(_noprog.length){var _ex1=exById(_noprog[0].exerciseId);toast("Choose a progression type for "+((_ex1&&_ex1.name)||"each exercise"));return;}}
     if(rt&&!(rt.name||"").trim()&&!(rt.items||[]).length){state.training.routines=(state.training.routines||[]).filter(function(r){return r.id!==rt.id;});saveTraining();state.view="train";state.routineId=null;state.noteEdit=null;state.riPickOpen=false;render();return;}
     if(rt&&!(rt.name||"").trim())rt.name="Untitled routine";
     saveTraining();state.view="train";state.routineId=null;state.noteEdit=null;state.riPickOpen=false;toast("Routine saved");render();return;}
@@ -2947,8 +3006,8 @@ document.addEventListener("click",function(e){
     stt.status="done";if(si===0)rptAfterSet1(en);state.logWarn=null;woTransition("resting");saveWorkout();render();return;}
   if(a==="wo:setmenu"){state.setMenu={ei:+el.getAttribute("data-ei"),si:+el.getAttribute("data-si")};render();return;}
   if(a==="wo:setmenu:close"){state.setMenu=null;render();return;}
-  if(a==="wo:addset"){var w=state.workout,sm=state.setMenu;if(!w||!sm)return;var s0=w.entries[sm.ei].sets[sm.si];w.entries[sm.ei].sets.splice(sm.si+1,0,{weight:s0?s0.weight:"",reps:"",rir:"",status:"pending"});state.setMenu=null;saveWorkout();render();return;}
-  if(a==="wo:delset"){var w=state.workout,sm=state.setMenu;if(!w||!sm)return;if(w.entries[sm.ei].sets.length>1)w.entries[sm.ei].sets.splice(sm.si,1);state.setMenu=null;saveWorkout();render();return;}
+  if(a==="wo:addset"){var w=state.workout,sm=state.setMenu;if(!w||!sm)return;var s0=w.entries[sm.ei].sets[sm.si];w.entries[sm.ei].sets.splice(sm.si+1,0,{weight:s0?s0.weight:"",reps:"",rir:"",status:"pending"});state.setMenu=null;saveWorkout();render();persistSetCount(w.entries[sm.ei]);return;}
+  if(a==="wo:delset"){var w=state.workout,sm=state.setMenu;if(!w||!sm)return;if(w.entries[sm.ei].sets.length>1)w.entries[sm.ei].sets.splice(sm.si,1);state.setMenu=null;saveWorkout();render();persistSetCount(w.entries[sm.ei]);return;}
   if(a==="wo:skipset"){var w=state.workout,sm=state.setMenu;if(!w||!sm)return;var stt=w.entries[sm.ei].sets[sm.si];stt.status=stt.status==="skipped"?"pending":"skipped";state.setMenu=null;saveWorkout();render();return;}
   if(a==="wo:bw"){state.bwEdit=true;render();return;}
   if(a==="wo:bwsave"){var w=state.workout;var inp=document.getElementById("wl-bwinput");var v=num(inp&&inp.value);if(v!=null&&w){var old=w.bw;w.bw=v;w.entries.forEach(function(en){if(en.bodyweight)en.sets.forEach(function(s){s.weight=String(v+(en.addedWt||0));});});}state.bwEdit=false;saveWorkout();render();return;}
@@ -2964,8 +3023,9 @@ document.addEventListener("click",function(e){
   if(a==="wo:discard"){askConfirm("Discard this workout? Nothing will be saved.",function(){state.workout=null;saveWorkout();if(woTimer)clearInterval(woTimer);state.view="train";},{label:"Discard"});return;}
   if(a==="wo:exmenu"){state.exMenu={ei:+el.getAttribute("data-ei")};render();return;}
   if(a==="wo:exmenu:close"){state.exMenu=null;render();return;}
+  if(a==="wo:exprog"){switchEntryProgression(+el.getAttribute("data-ei"));return;}
   if(a==="wo:exmove"){var w=state.workout;if(!w)return;var ei=+el.getAttribute("data-ei");var dir=el.getAttribute("data-dir");var ni=dir==="up"?ei-1:ei+1;if(ni<0||ni>=w.entries.length){state.exMenu=null;render();return;}var tmp=w.entries[ei];w.entries[ei]=w.entries[ni];w.entries[ni]=tmp;state.exMenu=null;saveWorkout();render();return;}
-  if(a==="wo:exaddset"){var w=state.workout;if(!w)return;var en=w.entries[+el.getAttribute("data-ei")];var last=en.sets[en.sets.length-1];en.sets.push({weight:last?last.weight:"",reps:"",rir:"",status:"pending"});state.exMenu=null;saveWorkout();render();return;}
+  if(a==="wo:exaddset"){var w=state.workout;if(!w)return;var en=w.entries[+el.getAttribute("data-ei")];var last=en.sets[en.sets.length-1];en.sets.push({weight:last?last.weight:"",reps:"",rir:"",status:"pending"});state.exMenu=null;saveWorkout();render();persistSetCount(en);return;}
   if(a==="wo:exremove"){var w=state.workout;var ei=+el.getAttribute("data-ei");var en=w&&w.entries[ei];askConfirm("Remove "+((en&&en.name)||"this exercise")+" from this workout? (Your routine isn\u2019t changed.)",function(){var w2=state.workout;if(w2)w2.entries.splice(ei,1);state.exMenu=null;saveWorkout();},{label:"Remove"});return;}
   if(a==="wo:exreplace"){state.woReplaceEi=+el.getAttribute("data-ei");state.exMenu=null;render();return;}
   if(a==="wo:replacecancel"){state.woReplaceEi=null;render();return;}
@@ -3010,7 +3070,7 @@ document.addEventListener("click",function(e){
   if(a==="ri:remove"){var rt=getRoutine(state.routineId);if(!rt)return;var iid=el.getAttribute("data-iid");var itm=rItem(rt,iid);var exn=itm&&exById(itm.exerciseId);askConfirm("Remove "+((exn&&exn.name)||"this exercise")+" from this routine?",function(){var r2=getRoutine(state.routineId);if(r2)r2.items=(r2.items||[]).filter(function(i){return i.id!==iid;});saveTraining();},{label:"Remove"});return;}
   if(a==="ri:up"||a==="ri:down"){var rt=getRoutine(state.routineId);if(!rt)return;var iid=el.getAttribute("data-iid");var arr=rt.items||[];var ix=-1;for(var i=0;i<arr.length;i++){if(arr[i].id===iid){ix=i;break;}}if(ix<0)return;var ni=a==="ri:up"?ix-1:ix+1;if(ni<0||ni>=arr.length)return;var tmp=arr[ix];arr[ix]=arr[ni];arr[ni]=tmp;saveTraining();render();return;}
   if(a==="ri:setinc"||a==="ri:setdec"){var rt=getRoutine(state.routineId);if(!rt)return;var it=rItem(rt,el.getAttribute("data-iid"));if(!it)return;var s=(+it.sets||0)+(a==="ri:setinc"?1:-1);if(s<1)s=1;if(s>15)s=15;it.sets=s;if(Array.isArray(it.setRanges))it.setRanges=rptRangesFor(it,s);saveTraining();render();return;}
-  if(a==="rt:prog"){var rt=getRoutine(state.routineId);if(!rt)return;rt.progression=el.getAttribute("data-prog");saveTraining();render();return;}
+  if(a==="ri:prog"){var rt=getRoutine(state.routineId);if(!rt)return;var it=rItem(rt,el.getAttribute("data-iid"));if(!it)return;it.progression=el.getAttribute("data-prog");saveTraining();render();return;}
   if(a==="ri:mv"){var rt=getRoutine(state.routineId);if(!rt)return;var it=rItem(rt,el.getAttribute("data-iid"));if(!it)return;it.movement=el.getAttribute("data-mv");it.setRanges=rptDefRanges(it.movement,Math.max(1,it.sets||3));saveTraining();render();return;}
   if(a==="note:add"){state.noteEdit={iid:el.getAttribute("data-iid"),nid:null,text:"",pinned:false};render();return;}
   if(a==="note:edit"){var iid=el.getAttribute("data-iid");var nid=el.getAttribute("data-nid");var pinned=el.getAttribute("data-pinned")==="1";var _woei=el.getAttribute("data-woei");if(_woei!=null&&_woei!==""&&state.workout)state.routineId=state.workout.routineId;var rt=getRoutine(state.routineId);var it=rItem(rt,iid);var ex=it&&exById(it.exerciseId);var src=pinned?(ex&&ex.notes):(it&&it.notes);var note=(src||[]).filter(function(n){return n.id===nid;})[0];state.noteEdit={iid:iid,nid:nid,text:(note&&note.text)||"",pinned:pinned,woEi:(_woei!=null&&_woei!=="")?+_woei:undefined};render();return;}
@@ -3024,14 +3084,15 @@ document.addEventListener("click",function(e){
   if(a==="ex:seedall"){var xa=(state.training.exercises||[]);EXSEED.forEach(function(sd,ix){if(!xa.some(function(e){return e.name.toLowerCase()===sd.n.toLowerCase();}))xa.push({id:"x-"+Date.now()+"-"+ix+"-"+Math.random().toString(36).slice(2,6),name:sd.n,muscle:sd.m,equipment:sd.e||"",bodyweight:!!sd.bw,notes:[]});});state.training.exercises=xa;saveTraining();render();return;}
   if(a==="ex:clearall"){if(!(state.training.exercises||[]).length)return;askConfirm("Remove ALL exercises from your library? You can re-add them from Browse.",function(){state.training.exercises=[];saveTraining();},{label:"Remove all"});return;}
   if(a==="ex:add"){state.exForm={id:null,name:"",muscle:"chest",equipment:"",bodyweight:false};render();return;}
-  if(a==="ex:edit"){var xid=el.getAttribute("data-id");var xe=(state.training.exercises||[]).filter(function(e){return e.id===xid;})[0];if(xe)state.exForm={id:xe.id,name:xe.name,muscle:xe.muscle||"other",equipment:xe.equipment||"",bodyweight:!!xe.bodyweight};render();return;}
+  if(a==="ex:edit"){var xid=el.getAttribute("data-id");var xe=(state.training.exercises||[]).filter(function(e){return e.id===xid;})[0];if(xe)state.exForm={id:xe.id,name:xe.name,muscle:xe.muscle||"other",equipment:xe.equipment||"",bodyweight:!!xe.bodyweight,movement:xe.movement||guessMovement(xe.muscle)};render();return;}
+  if(a==="ex:mv"){if(state.exForm){state.exForm.movement=el.getAttribute("data-mv");render();}return;}
   if(a==="ex:cancel"){state.exForm=null;render();return;}
   if(a==="ex:muscle"){if(state.exForm)state.exForm.muscle=el.getAttribute("data-muscle");render();return;}
   if(a==="ex:bw"){if(state.exForm)state.exForm.bodyweight=!state.exForm.bodyweight;render();return;}
   if(a==="ex:save"){var xf=state.exForm;if(!xf)return;var nm=(xf.name||"").trim();if(!nm){toast("Name the exercise");return;}
     var list=(state.training.exercises||[]).slice();
-    if(xf.id){for(var i=0;i<list.length;i++){if(list[i].id===xf.id){list[i]=Object.assign({},list[i],{name:nm,muscle:xf.muscle||"other",equipment:(xf.equipment||"").trim(),bodyweight:!!xf.bodyweight});break;}}}
-    else{if(list.some(function(e){return e.name.toLowerCase()===nm.toLowerCase();})){toast("That exercise already exists");return;}list.push({id:"x-"+Date.now()+"-"+Math.random().toString(36).slice(2,6),name:nm,muscle:xf.muscle||"other",equipment:(xf.equipment||"").trim(),bodyweight:!!xf.bodyweight,notes:[]});}
+    if(xf.id){for(var i=0;i<list.length;i++){if(list[i].id===xf.id){list[i]=Object.assign({},list[i],{name:nm,muscle:xf.muscle||"other",equipment:(xf.equipment||"").trim(),bodyweight:!!xf.bodyweight,movement:xf.movement||guessMovement(xf.muscle)});break;}}}
+    else{if(list.some(function(e){return e.name.toLowerCase()===nm.toLowerCase();})){toast("That exercise already exists");return;}list.push({id:"x-"+Date.now()+"-"+Math.random().toString(36).slice(2,6),name:nm,muscle:xf.muscle||"other",equipment:(xf.equipment||"").trim(),bodyweight:!!xf.bodyweight,movement:xf.movement||guessMovement(xf.muscle),notes:[]});}
     state.training.exercises=list;saveTraining();state.exForm=null;toast("Saved");render();return;}
   if(a==="ex:del"){var did=el.getAttribute("data-id");var dex=(state.training.exercises||[]).filter(function(e){return e.id===did;})[0];if(!dex)return;askConfirm("Remove \""+dex.name+"\" from your library? This can\u2019t be undone.",function(){state.training.exercises=(state.training.exercises||[]).filter(function(e){return e.id!==did;});saveTraining();if(state.exForm&&state.exForm.id===did)state.exForm=null;});return;}
   if(a==="cardio:add"){state.cardioForm={kind:"cardio",id:null,picking:true,type:"",mins:"",zone:2,rpe:"",cal:"",hr:"",hrMax:"",notes:"",newOpen:false};state.view="cardioadd";render();return;}
@@ -4071,7 +4132,7 @@ function openLightbox(id){
 })();
 
 /* ---------------- init ---------------- */
-load();loadTraining();loadWorkout();ensureIdentity();try{refreshWeekPhotos();}catch(e){}if(resyncAllActivityTags())save();var _hasSetup=/[#&]setup=/.test(location.hash||"");if(_hasSetup){state.settings.onboarded=true;}else{if(state.settings.onboarded==null)state.settings.onboarded=(state.weights.length>0||num(state.settings.goalWeight)!=null||num(state.settings.startingWeight)!=null||!!(state.settings.name&&(""+state.settings.name).trim()));if(!state.settings.onboarded){state.onboarding=true;state.obStep=0;}}applyTheme(state.settings.theme||"dark");makeIcon();if(state.workout)state.view="train";render();if(syncOn()){pbRefresh(function(){autoSync();photoSync();});}if(state.workout)startWoTick();if(_hasSetup)checkSetupLink();
+load();loadTraining();migrateProgressionTypes();loadWorkout();ensureIdentity();try{refreshWeekPhotos();}catch(e){}if(resyncAllActivityTags())save();var _hasSetup=/[#&]setup=/.test(location.hash||"");if(_hasSetup){state.settings.onboarded=true;}else{if(state.settings.onboarded==null)state.settings.onboarded=(state.weights.length>0||num(state.settings.goalWeight)!=null||num(state.settings.startingWeight)!=null||!!(state.settings.name&&(""+state.settings.name).trim()));if(!state.settings.onboarded){state.onboarding=true;state.obStep=0;}}applyTheme(state.settings.theme||"dark");makeIcon();if(state.workout)state.view="train";render();if(syncOn()){pbRefresh(function(){autoSync();photoSync();});}if(state.workout)startWoTick();if(_hasSetup)checkSetupLink();
 try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(e){}
 try{
   var wlraw=localStorage.getItem("wl_announced")||"";
