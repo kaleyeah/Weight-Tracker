@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-23.320 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-23.323 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -478,6 +478,8 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 .wl-recapnav{display:flex;gap:4px;flex:none;}
 .wl-recaparw{width:30px;height:30px;border-radius:8px;background:var(--bg2);border:1px solid var(--line);color:var(--muted);font-size:18px;line-height:0;display:flex;align-items:center;justify-content:center;flex:none;font-family:var(--sans);cursor:pointer;padding:0;}
 .wl-recaparw.off{opacity:.35;}
+.wl-recaplink{background:none;border:none;color:var(--muted);font-size:12px;font-weight:600;font-family:var(--sans);display:inline-flex;align-items:center;gap:4px;padding:2px 4px;flex:none;cursor:pointer;}
+.wl-recaplink:hover{color:var(--accent);}
 .wl-recap-new{border-color:rgba(245,181,68,.55);box-shadow:0 0 0 1px rgba(245,181,68,.22),0 6px 24px rgba(245,181,68,.12);}
 .wl-empty{color:var(--faint);font-size:13px;text-align:center;padding:22px 0;}
 
@@ -667,6 +669,11 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 .wl-ck-lab{font-size:14px;font-weight:600;}
 .wl-ck-val{font-size:14px;flex:1;text-align:right;}
 .wl-ck-val.empty{color:var(--accent);font-weight:700;}
+.wl-check-done{border-color:rgba(92,214,160,.4);}
+.wl-ck-cnt.allgood{color:var(--good);font-weight:700;}
+.wl-ck-done-banner{display:flex;align-items:center;gap:10px;margin:0 -4px -6px;padding:12px 14px;border-top:1px solid var(--line);background:linear-gradient(180deg,rgba(92,214,160,.10),rgba(92,214,160,.02));border-radius:0 0 16px 16px;}
+.wl-ck-done-check{width:22px;height:22px;border-radius:50%;background:var(--good);color:var(--on-good);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;flex:none;}
+.wl-ck-done-txt{font-size:13.5px;font-weight:700;color:var(--good);}
 .wl-ck-note{flex:1;text-align:right;font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .wl-ck-go{color:var(--faint);font-size:16px;flex:none;}
 .wl-ck-top .wl-ck-val{flex:1;}
@@ -764,7 +771,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-23.320-pb";
+var APP_BUILD="2026-07-23.323-pb";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -1426,7 +1433,7 @@ function ckNotes(sel){
 }
 function ckRowSkip(label,val,sec){return '<button class="wl-ck-row" data-act="dl:open" data-sec="'+sec+'"><span class="wl-ck-l"><span class="wl-ck-ic"></span><span class="wl-ck-lab">'+label+'</span></span><span class="wl-ck-val" style="color:var(--faint);font-style:italic">'+val+'</span><span class="wl-ck-go">›</span></button>';}
 function skipBtn(sec,on,word){return '<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="skip:'+sec+'">'+(on?"Un-skip \u2014 I\u2019ll log "+word:"Not tracking "+word+" today")+'</button>'+(on?'<div class="wl-hint" style="margin-top:8px">Marked skipped \u2014 still counts as checked in. Logging when you can gives your coach a truer read over time.</div>':'');}
-function completeBtnHTML(sel){var selToday=sel===todayISO();if(state.nightBusy)return '<div class="wl-hint" style="margin-top:12px;text-align:center">⏳ Completing… generating your recap.</div>';var ns=state.nightlySummary;var hasRecap=ns&&ns.date===sel&&ns.text;if(hasRecap)return '<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:12px" data-act="night:gen">↻ Regenerate recap</button>';return '<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="night:gen">Complete '+(selToday?"today":"this day")+'</button>';}
+function completeBtnHTML(sel){var selToday=sel===todayISO();if(state.nightBusy)return '<div class="wl-hint" style="margin-top:12px;text-align:center">⏳ Completing… generating your recap.</div>';var ns=state.nightlySummary;var hasRecap=ns&&ns.date===sel&&ns.text;if(hasRecap)return '';/* regenerate moved into the recap card header (wl-recaplink) */return '<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="night:gen">Complete '+(selToday?"today":"this day")+'</button>';}
 function hkButtonHTML(sel){
   if(!isOwner())return "";
   if(state.hkDone&&state.hkDone.date===sel){var _hd=new Date(state.hkDone.ts);var _hh=_hd.getHours()%12;if(_hh===0)_hh=12;var _hm=(_hd.getMinutes()<10?"0":"")+_hd.getMinutes();
@@ -1440,20 +1447,23 @@ function todayChecklistHTML(sel){
   var steps=num(state.steps[sel]),sleep=num(state.sleep[sel]);
   var hasCal=num(f.calories)!=null||num(f.protein)!=null||num(f.carbs)!=null||num(f.fat)!=null;
   var modeType=dayStatus(sel);
+  var _completed=!!(state.nightlySummary&&state.nightlySummary.date===sel&&state.nightlySummary.text); /* day is Completed (recap generated via "Complete today") -> lock it, hide Health import */
   if(modeType){var mh='<div class="wl-card wl-check"><div class="wl-ck-head"><span class="wl-ck-title">'+(sel===todayISO()?"Today":"This day")+'\u2019s Check-in</span><span class="wl-ck-cnt">'+(modeType==="sick"?"Resting up":"Resting easy")+'</span></div>';
     mh+=(wt!=null)?ckRow(true,"Weight",r1(wt)+" "+u,"weight",false):ckRowSkip("Weight","Optional","weight");
     mh+=(steps!=null)?ckRow(true,"Steps",Math.round(steps).toLocaleString(),"steps",false):ckRowSkip("Steps","Optional","steps");
     mh+=hasCal?ckCalories(sel):ckRowSkip("Calories","Optional","calories");
     mh+=(sleep!=null)?ckRow(true,"Sleep",minToHM(sleep),"sleep",false):ckRowSkip("Sleep","Optional","sleep");
-    mh+=ckNotes(sel);mh+=hkButtonHTML(sel);return mh+'</div>';}
+    mh+=ckNotes(sel);if(!_completed)mh+=hkButtonHTML(sel);return mh+'</div>';}
   var wSkip=isSkip(sel,"weight"),stSkip=isSkip(sel,"steps"),slSkip=isSkip(sel,"sleep"),calSkip=isSkip(sel,"calories");
   var done=((wt!=null||wSkip)?1:0)+((steps!=null||stSkip)?1:0)+((hasCal||calSkip)?1:0)+((sleep!=null||slSkip)?1:0);
-  var h='<div class="wl-card wl-check"><div class="wl-ck-head"><span class="wl-ck-title">'+(sel===todayISO()?"Today":"This day")+'\u2019s Check-in</span><span class="wl-ck-cnt">'+done+' of 4 done</span></div>';
+  var _allDone=(_completed&&sel===todayISO()); /* completion state = day Completed via "Complete today" (recap generated), not merely 4/4 filled */
+  var h='<div class="wl-card wl-check'+(_allDone?' wl-check-done':'')+'"><div class="wl-ck-head"><span class="wl-ck-title">'+(sel===todayISO()?"Today":"This day")+'\u2019s Check-in</span><span class="wl-ck-cnt'+(_allDone?' allgood':'')+'">'+(_allDone?'All done':done+' of 4 done')+'</span></div>';
   h+=(sleep!=null)?ckRow(true,"Sleep",minToHM(sleep),"sleep",false):(slSkip?ckRowSkip("Sleep","Skipped","sleep"):ckRow(false,"Sleep","Add","sleep",false));
   h+=(wt!=null)?ckRow(true,"Weight",r1(wt)+" "+u,"weight",false):(wSkip?ckRowSkip("Weight","Skipped","weight"):ckRow(false,"Weight","Add","weight",false));
   h+=(hasCal||!calSkip)?ckCalories(sel):ckRowSkip("Calories","Skipped","calories");
   h+=(steps!=null)?ckRow(true,"Steps",Math.round(steps).toLocaleString(),"steps",false):(stSkip?ckRowSkip("Steps","Skipped","steps"):ckRow(false,"Steps","Add","steps",false));
-  h+=ckNotes(sel);h+=hkButtonHTML(sel);
+  h+=ckNotes(sel);if(!_completed)h+=hkButtonHTML(sel); /* hide Health import only once the day is Completed (recap generated), not merely when 4/4 are filled */
+  if(_allDone)h+='<div class="wl-ck-done-banner"><span class="wl-ck-done-check">✓</span><span class="wl-ck-done-txt">You’re logged for today — nice work.</span></div>';
   return h+'</div>';
 }
 function activitySummaryHTML(sel){
@@ -1580,7 +1590,9 @@ function view_overview(){
   if(_rc){var _unrdThis=_unrdN&&_rcDate===_nsD;_atTop=_unrdThis;var _no=_unrdThis?false:(state.nightOpen!==false);
     var _pi=_rcDates.indexOf(_rcDate);var _prev=_pi>0?_rcDates[_pi-1]:null;var _next=(_pi>=0&&_pi<_rcDates.length-1)?_rcDates[_pi+1]:null;
     var _nav=(_rcDates.length>1)?('<span class="wl-recapnav">'+(_prev?'<button class="wl-recaparw" data-act="recap:go" data-date="'+_prev+'" aria-label="Older recap">‹</button>':'<span class="wl-recaparw off">‹</span>')+(_next?'<button class="wl-recaparw" data-act="recap:go" data-date="'+_next+'" aria-label="Newer recap">›</button>':'<span class="wl-recaparw off">›</span>')+'</span>'):'';
-    _recapCard='<div class="wl-card'+(_unrdThis?' wl-recap-new':'')+'"><div class="wl-recaphead"><button class="wl-collapse-head" style="flex:1;min-width:0" data-act="night:toggle">'+coachHeadHTML("Daily recap",fmtShort(parseISO(_rcDate)),_unrdThis,_no)+'</button>'+_nav+'</div>'+(_no?'<div class="wl-ai-summary" style="margin-top:6px">'+maxMoodHTML(_rc.mood)+renderSummary(_rc.text)+'</div>':'')+'</div>';}
+    var _canRegen=SHOW_TESTBTN&&!state.nightBusy&&state.nightlySummary&&state.nightlySummary.date===_rcDate&&state.nightlySummary.text;
+    var _regen=_canRegen?'<button class="wl-recaplink" data-act="night:gen" aria-label="Regenerate recap">↻ Regenerate</button>':'';
+    _recapCard='<div class="wl-card'+(_unrdThis?' wl-recap-new':'')+'"><div class="wl-recaphead"><button class="wl-collapse-head" style="flex:1;min-width:0" data-act="night:toggle">'+coachHeadHTML("Daily recap",fmtShort(parseISO(_rcDate)),_unrdThis,_no)+'</button>'+_regen+_nav+'</div>'+(_no?'<div class="wl-ai-summary" style="margin-top:6px">'+maxMoodHTML(_rc.mood)+renderSummary(_rc.text)+'</div>':'')+'</div>';}
   var _recapUnit=_recapCard+(SHOW_TESTBTN?completeBtnHTML(_sel):"");
   var _hsw=sortedWeights(),_hstart=num(state.settings.startingWeight),_hgoal=num(state.settings.goalWeight);
   var _hcur=_hsw.length?_hsw[_hsw.length-1].weight:_hstart;
