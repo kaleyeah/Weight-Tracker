@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-22.316 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-22.317 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -764,7 +764,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-22.316-pb";
+var APP_BUILD="2026-07-22.317-pb";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -3320,9 +3320,15 @@ document.addEventListener("click",function(e){
   if(a==="opentoday"){state.selDate=todayISO();state.calY=new Date().getFullYear();state.calM=new Date().getMonth();state.cardioForm=null;render();return;}
   if(a==="ai:copy"){copyText(weeklyAIText(),"Copied your week — paste into your AI to generate");return;}
   if(a==="ai:gen"){genSummary();return;}
-  if(a==="hk:import"){var _hkd=state.selDate;state.hkWait={date:_hkd,ts:Date.now(),tries:0};state.hkDone=null;render();
-    location.href="shortcuts://run-shortcut?name="+encodeURIComponent("Compound Health Import")+"&input=text&text="+encodeURIComponent(_hkd);
-    setTimeout(hkTryFetch,2500);return;}
+  if(a==="hk:import"){var _hkd=state.selDate;state.hkDone=null;
+    var _hkLaunch=function(){state.hkWait={date:_hkd,ts:Date.now()};render();
+      pbSave({health:null},function(){
+        /* hand the Shortcut only the fresh session token as its input; the Shortcut
+           holds the (non-secret) server URL and record id itself */
+        location.href="shortcuts://run-shortcut?name="+encodeURIComponent("Macro fact")+"&input=text&text="+encodeURIComponent(pbTok());
+        setTimeout(hkTryFetch,3000);});};
+    if(pbRecId)_hkLaunch();else pbGetRecord(function(){_hkLaunch();});
+    return;}
   if(a==="hk:cancel"){state.hkWait=null;render();return;}
   if(a==="max:open"){state.maxOpen=true;var _mws=state.weeklySummary;if(_mws&&_mws.week&&state.settings.seenWeekly!==_mws.week){state.settings.seenWeekly=_mws.week;save();}render();return;}
   if(a==="max:close"){state.maxOpen=false;render();return;}
@@ -4038,82 +4044,46 @@ function pushDataPromise(){
   return new Promise(function(res,rej){
     pbSave({data:payload()},function(ok,err){ok?res():rej(new Error(err==="offline"?"No connection":"Couldn't save your data first"));});});}
 
-/* ---- Apple Health bridge ----
-   A PWA cannot read HealthKit at all, so the iOS Shortcut stays the only path.
-   What changes is the drop box: the Shortcut used to PUT health.json into the
-   GitHub repo and the app polled that file. Now the Shortcut PATCHes the health
-   field on this user's appdata record and the app polls the record. The polling
-   contract (state.hkWait, 6 tries, 2s apart, 5-minute ceiling) is unchanged. */
+/* ---- Apple Health bridge (from-scratch, 2026-07) ----
+   A PWA cannot read HealthKit, so the iOS Shortcut is still the only reader. What
+   changed: the Shortcut asks Health for per-day TOTALS (Find Health Samples with
+   Group by Day) and PATCHes them to this record's health field as lines of
+   "YYYY-MM-DD,total" per metric, authenticating with the app's own short-lived
+   session token handed over at launch — never a baked-in credential. The app parses,
+   files each day, and clears the inbox so nothing is applied twice. This pass covers
+   food macros + steps + sleep; weight/body-fat/waist come in a later pass. */
+function hkNum(v){if(v==null)return null;var s=String(v).replace(/[^0-9.\-]/g,"");if(!s||s==="."||s==="-")return null;var n=parseFloat(s);return isFinite(n)?n:null;}
+function hkDayLines(text){var out={};if(text==null)return out;var lines=String(text).split(/[\r\n]+/);for(var i=0;i<lines.length;i++){var line=lines[i].trim();if(!line)continue;var c=line.indexOf(",");if(c<0)continue;var day=line.slice(0,c).trim();if(!/^\d{4}-\d{2}-\d{2}$/.test(day))continue;var v=hkNum(line.slice(c+1));if(v==null||v<=0)continue;out[day]=(out[day]||0)+v;}return out;}
+function hkLabelToField(name){var n=String(name).toLowerCase().replace(/[^a-z]/g,"");if(n.indexOf("bodyfat")>=0||n.indexOf("weight")>=0||n.indexOf("waist")>=0||n.indexOf("heartrate")>=0||n.indexOf("restinghr")>=0||n.indexOf("hr")>=0)return null;if(n.indexOf("protein")>=0)return "protein";if(n.indexOf("carb")>=0)return "carbs";if(n.indexOf("fat")>=0)return "fat";if(n.indexOf("calor")>=0||n.indexOf("energy")>=0)return "calories";if(n.indexOf("step")>=0)return "steps";if(n.indexOf("sleep")>=0||n.indexOf("asleep")>=0)return "sleep";return null;}
+function hkParseLabeled(text){var out={};var re=/([A-Za-z][A-Za-z ]*?)\s*:\s*(-?[0-9][0-9.,]*)/g;var m;while((m=re.exec(String(text)))!==null){var field=hkLabelToField(m[1]);if(field&&out[field]===undefined)out[field]=m[2];}return out;}
+function hkMetricDays(value,forDay){var byDay=hkDayLines(value);var has=false;for(var k in byDay){has=true;break;}if(has)return byDay;if(forDay){var v=hkNum(value);if(v!=null&&v>0){var o={};o[forDay]=v;return o;}}return {};}
+function hkPlan(payload,fallbackFor){var out={food:{},steps:{},sleep:{},count:0};if(typeof payload==="string"){try{payload=JSON.parse(payload);}catch(e){payload=hkParseLabeled(payload);}}if(!payload||typeof payload!=="object")return out;var forDay=(payload["for"]!=null?String(payload["for"]).trim():"")||(fallbackFor||"");if(!/^\d{4}-\d{2}-\d{2}$/.test(forDay))forDay="";
+  var macros=["carbs","protein","fat","calories"],perDay={};
+  macros.forEach(function(k){var byDay=hkMetricDays(payload[k],forDay);for(var day in byDay){if(!perDay[day])perDay[day]={};perDay[day][k]=byDay[day];}});
+  for(var d in perDay){var vals=perDay[d],entry={},touched=false;
+    ["carbs","protein","fat"].forEach(function(k){if(vals[k]!=null){entry[k]=String(Math.round(vals[k]));touched=true;out.count++;}});
+    if(vals.calories!=null){entry.calories=String(Math.round(vals.calories));entry.calAuto=false;touched=true;out.count++;}
+    if(touched)out.food[d]=entry;}
+  var st=hkMetricDays(payload.steps,forDay);for(var sd in st){out.steps[sd]=Math.round(st[sd]);out.count++;}
+  var sl=hkMetricDays(payload.sleep,forDay);for(var ld in sl){out.sleep[ld]=Math.round(sl[ld]);out.count++;}
+  return out;}
 function hkTryFetch(){
   var w=state.hkWait;if(!w)return;
-  if(Date.now()-w.ts>5*60*1000){state.hkWait=null;render();return;}
+  if(Date.now()-w.ts>5*60*1000){state.hkWait=null;toast("Health import timed out - run the shortcut and come back");render();return;}
   if(!syncOn())return;
   pbGetRecord(function(rec,err){
     var w2=state.hkWait;if(!w2)return;
     var h=(!err&&rec&&rec.health)||null;
-    /* Shortcuts makes it easy to send a JSON *string* (a Text field in the request
-       body) and hard to send a real nested object. Accept either — parsing here is
-       far kinder than making someone build a nested dictionary in the Shortcuts UI. */
-    if(typeof h==="string"){try{h=JSON.parse(h);}catch(e){h=null;}}
-    /* Shortcuts can leave a trailing newline or space around an inserted variable,
-       which is invisible on screen but would make the date fail to match and the
-       import look broken for no visible reason. Compare on the trimmed value. */
-    if(h&&h.date!=null)h.date=String(h.date).trim();
-    if(!h||h.date!==w2.date){
-      w2.tries=(w2.tries||0)+1;
-      if(w2.tries<6){setTimeout(hkTryFetch,2000);}
-      else{state.hkWait=null;toast("No Health data found yet — run the shortcut and try again");render();}
-      return;}
-    var d=h.date,got=0;
-    /* Shortcuts can hand back a display-formatted number, and the app's num() uses
-       parseFloat — so "8,016" would silently become 8 steps. Strip anything that
-       isn't part of the number first: separators, unit suffixes ("34.25 in"), spaces.
-       An empty string (Health had no sample for that type) becomes null, which is
-       what lets every value be safely quoted in the Shortcut's JSON. */
-    function hnum(v){
-      if(v==null)return null;
-      var s=String(v).replace(/[^0-9.\-]/g,"");
-      if(!s||s==="."||s==="-")return null;
-      var n=parseFloat(s);return isFinite(n)?n:null;}
-    /* Only positive values count as data. Health returns 0 for "no samples today",
-       and a 0 lb weigh-in or 0% body fat would be worse than importing nothing. */
-    function val(k){var v=hnum(h[k]);return (v!=null&&v>0)?v:null;}
-    var r1=function(v){return Math.round(v*10)/10;};
-
-    /* macros live on the day's food entry, stored as strings like the app's own inputs */
-    var fo=Object.assign({},state.food[d]||{});
-    ["calories","protein","carbs","fat"].forEach(function(k){
-      var v=val(k);if(v!=null){fo[k]=String(Math.round(v));got++;}});
-    /* An imported calorie total is an explicit value, same as typing one — without
-       this the calAuto flag recomputes 4/4/9 from the macros and overrides it
-       (Health said 1804, macro math said 1866: fiber and rounding differ). */
-    if(val("calories")!=null){fo.calAuto=false;delete fo.calDismiss;}
-    state.food[d]=fo;
-
-    /* weight is an ARRAY, not a per-day map — replace the day's entry, don't append a second */
-    var w=val("weight");
-    if(w!=null){
-      state.weights=state.weights.filter(function(x){return x.date!==d;});
-      state.weights.push({date:d,weight:r1(w)});
-      try{setSkip(d,"weight",false);}catch(e){}
-      got++;}
-
-    /* per-day numeric maps. Body fat can arrive as a fraction (0.229) or a percent
-       (22.9) depending on how it is read — normalise, since nobody is 0.2% body fat. */
-    var bf=val("bodyfat");
-    if(bf!=null&&bf<=1)bf=bf*100;
-    [["steps",state.steps,val("steps"),0],
-     ["sleep",state.sleep,(val("sleep")!=null?val("sleep"):(val("sleepHours")!=null?val("sleepHours")*60:null)),0],
-     ["bodyfat",state.bodyfat,bf,1],
-     ["waist",state.waist,val("waist"),1]].forEach(function(t){
-      var v=t[2];if(v==null)return;
-      t[1][d]=t[3]?r1(v):Math.round(v);
-      try{setSkip(d,t[0],false);}catch(e){}
-      got++;});
-
-    state.hkDone={date:d,ts:Date.now()};state.hkWait=null;
-    save();toast(got?("Imported "+got+" value"+(got===1?"":"s")+" from Health"):"Nothing to import for that day");render();});}
-
+    if(!h){setTimeout(hkTryFetch,2000);return;}
+    var plan=hkPlan(h,state.selDate);
+    if(!plan.count){pbSave({health:null},function(){});state.hkWait=null;toast("Nothing to import from Health");render();return;}
+    for(var d in plan.food){state.food[d]=Object.assign({},state.food[d]||{},plan.food[d]);}
+    for(var sd in plan.steps){state.steps[sd]=plan.steps[sd];try{setSkip(sd,"steps",false);}catch(e){}}
+    for(var ld in plan.sleep){state.sleep[ld]=plan.sleep[ld];try{setSkip(ld,"sleep",false);}catch(e){}}
+    state.hkDone={date:state.selDate,ts:Date.now()};state.hkWait=null;
+    save();
+    pbSave({health:null},function(){});
+    toast("Imported "+plan.count+" value"+(plan.count===1?"":"s")+" from Health");render();});}
 /* ---- Settings > Sync becomes an Account card ---- */
 function pbAccountCardHTML(op){
   var c=pbCfg();
