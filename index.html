@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-23.329 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-23.331 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -591,6 +591,78 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 .wl-seg-wide{width:100%;margin-bottom:14px;}
 .wl-seg button{flex:1;background:none;border:none;color:var(--muted);font-size:13px;font-weight:600;padding:9px 14px;border-radius:8px;}
 .wl-seg button.on{background:var(--accent);color:var(--on-accent);}
+/* GLP-1 & Peptides settings detail (Part 1) */
+.wl-glp-list{background:var(--card);border-radius:14px;border:1px solid var(--line);overflow:hidden;margin-bottom:2px;}
+.wl-glprow,.wl-glptogrow{display:flex;align-items:center;gap:13px;width:100%;background:none;border:none;border-top:1px solid var(--line);padding:14px 15px;font-family:var(--sans);color:var(--text);text-align:left;cursor:pointer;}
+.wl-glp-list>*:first-child{border-top:none;}
+.wl-glpic{width:38px;height:38px;border-radius:11px;flex:none;display:flex;align-items:center;justify-content:center;background:var(--bg2);border:1px solid var(--line2);color:var(--muted);}
+.wl-glpic svg{width:19px;height:19px;}
+.wl-glptxt{flex:1;min-width:0;}
+.wl-glpt{font-size:15px;font-weight:700;display:block;}
+.wl-glps{font-size:12.5px;color:var(--faint);display:block;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.wl-glpgo{color:var(--faint);font-size:18px;flex:none;}
+.wl-glptog{width:50px;height:30px;border-radius:16px;background:var(--line2);position:relative;flex:none;transition:background .2s;}
+.wl-glptog::after{content:"";position:absolute;top:2.5px;left:2.5px;width:25px;height:25px;border-radius:50%;background:#fff;transition:left .2s;}
+.wl-glptog.on{background:var(--good);}
+.wl-glptog.on::after{left:22.5px;}
+.wl-glptog.amber.on{background:var(--accent);}
+.wl-glp-sect{font-size:11px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);padding:20px 8px 9px;}
+.wl-glp-dim{opacity:.42;}
+.wl-glp-dim .wl-glprow,.wl-glp-dim .wl-glptogrow{pointer-events:none;}
+/* ---- GLP-1 Activity card ---- */
+.wl-card.catcard.glp{background:linear-gradient(150deg,#B15CFF,#8B2FE8);border-color:#B15CFF;box-shadow:0 8px 26px rgba(168,85,247,.32);}
+.wl-card.catcard.glp.late{background:linear-gradient(150deg,#C063FF,#7A25D0);border-color:#C063FF;}
+.wl-glpdue{display:block;margin-top:2px;color:rgba(255,255,255,.92);font-weight:600;}
+.wl-glpentry{background:rgba(0,0,0,.16);border-radius:14px;padding:11px 13px;margin-top:12px;display:flex;align-items:flex-start;gap:8px;}
+.wl-glpentry-lines{flex:1;min-width:0;}
+.wl-glpentry-l1{font-size:15px;font-weight:700;color:#fff;}
+.wl-glpentry-l2{font-size:12px;color:rgba(255,255,255,.78);margin-top:3px;font-family:var(--mono);}
+.wl-glpsev{display:flex;gap:3px;align-items:center;margin-top:7px;flex-wrap:wrap;}
+.wl-glpsev b{font-size:12px;font-weight:600;color:rgba(255,255,255,.9);margin-right:5px;}
+.wl-glppip{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.3);}
+.wl-glppip.on{background:#fff;}
+.wl-glpbtnrow{display:flex;gap:10px;margin-top:12px;}
+.wl-glpbtnrow .wl-btn{flex:1;}
+.wl-glpnag{background:rgba(0,0,0,.26);border:1px solid rgba(255,255,255,.3);border-radius:14px;padding:12px 13px;margin-top:12px;}
+.wl-glpnag-top{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:800;color:#fff;}
+.wl-glpnag-top svg{width:18px;height:18px;flex:none;}
+.wl-glpnag-sub{font-size:12px;color:rgba(255,255,255,.82);margin-top:4px;font-family:var(--mono);}
+.wl-glpnag-btns{display:flex;gap:8px;margin-top:11px;}
+.wl-glpnag-btns button{flex:1;border:none;border-radius:11px;padding:11px 0;font-size:14px;font-weight:700;font-family:var(--sans);cursor:pointer;}
+.wl-glpnag-prim{background:#fff;color:#7B22C8;}
+.wl-glpnag-sec{background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.26);}
+/* ---- GLP-1 bottom sheets (reuses .wl-confirm overlay mechanism) ---- */
+.wl-confirm.wl-glpsheetwrap{align-items:flex-end;justify-content:center;padding:0;}
+.wl-glpsheetdim{position:absolute;inset:0;}
+.wl-glpsheet{position:relative;max-width:520px;width:100%;background:var(--card);border:1px solid var(--line);border-bottom:none;border-radius:30px 30px 0 0;padding:12px 20px calc(env(safe-area-inset-bottom,0px) + 22px);max-height:88vh;overflow:auto;box-shadow:0 -12px 40px rgba(0,0,0,.5);}
+.wl-glpgrab{width:38px;height:5px;border-radius:3px;background:var(--line2);margin:0 auto 14px;}
+.wl-glpsheet-h{font-size:21px;font-weight:800;margin-bottom:3px;}
+.wl-glpsheet-sub{font-size:13px;color:var(--muted);margin-bottom:16px;}
+.wl-glpfield{margin-bottom:15px;}
+.wl-glpflabel{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);margin-bottom:8px;}
+.wl-glpopt{text-transform:none;letter-spacing:0;font-weight:500;color:var(--faint);}
+.wl-glpinbox{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:13px;padding:13px 15px;font-size:16px;font-weight:600;color:var(--text);font-family:var(--sans);display:flex;align-items:center;outline:none;}
+.wl-glpbare{flex:1;min-width:0;background:none;border:none;color:var(--text);font-size:16px;font-weight:600;font-family:var(--sans);outline:none;padding:0;}
+.wl-glpunit{margin-left:auto;color:var(--muted);font-size:14px;font-family:var(--mono);}
+.wl-glpchips{display:flex;flex-wrap:wrap;gap:8px;}
+.wl-glpchip{padding:10px 14px;border-radius:13px;background:var(--bg);border:1px solid var(--line);font-size:14px;font-weight:600;color:var(--text);position:relative;font-family:var(--sans);cursor:pointer;}
+.wl-glpchip.next{border-color:var(--accent);color:var(--accent);background:rgba(245,181,68,.09);}
+.wl-glpchip.recent{color:var(--faint);background:var(--bg2);border-color:var(--line);}
+.wl-glpchip.recent::after{content:"";position:absolute;top:7px;right:7px;width:5px;height:5px;border-radius:50%;background:var(--faint);}
+.wl-glpchip.sel{background:var(--accent);border-color:var(--accent);color:var(--on-accent);}
+.wl-glpchip.add{border-style:dashed;border-color:var(--line2);color:var(--muted);display:inline-flex;align-items:center;}
+.wl-glpnewin{background:none;border:none;color:var(--text);font-family:var(--sans);font-size:14px;font-weight:600;outline:none;width:96px;padding:2px 4px 2px 10px;}
+.wl-glpnewok{background:none;border:none;color:var(--accent);font-size:15px;font-weight:800;padding:0 10px 0 4px;cursor:pointer;}
+.wl-glplegend{display:flex;gap:16px;margin-top:11px;font-size:11.5px;color:var(--faint);flex-wrap:wrap;}
+.wl-glplegend i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;vertical-align:middle;}
+.wl-glpcta{width:100%;background:var(--accent);color:var(--on-accent);border:none;border-radius:14px;padding:15px;text-align:center;font-size:17px;font-weight:800;margin-top:8px;font-family:var(--sans);cursor:pointer;}
+.wl-glpcsub{font-size:13px;color:var(--muted);margin-top:3px;}
+.wl-glpread{font-size:13px;color:var(--muted);margin:12px 0 2px;line-height:1.5;}
+.wl-glpread b{color:var(--text);font-weight:700;}
+.wl-glpnote{background:var(--bg2);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-top:12px;font-size:12.5px;color:var(--muted);line-height:1.55;}
+.wl-glpnote b{color:var(--text);}
+.wl-glpexpand{display:flex;align-items:center;justify-content:space-between;width:100%;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:15px 16px;font-size:15px;font-weight:700;color:var(--text);font-family:var(--sans);text-align:left;cursor:pointer;margin-bottom:14px;}
+.wl-glpexpand .wl-glpgo{color:var(--faint);font-size:18px;}
 .wl-danger{border-color:rgba(242,109,91,.25);}
 .wl-theme-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
 .wl-theme{display:flex;align-items:center;gap:10px;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--bg2);color:var(--text);text-align:left;position:relative;}
@@ -773,7 +845,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-23.329-pb";
+var APP_BUILD="2026-07-23.331-pb";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -829,7 +901,10 @@ var I={
  user:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
  history:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l3 3"/></svg>',
  trenddn:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 17-8.5-8.5-5 5L2 7"/><path d="M16 17h6v-6"/></svg>',
- target:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="0.6" fill="currentColor"/></svg>'
+ target:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="0.6" fill="currentColor"/></svg>',
+ syringe:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 2 4 4"/><path d="m17 7 3-3"/><path d="M19 9 8.7 19.3c-1 1-2.5 1-3.4 0l-.6-.6c-1-1-1-2.5 0-3.4L15 5"/><path d="m9 11 4 4"/><path d="m5 19-3 3"/><path d="m14 4 6 6"/></svg>',
+ pill:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="8" rx="4"/><path d="M12 8v8"/></svg>',
+ pin:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.6-7-10a7 7 0 0 1 14 0c0 5.4-7 10-7 10Z"/><circle cx="12" cy="11" r="2.4"/></svg>'
 };
 
 /* ---------------- storage ---------------- */
@@ -848,7 +923,7 @@ function applyTheme(id){var t=THEMES[id]||THEMES.dark;var root=document.document
   for(var k in t.v){root.style.setProperty("--"+k,t.v[k]);}
   root.style.colorScheme=t.scheme;CH=t.chart;
   var meta=document.querySelector('meta[name="theme-color"]');if(meta)meta.setAttribute("content",t.v.bg);}
-var DEFAULT_PRESETS=[{name:"Peloton",cat:"cardio"},{name:"Treadmill",cat:"cardio"},{name:"Rowing",cat:"cardio"},{name:"Bike",cat:"cardio"},{name:"Elliptical",cat:"cardio"},{name:"Outdoor run",cat:"cardio"},{name:"Weight training",cat:"lifting"},{name:"Rest day",cat:"rest"},{name:"GLP-1",cat:"supp"}];
+var DEFAULT_PRESETS=[{name:"Peloton",cat:"cardio"},{name:"Treadmill",cat:"cardio"},{name:"Rowing",cat:"cardio"},{name:"Bike",cat:"cardio"},{name:"Elliptical",cat:"cardio"},{name:"Outdoor run",cat:"cardio"},{name:"Weight training",cat:"lifting"},{name:"Rest day",cat:"rest"}];
 var CARDIO_W=["cardio","peloton","treadmill","row","run","jog","bike","cycle","cycling","spin","elliptical","stair","swim","hiit","zone 2","zone2","zone 3","zone3","incline","sprint"];
 var LIFT_W=["lift","weight","strength","resistance","gym","squat","deadlift","bench","push","pull","leg day","upper","lower","hypertrophy","dumbbell","barbell"];
 var SUPP_W=["glp","semaglutide","tirzepatide","ozempic","wegovy","mounjaro","zepbound","creatine","electrolyte","pre-workout","preworkout","protein powder","supplement","vitamin","medication"];
@@ -861,6 +936,130 @@ function catFromName(s){var n=(s||"").toLowerCase();
   return "other";}
 var CATLABEL={cardio:"Cardio",lifting:"Weight Training",supp:"Supp/Med",rest:"Recovery",other:"Other"};
 var CATPH={cardio:"e.g. Peloton (optional)",lifting:"e.g. Push day (optional)",supp:"e.g. GLP-1",rest:"e.g. Walk, massage",other:"name (optional)"};
+/* ---------------- GLP-1 & Peptides (feature data model — Part 1) ----------------
+   Per-user, independent, persisted inside the same data blob as everything else
+   (payload/applyCloud/load). Parts 2 (Activity card + sheets) and 3 (Progress
+   charts) read from this same shape. Cadence is ROLLING: next due = last dose
+   takenAt + cadenceDays. No notifications, no scheduling — showDueDate is on-screen
+   display only. */
+var GLP_SITES=[["l_abdomen","L abdomen"],["r_abdomen","R abdomen"],["l_thigh","L thigh"],["r_thigh","R thigh"],["l_arm","L arm"],["r_arm","R arm"],["l_glute","L glute"],["r_glute","R glute"]];
+var GLP_BUILTIN_SYMPTOMS=["Nausea","Fatigue","Constipation","Heartburn","Headache","Appetite drop","Site reaction","Sulfur burps"];
+function glpNewId(p){return (p||"g")+"-"+Date.now()+"-"+Math.random().toString(36).slice(2,6);}
+function glpDefault(){return {settings:{enabled:false,showDueDate:true,titration:false,siteRotation:true,symptomLogging:true},compound:null,doses:[],symptoms:[],symptomTypes:[]};}
+/* Repairs shape on load/pull AND lazily seeds the 8 built-in symptom types the first
+   time they're missing, so existing users pick them up without a migration step. */
+function glpNormalize(){
+  if(!state.glp||typeof state.glp!=="object")state.glp=glpDefault();
+  var g=state.glp;
+  g.settings=Object.assign({enabled:false,showDueDate:true,titration:false,siteRotation:true,symptomLogging:true},g.settings||{});
+  if(g.compound!==null&&typeof g.compound!=="object")g.compound=null;
+  if(!Array.isArray(g.doses))g.doses=[];
+  if(!Array.isArray(g.symptoms))g.symptoms=[];
+  if(!Array.isArray(g.symptomTypes))g.symptomTypes=[];
+  if(!g.symptomTypes.length)g.symptomTypes=GLP_BUILTIN_SYMPTOMS.map(function(lbl){return {id:glpNewId("sym"),label:lbl,isBuiltIn:true,archived:false};});
+  return g;}
+function glpSiteLabel(id){for(var i=0;i<GLP_SITES.length;i++){if(GLP_SITES[i][0]===id)return GLP_SITES[i][1];}return id||"";}
+function glpCadenceLabel(n){n=parseInt(n,10);if(!n||n<=0)return "";return n===7?"weekly":("every "+n+"d");}
+function glpCompoundSummary(){var g=state.glp;if(!g||!g.compound||!g.compound.name)return null;var c=g.compound;var parts=[esc(c.name)];if(c.dose!=null&&c.dose!=="")parts.push(esc(c.dose)+" "+(c.unit||"mg"));var cl=glpCadenceLabel(c.cadenceDays);if(cl)parts.push(cl);return parts.join(" · ");}
+/* one settings row = icon + title + subtitle + a pill toggle (green master / amber sub) */
+function glpToggleRow(icon,title,sub,act,on,amber){return '<button class="wl-glptogrow" data-act="'+act+'"><span class="wl-glpic">'+icon+'</span><span class="wl-glptxt"><span class="wl-glpt">'+title+'</span><span class="wl-glps">'+sub+'</span></span><span class="wl-glptog'+(amber?" amber":"")+(on?" on":"")+'"></span></button>';}
+/* pull the compound-edit text fields into the draft before any re-render blanks them */
+function glpSyncDraft(){var d=state.glpDraft;if(!d)return;var q=function(k){var el=document.querySelector('[data-glpc="'+k+'"]');return el?el.value:undefined;};var n=q("name");if(n!==undefined)d.name=n;var ds=q("dose");if(ds!==undefined)d.dose=ds;var cd=q("cadenceDays");if(cd!==undefined)d.cadenceDays=cd;}
+/* ---------- GLP-1 Part 2: Activity card + Log Dose / Log Symptom sheets ---------- */
+function glpSymLabel(id){var ts=(state.glp&&state.glp.symptomTypes)||[];for(var i=0;i<ts.length;i++){if(ts[i].id===id)return ts[i].label;}return "";}
+function glpDayKey(ms){var d=new Date(ms);return d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate();}
+function glpToLocalInput(ms){var d=new Date(ms);function p(n){return (n<10?"0":"")+n;}return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+"T"+p(d.getHours())+":"+p(d.getMinutes());}
+function glpFromLocalInput(s){if(!s)return null;var m=/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(s);if(!m)return null;return new Date(+m[1],+m[2]-1,+m[3],+m[4],+m[5]).getTime();}
+function glpFmtWhen(ms){var d=new Date(ms);var t=d.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"});return fmtLong(d)+" · "+t;}
+/* rolling due date + overdue, computed at render time (nothing is scheduled) */
+function glpDueInfo(){var g=state.glp;if(!g||!g.compound)return null;var cad=parseInt(g.compound.cadenceDays,10)||7;var doses=g.doses||[];var lastReal=null,lastAny=null;doses.forEach(function(d){if(d.takenAt==null)return;if(!lastAny||d.takenAt>lastAny.takenAt)lastAny=d;if(!d.skipped&&(!lastReal||d.takenAt>lastReal.takenAt))lastReal=d;});if(!lastAny)return {lastReal:null,due:null,cad:cad,overdue:false};/* anchor the schedule on the most recent event (dose OR skip) so a skip rolls the next due forward one cadence and a later miss can nag again */var due=lastAny.takenAt+cad*86400000;var overdue=(Date.now()>due);return {lastReal:lastReal,due:due,cad:cad,overdue:overdue};}
+/* least-recently-used site (never-used ranks oldest); 2 most-recent distinct = "recent"; mutually exclusive */
+function glpSiteSuggestion(){var used=(state.glp.doses||[]).filter(function(d){return !d.skipped&&d.siteId;}).slice().sort(function(a,b){return b.takenAt-a.takenAt;});var recent=[];for(var i=0;i<used.length&&recent.length<2;i++){if(recent.indexOf(used[i].siteId)<0)recent.push(used[i].siteId);}var lastUsed={};used.forEach(function(d){if(lastUsed[d.siteId]==null)lastUsed[d.siteId]=d.takenAt;});var ids=GLP_SITES.map(function(s){return s[0];});var pool=ids.filter(function(id){return recent.indexOf(id)<0;});if(!pool.length)pool=ids.slice();var best=pool[0],bestT=(lastUsed[pool[0]]!=null?lastUsed[pool[0]]:-Infinity);pool.forEach(function(id){var t=(lastUsed[id]!=null?lastUsed[id]:-Infinity);if(t<bestT){bestT=t;best=id;}});if(!used.length)best="l_abdomen";return {suggested:best,recent:recent};}
+/* pull sheet text/time fields into the scratch object before any chip-driven re-render */
+function glpSheetSync(){var s=state.glpSheet;if(!s)return;var q=function(k){return document.querySelector('[data-glps="'+k+'"]');};var d=q("dose");if(d)s.dose=d.value;var n=q("note");if(n)s.note=n.value;var at=q("at");if(at){var t=glpFromLocalInput(at.value);if(t!=null)s.at=t;}var nl=q("newlabel");if(nl)s.newLabel=nl.value;}
+function glpArchiveType(id){glpNormalize();var changed=false;state.glp.symptomTypes.forEach(function(t){if(t.id===id&&!t.isBuiltIn&&!t.archived){t.archived=true;changed=true;}});if(!changed)return;if(state.glpSheet&&state.glpSheet.symptomTypeId===id){var rem=state.glp.symptomTypes.filter(function(t){return !t.archived;});state.glpSheet.symptomTypeId=rem[0]?rem[0].id:null;}save();render();toast("Symptom archived");}
+function glpCardHTML(){
+  var g=state.glp;if(!g||!g.settings||!g.settings.enabled)return "";
+  var icon='<span class="wl-caticon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 3.5 3.5 10.5a5 5 0 0 0 7 7l7-7a5 5 0 0 0-7-7zM7 7l7 7"/></svg></span>';
+  var plus=I.plus.replace("<svg","<svg width=15 height=15");
+  var h="";
+  if(!g.compound){
+    h+='<div class="wl-card catcard glp"><div class="wl-cathead">'+icon+'<div class="wl-catmeta"><div class="wl-cattype">GLP-1 &amp; Peptides</div><div class="wl-catsum">No compound set</div></div></div>';
+    h+='<button class="wl-btn wl-btn-supp wl-full" style="margin-top:4px" data-act="glp:setup">'+plus+'Set up compound</button>';
+    return h+'</div>';
+  }
+  var info=glpDueInfo();
+  var overdue=!!(info&&info.overdue&&g.settings.showDueDate);
+  var sug=glpSiteSuggestion();
+  var summary=glpCompoundSummary()||esc(g.compound.name||"");
+  var dueLine="";
+  if(g.settings.showDueDate&&info&&info.due&&!overdue){
+    var days=Math.ceil((info.due-Date.now())/86400000);
+    if(days>=0){var when=days===0?"today":(days===1?"in 1 day":("in "+days+" days"));dueLine="Next dose "+when+(g.settings.siteRotation?(" · "+esc(glpSiteLabel(sug.suggested))):"");}
+  }
+  h+='<div class="wl-card catcard glp'+(overdue?" late":"")+'"><div class="wl-cathead">'+icon+'<div class="wl-catmeta"><div class="wl-cattype">GLP-1 &amp; Peptides</div><div class="wl-catsum">'+summary+(dueLine?'<span class="wl-glpdue">'+dueLine+'</span>':'')+'</div></div></div>';
+  if(overdue){
+    var ago=Math.floor((Date.now()-info.due)/86400000);
+    h+='<div class="wl-glpnag"><div class="wl-glpnag-top"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.01"/></svg><span>Dose overdue</span></div>';
+    h+='<div class="wl-glpnag-sub">Due '+esc(fmtLong(new Date(info.due)))+' · '+(ago<=0?"today":(ago===1?"1 day ago":ago+" days ago"))+'</div>';
+    h+='<div class="wl-glpnag-btns"><button class="wl-glpnag-prim" data-act="glp:dose:open" data-at="'+info.due+'">Log now</button><button class="wl-glpnag-sec" data-act="glp:skip" data-at="'+info.due+'">Skip this week</button></div></div>';
+  }
+  var doses=(g.doses||[]).slice().sort(function(a,b){return b.takenAt-a.takenAt;}).slice(0,3);
+  var syms=g.symptoms||[];
+  doses.forEach(function(d){
+    h+='<div class="wl-glpentry"><div class="wl-glpentry-lines">';
+    if(d.skipped){
+      h+='<div class="wl-glpentry-l1">Dose skipped</div><div class="wl-glpentry-l2">'+esc(glpFmtWhen(d.takenAt))+'</div>';
+    }else{
+      var dl=esc(g.compound.name||"")+((d.dose!=null&&d.dose!=="")?(" "+esc(d.dose)+" "+esc(d.unit||"mg")):"");
+      h+='<div class="wl-glpentry-l1">'+dl+'</div><div class="wl-glpentry-l2">'+esc(glpFmtWhen(d.takenAt))+(d.siteId?(" · "+esc(glpSiteLabel(d.siteId))):"")+'</div>';
+    }
+    var dk=glpDayKey(d.takenAt);
+    syms.filter(function(s){return glpDayKey(s.occurredAt)===dk;}).sort(function(a,b){return a.occurredAt-b.occurredAt;}).forEach(function(s){
+      var sev=parseInt(s.severity,10)||0;var pips="";for(var i=1;i<=5;i++)pips+='<span class="wl-glppip'+(i<=sev?" on":"")+'"></span>';
+      h+='<div class="wl-glpsev"><b>'+esc(glpSymLabel(s.symptomTypeId))+'</b>'+pips+'</div>';
+    });
+    h+='</div><button class="wl-icon-btn" data-act="glp:dose:del" data-id="'+esc(d.id)+'">'+I.trash.replace("<svg","<svg width=15 height=15")+'</button></div>';
+  });
+  h+='<div class="wl-glpbtnrow"><button class="wl-btn wl-btn-supp" data-act="glp:dose:open">'+plus+'Log Dose</button>';
+  if(g.settings.symptomLogging)h+='<button class="wl-btn wl-btn-supp" data-act="glp:sym:open">'+plus+'Symptom</button>';
+  h+='</div>';
+  return h+'</div>';
+}
+function glpDoseSheetInner(s,g){var c=g.compound||{};var unit=c.unit||"mg";
+  var h='<h4 class="wl-glpsheet-h">Log dose</h4><div class="wl-glpsheet-sub">'+esc(c.name||"")+' · '+esc(fmtLong(new Date(s.at||Date.now())))+'</div>';
+  h+='<div class="wl-glpfield"><div class="wl-glpflabel">Dose</div><div class="wl-glpinbox"><input class="wl-glpbare" data-glps="dose" type="text" inputmode="decimal" value="'+esc(s.dose!=null?s.dose:"")+'" placeholder="'+esc(c.dose!=null?c.dose:"—")+'"><span class="wl-glpunit">'+esc(unit)+'</span></div></div>';
+  if(g.settings.siteRotation){
+    var sug=glpSiteSuggestion();
+    h+='<div class="wl-glpfield"><div class="wl-glpflabel">Injection site</div><div class="wl-glpchips">';
+    GLP_SITES.forEach(function(site){var id=site[0];var cls="wl-glpchip";if(s.siteId===id)cls+=" sel";else if(id===sug.suggested)cls+=" next";else if(sug.recent.indexOf(id)>=0)cls+=" recent";h+='<button class="'+cls+'" data-act="glp:site" data-site="'+id+'">'+esc(site[1])+'</button>';});
+    h+='</div><div class="wl-glplegend"><span><i style="background:var(--accent)"></i>Suggested</span><span><i style="background:var(--faint)"></i>Used recently</span></div></div>';
+  }
+  h+='<div class="wl-glpfield"><div class="wl-glpflabel">Time</div><input class="wl-glpinbox" data-glps="at" type="datetime-local" value="'+glpToLocalInput(s.at||Date.now())+'"></div>';
+  h+='<div class="wl-glpfield"><div class="wl-glpflabel">Note <span class="wl-glpopt">— optional</span></div><input class="wl-glpinbox" data-glps="note" type="text" value="'+esc(s.note||"")+'" placeholder="Anything worth noting"></div>';
+  h+='<button class="wl-glpcta" data-act="glp:dose:save">Save dose</button>';
+  return h;
+}
+function glpSymSheetInner(s,g){var types=(g.symptomTypes||[]).filter(function(t){return !t.archived;});
+  var h='<h4 class="wl-glpsheet-h">Log symptom</h4><div class="wl-glpsheet-sub">'+esc(glpFmtWhen(s.at||Date.now()))+'</div>';
+  h+='<div class="wl-glpfield"><div class="wl-glpflabel">Symptom</div><div class="wl-glpchips">';
+  types.forEach(function(t){var cls="wl-glpchip"+(s.symptomTypeId===t.id?" sel":"");var extra=t.isBuiltIn?"":(' data-glplong="'+t.id+'"');h+='<button class="'+cls+'" data-act="glp:sym:pick" data-id="'+t.id+'"'+extra+'>'+esc(t.label)+'</button>';});
+  if(s.newOpen)h+='<span class="wl-glpchip add"><input class="wl-glpnewin" data-glps="newlabel" id="wl-glpnewin" placeholder="name…" value="'+esc(s.newLabel||"")+'" autocomplete="off"><button class="wl-glpnewok" data-act="glp:sym:newsave">✓</button></span>';
+  else h+='<button class="wl-glpchip add" data-act="glp:sym:new">＋ New</button>';
+  h+='</div>';
+  if(types.some(function(t){return !t.isBuiltIn;}))h+='<div class="wl-glplegend"><span>Long-press a custom symptom to archive it</span></div>';
+  h+='</div>';
+  h+='<div class="wl-glpfield"><div class="wl-glpflabel">Severity</div><div class="wl-seg wl-seg-wide" style="margin-bottom:0">'+[1,2,3,4,5].map(function(n){return '<button class="'+(s.severity===n?"on":"")+'" data-act="glp:sev" data-sev="'+n+'">'+n+'</button>';}).join("")+'</div></div>';
+  h+='<div class="wl-glpfield"><div class="wl-glpflabel">Time</div><input class="wl-glpinbox" data-glps="at" type="datetime-local" value="'+glpToLocalInput(s.at||Date.now())+'"></div>';
+  h+='<div class="wl-glpfield"><div class="wl-glpflabel">Note <span class="wl-glpopt">— optional</span></div><input class="wl-glpinbox" data-glps="note" type="text" value="'+esc(s.note||"")+'" placeholder="Anything worth noting"></div>';
+  h+='<button class="wl-glpcta" data-act="glp:sym:save">Save symptom</button>';
+  return h;
+}
+function glpSheetHTML(){var s=state.glpSheet;if(!s)return "";glpNormalize();var g=state.glp;
+  var h='<div class="wl-confirm wl-glpsheetwrap"><div class="wl-glpsheetdim" data-act="glp:sheetclose"></div><div class="wl-glpsheet"><div class="wl-glpgrab"></div>';
+  h+=(s.mode==="sym")?glpSymSheetInner(s,g):glpDoseSheetInner(s,g);
+  return h+'</div></div>';
+}
 function normActs(iso){var raw=state.workouts[iso];if(!Array.isArray(raw))return [];
   return raw.map(function(a){if(typeof a==="string")return {cat:catFromName(a),name:a};return {cat:(a&&a.cat)||catFromName(a&&a.name)||"other",name:(a&&a.name)||"",auto:a&&a.auto};});}
 var TKEY="wl_training_v1";
@@ -900,15 +1099,16 @@ function dayDots(iso){var seen={},cats=[];function _ad(c){if(!seen[c]){seen[c]=1
 var state={settings:Object.assign({},DEFAULT_SETTINGS),weights:[],food:{},workouts:{},steps:{},notes:{},sleep:{},bodyfat:{},waist:{},statuses:[],weeklySummary:null,nightlySummary:null,nightlyLog:{},presets:DEFAULT_PRESETS.slice(),
   view:"overview",calY:new Date().getFullYear(),calM:new Date().getMonth(),weekOffset:0,trendMode:"W",trendOffset:0,calOpen:false,sumOpen:true,nightOpen:true,genBusy:false,nightBusy:false,diaryWeeks:1,
   training:{cardioTypes:DEFAULT_CARDIO_TYPES.slice(),sessions:{},exercises:[],routines:[],liftSessions:{}},cardioForm:null,manageOpen:false,actAddCat:null,actPick:null,exForm:null,routineId:null,riPickOpen:false,noteEdit:null,liftForm:null,workout:null,setMenu:null,woPrompt:false,bwEdit:false,histView:null,exMenu:null,woReplaceEi:null,liftViewId:null,liftViewDate:null,woResume:false,liftEdit:null,quickEntry:null,
-  selDate:todayISO(),foodDate:todayISO(),alertDismissed:false,confirmReset:false,skips:{}};
+  selDate:todayISO(),foodDate:todayISO(),alertDismissed:false,confirmReset:false,skips:{},glp:glpDefault(),glpDraft:null,glpSheet:null};
 
 function load(){
   try{var raw=localStorage.getItem(KEY);if(raw){var d=JSON.parse(raw);
     state.settings=Object.assign({},DEFAULT_SETTINGS,d.settings||{});
     state.weights=Array.isArray(d.weights)?d.weights:[];
     state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.bodyfat=d.bodyfat||{};state.waist=d.waist||{};state.statuses=d.statuses||[];state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;state.nightlyLog=d.nightlyLog||{};state.scriptVer=d.scriptVer||{};if(migrateCoachSeen())save();
-    state.presets=(Array.isArray(d.presets)&&d.presets.length)?d.presets:DEFAULT_PRESETS.slice();state.skips=d.skips||{};
+    state.presets=(Array.isArray(d.presets)&&d.presets.length)?d.presets:DEFAULT_PRESETS.slice();state.skips=d.skips||{};state.glp=d.glp||glpDefault();
   }}catch(e){}
+  glpNormalize();
   if(state.settings.macroAuto===undefined&&(num(state.settings.targetProtein)!=null||num(state.settings.targetCarbs)!=null||num(state.settings.targetFat)!=null))state.settings.macroAuto=false;
   if(state.settings.calTargetAuto===undefined&&num(state.settings.targetCalories)!=null)state.settings.calTargetAuto=false;
   applyAutoMacros();
@@ -917,7 +1117,7 @@ function load(){
   try{state.sumOpen=localStorage.getItem("wl_sumopen")!=="0";}catch(e){}
   try{state.calOpen=localStorage.getItem("wl_calopen")==="1";}catch(e){}
 }
-function payload(){return {settings:state.settings,weights:state.weights,food:state.food,workouts:state.workouts,steps:state.steps,notes:state.notes,sleep:state.sleep,bodyfat:state.bodyfat,waist:state.waist,statuses:state.statuses,weeklySummary:state.weeklySummary,nightlySummary:state.nightlySummary,nightlyLog:state.nightlyLog,presets:state.presets,skips:state.skips,scriptVer:state.scriptVer};}
+function payload(){return {settings:state.settings,weights:state.weights,food:state.food,workouts:state.workouts,steps:state.steps,notes:state.notes,sleep:state.sleep,bodyfat:state.bodyfat,waist:state.waist,statuses:state.statuses,weeklySummary:state.weeklySummary,nightlySummary:state.nightlySummary,nightlyLog:state.nightlyLog,presets:state.presets,skips:state.skips,glp:state.glp,scriptVer:state.scriptVer};}
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(payload()));}catch(e){toast("Couldn't save — storage full or blocked");}}
 function save(){saveLocal();scheduleCloudPush();}
 
@@ -979,7 +1179,7 @@ function applyCloud(d){if(!d)return;
   state.settings=Object.assign({},DEFAULT_SETTINGS,d.settings||{});
   state.weights=Array.isArray(d.weights)?d.weights:[];
   state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.bodyfat=d.bodyfat||{};state.waist=d.waist||{};state.statuses=d.statuses||[];state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;state.nightlyLog=d.nightlyLog||{};state.scriptVer=d.scriptVer||{};if(migrateCoachSeen())save();
-  state.presets=(Array.isArray(d.presets)&&d.presets.length)?d.presets:DEFAULT_PRESETS.slice();state.skips=d.skips||{};
+  state.presets=(Array.isArray(d.presets)&&d.presets.length)?d.presets:DEFAULT_PRESETS.slice();state.skips=d.skips||{};state.glp=d.glp||glpDefault();glpNormalize();
   if(state.settings.macroAuto===undefined&&(num(state.settings.targetProtein)!=null||num(state.settings.targetCarbs)!=null||num(state.settings.targetFat)!=null))state.settings.macroAuto=false;
   if(state.settings.calTargetAuto===undefined&&num(state.settings.targetCalories)!=null)state.settings.calTargetAuto=false;
   applyAutoMacros();
@@ -1352,6 +1552,225 @@ function buildChart(c,goal,unit,compact,rmin,rmax){
   return s;
 }
 
+/* ---------------- GLP-1 progress views (§7) ---------------- */
+/* Tunables (documented assumptions, not in the spec verbatim):
+   GLP_WIN_DAYS  — how close a weigh-in must fall to a level boundary to count as that
+                   boundary's weight. Beyond this the boundary is treated as "no weight",
+                   and per §9 the whole level period is omitted rather than shown as 0.
+   GLP_EXPECT_WK — the "expected weeks at a level" used only for the in-progress footnote
+                   copy ("X of an expected Y weeks"). Spec suggests a fixed 4. */
+var GLP_WIN_DAYS=14, GLP_EXPECT_WK=4;
+var GLP_SEV_WORD=["","minimal","mild","moderate","marked","severe"];
+function glpProgEnabled(){return !!(state.glp&&state.glp.settings&&state.glp.settings.enabled);}
+function glpNonSkipDoses(){return (state.glp&&state.glp.doses?state.glp.doses:[]).filter(function(d){return !d.skipped&&d.takenAt!=null;}).slice().sort(function(a,b){return a.takenAt-b.takenAt;});}
+/* Level periods: a maximal run of consecutive non-skipped doses at one value. The run ends
+   when the dose value changes (the next value's first dose is the boundary), so periods are
+   contiguous. The final open run is the current, in-progress level and ends "now". */
+function glpLevelPeriods(){
+  var ds=glpNonSkipDoses();if(!ds.length)return [];
+  var out=[],cur=null;
+  ds.forEach(function(d){var v=num(d.dose);
+    if(cur&&cur.dose===v){cur.lastAt=d.takenAt;}
+    else{if(cur){cur.end=d.takenAt;out.push(cur);}cur={dose:v,start:d.takenAt,lastAt:d.takenAt,end:null,inProgress:false};}});
+  if(cur){cur.end=Date.now();cur.inProgress=true;out.push(cur);}
+  return out;
+}
+/* Nearest weigh-in to a timestamp, or null if none within GLP_WIN_DAYS. */
+function glpNearestWeight(ts){
+  var sw=sortedWeights();if(!sw.length)return null;
+  var best=null,bd=null;
+  for(var i=0;i<sw.length;i++){var wt=parseISO(sw[i].date).getTime();var dist=Math.abs(wt-ts);
+    if(bd==null||dist<bd){bd=dist;best=sw[i];}}
+  if(best==null||bd>GLP_WIN_DAYS*DAY)return null;
+  return {date:best.date,weight:best.weight,ts:parseISO(best.date).getTime()};
+}
+/* Per-period weight math. valid=false → omitted from 7b (no usable boundary weights,
+   or both boundaries snap to the same single weigh-in so the delta would be a fake 0). */
+function glpPeriodStats(){
+  return glpLevelPeriods().map(function(p){
+    var sW=glpNearestWeight(p.start),eW=glpNearestWeight(p.end);
+    var weeks=(p.end-p.start)/(7*DAY);
+    var lost=null,valid=false;
+    if(sW&&eW&&sW.date!==eW.date){lost=sW.weight-eW.weight;valid=true;}
+    return {dose:p.dose,start:p.start,end:p.end,weeks:weeks,lost:lost,valid:valid,inProgress:p.inProgress};
+  });
+}
+/* Aggregate periods into one bar per distinct dose value (handles the rare case of a value
+   recurring across separate periods). Completed periods with no usable weight are dropped;
+   an in-progress level is always kept (dashed) even if its own delta isn't computable yet. */
+function glpDoseBars(){
+  var stats=glpPeriodStats(),by={},order=[];
+  stats.forEach(function(s){if(s.dose==null)return;var k=String(s.dose);
+    if(!by[k]){by[k]={dose:s.dose,weeks:0,lost:0,valid:false,inProgress:false};order.push(k);}
+    var g=by[k];g.weeks+=s.weeks;if(s.valid){g.lost+=s.lost;g.valid=true;}if(s.inProgress)g.inProgress=true;});
+  var bars=order.map(function(k){return by[k];}).filter(function(g){return g.valid||g.inProgress;});
+  bars.sort(function(a,b){return a.dose-b.dose;});
+  bars.forEach(function(g){g.rate=(g.valid&&g.weeks>0)?(g.lost/g.weeks):null;});
+  return bars;
+}
+/* Ascending dose rank → band tint. Spec's fixed .10/.17/.25/.34 for the usual ≤4 levels;
+   >4 levels interpolate across the same range so it degrades instead of breaking. */
+function glpBandOpacity(rank,total){
+  var steps=[0.10,0.17,0.25,0.34];
+  if(total<=1)return steps[0];
+  if(total<=4)return steps[rank];
+  return 0.10+(rank/(total-1))*(0.34-0.10);
+}
+/* 7a — symptom severity vs dose timing */
+function glpSymptomCardHTML(){
+  if(!glpProgEnabled()||!(state.glp.settings&&state.glp.settings.symptomLogging))return "";
+  var syms=(state.glp.symptoms||[]).slice();
+  var typesWithLogs={};syms.forEach(function(l){typesWithLogs[l.symptomTypeId]=1;});
+  var types=(state.glp.symptomTypes||[]).filter(function(t){return !t.archived&&typesWithLogs[t.id];});
+  var h='<div class="wl-card"><div class="wl-card-head"><span>Symptoms</span></div><div class="wl-glpcsub">Severity 1–5 · amber ticks mark dose days</div>';
+  if(!syms.length){h+='<div class="wl-empty">Log a few symptoms to see the pattern — severity plotted against your dose days.</div>';return h+'</div>';}
+  /* selector: logged symptom types + All */
+  var sel=state.glpProgSym;
+  var valid=(sel==="all")||types.some(function(t){return t.id===sel;});
+  if(!valid)sel=types.length?types[0].id:"all";
+  state.glpProgSym=sel;
+  h+='<div class="wl-seg wl-seg-wide" style="flex-wrap:wrap;margin-top:12px">';
+  types.forEach(function(t){h+='<button class="'+(sel===t.id?"on":"")+'" data-act="glp:prog:sym" data-id="'+esc(t.id)+'">'+esc(t.label)+'</button>';});
+  h+='<button class="'+(sel==="all"?"on":"")+'" data-act="glp:prog:sym" data-id="all">All</button></div>';
+  /* build the plotted series */
+  var picked=(sel==="all")?syms:syms.filter(function(l){return l.symptomTypeId===sel;});
+  picked=picked.slice().sort(function(a,b){return a.occurredAt-b.occurredAt;});
+  var pts;
+  if(sel==="all"){ /* one point per day = daily average, single-line look */
+    var byday={},dkeys=[];picked.forEach(function(l){var k=glpDayKey(l.occurredAt);if(!byday[k]){byday[k]={sum:0,n:0,ts:parseISO(toISO(new Date(l.occurredAt))).getTime()};dkeys.push(k);}byday[k].sum+=l.severity;byday[k].n++;});
+    pts=dkeys.map(function(k){return {ts:byday[k].ts,sev:byday[k].sum/byday[k].n};}).sort(function(a,b){return a.ts-b.ts;});
+  }else{
+    pts=picked.map(function(l){return {ts:l.occurredAt,sev:l.severity};});
+  }
+  if(pts.length<2){h+='<div class="wl-empty">Log a few more '+(sel==="all"?"symptoms":"of these")+' to see the pattern.</div>';return h+'</div>';}
+  /* readout stats from the underlying logs */
+  var sevs=picked.map(function(l){return l.severity;});
+  var avg=sevs.reduce(function(a,b){return a+b;},0)/sevs.length;
+  var peak=picked[0],pk=picked[0].severity;picked.forEach(function(l){if(l.severity>pk){pk=l.severity;peak=l;}});
+  h+='<div class="wl-glpread">Avg <b>'+r1(avg)+'</b> · peak <b>'+pk+'</b> on '+fmtShort(new Date(peak.occurredAt))+' · <b>'+picked.length+'</b> logs</div>';
+  /* chart */
+  var doseDays=glpNonSkipDoses().map(function(d){return d.takenAt;});
+  var allTs=pts.map(function(p){return p.ts;}).concat(doseDays);
+  var xMin=Math.min.apply(null,allTs),xMax=Math.max.apply(null,allTs);if(xMin===xMax){xMin-=DAY;xMax+=DAY;}
+  var W=340,H=175,padL=26,padR=12,padT=16,padB=24;
+  function sx(t){return padL+(t-xMin)/(xMax-xMin)*(W-padL-padR);}
+  function sy(v){return padT+(5-v)/(5-1)*(H-padT-padB);}
+  var s='<svg class="wl-chart" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="height:'+H+'px">';
+  for(var lv=1;lv<=5;lv++){var y=sy(lv);s+='<line x1="'+padL+'" y1="'+y+'" x2="'+(W-padR)+'" y2="'+y+'" stroke="'+CH.grid+'" stroke-dasharray="2 4"/>';s+='<text x="'+(padL-5)+'" y="'+(y+3)+'" fill="'+CH.axis+'" font-size="9" text-anchor="end">'+lv+'</text>';}
+  doseDays.forEach(function(t){if(t<xMin||t>xMax)return;var X=sx(t);s+='<line x1="'+X+'" y1="'+padT+'" x2="'+X+'" y2="'+(H-padB)+'" stroke="'+CH.avg+'" stroke-width="1.3" stroke-dasharray="3 3" opacity=".5"/>';});
+  var d="";pts.forEach(function(p,i){d+=(i?"L":"M")+sx(p.ts)+" "+sy(p.sev)+" ";});
+  s+='<path d="'+d+'" fill="none" stroke="#C77DFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>';
+  pts.forEach(function(p){s+='<circle cx="'+sx(p.ts)+'" cy="'+sy(p.sev)+'" r="3.4" fill="#C77DFF"/>';});
+  [[xMin,"start"],[(xMin+xMax)/2,"middle"],[xMax,"end"]].forEach(function(pr){s+='<text x="'+sx(pr[0])+'" y="'+(H-7)+'" fill="'+CH.axis+'" font-size="9" text-anchor="'+pr[1]+'">'+fmtShort(new Date(pr[0]))+'</text>';});
+  s+='</svg>';h+=s;
+  var lastLog=picked[picked.length-1];
+  h+='<div class="wl-readout"><b>'+lastLog.severity+'</b> · '+GLP_SEV_WORD[lastLog.severity]+' · '+fmtShort(new Date(lastLog.occurredAt))+' (latest)</div>';
+  return h+'</div>';
+}
+/* 7b — weight lost by dose level */
+function glpWeightByDoseCardHTML(){
+  if(!glpProgEnabled())return "";
+  var bars=glpDoseBars();
+  var completed=bars.filter(function(b){return !b.inProgress&&b.valid;});
+  var h='<div class="wl-card"><div class="wl-card-head"><span>Weight lost by dose</span></div>';
+  if(!bars.length||(!completed.length&&!bars.some(function(b){return b.inProgress;}))){
+    h+='<div class="wl-empty">Log doses at more than one level, with weigh-ins around each change, to compare weight lost by dose.</div>';
+    return h+'</div>';
+  }
+  var u=state.settings.units;
+  var totLost=completed.reduce(function(a,b){return a+b.lost;},0);
+  var totWeeks=completed.reduce(function(a,b){return a+b.weeks;},0);
+  h+='<div class="wl-glpcsub">'+r1(totLost)+' '+u+' total across '+completed.length+' level'+(completed.length===1?"":"s")+' · '+Math.round(totWeeks)+' weeks</div>';
+  var mode=(state.glpProgMode==="week")?"week":"total";
+  h+='<div class="wl-seg wl-seg-wide" style="margin-top:12px">'+[["total","Total"],["week","Per week"]].map(function(m){return '<button class="'+(mode===m[0]?"on":"")+'" data-act="glp:prog:mode" data-mode="'+m[0]+'">'+m[1]+'</button>';}).join("")+'</div>';
+  /* bar chart */
+  function barVal(b){var v=(mode==="week")?b.rate:b.lost;return (v==null?0:Math.max(0,v));}
+  var maxV=0;bars.forEach(function(b){var v=barVal(b);if(v>maxV)maxV=v;});
+  var yMax=niceMax(maxV||1);
+  var W=340,H=200,padL=28,padR=12,padT=24,padB=50;
+  var n=bars.length,slot=(W-padL-padR)/n,bw=Math.min(52,slot*0.6);
+  function sy(v){return (H-padB)-(v/yMax)*(H-padT-padB);}
+  var s='<svg class="wl-chart" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="height:'+H+'px"><defs><linearGradient id="glpbar" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#C063FF"/><stop offset="100%" stop-color="#7A25D0"/></linearGradient></defs>';
+  [0,0.5,1].forEach(function(fr){var yv=yMax*fr,y=sy(yv);s+='<line x1="'+padL+'" y1="'+y+'" x2="'+(W-padR)+'" y2="'+y+'" stroke="'+CH.grid+'" stroke-dasharray="2 4"/><text x="'+(padL-4)+'" y="'+(y+3)+'" fill="'+CH.axis+'" font-size="9" text-anchor="end">'+r1(yv)+'</text>';});
+  bars.forEach(function(b,i){var cx=padL+slot*i+slot/2,x=cx-bw/2,v=barVal(b),y=sy(v),bh=Math.max(1,(H-padB)-y);
+    var lbl=(mode==="week")?(b.rate==null?"—":r1(b.rate)+"/wk"):(b.valid?r1(b.lost):"—");
+    s+='<rect x="'+x+'" y="'+y+'" width="'+bw+'" height="'+bh+'" rx="8" fill="url(#glpbar)"'+(b.inProgress?' opacity=".45"':'')+'/>';
+    if(b.inProgress)s+='<rect x="'+x+'" y="'+y+'" width="'+bw+'" height="'+bh+'" rx="8" fill="none" stroke="'+CH.avg+'" stroke-width="1.4" stroke-dasharray="4 3"/>';
+    s+='<text x="'+cx+'" y="'+(y-7)+'" text-anchor="middle" font-size="12" font-weight="700" style="font-family:var(--mono)" fill="'+(b.inProgress?CH.avg:"#EDF1F7")+'">'+lbl+'</text>';
+    s+='<text x="'+cx+'" y="'+(H-34)+'" text-anchor="middle" font-size="11" style="font-family:var(--mono)" fill="'+(b.inProgress?CH.avg:"#EDF1F7")+'">'+r1(b.dose)+' '+u2dose(b)+'</text>';
+    s+='<text x="'+cx+'" y="'+(H-20)+'" text-anchor="middle" font-size="10" style="font-family:var(--mono)" fill="'+CH.axis+'">'+Math.round(b.weeks)+' wk</text>';
+    s+='<text x="'+cx+'" y="'+(H-8)+'" text-anchor="middle" font-size="10" style="font-family:var(--mono)" fill="'+CH.axis+'">'+(b.rate==null?"—":r1(b.rate)+"/wk")+'</text>';
+  });
+  s+='<line x1="'+padL+'" y1="'+(H-padB)+'" x2="'+(W-padR)+'" y2="'+(H-padB)+'" stroke="'+CH.axis+'" stroke-width="1" opacity=".5"/></svg>';
+  h+=s;
+  var ip=bars.filter(function(b){return b.inProgress;})[0];
+  if(ip){var wk=Math.max(0,Math.round(ip.weeks));h+='<div class="wl-glpnote"><b>'+r1(ip.dose)+' '+u2dose(ip)+' is still in progress</b> — '+wk+' of an expected '+GLP_EXPECT_WK+' weeks, so its bar is dashed and excluded from comparisons.</div>';}
+  h+='<div class="wl-glpnote">Levels ran one after another, not side by side. Early levels tend to read high — water weight and the first appetite drop land there — so treat this as a record, not a verdict on which dose suits you.</div>';
+  return h+'</div>';
+}
+/* unit label for a dose bar (denormalised at log time; fall back to compound unit) */
+function u2dose(b){var c=state.glp&&state.glp.compound;return (c&&c.unit)||"mg";}
+/* the two Progress cards + the timeline expander, injected into view_weight */
+function glpProgressHTML(){
+  if(!glpProgEnabled())return "";
+  var h=glpSymptomCardHTML()+glpWeightByDoseCardHTML();
+  if(glpDoseBars().length||glpNonSkipDoses().length){
+    h+='<button class="wl-glpexpand" data-act="glp:timeline"><span>Weight timeline with dose bands</span><span class="wl-glpgo">›</span></button>';
+  }
+  return h;
+}
+/* 7c — weight timeline with dose bands (detail screen) */
+function view_glptimeline(){
+  var h='<div class="wl-stack">';
+  if(!glpProgEnabled()){return h+'<div class="wl-card"><div class="wl-empty">GLP-1 tracking is off.</div></div></div>';}
+  var u=state.settings.units;var goal=num(state.settings.goalWeight);
+  var c=prepChart();var data=c.data;
+  h+='<div class="wl-card">';
+  if(!data.length){h+='<div class="wl-empty">No weigh-ins yet. Add a few to see your weight against dose levels.</div>';return h+'</div></div>';}
+  var periods=glpLevelPeriods();
+  var W=340,H=210,padL=34,padR=12,padT=26,padB=24;
+  var ys=[];data.forEach(function(d){ys.push(d.weight);if(d.avg!=null)ys.push(d.avg);});if(goal!=null)ys.push(goal);
+  var mn=Math.min.apply(null,ys),mx=Math.max.apply(null,ys);var padY=Math.max(1,(mx-mn)*0.14);
+  var yMin=Math.floor(mn-padY),yMax=Math.ceil(mx+padY);if(yMin===yMax)yMax=yMin+2;
+  var xMin=data[0].ts,xMax=data[data.length-1].ts;if(xMin===xMax){xMin-=DAY;xMax+=DAY;}
+  function sx(t){return padL+(Math.max(xMin,Math.min(xMax,t))-xMin)/(xMax-xMin)*(W-padL-padR);}
+  function sy(w){return (H-padB)-(w-yMin)/(yMax-yMin)*(H-padT-padB);}
+  /* distinct dose values ascending → rank for band tint */
+  var vals=[];periods.forEach(function(p){if(p.dose!=null&&vals.indexOf(p.dose)<0)vals.push(p.dose);});vals.sort(function(a,b){return a-b;});
+  var bandTop=padT,bandBot=H-padB;
+  var s='<svg class="wl-chart" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="height:'+H+'px">';
+  /* bands */
+  periods.forEach(function(p){if(p.dose==null)return;var x0=sx(p.start),x1=sx(p.end);if(x1-x0<=0.5)return;var rank=vals.indexOf(p.dose);var op=glpBandOpacity(rank,vals.length);
+    s+='<rect x="'+x0+'" y="'+bandTop+'" width="'+(x1-x0)+'" height="'+(bandBot-bandTop)+'" fill="#A855F7" opacity="'+op.toFixed(3)+'"/>';
+    if(p.inProgress)s+='<rect x="'+x0+'" y="'+bandTop+'" width="'+(x1-x0)+'" height="'+(bandBot-bandTop)+'" fill="none" stroke="'+CH.avg+'" stroke-width="1.2" stroke-dasharray="4 3" opacity=".85"/>';
+    s+='<text x="'+((x0+x1)/2)+'" y="'+(bandTop-6)+'" text-anchor="middle" font-size="9.5" style="font-family:var(--mono)" fill="'+(p.inProgress?CH.avg:"#C9A6F0")+'">'+r1(p.dose)+'</text>';});
+  /* dividers at level changes */
+  periods.forEach(function(p,i){if(i===0)return;var X=sx(p.start);s+='<line x1="'+X+'" y1="'+bandTop+'" x2="'+X+'" y2="'+bandBot+'" stroke="'+CH.axis+'" stroke-width=".8" opacity=".55"/>';});
+  /* gridlines + y labels */
+  for(var gi=0;gi<=3;gi++){var yv=yMin+(yMax-yMin)*gi/3;var y=sy(yv);s+='<line x1="'+padL+'" y1="'+y+'" x2="'+(W-padR)+'" y2="'+y+'" stroke="'+CH.grid+'" stroke-dasharray="2 4"/><text x="'+(padL-5)+'" y="'+(y+3)+'" fill="'+CH.axis+'" font-size="9" text-anchor="end">'+Math.round(yv)+'</text>';}
+  /* goal */
+  if(goal!=null){var gy=sy(goal);s+='<line x1="'+padL+'" y1="'+gy+'" x2="'+(W-padR)+'" y2="'+gy+'" stroke="'+CH.goal+'" stroke-width="1.4" stroke-dasharray="6 4"/><text x="'+(W-padR)+'" y="'+(gy-4)+'" fill="'+CH.goal+'" font-size="9" text-anchor="end">Goal '+r1(goal)+'</text>';}
+  /* amber weight line (reuse the 7-day avg line the user already knows) */
+  var line="";data.forEach(function(d,i){line+=(i?"L":"M")+sx(d.ts)+" "+sy(d.avg)+" ";});
+  s+='<path d="'+line+'" fill="none" stroke="'+CH.avg+'" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>';
+  /* dots at level boundaries + big latest dot */
+  periods.forEach(function(p,i){if(i===0)return;var bt=p.start;var near=null,nd=null;data.forEach(function(d){var dist=Math.abs(d.ts-bt);if(nd==null||dist<nd){nd=dist;near=d;}});if(near)s+='<circle cx="'+sx(near.ts)+'" cy="'+sy(near.avg)+'" r="3.2" fill="'+CH.avg+'"/>';});
+  var last=data[data.length-1];
+  s+='<circle cx="'+sx(last.ts)+'" cy="'+sy(last.avg)+'" r="4.6" fill="'+CH.avg+'" stroke="#0F1218" stroke-width="2"/>';
+  [[xMin,"start"],[(xMin+xMax)/2,"middle"],[xMax,"end"]].forEach(function(pr){s+='<text x="'+sx(pr[0])+'" y="'+(H-7)+'" fill="'+CH.axis+'" font-size="9" text-anchor="'+pr[1]+'">'+fmtShort(new Date(pr[0]))+'</text>';});
+  s+='</svg>';
+  /* readout: down since start · lbs to goal */
+  var down=data[0].weight-last.weight;
+  var toGoal=(goal!=null)?(last.weight-goal):null;
+  h+='<div class="wl-glpread" style="margin-top:0">Down <b>'+r1(Math.max(0,down))+' '+u+'</b> since '+fmtShort(new Date(data[0].ts))+(toGoal!=null?' · <b>'+r1(Math.max(0,toGoal))+' '+u+'</b> to goal':'')+'</div>';
+  h+=s;
+  h+='<div class="wl-readout"><b>'+r1(last.weight)+'</b> '+u+' · '+fmtShort(new Date(last.ts))+' (latest)</div>';
+  h+='<div class="wl-glpnote"><b>Bands mark when each dose was active</b> — not what caused the change. Diet, training and sleep move this line too.</div>';
+  h+='</div>';
+  h+='<button class="wl-glpexpand" data-act="go" data-view="weight"><span>Compare by dose level</span><span class="wl-glpgo">›</span></button>';
+  return h+'</div>';
+}
+
 /* ---------------- views ---------------- */
 /* Coach Max's faces. The AI names the mood; anything unrecognised renders nothing,
    so a missing or unexpected value just falls back to the plain message. */
@@ -1476,7 +1895,7 @@ function activitySummaryHTML(sel){
   normActs(sel).forEach(function(a){if(a.cat!=="cardio"&&a.cat!=="lifting")_al(a.cat,a.name);});
   var h='<div class="wl-card"><div class="wl-card-head"><span>Activity</span><button class="wl-link" data-act="go" data-view="train">Activity tab →</button></div>';
   if(log.length){h+='<div class="wl-preset-list" style="padding-top:2px">';log.forEach(function(a){h+='<span class="wl-achip-ro '+a.cat+'">'+esc(a.name||CATLABEL[a.cat])+'</span>';});h+='</div>';}
-  else h+='<div class="wl-hint">No activity logged. Add cardio, lifting, recovery, or supplements from the Activity tab.</div>';
+  else h+='<div class="wl-hint">No activity logged. Add cardio, lifting, or recovery from the Activity tab.</div>';
   return h+'</div>';
 }
 var wkPhotoHave=null,wkPhotoKey=null;
@@ -1844,6 +2263,7 @@ function view_weight(){
     if(cc.data.length)h+=buildChart(cc,null,bcU,true,ctx.start.getTime(),ctx.end.getTime());else if(!bcHas(bcMap))h+='<div class="wl-empty">No '+(bcTab==="bodyfat"?"body fat":"waist")+' logged yet \u2014 add it from the Weight check-in when you measure.</div>';else h+='<div class="wl-empty">No '+(bcTab==="bodyfat"?"body fat":"waist")+' entries in this period.</div>';
   }
   h+='</div>';
+  h+=glpProgressHTML();
   var moreOpen=state.moreStats===true;
   h+='<div class="wl-card"><button class="wl-collapse-head" data-act="morestats"><span>More stats</span><span class="wl-chevron'+(moreOpen?" open":"")+'">\u203a</span></button>';
   if(moreOpen){
@@ -1989,9 +2409,9 @@ function view_summary(){
     avgStatF("Protein",avgProt!=null?fnum(avgProt)+"g":"—",tProt!=null?"goal "+tProt+"g":"",gcol(avgProt,tProt,false,10))+
     avgStatF("Fat",avgFat!=null?fnum(avgFat)+"g":"—",tFat!=null?"goal "+tFat+"g":"",acol(tFat!=null&&avgFat!=null,avgFat>tFat&&calOverGoal))+
     avgStatF("Carbs",avgCarb!=null?fnum(avgCarb)+"g":"—",tCarb!=null?"goal "+tCarb+"g":"",acol(tCarb!=null&&avgCarb!=null,avgCarb>tCarb&&calOverGoal))+'</div></div>';
-  var cardioN=ts.cardioSessions||0,liftN=ts.liftSessions||0,recN=0,suppN=0;
-  for(var _wi=0;_wi<7;_wi++){normActs(toISO(addDays(s,_wi))).forEach(function(a){if(a.cat==="rest")recN++;else if(a.cat==="supp")suppN++;});}
-  h+='<div class="wl-card"><div class="wl-card-head"><span>Weekly Activity</span></div><div class="wl-statrow" style="grid-template-columns:repeat(2,1fr)">'+actStat("Cardio",cardioN,"cardio")+actStat("Weight Training",liftN,"lifting")+actStat("Recovery",recN,"rest")+actStat("Supplements",suppN,"supp")+'</div></div>';
+  var cardioN=ts.cardioSessions||0,liftN=ts.liftSessions||0,recN=0;
+  for(var _wi=0;_wi<7;_wi++){normActs(toISO(addDays(s,_wi))).forEach(function(a){if(a.cat==="rest")recN++;});}
+  h+='<div class="wl-card"><div class="wl-card-head"><span>Weekly Activity</span></div><div class="wl-statrow" style="grid-template-columns:repeat(3,1fr)">'+actStat("Cardio",cardioN,"cardio")+actStat("Weight Training",liftN,"lifting")+actStat("Recovery",recN,"rest")+'</div></div>';
   h+='<div class="wl-card" style="padding:12px 10px"><div class="wl-card-head"><span>Daily Totals</span><span class="wl-count">'+label+'</span></div><table class="wl-byday-grid"><thead><tr><th>Day</th><th>Sleep</th><th>Wt</th><th>Steps</th><th>Cal</th><th>P</th><th>F</th><th>C</th></tr></thead><tbody>';
   days.forEach(function(r){var sl=num(state.sleep[r.date]);var cal=r.calories,pp=r.protein,ff=r.fat,cc=r.carbs,st=r.steps,wt=r.weight;var calOverD=(tCal!=null&&cal!=null&&cal>tCal);
     function cl(disp,cls){return '<td class="'+(cls||"")+'">'+disp+'</td>';}
@@ -2927,14 +3347,14 @@ function trainingHistoryHTML(ctx){var tab=state.histTab||"all";
   var ss=state.training.sessions||{},ls=state.training.liftSessions||{};
   Object.keys(ss).forEach(function(d){if(d<s0||d>e0)return;(ss[d]||[]).forEach(function(x){if(x.kind!=="cardio")return;var m=[];if(x.mins!=null)m.push(x.mins+" min");if(x.zone)m.push("Zone "+x.zone);if(x.hr!=null)m.push("HR "+x.hr);if(x.cal!=null)m.push("~"+x.cal+" cal");items.push({d:d,ts:x.ts||0,cat:"car",name:x.type||"Cardio",meta:m.join(" \u00b7 ")});});});
   Object.keys(ls).forEach(function(d){if(d<s0||d>e0)return;(ls[d]||[]).forEach(function(x){var m=[];if(x.mins!=null)m.push(x.mins+" min");m.push(x.mode==="full"?"logged":"quick");if(x.mode==="full"&&x.entries){var n=0;x.entries.forEach(function(en){(en.sets||[]).forEach(function(st){if(st.status==="done")n++;});});if(n)m.push(n+" sets");}if(x.rpe!=null)m.push("RPE "+x.rpe);items.push({d:d,ts:x.ts||0,cat:"lift",name:x.name||"Weight training",meta:m.join(" \u00b7 ")});});});
-  Object.keys(state.workouts||{}).forEach(function(d){if(d<s0||d>e0)return;normActs(d).forEach(function(a){if(a.cat!=="rest"&&a.cat!=="supp")return;items.push({d:d,ts:0,cat:a.cat,name:a.name||CATLABEL[a.cat],meta:CATLABEL[a.cat]});});});
-  var want={car:"car",lift:"lift",rest:"rest",supp:"supp"}[tab]||null;
+  Object.keys(state.workouts||{}).forEach(function(d){if(d<s0||d>e0)return;normActs(d).forEach(function(a){if(a.cat!=="rest")return;items.push({d:d,ts:0,cat:a.cat,name:a.name||CATLABEL[a.cat],meta:CATLABEL[a.cat]});});});
+  var want={car:"car",lift:"lift",rest:"rest"}[tab]||null;
   if(want)items=items.filter(function(i){return i.cat===want;});
   items.sort(function(a,b){return a.d===b.d?(b.ts-a.ts):(a.d<b.d?1:-1);});
-  var segs=[["all","All"],["car","Cardio"],["lift","Lifts"],["rest","Rest"],["supp","Supps"]];
+  var segs=[["all","All"],["car","Cardio"],["lift","Lifts"],["rest","Rest"]];
   var h='<div class="wl-card"><div class="wl-card-head"><span>Training History</span>'+(items.length?'<span class="wl-count">'+items.length+'</span>':'')+'</div>';
   h+='<div class="wl-seg wl-seg-wide wl-seg-hist">'+segs.map(function(t){return '<button class="'+(tab===t[0]?"on":"")+'" data-act="hist:tab" data-tab="'+t[0]+'">'+t[1]+'</button>';}).join("")+'</div>';
-  if(!items.length){var nm={all:"activity",car:"cardio",lift:"lifting",rest:"recovery",supp:"supplements"}[tab];return h+'<div class="wl-empty">No '+nm+' in this period. Log it on the Activity tab.</div></div>';}
+  if(!items.length){var nm={all:"activity",car:"cardio",lift:"lifting",rest:"recovery"}[tab];return h+'<div class="wl-empty">No '+nm+' in this period. Log it on the Activity tab.</div></div>';}
   var CAP=8;var showAll=state.histMore===true;var shown=showAll?items:items.slice(0,CAP);
   var grouped=ctx.mode!=="W";var lastWk=null;
   shown.forEach(function(it){
@@ -3138,7 +3558,7 @@ function view_train(){
   h+='<button class="wl-btn wl-btn-cardio wl-full" style="margin-top:10px" data-act="cardio:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add Cardio</button></div>';
 
   h+=actCatCardHTML("rest","Recovery",d);
-  h+=actCatCardHTML("supp","Supplements & Meds",d);
+  h+=glpCardHTML();
   return h+'</div>';
 }
 function settingsHubHTML(){var f=state.settings;var strat=strategyMode();var sl=strat==="gain"?"Lean Bulk":strat==="maintain"?"Maintenance":"Fat Loss";var cal=num(f.targetCalories);
@@ -3149,13 +3569,14 @@ function settingsHubHTML(){var f=state.settings;var strat=strategyMode();var sl=
   var lg=num(f.liftSessGoal),cg=num(f.cardioMinGoal),sg=num(f.stepsGoal);var gp=[];
   if(lg!=null)gp.push(lg+" lifts");if(cg!=null)gp.push(cg+" min");if(sg!=null)gp.push(Math.round(sg/1000)+"k steps");
   pv.goals=gp.length?gp.join(" \u00b7 "):"Set weekly goals";
+  pv.glp=(state.glp&&state.glp.settings&&state.glp.settings.enabled)?(glpCompoundSummary()||"On"):"Off";
   pv.coach="Coach Max"+(f.reminderTime?" \u00b7 reminder "+esc(f.reminderTime):"");
   var th=(THEMES[f.theme]||THEMES.dark||{});pv.appearance=(th.label||"Dark")+" mode";
   var st=statusFor(todayISO());pv.away=st?((st.status.type==="vacation"?"Vacation":"Recovery")+" mode active"):"No status set";
   pv.sync=syncOn()?"Connected":"Not set up";
   pv.data="Export \u00b7 import \u00b7 restore";
   pv.about="v"+APP_BUILD;
-  var rows=[["profile",I.user,"Profile"],["strategy",I.compass,"Strategy"],["goals",I.target,"Goals"],["coach",I.coach,"Coach"],["appearance",I.palette,"Appearance"],["away",I.palm,"Away & Recovery"],["sync",I.sync,"Sync & Devices"],["data",I.database,"Data & Backup"],["about",I.info,"About & Reset"]];
+  var rows=[["profile",I.user,"Profile"],["strategy",I.compass,"Strategy"],["goals",I.target,"Goals"],["glp",I.syringe,"GLP-1 & Peptides"],["coach",I.coach,"Coach"],["appearance",I.palette,"Appearance"],["away",I.palm,"Away & Recovery"],["sync",I.sync,"Sync & Devices"],["data",I.database,"Data & Backup"],["about",I.info,"About & Reset"]];
   return '<div class="wl-card" style="padding:6px 4px">'+rows.map(function(r){return '<button class="wl-hubrow" data-act="set:page" data-page="'+r[0]+'"><span class="wl-hubic">'+r[1]+'</span><span class="wl-hubl"><span class="wl-hubt">'+r[2]+'</span><span class="wl-hubs">'+pv[r[0]]+'</span></span><span class="wl-hubgo">\u203a</span></button>';}).join("")+'</div>';}
 function view_settings(){
   applyAutoMacros();
@@ -3164,7 +3585,7 @@ function view_settings(){
   var h='<div class="wl-stack">';
   var pg=state.setPage||"";
   if(!pg){h+=settingsHubHTML();}
-  else h+='<div><button class="wl-btn wl-btn-ghost" style="width:auto;padding:8px 14px;margin-bottom:2px" data-act="set:back">\u2039 Settings</button></div>';
+  else{var _bk=(pg==="glpcompound")?{act:"glp:compoundback",lbl:"GLP-1 & Peptides"}:{act:"set:back",lbl:"Settings"};h+='<div><button class="wl-btn wl-btn-ghost" style="width:auto;padding:8px 14px;margin-bottom:2px" data-act="'+_bk.act+'">\u2039 '+_bk.lbl+'</button></div>';}
   if(pg==="profile"){
   var profOpen=!!op.profile;
   h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="profile"><span>My Profile'+(profileComplete()?'':' <span class="wl-req">Required</span>')+'</span><span class="wl-chevron'+(profOpen?" open":"")+'">›</span></button>';
@@ -3210,6 +3631,36 @@ function view_settings(){
     h+='<div class="wl-row"><label class="wl-field"><span>Cardio minutes / week <em>zone 2+</em> '+infoBtn("cardiozone")+'</span><input class="wl-num" data-int="1" data-set="cardioMinGoal" type="text" inputmode="numeric" value="'+esc(f.cardioMinGoal||"")+'" placeholder="—"></label><label class="wl-field"><span>Lifting sessions / week</span><input class="wl-num" data-int="1" data-set="liftSessGoal" type="text" inputmode="numeric" value="'+esc(f.liftSessGoal||"")+'" placeholder="—"></label></div>';
     h+='<div class="wl-hint" style="margin-top:6px">Cardio minutes only count sessions whose average heart rate is zone 2 or higher (a session with no zone logged still counts).</div>';
     h+='</div>';}
+  h+='</div>';
+  }
+  if(pg==="glp"){
+  var g=glpNormalize();var gs=g.settings;var en=!!gs.enabled;var dim=en?"":" wl-glp-dim";
+  /* master toggle — green, always interactive */
+  h+='<div class="wl-glp-list">'+glpToggleRow(I.syringe,"Enable tracking","Replaces Supplements &amp; Meds","glp:enable",en,false)+'</div>';
+  /* PROTOCOL — dimmed & inert while master is off, never deleted */
+  h+='<div class="wl-glp-sect'+dim+'">Protocol</div>';
+  h+='<div class="wl-glp-list'+dim+'">';
+  var _cs=glpCompoundSummary();
+  h+='<button class="wl-glprow" data-act="glp:compound"><span class="wl-glpic">'+I.pill+'</span><span class="wl-glptxt"><span class="wl-glpt">Compound</span><span class="wl-glps">'+(_cs||"Not set")+'</span></span><span class="wl-glpgo">›</span></button>';
+  h+=glpToggleRow(I.history,"Show due date","Next dose shown on Activity","glp:showdue",!!gs.showDueDate,true);
+  h+=glpToggleRow(I.summary,"Titration schedule",gs.titration?"On":"Off · doses stay at current level","glp:titration",!!gs.titration,true);
+  h+='</div>';
+  /* LOGGING */
+  h+='<div class="wl-glp-sect'+dim+'">Logging</div>';
+  h+='<div class="wl-glp-list'+dim+'">';
+  h+=glpToggleRow(I.pin,"Site rotation","Suggests next site","glp:siterot",!!gs.siteRotation,true);
+  h+=glpToggleRow(I.overview,"Symptom logging","Charts on Progress","glp:symptoms",!!gs.symptomLogging,true);
+  h+='</div>';
+  h+='<div class="wl-hint" style="padding:11px 8px 0">Turning this off keeps your history — the card and charts just stop appearing.</div>';
+  }
+  if(pg==="glpcompound"){
+  glpNormalize();var gc=state.glpDraft||state.glp.compound||{};var gcu=gc.unit||"mg";
+  h+='<div class="wl-card"><div class="wl-card-head"><span>Compound</span></div>';
+  h+='<label class="wl-field wl-field-full"><span>Name</span><input type="text" data-glpc="name" value="'+esc(gc.name||"")+'" placeholder="e.g. Tirzepatide" autocapitalize="words" autocorrect="off"></label>';
+  h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Dose</span><input class="wl-num" type="text" inputmode="decimal" data-glpc="dose" value="'+esc(gc.dose!=null?gc.dose:"")+'" placeholder="—"></label><label class="wl-field"><span>Cadence <em>days</em></span><input class="wl-num" type="text" inputmode="numeric" data-glpc="cadenceDays" value="'+esc(gc.cadenceDays!=null?gc.cadenceDays:"7")+'" placeholder="7"></label></div>';
+  h+='<label class="wl-field wl-field-full" style="margin-top:12px"><span>Unit</span><div class="wl-seg">'+["mg","units","mL"].map(function(x){return '<button class="'+(gcu===x?"on":"")+'" data-act="glp:unit" data-unit="'+x+'">'+x+'</button>';}).join("")+'</div></label>';
+  h+='<div class="wl-hint" style="margin-top:8px">One compound only — this is the active protocol. Cadence is rolling: the next dose is due this many days after your last one.</div>';
+  h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:14px" data-act="glp:compoundsave">Save compound</button>';
   h+='</div>';
   }
   if(pg==="away"){
@@ -3274,15 +3725,15 @@ function confirmOverlayHTML(){var c=state.pendingConfirm;if(!c)return "";
   return '<div class="wl-confirm"><div class="wl-confirm-card"><div class="wl-confirm-msg">'+esc(c.message)+'</div><div class="wl-confirm-btns"><button class="wl-btn wl-btn-ghost wl-full" data-act="confirm:no">Cancel</button><button class="wl-btn wl-full" style="background:'+(c.danger?"var(--bad)":"var(--accent)")+';color:#fff;border:none" data-act="confirm:yes">'+esc(c.label)+'</button></div></div></div>';}
 function render(){
   clearPhotoURLs();
-  var title=state.view==="settings"?"Settings":state.view==="diary"?"Food Diary":state.view==="exlib"?"":state.view==="routine"?"":state.view==="rlaunch"?"Workout":state.view==="quicklog"?"Quick log":state.view==="workout"?"Workout":state.view==="liftview"?"Workout":state.view==="wtadd"?"Weight Training":state.view==="cardioadd"?((state.cardioForm&&state.cardioForm.id)?"Edit Cardio":"Add Cardio"):state.view==="actadd"?(state.actPick==="rest"?"Add Recovery":state.actPick==="supp"?"Add Supplement":"Add"):state.view==="photos"?"Progress Photos":(NAV.filter(function(n){return n[0]===state.view;})[0]||["","" ])[1];var hsub=state.view==="workout"?((state.workout&&state.workout.name)||""):state.view==="liftview"?(((getLiftSession()||{}).name)||""):state.view==="quicklog"?(((state.liftForm&&getRoutine(state.liftForm.routineId))||{}).name||""):state.view==="rlaunch"?(((getRoutine(state.routineId))||{}).name||""):"";
-  var body=state.view==="overview"?view_overview():(state.view==="food"||state.view==="calendar")?view_overview():state.view==="weight"?view_weight():state.view==="summary"?view_summary():state.view==="diary"?view_diary():state.view==="train"?view_train():state.view==="exlib"?view_exlib():state.view==="routine"?view_routine():state.view==="rlaunch"?view_rlaunch():state.view==="quicklog"?view_quicklog():state.view==="workout"?view_workout():state.view==="liftview"?view_liftview():state.view==="wtadd"?view_wtadd():state.view==="cardioadd"?view_cardio():state.view==="actadd"?view_actadd():state.view==="photos"?view_photos():view_settings();
-  var nav='<nav class="wl-nav">'+NAV.map(function(n){return '<button class="wl-navbtn '+(state.view===n[0]||(n[0]==="overview"&&(state.view==="food"||state.view==="diary"))||(n[0]==="weight"&&state.view==="photos")?"on":"")+'" data-act="go" data-view="'+n[0]+'">'+I[n[0]]+'<span>'+n[1]+'</span></button>';/* unread-recap nudge now lives on the M avatar, not the Home tab */}).join("")+'</nav>';
+  var title=state.view==="settings"?"Settings":state.view==="diary"?"Food Diary":state.view==="exlib"?"":state.view==="routine"?"":state.view==="rlaunch"?"Workout":state.view==="quicklog"?"Quick log":state.view==="workout"?"Workout":state.view==="liftview"?"Workout":state.view==="wtadd"?"Weight Training":state.view==="cardioadd"?((state.cardioForm&&state.cardioForm.id)?"Edit Cardio":"Add Cardio"):state.view==="actadd"?(state.actPick==="rest"?"Add Recovery":state.actPick==="supp"?"Add Supplement":"Add"):state.view==="photos"?"Progress Photos":state.view==="glptimeline"?"Weight & dose":(NAV.filter(function(n){return n[0]===state.view;})[0]||["","" ])[1];var hsub=state.view==="workout"?((state.workout&&state.workout.name)||""):state.view==="liftview"?(((getLiftSession()||{}).name)||""):state.view==="quicklog"?(((state.liftForm&&getRoutine(state.liftForm.routineId))||{}).name||""):state.view==="rlaunch"?(((getRoutine(state.routineId))||{}).name||""):"";
+  var body=state.view==="overview"?view_overview():(state.view==="food"||state.view==="calendar")?view_overview():state.view==="weight"?view_weight():state.view==="summary"?view_summary():state.view==="diary"?view_diary():state.view==="train"?view_train():state.view==="exlib"?view_exlib():state.view==="routine"?view_routine():state.view==="rlaunch"?view_rlaunch():state.view==="quicklog"?view_quicklog():state.view==="workout"?view_workout():state.view==="liftview"?view_liftview():state.view==="wtadd"?view_wtadd():state.view==="cardioadd"?view_cardio():state.view==="actadd"?view_actadd():state.view==="photos"?view_photos():state.view==="glptimeline"?view_glptimeline():view_settings();
+  var nav='<nav class="wl-nav">'+NAV.map(function(n){return '<button class="wl-navbtn '+(state.view===n[0]||(n[0]==="overview"&&(state.view==="food"||state.view==="diary"))||(n[0]==="weight"&&(state.view==="photos"||state.view==="glptimeline"))?"on":"")+'" data-act="go" data-view="'+n[0]+'">'+I[n[0]]+'<span>'+n[1]+'</span></button>';/* unread-recap nudge now lives on the M avatar, not the Home tab */}).join("")+'</nav>';
   var avatar='<button class="wl-avatar'+(state.view==="settings"?" on":"")+'" data-act="go" data-view="settings" aria-label="Settings"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>';
   var hdrRight=syncOn()?'<button class="wl-syncdot" data-act="syncdot" aria-label="Sync status"><span class="wl-sdot '+syncDotClass()+'" id="wl-sdot"></span></button>':'';
   var maxBtn=isOwner()?'<button class="wl-maxb'+(coachUnreadW()?" hot":"")+'" data-act="max:open" aria-label="Messages from Coach Max">M</button>':'';
-  var backBtn=state.view==="photos"?'<button class="wl-hdr-back" data-act="go" data-view="weight" aria-label="Back">‹</button>':state.view==="diary"?'<button class="wl-hdr-back" data-act="go" data-view="overview" aria-label="Back">‹</button>':'';
+  var backBtn=(state.view==="photos"||state.view==="glptimeline")?'<button class="wl-hdr-back" data-act="go" data-view="weight" aria-label="Back">‹</button>':state.view==="diary"?'<button class="wl-hdr-back" data-act="go" data-view="overview" aria-label="Back">‹</button>':'';
   var _navH=headerNav();var _brand='<span class="wl-mark">'+BRANDMARK+'</span>';var _md=statusFor(todayISO());var _mbanner=_md?('<button class="wl-modebanner" data-act="go" data-view="settings"><span class="wl-mb-em">'+(_md.status.type==="vacation"?"\ud83c\udfd6\ufe0f":"\ud83e\udd12")+'</span><span>'+(_md.status.type==="vacation"?"Vacation Mode":"Recovery Mode")+'</span><span class="wl-mb-go">Settings \u203a</span></button>'):'';
-  document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header'+(_md?" hasbanner":"")+'">'+_mbanner+'<div class="wl-hdr-brand"><div class="wl-brandrow">'+_brand+'<span class="wl-eyebrow">Compound</span></div>'+hdrRight+'</div><div class="wl-hdr-main">'+backBtn+'<div class="wl-title-slot">'+(title?('<h1 class="wl-title">'+title+'</h1>'):'')+(hsub?'<div class="wl-hsub">'+esc(hsub)+'</div>':'')+'</div><div class="wl-hdr-actions">'+maxBtn+avatar+'</div></div>'+(_navH?'<div class="wl-hdr-datebar">'+_navH+'</div>':'')+'</header><main class="wl-main">'+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML()+statusSheetHTML()+obOverlayHTML()+deviceSheetHTML()+maxSheetHTML()+infoSheetHTML();
+  document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header'+(_md?" hasbanner":"")+'">'+_mbanner+'<div class="wl-hdr-brand"><div class="wl-brandrow">'+_brand+'<span class="wl-eyebrow">Compound</span></div>'+hdrRight+'</div><div class="wl-hdr-main">'+backBtn+'<div class="wl-title-slot">'+(title?('<h1 class="wl-title">'+title+'</h1>'):'')+(hsub?'<div class="wl-hsub">'+esc(hsub)+'</div>':'')+'</div><div class="wl-hdr-actions">'+maxBtn+avatar+'</div></div>'+(_navH?'<div class="wl-hdr-datebar">'+_navH+'</div>':'')+'</header><main class="wl-main">'+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML()+statusSheetHTML()+obOverlayHTML()+deviceSheetHTML()+maxSheetHTML()+infoSheetHTML()+glpSheetHTML();
   var hdr=document.querySelector(".wl-header");if(hdr)document.documentElement.style.setProperty("--headh",hdr.offsetHeight+"px");
   if(document.getElementById("wl-photostrip"))renderPhotosStrip(state.selDate);
   if(state.view==="diary")renderDiary();
@@ -3292,10 +3743,45 @@ function render(){
 
 /* ---------------- events ---------------- */
 function toast(msg){var t=document.getElementById("wl-toast");t.textContent=msg;t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(function(){t.classList.remove("show");},1600);}
+/* long-press to archive a custom symptom chip (data-glplong) */
+var glpLPfired=false;
+(function(){var lpT=null;function clr(){if(lpT){clearTimeout(lpT);lpT=null;}}
+  document.addEventListener("pointerdown",function(e){var el=e.target&&e.target.closest?e.target.closest("[data-glplong]"):null;if(!el)return;clr();var id=el.getAttribute("data-glplong");lpT=setTimeout(function(){lpT=null;glpLPfired=true;if(navigator.vibrate){try{navigator.vibrate(15);}catch(_e){}}glpArchiveType(id);},550);},{passive:true});
+  document.addEventListener("pointerup",clr,{passive:true});
+  document.addEventListener("pointermove",clr,{passive:true});
+  document.addEventListener("pointercancel",clr,{passive:true});
+})();
 document.addEventListener("click",function(e){
+  if(glpLPfired){glpLPfired=false;return;}
   var el=e.target.closest("[data-act]");if(!el)return;var a=el.getAttribute("data-act");
   if(a==="set:page"){var _pgv=el.getAttribute("data-page");state.setPage=_pgv;state.open=state.open||{};({profile:["profile"],strategy:["strategy"],goals:["goals"],coach:["reminder"],appearance:["theme"],data:["exportdata","backup"],sync:["sync","share"]}[_pgv]||[]).forEach(function(k){state.open[k]=true;});render();return;}
   if(a==="set:back"){state.setPage=null;render();return;}
+  if(a==="glp:enable"){glpNormalize();state.glp.settings.enabled=!state.glp.settings.enabled;save();render();return;}
+  if(a==="glp:showdue"){glpNormalize();if(!state.glp.settings.enabled)return;state.glp.settings.showDueDate=!state.glp.settings.showDueDate;save();render();return;}
+  if(a==="glp:titration"){glpNormalize();if(!state.glp.settings.enabled)return;state.glp.settings.titration=!state.glp.settings.titration;save();render();return;}
+  if(a==="glp:siterot"){glpNormalize();if(!state.glp.settings.enabled)return;state.glp.settings.siteRotation=!state.glp.settings.siteRotation;save();render();return;}
+  if(a==="glp:symptoms"){glpNormalize();if(!state.glp.settings.enabled)return;state.glp.settings.symptomLogging=!state.glp.settings.symptomLogging;save();render();return;}
+  if(a==="glp:compound"){glpNormalize();var _gc=state.glp.compound||{};state.glpDraft={name:_gc.name||"",dose:(_gc.dose!=null?_gc.dose:""),unit:_gc.unit||"mg",cadenceDays:(_gc.cadenceDays!=null?_gc.cadenceDays:7)};state.setPage="glpcompound";render();return;}
+  if(a==="glp:compoundback"){state.glpDraft=null;state.setPage="glp";render();return;}
+  if(a==="glp:unit"){glpSyncDraft();state.glpDraft=state.glpDraft||{};state.glpDraft.unit=el.getAttribute("data-unit");render();return;}
+  if(a==="glp:compoundsave"){glpNormalize();glpSyncDraft();var _d=state.glpDraft||{};var _nm=(_d.name||"").trim();if(!_nm){toast("Enter a compound name");return;}var _dose=num(_d.dose);var _cad=parseInt(_d.cadenceDays,10);if(!_cad||_cad<=0)_cad=7;state.glp.compound={name:_nm,dose:(_dose!=null?_dose:""),unit:_d.unit||"mg",cadenceDays:_cad};save();state.glpDraft=null;state.setPage="glp";render();toast("Compound saved");return;}
+  /* --- GLP-1 Part 2: Activity card + sheets --- */
+  if(a==="glp:setup"){state.setFrom=state.view;state.view="settings";state.setPage="glp";render();return;}
+  if(a==="glp:dose:open"){glpNormalize();var _g=state.glp;if(!_g.compound){toast("Set up a compound first");return;}var _at=el.getAttribute("data-at");var _atMs=_at?parseInt(_at,10):Date.now();var _sug=glpSiteSuggestion();state.glpSheet={mode:"dose",dose:(_g.compound.dose!=null?String(_g.compound.dose):""),siteId:(_g.settings.siteRotation?_sug.suggested:null),at:_atMs,note:""};render();return;}
+  if(a==="glp:site"){glpSheetSync();if(state.glpSheet)state.glpSheet.siteId=el.getAttribute("data-site");render();return;}
+  if(a==="glp:dose:save"){glpNormalize();glpSheetSync();var _s=state.glpSheet;if(!_s)return;var _g2=state.glp;if(!_g2.compound){toast("Set up a compound first");return;}var _dv=num(_s.dose);state.glp.doses.push({id:glpNewId("dose"),dose:(_dv!=null?_dv:""),unit:(_g2.compound.unit||"mg"),siteId:(_g2.settings.siteRotation?(_s.siteId||null):null),takenAt:(_s.at||Date.now()),note:(_s.note||"").trim(),skipped:false});save();state.glpSheet=null;render();toast("Dose logged");return;}
+  if(a==="glp:dose:del"){glpNormalize();var _id=el.getAttribute("data-id");state.glp.doses=state.glp.doses.filter(function(d){return d.id!==_id;});save();render();return;}
+  if(a==="glp:skip"){glpNormalize();var _g3=state.glp;var _at2=el.getAttribute("data-at");var _atMs2=_at2?parseInt(_at2,10):Date.now();state.glp.doses.push({id:glpNewId("dose"),dose:(_g3.compound?_g3.compound.dose:""),unit:(_g3.compound?_g3.compound.unit:"mg"),siteId:null,takenAt:_atMs2,note:"",skipped:true});save();render();toast("Marked skipped");return;}
+  if(a==="glp:sym:open"){glpNormalize();if(!state.glp.settings.symptomLogging)return;var _ts=state.glp.symptomTypes.filter(function(t){return !t.archived;});state.glpSheet={mode:"sym",symptomTypeId:(_ts[0]?_ts[0].id:null),severity:null,at:Date.now(),note:"",newOpen:false,newLabel:""};render();return;}
+  if(a==="glp:sym:pick"){glpSheetSync();if(state.glpSheet){state.glpSheet.symptomTypeId=el.getAttribute("data-id");state.glpSheet.newOpen=false;}render();return;}
+  if(a==="glp:sev"){glpSheetSync();if(state.glpSheet)state.glpSheet.severity=parseInt(el.getAttribute("data-sev"),10);render();return;}
+  if(a==="glp:sym:new"){glpSheetSync();if(state.glpSheet)state.glpSheet.newOpen=true;render();var _ni=document.getElementById("wl-glpnewin");if(_ni)_ni.focus();return;}
+  if(a==="glp:sym:newsave"){glpNormalize();glpSheetSync();var _s2=state.glpSheet;if(!_s2)return;var _lbl=(_s2.newLabel||"").trim();if(!_lbl){toast("Enter a symptom name");return;}var _nid=glpNewId("sym");state.glp.symptomTypes.push({id:_nid,label:_lbl,isBuiltIn:false,archived:false});_s2.symptomTypeId=_nid;_s2.newOpen=false;_s2.newLabel="";save();render();return;}
+  if(a==="glp:sym:save"){glpNormalize();glpSheetSync();var _s3=state.glpSheet;if(!_s3)return;if(!_s3.symptomTypeId){toast("Pick a symptom");return;}if(!_s3.severity){toast("Pick a severity");return;}state.glp.symptoms.push({id:glpNewId("slog"),symptomTypeId:_s3.symptomTypeId,severity:parseInt(_s3.severity,10),occurredAt:(_s3.at||Date.now()),note:(_s3.note||"").trim()});save();state.glpSheet=null;render();toast("Symptom logged");return;}
+  if(a==="glp:sheetclose"){state.glpSheet=null;render();return;}
+  if(a==="glp:prog:sym"){state.glpProgSym=el.getAttribute("data-id");render();return;}
+  if(a==="glp:prog:mode"){state.glpProgMode=el.getAttribute("data-mode");render();return;}
+  if(a==="glp:timeline"){if(!glpProgEnabled())return;state.view="glptimeline";render();return;}
   if(a==="go"){var _gv=el.getAttribute("data-view");if(_gv==="exlib"&&state.view!=="exlib")state.exlibFrom=state.view;if(_gv==="settings"){if(state.view==="settings"){_gv=state.setFrom||"overview";}else{state.setFrom=state.view;state.setPage=null;}}state.view=_gv;if(state.view==="diary")state.diaryWeeks=1;if(state.view==="settings"){state.open={};state.manageOpen=false;}state.alertDismissed=false;state.confirmReset=false;state.pasteOpen=false;state.syncPasteOpen=false;state.inviteCode=null;state.joinOpen=false;render();return;}
   if(a==="confirm:yes"){var pc=state.pendingConfirm;state.pendingConfirm=null;if(pc&&pc.fn)pc.fn();render();return;}
   if(a==="confirm:no"){state.pendingConfirm=null;render();return;}
