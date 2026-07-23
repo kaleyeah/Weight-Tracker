@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-22.317 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-22.319 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -764,7 +764,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-22.317-pb";
+var APP_BUILD="2026-07-22.319-pb";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -1419,6 +1419,13 @@ function ckNotes(sel){
 function ckRowSkip(label,val,sec){return '<button class="wl-ck-row" data-act="dl:open" data-sec="'+sec+'"><span class="wl-ck-l"><span class="wl-ck-ic"></span><span class="wl-ck-lab">'+label+'</span></span><span class="wl-ck-val" style="color:var(--faint);font-style:italic">'+val+'</span><span class="wl-ck-go">›</span></button>';}
 function skipBtn(sec,on,word){return '<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="skip:'+sec+'">'+(on?"Un-skip \u2014 I\u2019ll log "+word:"Not tracking "+word+" today")+'</button>'+(on?'<div class="wl-hint" style="margin-top:8px">Marked skipped \u2014 still counts as checked in. Logging when you can gives your coach a truer read over time.</div>':'');}
 function completeBtnHTML(sel){var selToday=sel===todayISO();if(state.nightBusy)return '<div class="wl-hint" style="margin-top:12px;text-align:center">⏳ Completing… generating your recap.</div>';var ns=state.nightlySummary;var hasRecap=ns&&ns.date===sel&&ns.text;if(hasRecap)return '<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:12px" data-act="night:gen">↻ Regenerate recap</button>';return '<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="night:gen">Complete '+(selToday?"today":"this day")+'</button>';}
+function hkButtonHTML(sel){
+  if(!isOwner())return "";
+  if(state.hkDone&&state.hkDone.date===sel){var _hd=new Date(state.hkDone.ts);var _hh=_hd.getHours()%12;if(_hh===0)_hh=12;var _hm=(_hd.getMinutes()<10?"0":"")+_hd.getMinutes();
+    return '<button class="wl-hkbtn" data-act="hk:import" style="margin-top:14px">✓ Imported '+_hh+':'+_hm+(_hd.getHours()<12?" AM":" PM")+' · tap to import again</button>';}
+  if(state.hkWait&&state.hkWait.date===sel)return '<div class="wl-hkwait" style="margin-top:14px"><span>⏳ Waiting for Health data… swipe back after the shortcut finishes.</span><button class="wl-link" data-act="hk:cancel" style="flex:none">Cancel</button></div>';
+  return '<button class="wl-hkbtn" data-act="hk:import" style="margin-top:14px">⤳ Import from Apple Health</button>';
+}
 function todayChecklistHTML(sel){
   var u=state.settings.units;var f=state.food[sel]||{};
   var wt=null;for(var i=0;i<state.weights.length;i++){if(state.weights[i].date===sel){wt=state.weights[i].weight;break;}}
@@ -1430,7 +1437,7 @@ function todayChecklistHTML(sel){
     mh+=(steps!=null)?ckRow(true,"Steps",Math.round(steps).toLocaleString(),"steps",false):ckRowSkip("Steps","Optional","steps");
     mh+=hasCal?ckCalories(sel):ckRowSkip("Calories","Optional","calories");
     mh+=(sleep!=null)?ckRow(true,"Sleep",minToHM(sleep),"sleep",false):ckRowSkip("Sleep","Optional","sleep");
-    mh+=ckNotes(sel);return mh+'</div>';}
+    mh+=ckNotes(sel);mh+=hkButtonHTML(sel);return mh+'</div>';}
   var wSkip=isSkip(sel,"weight"),stSkip=isSkip(sel,"steps"),slSkip=isSkip(sel,"sleep"),calSkip=isSkip(sel,"calories");
   var done=((wt!=null||wSkip)?1:0)+((steps!=null||stSkip)?1:0)+((hasCal||calSkip)?1:0)+((sleep!=null||slSkip)?1:0);
   var h='<div class="wl-card wl-check"><div class="wl-ck-head"><span class="wl-ck-title">'+(sel===todayISO()?"Today":"This day")+'\u2019s Check-in</span><span class="wl-ck-cnt">'+done+' of 4 done</span></div>';
@@ -1438,7 +1445,7 @@ function todayChecklistHTML(sel){
   h+=(wt!=null)?ckRow(true,"Weight",r1(wt)+" "+u,"weight",false):(wSkip?ckRowSkip("Weight","Skipped","weight"):ckRow(false,"Weight","Add","weight",false));
   h+=(hasCal||!calSkip)?ckCalories(sel):ckRowSkip("Calories","Skipped","calories");
   h+=(steps!=null)?ckRow(true,"Steps",Math.round(steps).toLocaleString(),"steps",false):(stSkip?ckRowSkip("Steps","Skipped","steps"):ckRow(false,"Steps","Add","steps",false));
-  h+=ckNotes(sel);
+  h+=ckNotes(sel);h+=hkButtonHTML(sel);
   return h+'</div>';
 }
 function activitySummaryHTML(sel){
@@ -1911,12 +1918,7 @@ function quickEntryHTML(){
     var _cv=e.calories!=null?e.calories:"";
     body+='</div><label class="wl-field wl-field-full" style="margin-top:14px"><span>Total Calories <em>cal</em></span><input class="wl-food-input wl-num" data-food="calories" type="text" inputmode="decimal" placeholder="0" value="'+_cv+'">';if(hasT&&t.calories!=null)body+='<div class="wl-tbar" id="bar-calories">'+barInner(num(_cv),t.calories)+'</div>';body+='</label>';
     body+='<div id="wl-calnotice">'+calNoticeHTML(sel)+'</div>';var _clk=isSkip(sel,"calories");body+=skipBtn("calories",_clk,"food");
-    if(isOwner()){
-      if(state.hkDone&&state.hkDone.date===sel){var _hd=new Date(state.hkDone.ts);var _hh=_hd.getHours()%12;if(_hh===0)_hh=12;var _hm=(_hd.getMinutes()<10?"0":"")+_hd.getMinutes();
-        body+='<button class="wl-hkbadge" data-act="hk:import" style="cursor:pointer">\u2713 Imported \u00b7 '+_hh+':'+_hm+(_hd.getHours()<12?" AM":" PM")+' \u00b7 tap to import again</button>';}
-      else if(state.hkWait&&state.hkWait.date===sel){body+='<div class="wl-hkwait"><span>\u23f3 Waiting for Health data\u2026 swipe back after the shortcut finishes.</span><button class="wl-link" data-act="hk:cancel" style="flex:none">Cancel</button></div>';}
-      else{body+='<button class="wl-hkbtn" data-act="hk:import">\u2933 Import from Apple Health</button>';}
-    }}
+    }
   else if(sec==="notes")body='<textarea class="wl-note-input" placeholder="Any notes for the AI summary (feeling sick, feeling good, on vacation…)" style="width:100%;min-height:96px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:14px;padding:11px 12px;box-sizing:border-box;outline:none;resize:vertical">'+esc(state.notes[sel]||"")+'</textarea>';
   var h='<div class="wl-confirm"><div class="wl-confirm-card">';
   h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><div style="font-weight:800;font-size:17px">'+titles[sec]+'</div><button class="wl-icon-btn" data-act="qe:close">✕</button></div>';
@@ -4054,10 +4056,10 @@ function pushDataPromise(){
    food macros + steps + sleep; weight/body-fat/waist come in a later pass. */
 function hkNum(v){if(v==null)return null;var s=String(v).replace(/[^0-9.\-]/g,"");if(!s||s==="."||s==="-")return null;var n=parseFloat(s);return isFinite(n)?n:null;}
 function hkDayLines(text){var out={};if(text==null)return out;var lines=String(text).split(/[\r\n]+/);for(var i=0;i<lines.length;i++){var line=lines[i].trim();if(!line)continue;var c=line.indexOf(",");if(c<0)continue;var day=line.slice(0,c).trim();if(!/^\d{4}-\d{2}-\d{2}$/.test(day))continue;var v=hkNum(line.slice(c+1));if(v==null||v<=0)continue;out[day]=(out[day]||0)+v;}return out;}
-function hkLabelToField(name){var n=String(name).toLowerCase().replace(/[^a-z]/g,"");if(n.indexOf("bodyfat")>=0||n.indexOf("weight")>=0||n.indexOf("waist")>=0||n.indexOf("heartrate")>=0||n.indexOf("restinghr")>=0||n.indexOf("hr")>=0)return null;if(n.indexOf("protein")>=0)return "protein";if(n.indexOf("carb")>=0)return "carbs";if(n.indexOf("fat")>=0)return "fat";if(n.indexOf("calor")>=0||n.indexOf("energy")>=0)return "calories";if(n.indexOf("step")>=0)return "steps";if(n.indexOf("sleep")>=0||n.indexOf("asleep")>=0)return "sleep";return null;}
-function hkParseLabeled(text){var out={};var re=/([A-Za-z][A-Za-z ]*?)\s*:\s*(-?[0-9][0-9.,]*)/g;var m;while((m=re.exec(String(text)))!==null){var field=hkLabelToField(m[1]);if(field&&out[field]===undefined)out[field]=m[2];}return out;}
+function hkLabelToField(name){var n=String(name).toLowerCase().replace(/[^a-z]/g,"");if(n.indexOf("bodyfat")>=0)return "bodyfat";if(n.indexOf("protein")>=0)return "protein";if(n.indexOf("carb")>=0)return "carbs";if(n.indexOf("fat")>=0)return "fat";if(n.indexOf("calor")>=0||n.indexOf("energy")>=0)return "calories";if(n.indexOf("step")>=0)return "steps";if(n.indexOf("weight")>=0)return "weight";if(n.indexOf("waist")>=0)return "waist";if(n.indexOf("sleep")>=0||n.indexOf("asleep")>=0)return "sleep";return null;}
+function hkParseLabeled(text){var out={};var re=/([^\r\n,:]+?)\s*:\s*(-?[0-9][0-9.,]*)/g;var m;while((m=re.exec(String(text)))!==null){var field=hkLabelToField(m[1]);if(field&&out[field]===undefined)out[field]=m[2];}return out;}
 function hkMetricDays(value,forDay){var byDay=hkDayLines(value);var has=false;for(var k in byDay){has=true;break;}if(has)return byDay;if(forDay){var v=hkNum(value);if(v!=null&&v>0){var o={};o[forDay]=v;return o;}}return {};}
-function hkPlan(payload,fallbackFor){var out={food:{},steps:{},sleep:{},count:0};if(typeof payload==="string"){try{payload=JSON.parse(payload);}catch(e){payload=hkParseLabeled(payload);}}if(!payload||typeof payload!=="object")return out;var forDay=(payload["for"]!=null?String(payload["for"]).trim():"")||(fallbackFor||"");if(!/^\d{4}-\d{2}-\d{2}$/.test(forDay))forDay="";
+function hkPlan(payload,fallbackFor){var out={food:{},steps:{},sleep:{},weight:{},bodyfat:{},waist:{},count:0};var hkR1=function(v){return Math.round(v*10)/10;};if(typeof payload==="string"){try{payload=JSON.parse(payload);}catch(e){payload=hkParseLabeled(payload);}}if(!payload||typeof payload!=="object")return out;var forDay=(payload["for"]!=null?String(payload["for"]).trim():"")||(fallbackFor||"");if(!/^\d{4}-\d{2}-\d{2}$/.test(forDay))forDay="";
   var macros=["carbs","protein","fat","calories"],perDay={};
   macros.forEach(function(k){var byDay=hkMetricDays(payload[k],forDay);for(var day in byDay){if(!perDay[day])perDay[day]={};perDay[day][k]=byDay[day];}});
   for(var d in perDay){var vals=perDay[d],entry={},touched=false;
@@ -4066,6 +4068,9 @@ function hkPlan(payload,fallbackFor){var out={food:{},steps:{},sleep:{},count:0}
     if(touched)out.food[d]=entry;}
   var st=hkMetricDays(payload.steps,forDay);for(var sd in st){out.steps[sd]=Math.round(st[sd]);out.count++;}
   var sl=hkMetricDays(payload.sleep,forDay);for(var ld in sl){out.sleep[ld]=Math.round(sl[ld]);out.count++;}
+  var wt=hkMetricDays(payload.weight,forDay);for(var wd in wt){out.weight[wd]=hkR1(wt[wd]);out.count++;}
+  var bf=hkMetricDays(payload.bodyfat,forDay);for(var bd in bf){var b=bf[bd];if(b<=1)b=b*100;out.bodyfat[bd]=hkR1(b);out.count++;}
+  var wa=hkMetricDays(payload.waist,forDay);for(var ad in wa){out.waist[ad]=hkR1(wa[ad]);out.count++;}
   return out;}
 function hkTryFetch(){
   var w=state.hkWait;if(!w)return;
@@ -4080,6 +4085,9 @@ function hkTryFetch(){
     for(var d in plan.food){state.food[d]=Object.assign({},state.food[d]||{},plan.food[d]);}
     for(var sd in plan.steps){state.steps[sd]=plan.steps[sd];try{setSkip(sd,"steps",false);}catch(e){}}
     for(var ld in plan.sleep){state.sleep[ld]=plan.sleep[ld];try{setSkip(ld,"sleep",false);}catch(e){}}
+    for(var wgd in plan.weight){(function(dd){state.weights=(state.weights||[]).filter(function(x){return x.date!==dd;});state.weights.push({date:dd,weight:plan.weight[dd]});try{setSkip(dd,"weight",false);}catch(e){}})(wgd);}
+    for(var bfd in plan.bodyfat){state.bodyfat=state.bodyfat||{};state.bodyfat[bfd]=plan.bodyfat[bfd];try{setSkip(bfd,"bodyfat",false);}catch(e){}}
+    for(var wsd in plan.waist){state.waist=state.waist||{};state.waist[wsd]=plan.waist[wsd];try{setSkip(wsd,"waist",false);}catch(e){}}
     state.hkDone={date:state.selDate,ts:Date.now()};state.hkWait=null;
     save();
     pbSave({health:null},function(){});
