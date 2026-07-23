@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-23.323 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-23.327 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -553,7 +553,9 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 .wl-card.catcard .wl-sess{border-bottom-color:rgba(255,255,255,.16);}
 .wl-card.catcard .wl-sess-type{color:#fff;}
 .wl-card.catcard .wl-sess-meta{color:rgba(255,255,255,.62);}
-.wl-card.catcard .wl-icon-btn{color:rgba(255,255,255,.6);}
+.wl-card.catcard .wl-icon-btn{width:44px;height:44px;padding:0;border-radius:11px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);color:#fff;align-items:center;justify-content:center;flex:none;}
+.wl-card.catcard .wl-icon-btn svg{width:17px;height:17px;}
+.wl-card.catcard .wl-icon-btn:active{background:rgba(255,255,255,.24);color:#fff;}
 .wl-card.catcard .wl-inprogress{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.42);color:#fff;}
 .wl-card.catcard .wl-ip-badge{color:#fff;}
 .wl-card.catcard .wl-achip{color:#fff;border-color:rgba(255,255,255,.35);background:rgba(255,255,255,.10);}
@@ -771,7 +773,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-23.323-pb";
+var APP_BUILD="2026-07-23.327-pb";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -3097,7 +3099,7 @@ function actCatCardHTML(cat,title,date){
   var noun=cat==="rest"?"recovery":"supplements";
   var catSum=mine.length?(mine.length+" logged"):"Nothing logged today";var h='<div class="wl-card catcard '+cat+'">'+catHead(cat,title,catSum);
   if(mine.length){mine.forEach(function(x){h+='<div class="wl-sess"><div class="wl-sess-main" style="cursor:default"><span class="wl-sess-type">'+esc(x.a.name||CATLABEL[cat])+'</span></div><button class="wl-icon-btn" data-act="act:del" data-idx="'+x.i+'" data-date="'+date+'">'+I.trash.replace("<svg","<svg width=15 height=15")+'</button></div>';});}
-  
+
   h+='<button class="wl-btn '+btnClass+' wl-full" style="margin-top:10px" data-act="act:pick" data-cat="'+cat+'">'+I.plus.replace("<svg","<svg width=16 height=16")+addLabel+'</button>';
   return h+'</div>';
 }
@@ -3134,7 +3136,7 @@ function view_train(){
   if(sess.length){sess.forEach(function(s){var meta=[];meta.push(s.mins+" min");if(s.zone)meta.push("Zone "+s.zone);if(s.hr)meta.push("HR "+s.hr+(s.hrMax?"/"+s.hrMax:""));else if(s.hrMax)meta.push("peak "+s.hrMax);if(s.rpe)meta.push("RPE "+s.rpe);if(s.cal)meta.push("~"+s.cal+" cal");
     h+='<div class="wl-sess"><button class="wl-sess-main" data-act="cardio:edit" data-id="'+s.id+'"><span class="wl-sess-type">'+esc(s.type||"Cardio")+'</span><span class="wl-sess-meta">'+meta.join("  ·  ")+'</span></button><button class="wl-icon-btn" data-act="cardio:del" data-id="'+s.id+'">'+I.trash.replace("<svg","<svg width=15 height=15")+'</button></div>';});}
   h+='<button class="wl-btn wl-btn-cardio wl-full" style="margin-top:10px" data-act="cardio:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add Cardio</button></div>';
-  
+
   h+=actCatCardHTML("rest","Recovery",d);
   h+=actCatCardHTML("supp","Supplements & Meds",d);
   return h+'</div>';
