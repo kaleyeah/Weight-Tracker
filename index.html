@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-22.319 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-23.320 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -764,7 +764,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-22.319-pb";
+var APP_BUILD="2026-07-23.320-pb";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -970,7 +970,7 @@ function applyCloud(d){if(!d)return;
   state.settings=Object.assign({},DEFAULT_SETTINGS,d.settings||{});
   state.weights=Array.isArray(d.weights)?d.weights:[];
   state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.bodyfat=d.bodyfat||{};state.waist=d.waist||{};state.statuses=d.statuses||[];state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;state.nightlyLog=d.nightlyLog||{};state.scriptVer=d.scriptVer||{};if(migrateCoachSeen())save();
-  state.presets=(Array.isArray(d.presets)&&d.presets.length)?d.presets:DEFAULT_PRESETS.slice();
+  state.presets=(Array.isArray(d.presets)&&d.presets.length)?d.presets:DEFAULT_PRESETS.slice();state.skips=d.skips||{};
   if(state.settings.macroAuto===undefined&&(num(state.settings.targetProtein)!=null||num(state.settings.targetCarbs)!=null||num(state.settings.targetFat)!=null))state.settings.macroAuto=false;
   if(state.settings.calTargetAuto===undefined&&num(state.settings.targetCalories)!=null)state.settings.calTargetAuto=false;
   applyAutoMacros();
@@ -1017,9 +1017,17 @@ function localHasData(){return state.weights.length>0||Object.keys(state.food).l
 function cloudEmpty(d){return !d||((d.weights||[]).length===0&&Object.keys(d.food||{}).length===0&&Object.keys(d.workouts||{}).length===0&&(!d.settings||Object.keys(d.settings).length===0));}
 function autoSync(){if(!syncOn())return;
   pullConnections();trainingPull(function(){if(state.view==="train")render();});
-  if(isDirty()){cloudPush();return;}
+  /* Boot-path recency guard (mirrors the pbDoLogin guard): fetch the server FIRST,
+     then decide. A dirty local copy may overwrite the server ONLY when the server is
+     empty or this device holds the newest entry. Without this, a stale-but-dirty
+     device (a long-dormant tab, an old cache) blind-pushed on boot and clobbered
+     newer data logged on another device. When the server is strictly newer, we adopt
+     it instead of pushing. */
   setSync("syncing");cloudGet(function(d,err){
     if(err){setSync(err==="offline"?"offline":"error",err==="auth"?"bad token or repo access":"");return;}
+    function newestStamp(o){var m="";((o&&o.weights)||[]).forEach(function(x){if(x&&x.date>m)m=x.date;});
+      ["food","steps","sleep","bodyfat","waist","notes"].forEach(function(k){var mp=o&&o[k];if(mp)for(var day in mp){if(day>m)m=day;}});return m;}
+    if(isDirty()&&localHasData()&&(cloudEmpty(d)||newestStamp(state)>=newestStamp(d))){cloudPush();return;}
     if(cloudEmpty(d)&&localHasData()){cloudPush();return;} /* first sync: seed the repo, keep local */
     applyCloud(d);setLastSync();setSync("ok");render();});}
 function cloudTest(){setSync("syncing");cloudGet(function(d,err){
@@ -1424,7 +1432,7 @@ function hkButtonHTML(sel){
   if(state.hkDone&&state.hkDone.date===sel){var _hd=new Date(state.hkDone.ts);var _hh=_hd.getHours()%12;if(_hh===0)_hh=12;var _hm=(_hd.getMinutes()<10?"0":"")+_hd.getMinutes();
     return '<button class="wl-hkbtn" data-act="hk:import" style="margin-top:14px">✓ Imported '+_hh+':'+_hm+(_hd.getHours()<12?" AM":" PM")+' · tap to import again</button>';}
   if(state.hkWait&&state.hkWait.date===sel)return '<div class="wl-hkwait" style="margin-top:14px"><span>⏳ Waiting for Health data… swipe back after the shortcut finishes.</span><button class="wl-link" data-act="hk:cancel" style="flex:none">Cancel</button></div>';
-  return '<button class="wl-hkbtn" data-act="hk:import" style="margin-top:14px">⤳ Import from Apple Health</button>';
+  return '<button class="wl-hkbtn" data-act="hk:import" style="margin-top:14px">⤓ Import from Apple Health</button>';
 }
 function todayChecklistHTML(sel){
   var u=state.settings.units;var f=state.food[sel]||{};
@@ -1460,24 +1468,6 @@ function activitySummaryHTML(sel){
   return h+'</div>';
 }
 var wkPhotoHave=null,wkPhotoKey=null;
-function hkTryFetch(){var w=state.hkWait;if(!w)return;
-  if(Date.now()-w.ts>5*60*1000){state.hkWait=null;render();return;}
-  var c=syncCfg();if(!syncOn())return;
-  fetch(ghUrl(c,"health.json")+"?ref="+encodeURIComponent(c.branch||DEFAULT_BRANCH)+"&t="+Date.now(),{headers:ghHeaders(c),cache:"no-store"})
-    .then(function(r){return r.ok?r.json():null;})
-    .then(function(j){var rec=null;
-      if(j&&j.content){try{rec=JSON.parse(b64dec((j.content||"").replace(/\n/g,"")));}catch(e){rec=null;}}
-      var w2=state.hkWait;if(!w2)return;
-      if(!rec||rec.date!==w2.date){
-        w2.tries=(w2.tries||0)+1;
-        if(w2.tries<6){setTimeout(hkTryFetch,2000);}
-        else{state.hkWait=null;toast("No Health data found yet \u2014 run the shortcut and try again");render();}
-        return;}
-      var d=rec.date;var fo=Object.assign({},state.food[d]||{});
-      ["calories","protein","carbs","fat"].forEach(function(k){var v=num(rec[k]);if(v!=null)fo[k]=String(Math.round(v));});
-      state.food[d]=fo;state.hkDone={date:d,ts:Date.now()};state.hkWait=null;
-      save();toast("Imported from Health");render();})
-    .catch(function(){});}
 
 function refreshWeekPhotos(){if(typeof indexedDB==="undefined"){wkPhotoHave=false;return;}var wk=toISO(weekStartFor(0));var key=wk;
   /* Go through idb() rather than opening the database directly. Opening "wl_photos"
