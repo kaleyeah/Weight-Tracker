@@ -1,7 +1,7 @@
 # Compound Fitness
 ## Project Roles & Development Workflow
 
-**Version:** 1.0
+**Version:** 2.0
 
 ---
 

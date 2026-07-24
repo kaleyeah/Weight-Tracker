@@ -1,5 +1,7 @@
 # Compound Fitness Roadmap
 
+**Version:** 2.0
+
 ---
 
 ## Phase 1 — Athlete App

@@ -1,6 +1,6 @@
 # Compound Fitness — Native Bridge Architecture
 
-**Version:** 1.0
+**Version:** 2.0
 **Status:** Proposed
 **Scope:** The boundary between the PWA and the native iOS/Android wrappers. This document designs the **bridge contract and data flow first** — not screens.
 

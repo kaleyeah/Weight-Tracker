@@ -1,6 +1,6 @@
 # Compound Fitness — Architectural Decision Log
 
-**Version:** 1.0
+**Version:** 2.0
 
 A running log of every major architectural and product-shaping decision, and **why** it was made. The purpose is durability of context: future contributors — human or AI — should be able to read this before changing direction, so that good decisions are not silently undone because the reasoning behind them was lost.
 
@@ -11,7 +11,7 @@ A running log of every major architectural and product-shaping decision, and **w
 - **Status values:** `Accepted`, `Proposed`, `Superseded by ADR-NNN`, `Deprecated`.
 - **Every entry answers:** what was decided, what the alternatives were, and what it costs us.
 
-> **Provenance note (v1.0):** The entries below were reconstructed from the Product Bible documents (Vision, Product History, Technical Architecture) and the available git history. Dates are exact where git or the docs record them, and marked *approx.* where they were inferred from the product-planning period. Going forward, add entries at decision time.
+> **Provenance note (v2.0):** The entries below were reconstructed from the Product Bible documents (Vision, Product History, Technical Architecture) and the available git history. Dates are exact where git or the docs record them, and marked *approx.* where they were inferred from the product-planning period. Going forward, add entries at decision time.
 
 ---
 

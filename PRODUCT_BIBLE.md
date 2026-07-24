@@ -1,5 +1,7 @@
 # Compound Fitness Product Bible
 
+**Version:** 2.0
+
 ---
 
 ## Vision

@@ -1,5 +1,7 @@
 # Compound Fitness Technical Architecture
 
+**Version:** 2.0
+
 ---
 
 ## High Level Architecture

@@ -1,5 +1,7 @@
 # Feature Specification
 
+**Version:** 2.0
+
 ---
 
 ## Feature Name

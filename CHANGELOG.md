@@ -1,6 +1,6 @@
 # Compound Fitness — Changelog
 
-**Version:** 1.0
+**Version:** 2.0
 
 A high-level, human- and AI-readable log of how the **product** has evolved — distinct from the Git commit history. Git records *every* change; this file records the changes that matter for understanding where the platform is and how it got here.
 
@@ -11,7 +11,7 @@ A high-level, human- and AI-readable log of how the **product** has evolved — 
 - Keep entries product-level. If a reader would need to open the diff to understand it, it's too granular for this file.
 - Internal builds are tracked as `YYYY-MM-DD.NNN`; those numbers are referenced where useful.
 
-> **Provenance note (v1.0):** History before 2026-07-20 predates the current git clone and is summarized from the Product History doc and internal build numbers (the athlete app was already near build .270+ by then). Entries from 2026-07-20 onward are grounded in git history.
+> **Provenance note (v2.0):** History before 2026-07-20 predates the current git clone and is summarized from the Product History doc and internal build numbers (the athlete app was already near build .270+ by then). Entries from 2026-07-20 onward are grounded in git history.
 
 ---
 
@@ -21,6 +21,9 @@ A high-level, human- and AI-readable log of how the **product** has evolved — 
 - **Product Bible documentation set** — Vision, Product History, Roles & Workflow, Technical Architecture, Roadmap, and the Feature Specification template, establishing the platform's mission, principles, and process of record.
 - **Native Bridge Architecture** proposal — the PWA↔native boundary designed as a single generic transport with self-describing capabilities (`NATIVE_BRIDGE_ARCHITECTURE.md`). *Status: proposed, pending architecture review.*
 - **Decision log & changelog** — `DECISIONS.md` (architectural decision record) and this file, to preserve context as the project scales.
+
+### Changed
+- **Documentation versioning reset to 2.0.** The whole Product Bible documentation set now carries a single, uniform `Version: 2.0` going forward, replacing the initial per-doc `1.0` drafts. This is a documentation-versioning reset only; it does not renumber the product or its internal build numbers.
 
 ---
 
