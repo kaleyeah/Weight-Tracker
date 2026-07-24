@@ -24,6 +24,7 @@ A high-level, human- and AI-readable log of how the **product** has evolved — 
 - **Native Bridge Architecture** proposal — the PWA↔native boundary designed as a single generic transport with self-describing capabilities (`NATIVE_BRIDGE_ARCHITECTURE.md`). *Status: proposed, pending architecture review.*
 - **Decision log & changelog** — `DECISIONS.md` (architectural decision record) and this file, to preserve context as the project scales.
 - **`STATUS.md`** — a single, always-current snapshot of project state (complete / in progress / blocked / next), meant to be read first at the start of every session.
+- **`README.md`** rewritten as the project entry point: points newcomers at `STATUS.md` first, indexes the docs with a reading order, and documents the "maintaining these docs" conventions.
 
 ### Changed
 - **Documentation switched to a living-document model.** Removed semantic version numbers from the Bible docs; each now carries a `Last Updated` date and a `Status` field, with Git history as the authoritative version history. (Supersedes the brief `Version: 2.0` numbering.)
