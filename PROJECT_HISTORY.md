@@ -1,6 +1,8 @@
 # Compound Fitness — Project History
 
-**Version:** 2.0
+**Last Updated:** 2026-07-24
+
+**Status:** Active
 
 ---
 

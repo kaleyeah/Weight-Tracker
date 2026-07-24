@@ -1,6 +1,8 @@
 # Compound Fitness — Architectural Decision Log
 
-**Version:** 2.0
+**Last Updated:** 2026-07-24
+
+**Status:** Active
 
 A running log of every major architectural and product-shaping decision, and **why** it was made. The purpose is durability of context: future contributors — human or AI — should be able to read this before changing direction, so that good decisions are not silently undone because the reasoning behind them was lost.
 
@@ -11,7 +13,7 @@ A running log of every major architectural and product-shaping decision, and **w
 - **Status values:** `Accepted`, `Proposed`, `Superseded by ADR-NNN`, `Deprecated`.
 - **Every entry answers:** what was decided, what the alternatives were, and what it costs us.
 
-> **Provenance note (v2.0):** The entries below were reconstructed from the Product Bible documents (Vision, Product History, Technical Architecture) and the available git history. Dates are exact where git or the docs record them, and marked *approx.* where they were inferred from the product-planning period. Going forward, add entries at decision time.
+> **Provenance note:** The entries below were reconstructed from the Product Bible documents (Vision, Product History, Technical Architecture) and the available git history. Dates are exact where git or the docs record them, and marked *approx.* where they were inferred from the product-planning period. Going forward, add entries at decision time.
 
 ---
 
@@ -269,3 +271,25 @@ An expired session must never destroy unsynced local data; boot-time recency gua
 ### Consequences
 - More careful local-vs-server reconciliation logic.
 - User trust preserved; logging feels safe even across auth hiccups.
+
+---
+
+## ADR-012 — Documentation is living; no semantic versions; STATUS.md is the state of record
+
+- **Date:** 2026-07-24
+- **Status:** Accepted
+- **Deciders:** Product Owner
+
+### Context
+The Bible docs were briefly given hand-maintained semantic version numbers (1.0, then 2.0). Maintaining independent document versions by hand is noisy, drifts from reality, and duplicates what Git already records.
+
+### Decision
+Treat all documentation as **living documents**. Remove semantic version numbers. Each doc carries a **Last Updated** date and a **Status** (`Active` / `Proposed` / `Deprecated`) at the top. **Git history is the authoritative version history.** In addition, maintain a single **`STATUS.md`** at the repo root as the current-state source of truth — updated at each major milestone and read first at the start of every session.
+
+### Alternatives considered
+- Per-doc semantic versions. Rejected: manual, noisy, and redundant with Git.
+
+### Consequences
+- Docs stay maintainable: "what changed" is answered by Git; "is this current" by the Last Updated date and Status.
+- `STATUS.md` becomes the fastest way for a human or AI to sync on project state at the start of a session.
+- Supersedes the brief experiment of numbering the docs (`Version: 1.0` → `2.0`).
