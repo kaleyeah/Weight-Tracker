@@ -76,23 +76,13 @@ Comparison is **exact canonical equality** (recursive key-sorted serialization),
 
 ---
 
-## 3. PocketBase version — NOT DISCOVERED (blocking items 4, 5, 6, 14)
+## 3. PocketBase version — DISCOVERED: v0.39.8
 
-**I could not retrieve it.** `https://rack.tail6fa16c.ts.net/api/health` fails from this environment:
+Confirmed by the Product Owner from the Admin UI footer (screenshot, 2026-07-25). Also confirmed from the same screenshot: collections are exactly `users`, `appdata`, `photos`, and there are **2 users total** — the duplicate-row migration is trivial at this scale.
 
-```
-curl: (56) CONNECT tunnel failed, response 403
-```
+v0.39.8 is the modern (≥0.23) API generation: `routerAdd` with a `RequestEvent` handler (`e.auth`, `e.requestInfo()`, `e.json(status, body)`), transactions via `$app.runInTransaction(txApp => …)` — verified against the live JSVM reference ([routerAdd](https://pocketbase.io/jsvm/functions/routerAdd.html), [core.RequestEvent](https://pocketbase.io/jsvm/interfaces/core.RequestEvent.html), [js-routing docs](https://pocketbase.io/docs/js-routing/)). The deployment includes a load-confirmation log line and a smoke test as the final guard against any residual API drift.
 
-The host is on your Tailscale network and the agent proxy denies it by policy. This is not a transient error and I cannot work around it. **I will not guess** — the brief forbids it, and guessing wrong produces hooks that fail to load on deploy.
-
-**Please run one of these and paste the output:**
-
-```bash
-curl -s https://rack.tail6fa16c.ts.net/api/health
-# or, on the server:
-./pocketbase --version
-```
+**Deliverables now written** (`server/`): `pb_hooks/cf_cas.pb.js` (CAS route + idempotency ledger + compatibility revision bridge), `DEPLOYMENT.md` (backup → staging → duplicate check → schema → hook → tests → cutover → lockdown, with rollback), and `tests/cas-server-tests.sh` (automated integration tests runnable from the operator's machine).
 
 **What changes with the answer:**
 
