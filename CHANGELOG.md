@@ -19,6 +19,12 @@ A high-level, human- and AI-readable log of how the **product** has evolved — 
 
 ## [Unreleased]
 
+### Fixed (coded, awaiting staging validation)
+- **Dirty local data could be silently replaced — including on pull-to-refresh.** A device whose only unsynced change was a GLP-1 dose, note, settings change or skip was reported as having "no local data" and was overwritten by the server. Dirty state can no longer be adopted over on any path. Build `2026-07-25.332-pb-c1`.
+- **No automatic whole-snapshot upload before server compare-and-swap.** A fingerprint match cannot prevent a concurrent write landing after the read, so automatic push/seed are replaced by a visible pending state and a user-confirmed upload that preserves the online copy first. Automatic upward sync pauses until CAS lands — a deliberate trade of automation for safety.
+- **Destructive actions now fail closed.** Adopting the server copy, restoring a previous copy, replacing the device, and logging out all abort if the recovery copy cannot be verified. Logout no longer wipes on an unverified snapshot or completes on a timer.
+- **Conflict resolution preserves the losing side.** "Use changes from this device" now saves the *online* copy first, rather than the copy that wins.
+
 ### Corrected
 - **Documentation overstated sync safety.** Fingerprints were described as if they prevented concurrent overwrites; they only *detect* known divergence. Server-enforced revisions are the concurrency control. Also corrected: the legacy dirty-flag migration reads the flag but preserves only exact `"1"` as dirty — missing/malformed/wrongly-cleared state becomes clean, which is unsafe.
 
