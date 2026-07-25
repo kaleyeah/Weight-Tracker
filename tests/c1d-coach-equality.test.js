@@ -1,7 +1,7 @@
 /* Commit 1d — executable tests for the four required changes:
    Coach Max non-destructive results, complete set-aside, corrected equality,
    and no unclaimed export (covered in the amended c1c suite). */
-const { loadTestable, test, group, eq, ok, notOk, report } = require('./harness');
+const { loadTestable, test, group, eq, ok, notOk, report, defer } = require('./harness');
 const { createEnv } = require('./integration-env');
 
 const SESSION = JSON.stringify({ uid: 'userA', token: 'tokA', email: 'a@x.com', remember: true });
@@ -38,7 +38,7 @@ group('D2 — coach fields extractor takes ONLY server-owned recap fields', () =
     notOk('weights' in f || 'notes' in f));
 });
 
-group('D3 — INTEGRATED: edit during Coach Max polling survives (Blocker 1)', () => {
+group('D3 — INTEGRATED: edit during Coach Max polling survives (Blocker 1)', () => defer((() => {
   const recapDay = '2026-07-25';
   // The recap appears on the server ONLY after the local edit is made, so the
   // full snapshot (which lacks that edit) can arrive solely via the coach
@@ -80,7 +80,7 @@ group('D3 — INTEGRATED: edit during Coach Max polling survives (Blocker 1)', (
       notOk(!!S.state.notes['2026-07-20']));
     test('no appdata snapshot write occurred', () => eq(env.appdataWrites().filter(w => /"data"|"training"/.test(String(w.body))).length, 0));
   });
-});
+})()));
 
 group('D4 — set-aside preserves the COMPLETE set incl. workout (Blocker 2)', () => {
   const woDraft = JSON.stringify({ entries: [{ ex: 'bench', sets: [1, 2, 3] }], padpadpadpad: 'x'.repeat(60) });

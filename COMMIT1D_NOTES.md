@@ -1,6 +1,6 @@
 # Commit 1d Notes — required explanations
 
-**Last Updated:** 2026-07-25 · Build `2026-07-25.335-pb-c1d` · Companion to the Commit 1c re-review response.
+**Last Updated:** 2026-07-26 · Build `2026-07-26.336-pb-c1e` · Companion to the 1c/1d re-review responses. **1e addendum at the end.**
 
 ## 1. The Coach Max result merge (required deliverable 9)
 
@@ -39,3 +39,14 @@ Executable proof: test D3 starts a recap, edits mid-poll, then lands a full serv
 ```
 
 **Recovery:** the signed-out login screen lists set-aside sets ("Data set aside on this device") with per-set **Save a copy** / **Delete**. Export lives *only* there — a newly authenticated account can no longer export unknown-owner data (Architect ruling A); after an explicit claim the data is the account's own and exports normally.
+
+---
+
+## 1e addendum (responses to the Commit 1d review)
+
+- **D3 is now enforced.** The review proved the coach test ran after the verdict: a broken assertion exited 0. The harness gained `defer()`; `report()` awaits every deferred scenario before printing and setting the exit code. The same broken assertion now fails `run-all` (verified both ways). Suite totals are real: **205**.
+- **Adoption context.** `applyCloudSafe` captures `{owner, sessionGeneration, coreRevision}` before the recovery wait and re-verifies immediately before `applyCloudRaw`; drift aborts (`"stale"`), keeps the recovery copy, and `cfReconcile` re-runs once (depth-guarded) so the new dirty state routes to hold/conflict.
+- **Reconciliation outcomes.** `cfReconcile` callbacks now receive `(decision, outcome)` with `completed / adopted / blocked / conflict / pending / recoveryFailed / stale`. Coach preflight proceeds only on `completed`.
+- **Coach request context.** `{owner, sessionGeneration, tokenFingerprint, day, requestId}` — session generation bumps on login, session clear, and forced logout, so A→B→A cannot present a valid context to a stale poll.
+- **Pairwise startDate rule.** Flag true → compare; flag absent → compare when the payload has any meaningful non-startDate state; ignore only when otherwise semantically empty. Documented residual: a legacy user whose *only* change was the start date is indistinguishable from a generated date.
+- **Quarantine phases.** Copy+verify → manifest commit (point of no rollback) → per-key cleanup with `cleanupPending` retry at boot and stale-flag repair. Export validates completeness and confirms with a plain statement that the file contains private health data.

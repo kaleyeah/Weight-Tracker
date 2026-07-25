@@ -1,6 +1,6 @@
-# Commit 1+1b — staging browser checklist (MUST pass before shipping)
+# Commits 1–1e — staging browser checklist (MUST pass before shipping)
 
-**Build:** `2026-07-25.335-pb-c1d`
+**Build:** `2026-07-26.336-pb-c1e`
 **Status:** NOT RUN — no staging PocketBase is reachable from the dev environment.
 
 The Architect's authorization is explicit: Commit 1 may be *coded* now but **must not ship** on automated tests alone. Automated tests cover the decision logic; everything below needs a real browser, real IndexedDB and a real server.
@@ -10,7 +10,7 @@ Two PocketBase accounts · two browser profiles or devices · offline mode · ne
 
 ## Record for every row
 
-**Case count: 53** (A1–A6, B1–B4, C1–C5, D1–D3, E1–E2, F1–F5+F3b/F3c, G1–G8, H1–H8).
+**Case count: 58** (A1–A6, B1–B4, C1–C5, D1–D3, E1–E2, F1–F5+F3b/F3c, G1–G8, H1–H8, J1–J10, K1–K5).
 `Test · Expected · Actual · Browser/device · Client build · PocketBase version · Pass/Fail · Notes`
 
 ---
@@ -47,7 +47,7 @@ Two PocketBase accounts · two browser profiles or devices · offline mode · ne
 |---|---|---|
 | D1 | User A signs in, makes unsynced edits, session expires; User B signs in | A's data not shown, not uploaded, not adopted; held untouched |
 | D2 | Same, but User A signs back in | A's data still there and usable |
-| D3 | Pre-upgrade install with meaningful data, first verified login | **Quarantine screen** — explicit "Yes it's mine" / "Set it aside" / export. Never auto-claimed |
+| D3 | Pre-upgrade install with meaningful data, first verified login | **"Is this your data?" screen** — claim / set aside / sign out (**no export before claim**). Never auto-claimed |
 
 ### E. Legacy migration
 | # | Test | Expected |
@@ -91,3 +91,8 @@ Two PocketBase accounts · two browser profiles or devices · offline mode · ne
 | J8 | Unknown-owner WORKOUT-DRAFT-only data, cold start | Claim screen; draft preserved through set-aside |
 | J9 | Slow IndexedDB week-photo callback across the ownership gate | Cannot repaint another owner's data |
 | J10 | Force an exception during boot (dev tools) | Visibility always restored — no permanent blank screen |
+| K1 | Edit while a server-adopt recovery snapshot is pending (throttle IDB via dev tools) | Adoption aborted; edit survives; device stays pending |
+| K2 | Break recovery storage, then "Complete today" with a diverged server | **No** coach request sent; honest "couldn't save a safety copy" message |
+| K3 | Log out and back in (or switch accounts) while a recap is generating | Poll stops silently; nothing merged; busy state clears |
+| K4 | Simulate a failure while set-aside deletes old entries | Recovery set + manifest remain; cleanup finishes on next launch |
+| K5 | Export a set-aside copy | Confirmation states it contains private health data; incomplete sets refuse to export |

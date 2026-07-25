@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Compound Fitness · build 2026-07-25.335-pb-c1d · deploy this file as index.html -->
+<!-- Compound Fitness · build 2026-07-26.336-pb-c1e · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -845,7 +845,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-25.335-pb-c1d";
+var APP_BUILD="2026-07-26.336-pb-c1e";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -6865,6 +6865,298 @@ document.addEventListener("click",function(e){
   if(a.indexOf("cf:qexport:")===0){e.preventDefault();e.stopPropagation();cfQuarExport(a.slice(11));}
   else if(a.indexOf("cf:qdelete:")===0){e.preventDefault();e.stopPropagation();cfQuarDelete(a.slice(11));}
 },true);
+
+
+/* ============================================================
+   HARDENING — COMMIT 1e: Commit 1d re-review corrections
+   (1) Every async destructive adoption is now revision- and account-
+   conditional — the Architect reproduced an edit made during the recovery
+   wait being overwritten and marked clean. (2) Coach preflight outcomes are
+   enforced — a failed adoption no longer lets the request proceed. (3) The
+   coach request carries an immutable context checked at every step — a
+   uid-only check missed the A→B→A round trip. (4) Quarantine cleanup is
+   phase-aware — a deletion exception can no longer roll back a committed
+   recovery set. Plus the pairwise legacy startDate rule.
+   ============================================================ */
+
+/* @testable-start C1E */
+/* Legacy startDate rule, corrected (Architect judgment B): "has weigh-ins"
+   was too narrow an engagement proxy — an athlete with goals, nutrition,
+   notes or GLP config but no weigh-ins still owns their start date. Rule:
+   flag true → always compare; flag absent → compare when the payload has ANY
+   meaningful non-startDate state; ignore only when otherwise semantically
+   empty. Residual (documented): a legacy user whose ONLY change was the
+   start date is indistinguishable from a generated fresh-install date. */
+function cfStartDateIncluded(rawFlag,restMeaningful,hasStartDate){
+  if(rawFlag===true)return !!hasStartDate;
+  if(rawFlag===undefined)return !!hasStartDate&&!!restMeaningful;
+  return false;}
+
+/* Adoption context: captured before the async recovery wait, verified
+   immediately before the overwrite. Any drift aborts the adoption. */
+function cfAdoptionStale(ctx,now){
+  return ctx.owner!==now.owner||ctx.gen!==now.gen||ctx.rev!==now.rev;}
+
+/* Coach request context validity — checked before the operational write,
+   before every poll, inside every poll callback, and before the merge. */
+function cfCoachCtxValid(ctx,now){
+  return ctx.owner===now.owner&&ctx.gen===now.gen&&ctx.tok===now.tok;}
+/* @testable-end C1E */
+
+/* ---- session generation: bumped on every auth boundary ---- */
+var CF_SESSION_GEN=1;
+var _c1eClearSession=pbClearSession;
+pbClearSession=function(){CF_SESSION_GEN++;return _c1eClearSession.apply(this,arguments);};
+var _c1eForceLogout=pbForceLogout;
+pbForceLogout=function(){CF_SESSION_GEN++;return _c1eForceLogout.apply(this,arguments);};
+var _c1ePbLogin=pbLogin;
+pbLogin=function(email,pw,cb,remember){
+  return _c1ePbLogin(email,pw,function(ok,why){if(ok)CF_SESSION_GEN++;cb&&cb(ok,why);},remember);};
+function cfNow(){return {owner:pbUid(),gen:CF_SESSION_GEN,tok:String(pbTok()||"").slice(-16)};}
+
+/* ---- normalization: pairwise-safe legacy startDate ---- */
+function cfSettingsForEquality(settings,restMeaningful,DEFS,canon){
+  var SYNC_DEFAULTS={macroAuto:true,calTargetAuto:true,startDateSet:false};
+  var EXCLUDE={onboarded:1,seenNightly:1};
+  var merged=Object.assign({},DEFS,SYNC_DEFAULTS,settings||{}),out={},k;
+  var rawFlag=(settings||{}).startDateSet;
+  for(k in merged){
+    if(!Object.prototype.hasOwnProperty.call(merged,k))continue;
+    if(EXCLUDE[k]||k==="startDate")continue;
+    var def=Object.prototype.hasOwnProperty.call(SYNC_DEFAULTS,k)?SYNC_DEFAULTS[k]:DEFS[k];
+    if(canon(merged[k])===canon(def))continue;
+    out[k]=merged[k];}
+  var otherMeaning=restMeaningful||Object.keys(out).length>0;
+  if(cfStartDateIncluded(rawFlag,otherMeaning,(settings||{}).startDate))out.startDate=(settings||{}).startDate;
+  return out;}
+cfNormalizeWith=function(d,DEFS,DPRE,canon){
+  d=d||{};DEFS=DEFS||{};DPRE=DPRE||[];
+  var o={},i,k;
+  var arrs=["weights","statuses"];
+  for(i=0;i<arrs.length;i++)if((d[arrs[i]]||[]).length)o[arrs[i]]=d[arrs[i]];
+  var maps=["food","workouts","steps","notes","sleep","bodyfat","waist","skips","nightlyLog"];
+  for(i=0;i<maps.length;i++){var m=d[maps[i]];
+    if(m&&typeof m==="object"&&Object.keys(m).length)o[maps[i]]=m;}
+  if(d.weeklySummary)o.weeklySummary=d.weeklySummary;
+  if(d.nightlySummary)o.nightlySummary=d.nightlySummary;
+  if(Array.isArray(d.presets)&&d.presets.length&&canon(d.presets)!==canon(DPRE))o.presets=d.presets;
+  var g=d.glp;
+  if(g&&typeof g==="object"){
+    var GDEF={enabled:false,showDueDate:true,titration:false,siteRotation:true,symptomLogging:true};
+    var gg={},gs=Object.assign({},GDEF,g.settings||{}),gsOut={};
+    for(k in gs){if(canon(gs[k])!==canon(GDEF[k]))gsOut[k]=gs[k];}
+    if(Object.keys(gsOut).length)gg.settings=gsOut;
+    if(g.compound)gg.compound=g.compound;
+    if((g.doses||[]).length)gg.doses=g.doses;
+    if((g.symptoms||[]).length)gg.symptoms=g.symptoms;
+    var st=[];(g.symptomTypes||[]).forEach(function(x){
+      if(!x)return;
+      if(x.isBuiltIn){if(x.archived)st.push({label:x.label,archived:true,builtIn:true});}
+      else st.push(x);});
+    if(st.length)gg.symptomTypes=st;
+    if(Object.keys(gg).length)o.glp=gg;}
+  /* settings LAST: the pairwise startDate rule needs to know whether the
+     rest of the payload carries meaning */
+  var s=cfSettingsForEquality(d.settings,Object.keys(o).length>0,DEFS,canon);
+  if(Object.keys(s).length)o.settings=s;
+  return o;};
+
+/* ---- revision-conditional adoption (Required finding 1) ---- */
+applyCloudSafe=function(d,reason,cb){
+  var ctx={owner:pbUid(),gen:CF_SESSION_GEN,rev:revLocal("core")};
+  var needSnap=false;try{needSnap=coreHasMeaningfulState(payload());}catch(e){needSnap=true;}
+  function adopt(){
+    var now={owner:pbUid(),gen:CF_SESSION_GEN,rev:revLocal("core")};
+    if(cfAdoptionStale(ctx,now)){
+      /* an edit or account change landed during the async recovery wait —
+         the overwrite is aborted; the recovery copy is kept */
+      setSync("error","changes arrived while syncing — nothing was replaced");
+      cb&&cb(false,"stale");return;}
+    applyCloudRaw(d);
+    cfBaselineSet(cfCanon(cfNormalize(d)));syncFpSet(syncFingerprint(d));revClean("core");cb&&cb(true);}
+  if(!needSnap){adopt();return;}
+  cfSnapshotOf({source:"local",reason:reason||"adopt-server",accountId:cfLocalOwnerId(),
+    core:payload(),training:state.training},
+    function(ok){
+      if(!ok){setSync("error","couldn't save a previous copy — nothing was replaced");
+        toast("Couldn't save a previous copy. Your data was left as it is.");cb&&cb(false,"recovery");return;}
+      adopt();});};
+applyCloud=function(d){applyCloudSafe(d,"apply-cloud");};
+
+/* ---- reconciliation outcomes (Required finding 2) ---- */
+cfReconcile=function(d,ctx,done){
+  var i=cfInputs(d),decision=syncDecideV2(i);
+  function fin(outcome){done&&done(decision,Object.assign({decision:decision,completed:false},outcome||{}));}
+  if(decision==="blocked"){setSync("error","this device holds another account’s unsynced data");fin({blocked:true});return;}
+  if(decision==="idle"){
+    if(isDirty()&&!i.localMeaningful&&!i.serverHasData){
+      cfBaselineSet(i.localCanon||"");revClean("core");cfClearPending();}
+    if(revIsDirty("training")&&!cfTrainingMeaningful(state.training))revClean("training");
+    setSync("ok");fin({completed:true});return;}
+  if(decision==="agree"){cfBaselineSet(i.serverCanon);syncFpSet(syncFingerprint(d));revClean("core");
+    if(revIsDirty("training")&&!cfTrainingMeaningful(state.training))revClean("training");
+    cfClearPending();setLastSync();setSync("ok");fin({completed:true});return;}
+  if(decision==="adopt"){applyCloudSafe(d,ctx+"-adopt",function(ok,why){
+    if(ok){cfClearPending();setLastSync();setSync("ok");try{render();}catch(e){}fin({completed:true,adopted:true});}
+    else if(why==="stale"){
+      /* re-reconcile once against the same fetch: the new dirty state routes
+         to hold/conflict correctly; depth-guarded against loops */
+      if(ctx.slice(-6)==="-retry"){fin({stale:true});return;}
+      cfReconcile(d,ctx+"-retry",done);}
+    else fin({recoveryFailed:true});});return;}
+  if(decision==="hold-seed"||decision==="hold-push"){cfSetPending(decision==="hold-seed"?"seed":"push");fin({pending:true});return;}
+  if(decision==="conflict"){cfEnterConflict(d,ctx);fin({conflict:true});return;}
+  setSync("ok");fin({completed:true});};
+
+/* ---- Coach Max with an immutable request context (Required finding 3) ---- */
+genNightly=function(){
+  if(!syncOn()){toast("Log in first");return;}
+  if(state.nightBusy||state.genBusy)return;
+  if(cfAccountVerdict()!=="ok"){toast("Sort out this device’s account data first");return;}
+  var sel=state.selDate;
+  var CTX=Object.assign({day:sel,reqId:"r"+Date.now()},cfNow());
+  var ctxOk=function(){return cfCoachCtxValid(CTX,cfNow())&&cfAccountVerdict()==="ok";};
+  var miss=dayMissing(sel);
+  if(miss.length){toast("Log "+miss.join(", ")+" first to complete "+(sel===todayISO()?"today":"this day"));return;}
+  state.nightBusy=true;render();
+  var prevGen=(state.nightlyLog&&state.nightlyLog[sel]&&state.nightlyLog[sel].generated)||null;
+  new Promise(function(res,rej){
+    cloudGet(function(d,err){
+      if(err){rej(new Error(err==="offline"?"No connection":"Couldn't reach your server"));return;}
+      cfReconcile(d,"coach-preflight",function(decision,outcome){
+        /* proceed ONLY on a genuinely completed safe state (finding 2) */
+        if(!outcome.completed){rej(new Error(
+          outcome.recoveryFailed?"Couldn’t save a safety copy — recap paused":
+          outcome.conflict?"Changes in two places — resolve them first":
+          outcome.pending?"Your newest changes are still on this device — recaps are paused until the sync fix ships":
+          "Not ready to generate yet"));return;}
+        if(!ctxOk()){rej(new Error("Account changed — recap cancelled"));return;}
+        res();});});
+  }).then(function(){
+    return pushDataPromise();
+  }).then(function(){
+    if(!ctxOk())throw new Error("Account changed — recap cancelled");
+    return new Promise(function(res,rej){
+      pbSave({coachreq:{day:sel,ts:Date.now()}},function(ok){ok?res():rej(new Error("Couldn't reach your server"));});});
+  }).then(function(){
+    return new Promise(function(resolve){
+      var n=0,MAX=70;
+      function tick(){n++;
+        if(!ctxOk()){resolve({aborted:true});return;}       /* before every poll */
+        pbGetRecord(function(rec){
+          if(!ctxOk()){resolve({aborted:true});return;}     /* inside every callback */
+          var d=rec&&rec.data;
+          var got=d&&d.nightlyLog&&d.nightlyLog[sel];
+          if(got&&got.text&&got.generated!==prevGen){resolve({data:d});return;}
+          if(n>=MAX){resolve({data:null});return;}
+          setTimeout(tick,6000);});}
+      setTimeout(tick,8000);});
+  }).then(function(r){
+    state.nightBusy=false;
+    if(r&&r.aborted){render();return;}                      /* nothing merged, nothing shown */
+    if(!ctxOk()){render();return;}                          /* before the merge */
+    var d=r&&r.data;
+    if(d){
+      var merged=mergeCoachResultOnly(sel,d);
+      state.settings.seenNightly=sel;saveLocal();
+      if(!revIsDirty("core"))cfReconcile(d,"coach-result",function(){});
+      state.nightOpen=true;
+      toast(merged?((sel===todayISO()?"Today":"That day")+"’s recap is ready"):"Still working — it will appear here shortly");
+    }else toast("Still working — it will appear here shortly");
+    render();
+  }).catch(function(e){state.nightBusy=false;render();toast(e.message||"Couldn’t generate");});};
+
+/* ---- phase-aware quarantine (Required finding 4) ---- */
+cfDisownLocal=function(){
+  var stamp=String(Date.now());
+  var KEYS={core:KEY,training:TKEY,workout:WOKEY};
+  var src={},k;
+  try{for(k in KEYS)src[k]=localStorage.getItem(KEYS[k])||"";}
+  catch(e){toast("Couldn’t read this device’s data — nothing was changed");return;}
+  /* Phase 1 — copy + verify. Failure here cleans the copies, keeps every source. */
+  try{
+    for(k in KEYS)localStorage.setItem("cf:quarantine:"+stamp+":"+k,src[k]);
+    for(k in KEYS)if(localStorage.getItem("cf:quarantine:"+stamp+":"+k)!==src[k])throw new Error("verify "+k);
+  }catch(e){
+    try{for(k in KEYS)localStorage.removeItem("cf:quarantine:"+stamp+":"+k);}catch(e2){}
+    toast("Couldn’t set that data aside safely — nothing was changed");return;}
+  /* Phase 2 — commit the manifest. Once committed, the recovery set is
+     NEVER rolled back because later cleanup failed. */
+  try{
+    localStorage.setItem("cf:quarantine:"+stamp+":manifest",JSON.stringify({
+      stamp:stamp,createdAt:Date.now(),appBuild:(typeof APP_BUILD!=="undefined"?APP_BUILD:""),
+      keys:Object.keys(KEYS),sizes:{core:src.core.length,training:src.training.length,workout:src.workout.length}}));
+    if(!localStorage.getItem("cf:quarantine:"+stamp+":manifest"))throw new Error("manifest");
+    localStorage.setItem(CF_QUAR_FLAG,stamp);
+  }catch(e){
+    try{for(k in KEYS)localStorage.removeItem("cf:quarantine:"+stamp+":"+k);
+        localStorage.removeItem("cf:quarantine:"+stamp+":manifest");}catch(e2){}
+    toast("Couldn’t set that data aside safely — nothing was changed");return;}
+  /* Phase 3 — source cleanup, individually, idempotently. Failures are
+     recorded and retried at next boot; the recovery set stays. */
+  var pendingKeys=[];
+  for(k in KEYS){try{localStorage.removeItem(KEYS[k]);}catch(e){pendingKeys.push(k);}}
+  try{localStorage.removeItem(REV_KEY);}catch(e){}
+  if(pendingKeys.length){
+    try{localStorage.setItem("cf:quarantine:"+stamp+":cleanupPending",JSON.stringify(pendingKeys));}catch(e){}
+    toast("Data set aside and safely copied. Some old entries couldn’t be removed yet — they’ll be cleaned up automatically.");}
+  location.reload();};
+
+/* boot repair: finish pending cleanups, fix a stale flag (idempotent) */
+(function(){
+  try{
+    var KEYS={core:KEY,training:TKEY,workout:WOKEY};
+    for(var i=localStorage.length-1;i>=0;i--){
+      var k2=localStorage.key(i)||"";
+      var m=/^cf:quarantine:(\d+):cleanupPending$/.exec(k2);
+      if(!m)continue;
+      var pend=[];try{pend=JSON.parse(localStorage.getItem(k2))||[];}catch(e){}
+      var left=[];
+      pend.forEach(function(name){try{localStorage.removeItem(KEYS[name]);}catch(e){left.push(name);}});
+      if(left.length)localStorage.setItem(k2,JSON.stringify(left));
+      else localStorage.removeItem(k2);}
+    var flag=localStorage.getItem(CF_QUAR_FLAG);
+    if(flag&&!localStorage.getItem("cf:quarantine:"+flag+":manifest"))localStorage.removeItem(CF_QUAR_FLAG);
+  }catch(e){}
+})();
+
+/* ---- signed-out recovery guardrails (judgment D) ---- */
+function cfQuarComplete(stamp){
+  try{
+    var man=JSON.parse(localStorage.getItem("cf:quarantine:"+stamp+":manifest")||"null");
+    if(!man||!Array.isArray(man.keys))return false;
+    for(var i=0;i<man.keys.length;i++)
+      if(localStorage.getItem("cf:quarantine:"+stamp+":"+man.keys[i])===null)return false;
+    return true;
+  }catch(e){return false;}}
+cfQuarExport=function(stamp){
+  if(!cfQuarComplete(stamp)){toast("This set-aside copy is incomplete and can’t be exported");return;}
+  askConfirm("This file contains private health data — weight, nutrition, medication and training history. Save a copy to this device’s files?",
+    function(){
+      try{
+        var core=localStorage.getItem("cf:quarantine:"+stamp+":core")||"";
+        var train=localStorage.getItem("cf:quarantine:"+stamp+":training")||"";
+        var wo=localStorage.getItem("cf:quarantine:"+stamp+":workout")||"";
+        var d={};try{d=JSON.parse(core)||{};}catch(e){}
+        var out=Object.assign({},d,{backupVersion:2,setAside:true});
+        try{out.training=train?JSON.parse(train):null;}catch(e){out.training=null;}
+        try{out.workoutDraft=wo?JSON.parse(wo):null;}catch(e){out.workoutDraft=null;}
+        var json=JSON.stringify(out,null,2);
+        var blob=new Blob([json],{type:"application/json"});var url=URL.createObjectURL(blob);
+        var a=document.createElement("a");a.href=url;a.download="compound-set-aside-"+stamp+".json";
+        document.body.appendChild(a);a.click();document.body.removeChild(a);
+        setTimeout(function(){URL.revokeObjectURL(url);},1000);toast("Copy saved");
+      }catch(e){toast("Couldn’t export");}
+    },{label:"Save the file"});};
+cfQuarDelete=function(stamp){
+  askConfirm("Delete this set-aside data from the device? This can’t be undone.",function(){
+    var okAll=true;
+    ["core","training","workout","manifest","cleanupPending"].forEach(function(p){
+      try{localStorage.removeItem("cf:quarantine:"+stamp+":"+p);}catch(e){okAll=false;}
+      if(localStorage.getItem("cf:quarantine:"+stamp+":"+p)!==null)okAll=false;});
+    try{if((localStorage.getItem(CF_QUAR_FLAG)||"")===stamp)localStorage.removeItem(CF_QUAR_FLAG);}catch(e){}
+    try{render();}catch(e){}
+    toast(okAll?"Deleted":"Couldn’t fully delete — some entries remain");},{label:"Delete",danger:true});};
 
 </script>
 </body>

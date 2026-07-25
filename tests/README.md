@@ -9,4 +9,5 @@ Tests slice the `@testable-start NAME ... @testable-end NAME` blocks out of
 rather than a copy that can drift.
 
 Flows needing a real browser (IndexedDB, two-user login, session expiry) are in
-`MANUAL_CHECKLIST.md`.
+`MANUAL_CHECKLIST_COMMIT1.md` — the 58-case gate for the hardening commits
+(`MANUAL_CHECKLIST.md` is the older M1–M4 list, retained for history).

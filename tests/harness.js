@@ -70,7 +70,15 @@ function eq(actual, expected, msg) {
 function ok(v, msg) { if (!v) throw new Error(msg || 'expected truthy, got ' + JSON.stringify(v)); }
 function notOk(v, msg) { if (v) throw new Error(msg || 'expected falsy, got ' + JSON.stringify(v)); }
 
+/* Async suites register their promises here; report() awaits every one BEFORE
+   printing totals and setting the exit code, so a late assertion failure can
+   never slip past the runner (Commit 1e harness correction). */
+const _deferred = [];
+function defer(p) { _deferred.push(p.catch((e) => { failures.push({ name: 'deferred scenario', err: e }); console.log('  ✗ deferred scenario threw: ' + (e && e.message)); })); return p; }
 function report() {
+  return Promise.all(_deferred).then(_finalReport);
+}
+function _finalReport() {
   console.log('\n' + '-'.repeat(52));
   if (failures.length) {
     console.log(`FAILED — ${passed} passed, ${failures.length} failed`);
@@ -80,4 +88,4 @@ function report() {
   }
 }
 
-module.exports = { SRC, loadTestable, test, group, eq, ok, notOk, report };
+module.exports = { SRC, defer, loadTestable, test, group, eq, ok, notOk, report };
