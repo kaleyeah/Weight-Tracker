@@ -15,7 +15,7 @@ Compound Fitness is a coaching platform (not a tracker) built as **one backend +
 - **Current phase:** Phase 1 (Athlete App) + **hardening brief (M1–M10)** → Phase 2 (Native Shell).
 - **Hardening progress:** M1–M4 implemented but **NOT SHIPPABLE** (*do not ship*, 12 required fixes). Plan **approved with amendments** — `REMEDIATION_PLAN_V2.md` is authorized; awaiting go-ahead to start commit 1. M5–M10 + record-level sync design not started.
 - **Backend:** self-hosted PocketBase (cutover 2026-07-21).
-- **Latest internal build:** `2026-07-25.333-pb-c1b` (Commit 1+1b — **coded, not shipped, not staging-validated**).
+- **Latest internal build:** `2026-07-25.334-pb-c1c` (Commits 1+1b+1c — **coded, not shipped, not staging-validated**).
 
 ---
 
@@ -51,6 +51,7 @@ Compound Fitness is a coaching platform (not a tracker) built as **one backend +
 
 ## 🚧 In Progress
 
+- **Commit 1b review verdict: CHANGES REQUIRED** (16 items) — worst findings: my global pbSave gate silently broke Coach Max + Apple Health inbox clearing, and signed-out edits never advanced revisions (resurrecting adopt-over-dirty). **Commit 1c implements all 16**: narrowed write policy (snapshots frozen; health/coachreq allowlisted against an existing row), revisions advance regardless of auth, owner-stamping gated (unknown+meaningful ⇒ claim screen pauses reconciliation, no auto-claim), mismatch screen no longer exports, pre-init boot guard, snapshot ownership propagated to every caller, quarantine verified before deletion, normalization wired into cfInputs/baselines/emptiness and corrected to the real GLP shape + dynamic defaults, empty/empty cleans the migration dirty state, training has its own emptiness rule, export carries training, executable integration harness (42 tests running the full script). 158 tests total.
 - **Commit 1 review verdict: CHANGES REQUIRED** — the decision table was fixed but the runtime write path was still open (`save()` → blind `cloudPush()`), plus cross-account first paint, auto-claim, and snapshot validation gaps. **Commit 1b closes all 15 required changes**: `pbSave` gated shut until CAS, schedulers inert, timers cancelled, Save button rewired, render ownership-gated, quarantine screen for unowned data, symmetric normalization, per-field snapshot validation, import protected, dirty-training pull blocked. 116 tests pass.
 - **M1–M4 remediation** — review verdict on the first pass: **do not ship**. All 12 findings verified. Plan **approved with amendments**; `REMEDIATION_PLAN_V2.md` is the authorized plan (15 pre-coding items) and supersedes v1. One v1 claim was wrong and is corrected: the legacy dirty flag **is** read (line 5326) — the defect is that only exact `"1"` survives as dirty, while missing/malformed/wrongly-cleared state becomes clean. New hazard confirmed: duplicate `appdata` rows. No application code changed yet.
 - **Native Bridge Architecture** — `NATIVE_BRIDGE_ARCHITECTURE.md` drafted; **Status: Proposed**, awaiting review before implementation.
@@ -61,7 +62,7 @@ Compound Fitness is a coaching platform (not a tracker) built as **one backend +
 ## ⛔ Blocked / Awaiting Decision
 
 - **Commit 1+1b coded but NOT SHIPPED.** The 33-case staging checklist has not been run — no staging PocketBase is reachable here. Shipping on automated tests alone is explicitly disallowed.
-- **Upward sync is deliberately frozen in this build** until server CAS deploys — edits stay local with a visible pending state and an export path. This is the Architect's ruling: a user-confirmed blind overwrite is still last-writer-wins.
+- **Upward sync is deliberately frozen in this build** until server CAS deploys — edits stay local with a visible pending state and an export path (now including training). Coach Max recaps run only when core is clean; while dirty they pause with an honest message. Apple Health import still clears its inbox (allowlisted operational write).
 - **Compare-and-swap (Fix 2): server kit ready, deployment is the operator's.** The hook, schema steps, integration tests and rollback are in `server/`; staging must pass before production, and Commit 10 (client wiring) is written only after staging is green.
 - **Browser validation blocked** — no staging PocketBase reachable from this environment.
 - **Phase 2 native build** is gated on **architecture review of the bridge proposal** (ADR-004, ADR-005 are `Proposed`, not `Accepted`).

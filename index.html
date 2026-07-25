@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Compound Fitness · build 2026-07-25.333-pb-c1b · deploy this file as index.html -->
+<!-- Compound Fitness · build 2026-07-25.334-pb-c1c · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -845,7 +845,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-25.333-pb-c1b";
+var APP_BUILD="2026-07-25.334-pb-c1c";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -1900,7 +1900,8 @@ function activitySummaryHTML(sel){
 }
 var wkPhotoHave=null,wkPhotoKey=null;
 
-function refreshWeekPhotos(){if(typeof indexedDB==="undefined"){wkPhotoHave=false;return;}var wk=toISO(weekStartFor(0));var key=wk;
+function refreshWeekPhotos(){if(typeof indexedDB==="undefined"){wkPhotoHave=false;return;}
+  if(window.__cfBootRisk){wkPhotoHave=false;return;} /* C1c: no unscoped read before the ownership decision */var wk=toISO(weekStartFor(0));var key=wk;
   /* Go through idb() rather than opening the database directly. Opening "wl_photos"
      at version 1 without an onupgradeneeded handler CREATES it empty, and since the
      version then already matches, idb()'s handler never runs and the "photos" object
@@ -4979,6 +4980,23 @@ function openLightbox(id){
   document.head.appendChild(css);
 })();
 
+/* ---- C1c early boot guard: the ownership gate must exist BEFORE init.
+   A cached User-B session over retained User-A (or unowned meaningful) data
+   must not get a painted frame. Cheap localStorage-only risk check; the
+   final hardening block makes the real decision and always restores
+   visibility. Paint timing is not the guarantee — this is. */
+(function(){
+  window.__cfBootRisk=false;
+  try{
+    var owner=localStorage.getItem("cf:lastOwner")||"";
+    var uid="";try{uid=(JSON.parse(localStorage.getItem("wl_pb")||sessionStorage.getItem("wl_pb")||"{}")||{}).uid||"";}catch(e){}
+    var blob=localStorage.getItem("wl_v1")||"";
+    if((owner&&uid&&owner!==uid)||(!owner&&uid&&blob.length>200)){
+      window.__cfBootRisk=true;
+      document.documentElement.style.visibility="hidden";}
+  }catch(e){}
+})();
+
 /* ---------------- init ---------------- */
 load();loadTraining();migrateProgressionTypes();loadWorkout();rptRetargetAll();ensureIdentity();try{refreshWeekPhotos();}catch(e){}if(resyncAllActivityTags())save();var _hasSetup=/[#&]setup=/.test(location.hash||"");if(_hasSetup){state.settings.onboarded=true;}else{if(state.settings.onboarded==null)state.settings.onboarded=(state.weights.length>0||num(state.settings.goalWeight)!=null||num(state.settings.startingWeight)!=null||!!(state.settings.name&&(""+state.settings.name).trim()));if(!state.settings.onboarded){state.onboarding=true;state.obStep=0;}}applyTheme(state.settings.theme||"dark");makeIcon();if(state.workout)state.view="train";render();if(syncOn()){pbRefresh(function(){autoSync();photoSync();});}if(state.workout)startWoTick();if(_hasSetup)checkSetupLink();
 try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(e){}
@@ -5766,7 +5784,10 @@ function cfAccountVerdict(){return crossAccountVerdict(cfOwnerGet(),pbUid());}
         var v=a[t]||{local:0,attempted:0,success:0};
         if(!((v.local||0)>(v.success||0)))v.local=(v.success||0)+1;   /* mark dirty without losing history */
         a[t]=v;});
-      revSaveAll(a);}
+      revSaveAll(a);
+      /* durability: only mark migrated if the ledger actually persisted —
+         revSaveAll swallows storage errors */
+      var chk=revAll();if(!chk.core||!chk.training)return;}
     localStorage.setItem(MK,"1");
   }catch(e){}
 })();
@@ -6104,7 +6125,7 @@ try{clearTimeout(trainingPushTimer);}catch(e){}
 /* Ordinary edits now only record intent locally. No network work. */
 scheduleCloudPush=function(){if(!syncOn())return;revBump("core");cfSetPending("push");};
 scheduleTrainingPush=function(){if(!syncOn())return;revBump("training");cfSetPending("push");};
-cloudPush=function(manual){revBump.length;cfSetPending("push");if(manual)cfUploadNow();};
+cloudPush=function(manual){cfSetPending("push");if(manual)cfUploadNow();};  /* superseded by C1c */
 trainingPush=function(){cfSetPending("push");};
 
 /* ---- upload before CAS: reconcile only, never replace ---- */
@@ -6231,6 +6252,372 @@ trainingPull=function(cb){
    called render(), which painted it. The render gate above now makes that
    promise true; repaint through it. */
 try{render();}catch(e){}
+
+
+/* ============================================================
+   HARDENING — COMMIT 1c: architect re-review corrections
+   Verdict on 1b was CHANGES REQUIRED. The two worst findings were
+   regressions I introduced: the global pbSave gate silently broke Coach
+   Max and Apple Health inbox clearing, and edits made while signed out
+   never advanced revisions — recreating the adopt-over-dirty loss this
+   whole effort exists to prevent. Function redeclarations below win over
+   the earlier blocks (last declaration binds), same one-scope pattern.
+   ============================================================ */
+
+/* @testable-start C1C */
+/* Symmetric normalization, corrected against the REAL shipping shapes:
+   - glp is { settings, compound (singular), doses, symptoms, symptomTypes };
+     glpNormalize() seeds 8 built-in symptom types with generated ids, so
+     seeded built-ins carry no meaning (their ids differ per device) and an
+     archived built-in is compared by label, not id.
+   - DEFAULT_SETTINGS.startDate is todayISO() — a moving target. Dynamic and
+     derived keys are excluded from equality/meaning; they still sync inside
+     the payload, they just can't create false divergence. */
+function cfNormalizeWith(d,DEFS,DPRE,canon){
+  d=d||{};DEFS=DEFS||{};DPRE=DPRE||[];
+  var DYNAMIC={startDate:1,macroAuto:1,calTargetAuto:1,onboarded:1};
+  var o={},i,k;
+  var merged=Object.assign({},DEFS,d.settings||{}),s={};
+  for(k in merged){if(!Object.prototype.hasOwnProperty.call(merged,k))continue;
+    if(DYNAMIC[k])continue;
+    if(canon(merged[k])===canon(DEFS[k]))continue;s[k]=merged[k];}
+  if(Object.keys(s).length)o.settings=s;
+  var arrs=["weights","statuses"];
+  for(i=0;i<arrs.length;i++)if((d[arrs[i]]||[]).length)o[arrs[i]]=d[arrs[i]];
+  var maps=["food","workouts","steps","notes","sleep","bodyfat","waist","skips","nightlyLog"];
+  for(i=0;i<maps.length;i++){var m=d[maps[i]];
+    if(m&&typeof m==="object"&&Object.keys(m).length)o[maps[i]]=m;}
+  if(d.weeklySummary)o.weeklySummary=d.weeklySummary;
+  if(d.nightlySummary)o.nightlySummary=d.nightlySummary;
+  if(Array.isArray(d.presets)&&d.presets.length&&canon(d.presets)!==canon(DPRE))o.presets=d.presets;
+  var g=d.glp;
+  if(g&&typeof g==="object"){
+    var GDEF={enabled:false,showDueDate:true,titration:false,siteRotation:true,symptomLogging:true};
+    var gg={},gs=Object.assign({},GDEF,g.settings||{}),gsOut={};
+    for(k in gs){if(canon(gs[k])!==canon(GDEF[k]))gsOut[k]=gs[k];}
+    if(Object.keys(gsOut).length)gg.settings=gsOut;
+    if(g.compound)gg.compound=g.compound;                    /* singular — a configured compound with no dose is meaning */
+    if((g.doses||[]).length)gg.doses=g.doses;
+    if((g.symptoms||[]).length)gg.symptoms=g.symptoms;
+    var st=[];(g.symptomTypes||[]).forEach(function(x){
+      if(!x)return;
+      if(x.isBuiltIn){if(x.archived)st.push({label:x.label,archived:true,builtIn:true});} /* by label: ids are per-device */
+      else st.push(x);});
+    if(st.length)gg.symptomTypes=st;
+    if(Object.keys(gg).length)o.glp=gg;}
+  /* scriptVer: implementation metadata, excluded on both sides */
+  return o;}
+
+function cfTrainingMeaningful(t){
+  if(!t||typeof t!=="object")return false;
+  if(t.sessions&&Object.keys(t.sessions).length)return true;
+  if(t.liftSessions&&Object.keys(t.liftSessions).length)return true;
+  if((t.exercises||[]).length)return true;
+  if((t.routines||[]).length)return true;
+  return false;}                                             /* default cardioTypes carry no meaning */
+
+/* pbSave policy: only whole-snapshot fields are frozen. health/coachreq are
+   operational record-level updates — allowed against an EXISTING row only
+   (a POST could create a duplicate appdata row; that race is CAS work). */
+function cfWritePolicy(fields,hasRow,verdict){
+  var f=fields||{},keys=Object.keys(f);
+  var snapshot=keys.some(function(k){return k==="data"||k==="training";});
+  if(snapshot)return "frozen";
+  var opOnly=keys.length>0&&keys.every(function(k){return k==="health"||k==="coachreq";});
+  if(!opOnly)return "frozen";                                 /* unknown fields fail closed */
+  if(verdict!=="ok")return "blocked-account";
+  return hasRow?"allow":"blocked-no-row";}
+/* @testable-end C1C */
+
+cfNormalize=function(d){
+  return cfNormalizeWith(d,
+    (typeof DEFAULT_SETTINGS!=="undefined")?DEFAULT_SETTINGS:{},
+    (typeof DEFAULT_PRESETS!=="undefined")?DEFAULT_PRESETS:[],
+    cfCanon);};
+
+/* ---- snapshot ownership: retained local owner ≠ authenticated user ---- */
+function cfLocalOwnerId(){
+  var o=cfOwnerGet();if(o)return o;
+  return (cfAccountVerdict()==="ok"&&pbUid())?pbUid():"local";}
+cfSnapLocal=function(reason,cb){
+  cfSnapshotOf({source:"local",reason:reason,accountId:cfLocalOwnerId(),
+    core:payload(),training:state.training},cb);};
+
+/* ---- pbSave: narrowed freeze; operational writes survive ---- */
+pbSave=function(fields,cb){
+  var pol=cfWritePolicy(fields,!!pbRecId,cfAccountVerdict());
+  if(pol==="allow")return _cfPbSave(fields,cb);
+  if(pol==="blocked-no-row"){
+    /* one lookup; never create */
+    pbGetRecord(function(){ if(pbRecId)_cfPbSave(fields,cb);else cb&&cb(false,"blocked"); });
+    return;}
+  try{console.warn("[CF] write blocked ("+pol+") until server CAS is deployed");}catch(e){}
+  cb&&cb(false,"blocked");};
+
+/* ---- revisions advance on EVERY local edit. Auth gates sync, not truth. ---- */
+scheduleCloudPush=function(){revBump("core");if(syncOn())cfSetPending("push");};
+scheduleTrainingPush=function(){revBump("training");if(syncOn())cfSetPending("push");};
+cloudPush=function(manual){cfSetPending("push");if(manual)cfUploadNow();return "pending";};
+trainingPush=function(){cfSetPending("push");return "pending";};
+
+/* ---- Coach Max: recaps only from agreed data; honest otherwise ---- */
+pushDataPromise=function(){
+  return new Promise(function(res,rej){
+    if(!syncOn())return rej(new Error("Log in first"));
+    if(revIsDirty("core"))return rej(new Error("Your newest changes are still on this device — recaps are paused until the sync fix ships"));
+    res();});};                                              /* clean ⇒ server already holds the agreed content */
+
+/* ---- owner stamping: never on unknown+meaningful ---- */
+function cfAnyUnownedMeaningful(){
+  try{if(coreHasMeaningfulState(payload()))return true;}catch(e){return true;}
+  try{if(cfTrainingMeaningful(state.training))return true;}catch(e){return true;}
+  try{var w=localStorage.getItem(WOKEY)||"";if(w&&w.length>50)return true;}catch(e){}
+  return false;}
+function cfOwnerMaybeStamp(){
+  var v=cfAccountVerdict();
+  if(v==="ok"){cfOwnerSet(pbUid());return true;}             /* refresh of the rightful owner */
+  if(v==="unknown"&&!cfAnyUnownedMeaningful()){cfOwnerStampVerified();return true;}
+  return v==="ok";}
+cfAccountBlocked=function(){
+  var v=cfAccountVerdict();
+  if(v==="mismatch")return "mismatch";
+  if(v==="unknown"&&cfAnyUnownedMeaningful())return "unclaimed";
+  return "";};
+
+/* ---- blocked screens: mismatch NEVER exposes the retained payload ---- */
+cfBlockedHTML=function(kind){
+  var open='<div style="max-width:520px;margin:0 auto;padding:28px 20px">';
+  if(kind==="mismatch")
+    return open+
+      '<div style="font-size:20px;font-weight:800;margin-bottom:10px">Data from another account</div>'+
+      '<div style="opacity:.85;line-height:1.5;margin-bottom:18px">This device still has data from a different account that was never uploaded. It’s kept exactly as it is, and it stays hidden. To use or save that data, sign in as the account it belongs to.</div>'+
+      '<button class="wl-btn wl-btn-primary wl-full" data-act="cf:signout" style="margin-bottom:10px">Switch account</button>'+
+      '<button class="wl-btn wl-btn-ghost wl-full" data-act="cf:signout">Sign out</button></div>';
+  return open+
+    '<div style="font-size:20px;font-weight:800;margin-bottom:10px">Is this your data?</div>'+
+    '<div style="opacity:.85;line-height:1.5;margin-bottom:18px">There’s data already on this device from before you signed in. We won’t add it to your account without asking.</div>'+
+    '<button class="wl-btn wl-btn-primary wl-full" data-act="cf:claim" style="margin-bottom:10px">Yes — this is mine</button>'+
+    '<button class="wl-btn wl-btn-ghost wl-full" data-act="cf:disown" style="margin-bottom:10px">No — set it aside</button>'+
+    '<button class="wl-btn wl-btn-ghost wl-full" data-act="cf:export">Save a copy to my files</button></div>';};
+
+/* claim is a real continuation: stamp, mark pending, resume reconciliation */
+cfClaimLocal=function(){
+  cfOwnerStampVerified();
+  revBump("core");if(cfTrainingMeaningful(state.training))revBump("training");
+  try{document.documentElement.style.visibility="";}catch(e){}
+  try{render();}catch(e){}
+  toast("This device’s data is now linked to your account");
+  try{autoSync();}catch(e){}};
+/* set-aside verifies the quarantine copies BEFORE deleting anything */
+cfDisownLocal=function(){
+  var stamp=String(Date.now()),core="",train="";
+  try{core=localStorage.getItem(KEY)||"";train=localStorage.getItem(TKEY)||"";}catch(e){}
+  try{
+    localStorage.setItem("cf:quarantine:"+stamp+":core",core);
+    localStorage.setItem("cf:quarantine:"+stamp+":training",train);
+    if(localStorage.getItem("cf:quarantine:"+stamp+":core")!==core||
+       localStorage.getItem("cf:quarantine:"+stamp+":training")!==train){
+      toast("Couldn’t set that data aside safely — nothing was changed");return;}
+    localStorage.setItem(CF_QUAR_FLAG,stamp);
+    localStorage.removeItem(KEY);localStorage.removeItem(TKEY);localStorage.removeItem(WOKEY);
+    localStorage.removeItem(REV_KEY);                        /* stale unscoped sync metadata goes with it */
+  }catch(e){toast("Couldn’t set that data aside — nothing was changed");return;}
+  location.reload();};
+document.addEventListener("click",function(e){
+  var t=e.target&&e.target.closest&&e.target.closest('[data-act="cf:signout"]');
+  if(!t)return;e.preventDefault();e.stopPropagation();
+  pbClearSession(true);try{render();}catch(err){location.reload();}
+},true);
+
+/* ---- reconciliation inputs: ONE normalized representation everywhere ---- */
+function cfInputs(serverData){
+  var ln=null,sn=null,lm=false,sm=false;
+  try{var lN=cfNormalize(payload());ln=cfCanon(lN);lm=cfIsMeaningfulNormalized(lN);}catch(e){}
+  try{var sN=cfNormalize(serverData||{});sn=cfCanon(sN);sm=cfIsMeaningfulNormalized(sN);}catch(e){}
+  var base=cfBaselineGet();
+  return {accountVerdict:cfAccountVerdict(),
+    localDirty:isDirty(),localMeaningful:lm,serverHasData:sm,
+    localCanon:ln,serverCanon:sn,
+    baselineTrusted:!!base,serverMatchesBaseline:!!base&&sn===base};}
+
+applyCloudSafe=function(d,reason,cb){
+  var needSnap=false;try{needSnap=coreHasMeaningfulState(payload());}catch(e){needSnap=true;}
+  function adopt(){applyCloudRaw(d);
+    cfBaselineSet(cfCanon(cfNormalize(d)));syncFpSet(syncFingerprint(d));revClean("core");cb&&cb(true);}
+  if(!needSnap){adopt();return;}
+  cfSnapshotOf({source:"local",reason:reason||"adopt-server",accountId:cfLocalOwnerId(),
+    core:payload(),training:state.training},
+    function(ok){
+      if(!ok){setSync("error","couldn't save a previous copy — nothing was replaced");
+        toast("Couldn't save a previous copy. Your data was left as it is.");cb&&cb(false);return;}
+      adopt();});};
+applyCloud=function(d){applyCloudSafe(d,"apply-cloud");};
+
+cfReconcile=function(d,ctx,done){
+  var i=cfInputs(d),decision=syncDecideV2(i);
+  function fin(){done&&done(decision);}
+  if(decision==="blocked"){setSync("error","this device holds another account’s unsynced data");fin();return;}
+  if(decision==="idle"){
+    /* semantic empty/empty: the conservative migration's dirty state must
+       clear here, or a fresh install shows a pending badge forever */
+    if(isDirty()&&!i.localMeaningful&&!i.serverHasData){
+      cfBaselineSet(i.localCanon||"");revClean("core");cfClearPending();}
+    if(revIsDirty("training")&&!cfTrainingMeaningful(state.training))revClean("training");
+    setSync("ok");fin();return;}
+  if(decision==="agree"){cfBaselineSet(i.serverCanon);syncFpSet(syncFingerprint(d));revClean("core");
+    if(revIsDirty("training")&&!cfTrainingMeaningful(state.training))revClean("training");
+    cfClearPending();setLastSync();setSync("ok");fin();return;}
+  if(decision==="adopt"){applyCloudSafe(d,ctx+"-adopt",function(ok){
+    if(ok){cfClearPending();setLastSync();setSync("ok");try{render();}catch(e){}}fin();});return;}
+  if(decision==="hold-seed"||decision==="hold-push"){cfSetPending(decision==="hold-seed"?"seed":"push");fin();return;}
+  if(decision==="conflict"){cfEnterConflict(d,ctx);fin();return;}
+  setSync("ok");fin();};
+
+/* conflict pre-CAS: nothing can overwrite the server; keep-device holds pending
+   after genuinely preserving the online copy (owned by the SERVER account) */
+cfEnterConflict=function(d,ctx){
+  setSync("error","changes in two places — needs your decision");
+  wlChoose("We found changes in two places",
+    "This device has changes that haven’t been uploaded, and your online copy changed too. Nothing has been replaced.",
+    [{label:"Keep this device’s changes",hint:"Kept here and uploaded when the sync fix ships; the online version is saved as a previous copy now",primary:true},
+     {label:"Use the online version",hint:"This device’s version is saved as a previous copy first"},
+     {label:"Decide later",hint:"Keep both versions unchanged"}],
+    function(i){
+      if(i===0){
+        cfSnapshotOf({source:"server",reason:"keep-device-pending",accountId:pbUid()||"server",
+          core:d,training:(d&&d.training)||null},
+          function(ok){
+            if(!ok){setSync("error","couldn’t save a previous copy — nothing was decided");
+              toast("Couldn’t save your online copy. Nothing was changed.");return;}
+            cfSetPending("push");
+            toast("Kept. Your changes upload when the sync fix ships.");});
+        return;}
+      if(i===1){applyCloudSafe(d,"use-online-copy",function(ok){
+        if(ok){cfClearPending();setLastSync();setSync("ok");try{render();}catch(e){}toast("Now using your online copy");}});return;}
+      setSync("error","changes in two places — not yet resolved");});};
+
+/* ---- boot / pull / login: gated stamping, claim pauses reconciliation ---- */
+autoSync=function(){
+  if(!syncOn())return;
+  try{phAccountChanged();}catch(e){}
+  var blocked=cfAccountBlocked();
+  if(blocked){setSync("error",blocked==="mismatch"?"this device holds another account’s unsynced data":"is this your data? — needs your answer");
+    try{render();}catch(e){}return;}
+  cfOwnerMaybeStamp();
+  pullConnections();
+  if(revIsDirty("training")&&!cfTrainingMeaningful(state.training))revClean("training");
+  if(!revIsDirty("training"))trainingPull(function(){if(state.view==="train")render();});
+  setSync("syncing");
+  cloudGet(function(d,err){
+    if(err){setSync(err==="offline"?"offline":"error",err==="auth"?"session expired — log in again":"");return;}
+    cfReconcile(d,"boot");});};
+
+cloudPull=function(manual,done){
+  var blocked=cfAccountBlocked();
+  if(blocked){try{render();}catch(e){}done&&done();return;}
+  setSync("syncing");
+  cloudGet(function(d,err){
+    if(err){setSync(err==="offline"?"offline":"error",err==="auth"?"session expired — log in again":"");
+      if(manual)toast(err==="offline"?"No connection":err==="auth"?"Please log in again":"Couldn’t refresh");done&&done();return;}
+    cfOwnerMaybeStamp();
+    cfReconcile(d,"refresh",function(dec){
+      if(manual){
+        if(dec==="agree"||dec==="adopt"||dec==="idle")toast("Up to date");
+        else if(dec==="hold-push"||dec==="hold-seed")toast("Your changes are still on this device — they upload when the sync fix ships");}
+      done&&done();});});};
+
+pbDoLogin=function(){
+  if(pbLoginState.busy)return;
+  var em=(document.getElementById("wl-pb-email")||{}).value||"";
+  var pw=(document.getElementById("wl-pb-pass")||{}).value||"";
+  var bs=(document.getElementById("wl-pb-base")||{}).value||"";
+  var rmEl=document.getElementById("wl-pb-remember");
+  var remember=rmEl?!!rmEl.checked:true;
+  pbLoginState.remember=remember;em=em.trim();
+  if(!em||!pw){pbLoginState.err="Enter your email and password.";pbRenderLogin();return;}
+  if(bs){var c=pbCfg();c.base=bs.trim();setPbCfg(c);}
+  pbLoginState.busy=true;pbLoginState.err="";pbRenderLogin();
+  pbLogin(em,pw,function(ok,why){
+    pbLoginState.busy=false;
+    if(!ok){pbLoginState.err=(why==="bad")?"That email and password don’t match.":(why==="offline")?"Can’t reach the server. Is Tailscale on?":"Something went wrong. Try again.";
+      pbRenderLogin();return;}
+    pbLoginState.err="";
+    try{phAccountChanged();phRefreshOrphanCount();}catch(e){}
+    var blocked=cfAccountBlocked();
+    if(blocked){ /* claim/mismatch screen decides; reconciliation is PAUSED, no stamp */
+      try{document.documentElement.style.visibility="";}catch(e){}
+      render();return;}
+    cfOwnerMaybeStamp();
+    setSync("syncing");
+    cloudGet(function(d,err){
+      function finish(){
+        trainingPull(function(){
+          setLastSync();render();
+          toast("Welcome back"+(state.settings.name?(", "+state.settings.name):""));
+          photoSync(function(r){if(r&&r.downloaded)toast(r.downloaded+" photo"+(r.downloaded===1?"":"s")+" restored");});}); }
+      if(err||!d){setSync(err==="offline"?"offline":"error");finish();return;}
+      cfReconcile(d,"login",function(){finish();});});},remember);};
+
+recRestore=function(id,cb){
+  recList().then(function(all){
+    var s=null;all.forEach(function(x){if(x.id===id)s=x;});
+    if(!s){cb&&cb(false);return;}
+    cfSnapLocal("before-restore",function(ok){
+      if(!ok){toast("Couldn’t save a previous copy. Nothing was restored.");cb&&cb(false);return;}
+      try{applyCloudRaw(s.core);
+        if(s.training){state.training=s.training;saveTrainingLocal();}
+        revBump("core");revBump("training");cfSetPending("push");
+        try{render();}catch(e){}cb&&cb(true);
+      }catch(e){cb&&cb(false);}});
+  }).catch(function(){cb&&cb(false);});};
+
+pbLogout=function(){
+  function wipe(){
+    cfSnapLocal("before-logout",function(ok){
+      if(!ok){toast("Couldn’t save a previous copy, so this device wasn’t cleared. You’re still signed in.");return;}
+      pbForceLogout();location.reload();});}
+  if(revAnyDirty()||cfPending){
+    wlChoose("You have changes that aren’t uploaded",
+      "Uploading is paused until the sync fix ships, so logging out now would clear changes that exist only on this device.",
+      [{label:"Stay signed in",primary:true},
+       {label:"Save a copy to my files first",hint:"Downloads a backup, then you can decide"},
+       {label:"Log out anyway",hint:"A previous copy is saved on this device first"}],
+      function(i){
+        if(i===1){try{exportData();}catch(e){toast("Couldn’t export");}return;}
+        if(i===2){wipe();return;}});
+    return;}
+  askConfirm("Log out on this device? Your data stays safe online — log back in any time.",wipe,{label:"Log out",danger:true});};
+
+/* ---- export/import carry training too; honest about contents ---- */
+backupJSON=function(){
+  var p=payload();
+  return JSON.stringify(Object.assign({},p,{training:state.training,backupVersion:2}),null,2);};
+applyImport=function(text){
+  var d;try{d=JSON.parse(text);}catch(err){toast("That isn't valid backup data");return;}
+  if(!d||typeof d!=="object"||(!("weights" in d)&&!("settings" in d))){toast("Unrecognized backup format");return;}
+  cfSnapLocal("before-import",function(ok){
+    if(!ok){toast("Couldn’t save a previous copy. Nothing was imported.");return;}
+    askConfirm("Replace all data on this device with this backup? Current entries will be overwritten.",function(){
+      state.settings=Object.assign({},DEFAULT_SETTINGS,d.settings||{});
+      state.weights=Array.isArray(d.weights)?d.weights:[];
+      state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.bodyfat=d.bodyfat||{};state.waist=d.waist||{};state.statuses=d.statuses||[];state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;state.nightlyLog=d.nightlyLog||{};state.skips=d.skips||{};state.glp=d.glp||glpDefault();
+      state.presets=(Array.isArray(d.presets)&&d.presets.length)?d.presets:DEFAULT_PRESETS.slice();
+      if(d.training&&typeof d.training==="object"){state.training=Object.assign({},state.training,d.training);saveTrainingLocal();revBump("training");}
+      glpNormalize();
+      state.pasteOpen=false;state.view="overview";applyTheme(state.settings.theme||"dark");save();
+      toast("Data restored"+(d.training?"":" (this backup has no training data)"));
+    },{label:"Replace",danger:false});});};
+
+/* ---- final render gate + reveal: the boot guard's decision point ---- */
+render=function(){
+  var b=cfAccountBlocked();
+  if(b){var el=document.getElementById("app")||document.body;
+    try{el.innerHTML=cfBlockedHTML(b);}catch(e){}
+    try{document.documentElement.style.visibility="";}catch(e){}
+    return;}
+  _cfRender();
+  try{document.documentElement.style.visibility="";}catch(e){}};
+try{render();}catch(e){try{document.documentElement.style.visibility="";}catch(e2){}}
 
 </script>
 </body>

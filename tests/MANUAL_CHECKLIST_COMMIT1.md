@@ -1,6 +1,6 @@
 # Commit 1+1b — staging browser checklist (MUST pass before shipping)
 
-**Build:** `2026-07-25.333-pb-c1b`
+**Build:** `2026-07-25.334-pb-c1c`
 **Status:** NOT RUN — no staging PocketBase is reachable from the dev environment.
 
 The Architect's authorization is explicit: Commit 1 may be *coded* now but **must not ship** on automated tests alone. Automated tests cover the decision logic; everything below needs a real browser, real IndexedDB and a real server.
@@ -10,7 +10,7 @@ Two PocketBase accounts · two browser profiles or devices · offline mode · ne
 
 ## Record for every row
 
-**Case count: 33** (A1–A6, B1–B4, C1–C5, D1–D3, E1–E2, F1–F5, G1–G8).
+**Case count: 43** (A1–A6, B1–B4, C1–C5, D1–D3, E1–E2, F1–F5+F3b/F3c, G1–G8, H1–H8).
 `Test · Expected · Actual · Browser/device · Client build · PocketBase version · Pass/Fail · Notes`
 
 ---
@@ -39,7 +39,7 @@ Two PocketBase accounts · two browser profiles or devices · offline mode · ne
 | C1 | Block IndexedDB, then choose "Use the online version" | Nothing replaced; error shown; local intact |
 | C2 | Block IndexedDB, then log out | **Still signed in**, device not cleared |
 | C3 | Block IndexedDB, then restore a previous copy | Nothing restored; current state intact |
-| C4 | Conflict → "Use changes from this device" | The **online** copy is saved as a previous copy *before* upload |
+| C4 | Conflict → "Keep this device's changes" | The **online** copy is saved as a previous copy; state holds **pending** — pre-CAS nothing uploads |
 | C5 | C4 with recovery blocked | Upload refused; wording never claims a copy was saved |
 
 ### D. Cross-account guard (minimal, pre-Commit-4)
@@ -60,7 +60,9 @@ Two PocketBase accounts · two browser profiles or devices · offline mode · ne
 |---|---|---|
 | F1 | Log weight, food, a workout, cardio, a GLP-1 dose | All save normally |
 | F2 | Take a progress photo; check it appears | Photo pipeline unaffected |
-| F3 | Coach Max recap opens; charts render | Unaffected |
+| F3 | Coach Max "Complete today" while core is CLEAN | Recap flow works (coachreq is allowlisted) |
+| F3b | Coach Max while core is DIRTY | Honest "paused until the sync fix ships" message — not a fake server error |
+| F3c | Apple Health import | Values apply locally AND the server inbox clears (health write allowlisted); re-observe does not duplicate |
 | F4 | Offline for a session, then reconnect | No data loss, pending state accurate |
 | F5 | Explicit "Replace this device with the online copy" | Confirms, snapshots, replaces |
 | G1 | Account card **Save** button while dirty | Goes through the safe path — never a blind PATCH |
@@ -71,3 +73,11 @@ Two PocketBase accounts · two browser profiles or devices · offline mode · ne
 | G6 | Fresh default install, first sync | No false pending/dirty state; resolves clean |
 | G7 | Backup import | Snapshot saved first; import blocked if snapshot fails |
 | G8 | Sparse old server row vs default-filled local, same user meaning | Resolves to agree — no false conflict |
+| H1 | Edit while SIGNED OUT, then log back in same account | Edit survives; never adopted over |
+| H2 | Unknown-owner meaningful data, login | "Is this your data?" — claim / set aside / export; NO auto-claim, sync paused until answered |
+| H3 | Claim → continues login + reconciliation; Set aside → data quarantined, verified before removal |
+| H4 | Mismatch screen | No export control; switch account / sign out only |
+| H5 | Logout with clean data | Snapshot verified, wipe succeeds, cf:lastOwner cleared |
+| H6 | Restore a previous copy | Works; marks pending; snapshot-first verified |
+| H7 | GLP compound configured, no dose; sync | Treated as meaningful — never "empty" |
+| H8 | Setup link confirmed after boot | Reaches only the safe pull/write paths |

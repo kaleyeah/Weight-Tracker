@@ -72,7 +72,7 @@ Three layers, local-first:
 2. **`IndexedDB`** (`wl_photos` DB, `photos` store, indexed by `date`) — binary **progress photos**. Kept out of `localStorage` because they're large. Helpers: `idbAdd`, `idbByDate`, `idbAll`, `idbDelete`, `idbClearAll`.
 3. **PocketBase backend** (see §4) — the cloud copy for auth + multi-device sync.
 
-**Save flow:** `save()` → `saveLocal()` (writes `localStorage`) → `scheduleCloudPush()` (debounced push to backend). Writes are marked dirty (`markDirty`) and reconciled on sync.
+**Save flow (hardened builds ≥ .333):** `save()` → `saveLocal()` (writes `localStorage`) → `scheduleCloudPush()`, which now only **advances the local revision and sets a visible pending state**. No automatic backend write exists until server CAS deploys; upload is a safe, explicit reconciliation. Operational fields (`health`, `coachreq`) remain allowed against an existing row. (Pre-hardening behavior was a debounced blind push.)
 
 ---
 
