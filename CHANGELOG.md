@@ -19,11 +19,14 @@ A high-level, human- and AI-readable log of how the **product** has evolved — 
 
 ## [Unreleased]
 
-### Fixed (coded, awaiting staging validation)
+### Fixed (coded in Commit 1+1b, awaiting staging validation — NOT shipped)
 - **Dirty local data could be silently replaced — including on pull-to-refresh.** A device whose only unsynced change was a GLP-1 dose, note, settings change or skip was reported as having "no local data" and was overwritten by the server. Dirty state can no longer be adopted over on any path. Build `2026-07-25.332-pb-c1`.
-- **No automatic whole-snapshot upload before server compare-and-swap.** A fingerprint match cannot prevent a concurrent write landing after the read, so automatic push/seed are replaced by a visible pending state and a user-confirmed upload that preserves the online copy first. Automatic upward sync pauses until CAS lands — a deliberate trade of automation for safety.
+- **Every backend write is frozen until server compare-and-swap exists.** Commit 1 removed auto-push from the decision table but the Architect found the real write path still open (`save()` → debounced `cloudPush()` → blind PATCH, plus the training scheduler and the Account-card Save button). Commit 1b closes them at the choke point — `pbSave` itself is gated shut, schedulers only record pending state, pre-existing timers are cancelled, and the Save button is rewired. Replacing a non-empty server copy is **not possible at all** before CAS (confirmation changes intent, not concurrency safety); the app offers an honest pause message and a file export instead.
 - **Destructive actions now fail closed.** Adopting the server copy, restoring a previous copy, replacing the device, and logging out all abort if the recovery copy cannot be verified. Logout no longer wipes on an unverified snapshot or completes on a timer.
-- **Conflict resolution preserves the losing side.** "Use changes from this device" now saves the *online* copy first, rather than the copy that wins.
+- **Conflict resolution preserves the losing side.** "Use changes from this device" now saves the *online* copy first, rather than the copy that wins. (Pre-CAS it can no longer complete with an upload; it holds pending.)
+- **Meaningful unowned data is never auto-claimed.** A first verified login over meaningful pre-upgrade data gets an explicit "Is this your data?" screen (claim / set aside / export) — and a mismatched account never gets a frame of the previous account's data painted (render is ownership-gated).
+- **Symmetric normalization before every comparison.** Local payloads pass through defaults/migrations, old server rows are sparse; both sides now normalize identically (defaults stripped, `scriptVer` excluded, default presets carry no meaning) so equal user meaning can't produce false pending/conflict states, and a fresh default install is not "meaningful".
+- **Dirty training is no longer pulled over on login**, and backup import snapshots first and fails closed.
 
 ### Corrected
 - **Documentation overstated sync safety.** Fingerprints were described as if they prevented concurrent overwrites; they only *detect* known divergence. Server-enforced revisions are the concurrency control. Also corrected: the legacy dirty-flag migration reads the flag but preserves only exact `"1"` as dirty — missing/malformed/wrongly-cleared state becomes clean, which is unsafe.

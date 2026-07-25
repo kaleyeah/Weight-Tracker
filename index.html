@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Compound Fitness · build 2026-07-25.332-pb-c1 · deploy this file as index.html -->
+<!-- Compound Fitness · build 2026-07-25.333-pb-c1b · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -845,7 +845,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-25.332-pb-c1";
+var APP_BUILD="2026-07-25.333-pb-c1b";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -6007,6 +6007,230 @@ document.addEventListener("click",function(e){
   var t=e.target&&e.target.closest&&e.target.closest("[data-sync-dot],.wl-syncdot,.wl-sync");
   if(t&&cfPending){e.preventDefault();cfUploadNow();}
 },true);
+
+
+/* ============================================================
+   HARDENING — COMMIT 1b: close the runtime write paths
+   Product Architect review of Commit 1: CHANGES REQUIRED.
+
+   Commit 1 overrode the RECONCILIATION path but left the WRITE path
+   intact: save() -> scheduleCloudPush() -> cloudPush() -> pbSave() still
+   issued a blind PATCH on every edit, bypassing the decision table, the
+   pending state, recovery and the account guard. The claim "no automatic
+   whole-snapshot write" was false in the implementation. This block makes
+   it true, at the only place that cannot be bypassed: pbSave itself.
+   ============================================================ */
+
+/* @testable-start C1B */
+/* Symmetric normalization. The local payload has been through defaults and
+   migrations; a server copy may be sparse or older. Comparing them raw makes
+   equal user meaning serialize differently, which would strand devices in a
+   false pending/conflict state. Both sides go through this before ANY
+   equality, baseline or meaningful-state decision. */
+function cfNormalizeWith(d,DEFS,DPRE,canon){
+  d=d||{};DEFS=DEFS||{};DPRE=DPRE||[];
+  var o={},i,k;
+  /* settings: fill defaults on both sides, then drop anything still default */
+  var merged=Object.assign({},DEFS,d.settings||{}),s={};
+  for(k in merged){if(!Object.prototype.hasOwnProperty.call(merged,k))continue;
+    if(canon(merged[k])===canon(DEFS[k]))continue;s[k]=merged[k];}
+  if(Object.keys(s).length)o.settings=s;
+  var arrs=["weights","statuses"];
+  for(i=0;i<arrs.length;i++)if((d[arrs[i]]||[]).length)o[arrs[i]]=d[arrs[i]];
+  var maps=["food","workouts","steps","notes","sleep","bodyfat","waist","skips","nightlyLog"];
+  for(i=0;i<maps.length;i++){var m=d[maps[i]];
+    if(m&&typeof m==="object"&&Object.keys(m).length)o[maps[i]]=m;}
+  if(d.weeklySummary)o.weeklySummary=d.weeklySummary;
+  if(d.nightlySummary)o.nightlySummary=d.nightlySummary;
+  /* presets identical to the shipped defaults carry no user intent */
+  if(Array.isArray(d.presets)&&d.presets.length&&canon(d.presets)!==canon(DPRE))o.presets=d.presets;
+  var g=d.glp;
+  if(g&&typeof g==="object"){var gg={},gk=["compounds","doses","symptoms","symptomTypes"];
+    for(i=0;i<gk.length;i++)if((g[gk[i]]||[]).length)gg[gk[i]]=g[gk[i]];
+    if(Object.keys(gg).length)o.glp=gg;}
+  /* scriptVer is implementation metadata, not athlete data — excluded on both sides */
+  return o;}
+
+/* Semantic empty/default detection: a freshly initialized install has full
+   default settings and default presets and must NOT count as meaningful. */
+function cfIsMeaningfulNormalized(n){return !!n&&Object.keys(n).length>0;}
+
+/* Explicit supplied/ok clone result. A required field that fails to clone
+   must fail the whole snapshot — reporting success with core:null would let a
+   destructive core replacement proceed with no core recovery copy. */
+function cfCloneField(v){
+  if(v===undefined||v===null)return {supplied:false,ok:true,value:null};
+  try{return {supplied:true,ok:true,value:JSON.parse(JSON.stringify(v))};}
+  catch(e){return {supplied:true,ok:false,value:null};}}
+function cfSnapshotValid(coreRes,trainRes,accountId){
+  if(!accountId)return false;                 /* ownership must be explicit */
+  if(coreRes.supplied&&!coreRes.ok)return false;
+  if(trainRes.supplied&&!trainRes.ok)return false;
+  return coreRes.supplied||trainRes.supplied;}
+
+/* The write gate. Every core/training backend write funnels through pbSave,
+   so gating there catches call sites this block never names. Before CAS the
+   gate is never opened. */
+function cfWriteAllowed(gateToken,accountVerdict){
+  return gateToken===true&&accountVerdict==="ok";}
+/* @testable-end C1B */
+
+/* ---- normalization bound to this app's real defaults ---- */
+function cfNormalize(d){
+  return cfNormalizeWith(d,
+    (typeof DEFAULT_SETTINGS!=="undefined")?DEFAULT_SETTINGS:{},
+    (typeof DEFAULT_PRESETS!=="undefined")?DEFAULT_PRESETS:[],
+    cfCanon);}
+/* Redefined on top of Commit 1: semantic, symmetric, default-aware. */
+coreHasMeaningfulState=function(d){return cfIsMeaningfulNormalized(cfNormalize(d));};
+
+/* ---- FREEZE every automatic backend write until CAS exists ---- */
+var CF_WRITE_GATE=false;          /* nothing in this build ever opens it */
+var _cfPbSave=pbSave;
+pbSave=function(fields,cb){
+  if(!cfWriteAllowed(CF_WRITE_GATE,cfAccountVerdict())){
+    /* Fail closed. A blind whole-snapshot PATCH is last-writer-wins and a
+       blind POST can create a duplicate appdata row; neither is safe until
+       the server enforces compare-and-swap. */
+    try{console.warn("[CF] backend write blocked until server CAS is deployed");}catch(e){}
+    cb&&cb(false,"blocked");return;}
+  CF_WRITE_GATE=false;            /* one-shot */
+  return _cfPbSave(fields,cb);};
+
+/* Any timer scheduled before this block installs must not fire. */
+try{clearTimeout(pushTimer);}catch(e){}
+try{clearTimeout(trainingPushTimer);}catch(e){}
+
+/* Ordinary edits now only record intent locally. No network work. */
+scheduleCloudPush=function(){if(!syncOn())return;revBump("core");cfSetPending("push");};
+scheduleTrainingPush=function(){if(!syncOn())return;revBump("training");cfSetPending("push");};
+cloudPush=function(manual){revBump.length;cfSetPending("push");if(manual)cfUploadNow();};
+trainingPush=function(){cfSetPending("push");};
+
+/* ---- upload before CAS: reconcile only, never replace ---- */
+cfUploadNow=function(){
+  if(!syncOn()){toast("Log in first");return;}
+  if(cfAccountVerdict()!=="ok"){toast("This device holds another account’s data — not uploading");return;}
+  setSync("syncing");
+  cloudGet(function(d,err){
+    if(err){setSync(err==="offline"?"offline":"error");toast(err==="offline"?"No connection":"Couldn’t reach the server");return;}
+    cfOwnerStampVerified();
+    var ln=cfNormalize(payload()),sn=cfNormalize(d);
+    if(cfCanon(ln)===cfCanon(sn)){
+      cfBaselineSet(cfCanon(sn));syncFpSet(syncFingerprint(d));revClean("core");cfClearPending();
+      setLastSync();setSync("ok");toast("Already up to date");return;}
+    /* Architect ruling: a user-confirmed blind overwrite is still
+       last-writer-wins. Confirmation changes intent, not concurrency safety.
+       So there is no replace option here — only a truthful explanation and a
+       way to get the data off the device. */
+    setSync("error","changes on this device aren’t uploaded yet");
+    wlChoose("Your changes are still on this device",
+      "Uploading is paused while we finish a safety fix on the server. Nothing has been lost — your data is here and will upload automatically once the fix is live. You can save a copy now if you’d like one off this device.",
+      [{label:"Save a copy to my files",primary:true},{label:"OK"}],
+      function(i){if(i===0){try{exportData();}catch(e){toast("Couldn’t export");}}});});};
+
+/* ---- recovery: explicit ownership, per-field validation, fail closed ---- */
+cfSnapshotOf=function(opts,cb){
+  var o=opts||{};
+  var accountId=o.accountId||"";
+  var c=cfCloneField(o.core),t=cfCloneField(o.training);
+  if(!cfSnapshotValid(c,t,accountId)){cb&&cb(false);return;}
+  var snap={id:"s_"+Date.now()+"_"+String(Math.random()).slice(2,7),
+    accountId:accountId,createdAt:Date.now(),
+    appBuild:(typeof APP_BUILD!=="undefined"?APP_BUILD:""),
+    reason:o.reason||"",source:o.source||"local",
+    /* revision metadata only describes a LOCAL snapshot; a remote one records
+       the server side it came from instead of this device's counters */
+    localRevision:(o.source==="server")?null:revLocal("core"),
+    trainingRevision:(o.source==="server")?null:revLocal("training"),
+    serverBaseline:(o.source==="server")?cfCanon(cfNormalize(o.core)):null,
+    core:c.value,training:t.value};
+  recPut(snap).then(function(){
+    return recList().then(function(all){
+      var mine=all.filter(function(s){return (s.accountId||"")===accountId;});
+      return Promise.all(mine.slice(REC_KEEP).map(function(s){return recDelete(s.id);}));});})
+    .then(function(){cb&&cb(true,snap.id);}).catch(function(){cb&&cb(false);});};
+
+function cfSnapLocal(reason,cb){
+  cfSnapshotOf({source:"local",reason:reason,accountId:pbUid()||"local",
+    core:payload(),training:state.training},cb);}
+
+/* ---- protect the remaining destructive paths ---- */
+var _cfApplyImport=applyImport;
+applyImport=function(text){
+  cfSnapLocal("before-import",function(ok){
+    if(!ok){toast("Couldn’t save a previous copy. Nothing was imported.");return;}
+    _cfApplyImport(text);});};
+
+/* ---- ownership: never auto-claim meaningful unknown data ---- */
+var CF_QUAR_FLAG="cf:quarantined";
+function cfAccountBlocked(){
+  var v=cfAccountVerdict();
+  if(v==="mismatch")return "mismatch";
+  if(v==="ok"||v==="unauthenticated")return "";
+  /* unknown owner: safe to claim silently only if nothing meaningful is here */
+  return coreHasMeaningfulState(payload())?"unclaimed":"";}
+function cfClaimLocal(){cfOwnerStampVerified();try{render();}catch(e){}
+  toast("This device’s data is now linked to your account");}
+function cfDisownLocal(){
+  /* Preserve, then clear. The blob is copied to a quarantine key so the new
+     account starts clean without the previous data being destroyed. */
+  try{
+    var stamp=String(Date.now());
+    localStorage.setItem("cf:quarantine:"+stamp+":core",localStorage.getItem(KEY)||"");
+    localStorage.setItem("cf:quarantine:"+stamp+":training",localStorage.getItem(TKEY)||"");
+    localStorage.setItem(CF_QUAR_FLAG,stamp);
+    localStorage.removeItem(KEY);localStorage.removeItem(TKEY);localStorage.removeItem(WOKEY);
+  }catch(e){toast("Couldn’t set that data aside — nothing was changed");return;}
+  location.reload();}
+function cfBlockedHTML(kind){
+  var body=(kind==="mismatch")
+    ? "This device still has data from a different account that was never uploaded. It’s being kept exactly as it is, and it stays hidden from your account."
+    : "There’s data already on this device from before you signed in. We won’t add it to your account without asking.";
+  return '<div style="max-width:520px;margin:0 auto;padding:28px 20px">'+
+    '<div style="font-size:20px;font-weight:800;margin-bottom:10px">'+
+      (kind==="mismatch"?"Data from another account":"Is this your data?")+'</div>'+
+    '<div style="opacity:.85;line-height:1.5;margin-bottom:18px">'+esc(body)+'</div>'+
+    (kind==="unclaimed"
+      ? '<button class="wl-btn wl-btn-primary wl-full" data-act="cf:claim" style="margin-bottom:10px">Yes — this is mine</button>'+
+        '<button class="wl-btn wl-btn-ghost wl-full" data-act="cf:disown" style="margin-bottom:10px">No — set it aside</button>'
+      : '')+
+    '<button class="wl-btn wl-btn-ghost wl-full" data-act="cf:export">Save a copy to my files</button>'+
+    '</div>';}
+var _cfRender=render;
+render=function(){
+  var b=cfAccountBlocked();
+  if(b){var el=document.getElementById("app")||document.body;
+    try{el.innerHTML=cfBlockedHTML(b);}catch(e){}
+    return;}
+  _cfRender();};
+document.addEventListener("click",function(e){
+  var t=e.target&&e.target.closest&&e.target.closest("[data-act]");
+  if(!t)return;var a=t.getAttribute("data-act");
+  if(a==="cf:claim"){e.preventDefault();e.stopPropagation();cfClaimLocal();}
+  else if(a==="cf:disown"){e.preventDefault();e.stopPropagation();
+    askConfirm("Set this data aside? It stays on this device and stays out of your account. You can still save a copy to your files.",cfDisownLocal,{label:"Set aside"});}
+  else if(a==="cf:export"){e.preventDefault();e.stopPropagation();try{exportData();}catch(err){}}
+  else if(a==="sync:push"){e.preventDefault();e.stopPropagation();cfUploadNow();}   /* legacy Save button rewired */
+},true);
+
+/* Explicit logout removes this device's copy, so its ownership marker must go
+   too — otherwise the next user is blocked by a mismatch against data that no
+   longer exists. */
+var _c1bForceLogout=pbForceLogout;
+pbForceLogout=function(){try{localStorage.removeItem(CF_OWNER_KEY);}catch(e){}
+  return _c1bForceLogout.apply(this,arguments);};
+
+/* Login must not pull over dirty local training. */
+var _c1bTrainingPull=trainingPull;
+trainingPull=function(cb){
+  if(revIsDirty("training")){cfSetPending("push");cb&&cb();return;}
+  return _c1bTrainingPull.apply(this,arguments);};
+
+/* Commit 1's mismatch branch promised the data would stay hidden and then
+   called render(), which painted it. The render gate above now makes that
+   promise true; repaint through it. */
+try{render();}catch(e){}
 
 </script>
 </body>

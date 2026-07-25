@@ -15,7 +15,7 @@ Compound Fitness is a coaching platform (not a tracker) built as **one backend +
 - **Current phase:** Phase 1 (Athlete App) + **hardening brief (M1–M10)** → Phase 2 (Native Shell).
 - **Hardening progress:** M1–M4 implemented but **NOT SHIPPABLE** (*do not ship*, 12 required fixes). Plan **approved with amendments** — `REMEDIATION_PLAN_V2.md` is authorized; awaiting go-ahead to start commit 1. M5–M10 + record-level sync design not started.
 - **Backend:** self-hosted PocketBase (cutover 2026-07-21).
-- **Latest internal build:** `2026-07-25.332-pb-c1` (Commit 1 — **coded, not shipped**).
+- **Latest internal build:** `2026-07-25.333-pb-c1b` (Commit 1+1b — **coded, not shipped, not staging-validated**).
 
 ---
 
@@ -51,7 +51,7 @@ Compound Fitness is a coaching platform (not a tracker) built as **one backend +
 
 ## 🚧 In Progress
 
-- **Commit 1 done (coded):** 88 tests pass; the unsafe adopt/push branches are gone and their old assertions inverted. Awaiting staging validation.
+- **Commit 1 review verdict: CHANGES REQUIRED** — the decision table was fixed but the runtime write path was still open (`save()` → blind `cloudPush()`), plus cross-account first paint, auto-claim, and snapshot validation gaps. **Commit 1b closes all 15 required changes**: `pbSave` gated shut until CAS, schedulers inert, timers cancelled, Save button rewired, render ownership-gated, quarantine screen for unowned data, symmetric normalization, per-field snapshot validation, import protected, dirty-training pull blocked. 116 tests pass.
 - **M1–M4 remediation** — review verdict on the first pass: **do not ship**. All 12 findings verified. Plan **approved with amendments**; `REMEDIATION_PLAN_V2.md` is the authorized plan (15 pre-coding items) and supersedes v1. One v1 claim was wrong and is corrected: the legacy dirty flag **is** read (line 5326) — the defect is that only exact `"1"` survives as dirty, while missing/malformed/wrongly-cleared state becomes clean. New hazard confirmed: duplicate `appdata` rows. No application code changed yet.
 - **Native Bridge Architecture** — `NATIVE_BRIDGE_ARCHITECTURE.md` drafted; **Status: Proposed**, awaiting review before implementation.
 - **Athlete app polish/automation** — remaining 5–10% is polish and automation, not new manual features.
@@ -60,7 +60,8 @@ Compound Fitness is a coaching platform (not a tracker) built as **one backend +
 
 ## ⛔ Blocked / Awaiting Decision
 
-- **Commit 1 is coded but NOT SHIPPED.** It closes the live pull-to-refresh data-loss path, but `tests/MANUAL_CHECKLIST_COMMIT1.md` has not been run — no staging PocketBase is reachable here. Shipping on automated tests alone is explicitly disallowed.
+- **Commit 1+1b coded but NOT SHIPPED.** The 33-case staging checklist has not been run — no staging PocketBase is reachable here. Shipping on automated tests alone is explicitly disallowed.
+- **Upward sync is deliberately frozen in this build** until server CAS deploys — edits stay local with a visible pending state and an export path. This is the Architect's ruling: a user-confirmed blind overwrite is still last-writer-wins.
 - **Compare-and-swap (Fix 2) is blocked on PocketBase server work** — new fields, a unique index on `user`, and a transactional route/hook. Cannot be done client-side; needs Product Owner action.
 - **Browser validation blocked** — no staging PocketBase reachable from this environment.
 - **Phase 2 native build** is gated on **architecture review of the bridge proposal** (ADR-004, ADR-005 are `Proposed`, not `Accepted`).

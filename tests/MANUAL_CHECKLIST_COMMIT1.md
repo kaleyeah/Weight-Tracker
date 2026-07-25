@@ -1,6 +1,6 @@
-# Commit 1 — staging browser checklist (MUST pass before shipping)
+# Commit 1+1b — staging browser checklist (MUST pass before shipping)
 
-**Build:** `2026-07-25.332-pb-c1`
+**Build:** `2026-07-25.333-pb-c1b`
 **Status:** NOT RUN — no staging PocketBase is reachable from the dev environment.
 
 The Architect's authorization is explicit: Commit 1 may be *coded* now but **must not ship** on automated tests alone. Automated tests cover the decision logic; everything below needs a real browser, real IndexedDB and a real server.
@@ -9,6 +9,8 @@ The Architect's authorization is explicit: Commit 1 may be *coded* now but **mus
 Two PocketBase accounts · two browser profiles or devices · offline mode · network throttling · forced token expiry · IndexedDB inspection · a failed-recovery-storage simulation (fill quota or block IDB).
 
 ## Record for every row
+
+**Case count: 33** (A1–A6, B1–B4, C1–C5, D1–D3, E1–E2, F1–F5, G1–G8).
 `Test · Expected · Actual · Browser/device · Client build · PocketBase version · Pass/Fail · Notes`
 
 ---
@@ -28,7 +30,7 @@ Two PocketBase accounts · two browser profiles or devices · offline mode · ne
 |---|---|---|
 | B1 | Make an edit, wait past the debounce | **No** PATCH in the network tab; pending state shown |
 | B2 | Fresh account, no server row, local data present | **No** POST; pending "setup" state |
-| B3 | Tap the status indicator | Explicit confirm → uploads → status clears |
+| B3 | Tap the status indicator while dirty vs a non-empty server | **No replace option exists.** Honest pause message + export offer; nothing uploaded |
 | B4 | Local and server already identical, dirty flag set | Resolves to agree silently, no prompt, goes clean |
 
 ### C. Recovery fails closed
@@ -45,7 +47,7 @@ Two PocketBase accounts · two browser profiles or devices · offline mode · ne
 |---|---|---|
 | D1 | User A signs in, makes unsynced edits, session expires; User B signs in | A's data not shown, not uploaded, not adopted; held untouched |
 | D2 | Same, but User A signs back in | A's data still there and usable |
-| D3 | Pre-upgrade install, first verified login | Claims the existing data (documented limitation) |
+| D3 | Pre-upgrade install with meaningful data, first verified login | **Quarantine screen** — explicit "Yes it's mine" / "Set it aside" / export. Never auto-claimed |
 
 ### E. Legacy migration
 | # | Test | Expected |
@@ -61,3 +63,11 @@ Two PocketBase accounts · two browser profiles or devices · offline mode · ne
 | F3 | Coach Max recap opens; charts render | Unaffected |
 | F4 | Offline for a session, then reconnect | No data loss, pending state accurate |
 | F5 | Explicit "Replace this device with the online copy" | Confirms, snapshots, replaces |
+| G1 | Account card **Save** button while dirty | Goes through the safe path — never a blind PATCH |
+| G2 | Ordinary edit → wait past every debounce | **Zero** POST/PATCH in the network tab |
+| G3 | Training edit → wait | Zero POST/PATCH; pending state shown |
+| G4 | Login with dirty local training | Training NOT pulled over; pending shown |
+| G5 | Cached User B session, User A data on device, cold start | A's data never painted, not even one frame |
+| G6 | Fresh default install, first sync | No false pending/dirty state; resolves clean |
+| G7 | Backup import | Snapshot saved first; import blocked if snapshot fails |
+| G8 | Sparse old server row vs default-filled local, same user meaning | Resolves to agree — no false conflict |

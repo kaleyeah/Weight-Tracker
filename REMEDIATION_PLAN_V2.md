@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-07-25
 
-**Status:** Amended per the Product Architect's *PROCEED WITH CHANGES* review. All 17 required edits applied. **Commit 1 is implemented (coded, not shipped);** Commits 2–11 not started.
+**Status:** Amended after two Architect reviews. **Commit 1 returned CHANGES REQUIRED; Commit 1b implements all 15 required changes** (build `2026-07-25.333-pb-c1b`, coded, not shipped, not staging-validated). Commits 2–11 not started.
 
 > Supersedes `REMEDIATION_PLAN.md` (v1) — packaged in review archives as `02-v1-superseded.md`. Every amendment from both review rounds is incorporated. This answers the fifteen items required before coding. **Commit 1 has since been implemented** at build `2026-07-25.332-pb-c1`; it is coded and tested but **not shipped** pending staging browser validation.
 >
@@ -53,7 +53,7 @@ localDirty && server moved               → "conflict"
 
 **`hold-push` / `hold-seed` never write.** They set a visible pending state. Before server CAS exists there is **no automatic whole-snapshot write of any kind** — a fingerprint match cannot prevent a concurrent write landing after our read, and duplicate rows cannot be prevented without the unique index. This removes the contradiction the Architect identified between the old `push` branch and "no auto-upload without CAS".
 
-**Uploading is still possible, but only user-initiated**, and only when all four conditions hold: the latest server copy has just been fetched, the actual remote copy has been **stored successfully**, the user explicitly confirms, and no safer merge exists. Commit 1 therefore includes the *minimum* explicit remote-snapshot capability (the Architect's option (b) for §6C) rather than disabling upload entirely — otherwise the app would stop syncing upward completely, which trades silent overwrite for silent divergence and eventual loss on device failure.
+**SUPERSEDED by the Commit 1 review:** the four-condition user-confirmed upload was rejected — *"a user-confirmed blind overwrite is still last-writer-wins; confirmation changes intent, not concurrency safety."* Before CAS, **replacing a non-empty canonical server snapshot is not possible at all.** Identical content may mark agreed; everything else holds pending with an honest explanation and a **file export** so device-failure risk stays visible and manageable. Every backend write is gated shut at `pbSave` itself, so call sites the hardening never names cannot write either.
 
 Comparison is **exact canonical equality** (recursive key-sorted serialization), never the 32-bit fingerprint. SHA-256 arrives in Commit 8.
 
