@@ -4,6 +4,8 @@
 
 **Status:** Active
 
+> **Standing instruction (Product Owner, 2026-07-25):** every completed task ends with a ChatGPT (Product Architect) review package — built and delivered automatically, without being asked. A package = zip with `00-PROMPT.md` (copy-paste prompt), the diff/artifacts, reproducible test output generated inside the archive, and current docs.
+
 > **Read this first.** This is the single source of truth for where the project stands right now. Both humans and AI should read it at the start of every session before doing anything else. Update it whenever a major milestone completes or the current focus shifts — keep it short and current, not a history log (that's `CHANGELOG.md`).
 
 ---
