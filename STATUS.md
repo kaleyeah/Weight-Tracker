@@ -13,7 +13,7 @@
 Compound Fitness is a coaching platform (not a tracker) built as **one backend + one PWA + thin native wrappers**. The **athlete app is ~90–95% complete** and running on a self-hosted PocketBase backend. Current focus is **live-app safety & architecture hardening** — making the athlete app safe enough to be the foundation for Phase 2. No coach-facing features exist yet.
 
 - **Current phase:** Phase 1 (Athlete App) + **hardening brief (M1–M10)** → Phase 2 (Native Shell).
-- **Hardening progress:** M1–M4 implemented but **NOT SHIPPABLE** — Product Architect review returned *do not ship* with 12 required fixes. Remediation plan written (`REMEDIATION_PLAN.md`), awaiting approval before coding. M5–M10 + record-level sync design not started.
+- **Hardening progress:** M1–M4 implemented but **NOT SHIPPABLE** (*do not ship*, 12 required fixes). Plan **approved with amendments** — `REMEDIATION_PLAN_V2.md` is authorized; awaiting go-ahead to start commit 1. M5–M10 + record-level sync design not started.
 - **Backend:** self-hosted PocketBase (cutover 2026-07-21).
 - **Latest internal build:** `2026-07-23.331`.
 
@@ -72,10 +72,10 @@ Compound Fitness is a coaching platform (not a tracker) built as **one backend +
 1. **Supply the PocketBase version** — `curl -s https://rack.tail6fa16c.ts.net/api/health` — unreachable from the dev environment and blocking commits 9–10.
 2. **Emergency hotfix (commit 1)**: stop the live pull-to-refresh data-loss path, browser-test on staging, ship ahead of the full remediation.
 3. Remediation commits 2–8, 11 (client-only); 9–10 need the server work and the version.
-3. **M5–M7**: training sync protection, Backup V2, remove the vestigial GitHub layer.
-4. **M8–M10**: internal boundaries, product-logic defects (lean-bulk/maintenance forecasting, recent-pace window, test control disabled in production), config/security cleanup.
-5. **Record-level synchronization design** for review — required before any native background health ingestion.
-6. Then Phase 2 (Native Shell), once the bridge proposal is accepted.
+4. **M5–M7**: training sync protection, Backup V2, remove the vestigial GitHub layer.
+5. **M8–M10**: internal boundaries, product-logic defects (lean-bulk/maintenance forecasting, recent-pace window, test control disabled in production), config/security cleanup.
+6. **Record-level synchronization design** for review — required before any native background health ingestion.
+7. Then Phase 2 (Native Shell), once the bridge proposal is accepted.
 
 Full phase detail: see `ROADMAP.md`.
 
