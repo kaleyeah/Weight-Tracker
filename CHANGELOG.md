@@ -19,6 +19,9 @@ A high-level, human- and AI-readable log of how the **product** has evolved — 
 
 ## [Unreleased]
 
+### Corrected
+- **Documentation overstated sync safety.** Fingerprints were described as if they prevented concurrent overwrites; they only *detect* known divergence. Server-enforced revisions are the concurrency control. Also corrected: the legacy dirty-flag migration reads the flag but preserves only exact `"1"` as dirty — missing/malformed/wrongly-cleared state becomes clean, which is unsafe.
+
 ### Added
 - **Product Bible documentation set** — Vision, Product History, Roles & Workflow, Technical Architecture, Roadmap, and the Feature Specification template, establishing the platform's mission, principles, and process of record.
 - **Native Bridge Architecture** proposal — the PWA↔native boundary designed as a single generic transport with self-describing capabilities (`NATIVE_BRIDGE_ARCHITECTURE.md`). *Status: proposed, pending architecture review.*

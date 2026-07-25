@@ -5,7 +5,8 @@ const fs = require('fs'), path = require('path');
 let failed = 0;
 
 // 1. the shipping file's script block must parse
-const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+const { SRC } = require('./harness.js');
+const html = fs.readFileSync(SRC, 'utf8');
 const m = html.match(/<script>([\s\S]*)<\/script>/);
 const tmp = path.join(require('os').tmpdir(), '_cf_syntax_check.js');
 fs.writeFileSync(tmp, m[1]);

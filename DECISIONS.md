@@ -324,6 +324,17 @@ Until record-level sync exists:
 
 ---
 
+### Correction (2026-07-25)
+
+Two claims made when this ADR was written are wrong and are corrected here rather than edited away:
+
+1. **Fingerprints are not concurrency control.** They detect *known* divergence. They cannot prevent two devices that share a baseline from both believing the server is unchanged and overwriting each other. **Server-enforced revisions (CAS) are the concurrency mechanism**; fingerprints are a secondary detector only. See `REMEDIATION_PLAN_V2.md` §4.
+2. **The legacy dirty flag migration is unsafe.** The migration at line 5326 reads the flag, but only exact `"1"` is preserved as dirty — missing, unknown, malformed, or previously incorrectly-cleared state is treated as clean. Its own comment claims the opposite ("an unknown state is treated as dirty"). The prior in-flight bug may already have cleared the flag, so "clean" is not trustworthy. Corrected by canonical content comparison when no trusted baseline exists.
+
+Status of this ADR is therefore **superseded in part** by the M1–M4 remediation.
+
+---
+
 ## ADR-014 — Photos are owned by an account, not by a device
 
 - **Date:** 2026-07-25

@@ -51,7 +51,7 @@ Compound Fitness is a coaching platform (not a tracker) built as **one backend +
 
 ## 🚧 In Progress
 
-- **M1–M4 remediation** — review verdict: **do not ship**. All 12 findings verified against source; 2 are worse than reported and 1 new hazard found (duplicate `appdata` rows). `REMEDIATION_PLAN.md` answers the brief's 10 required pre-coding items and **awaits approval**. No code changed yet.
+- **M1–M4 remediation** — review verdict: **do not ship**. All 12 findings verified. Plan **approved with amendments**; `REMEDIATION_PLAN_V2.md` is the authorized plan (15 pre-coding items) and supersedes v1. One v1 claim was wrong and is corrected: the legacy dirty flag **is** read (line 5326) — the defect is that only exact `"1"` survives as dirty, while missing/malformed/wrongly-cleared state becomes clean. New hazard confirmed: duplicate `appdata` rows. No application code changed yet.
 - **Native Bridge Architecture** — `NATIVE_BRIDGE_ARCHITECTURE.md` drafted; **Status: Proposed**, awaiting review before implementation.
 - **Athlete app polish/automation** — remaining 5–10% is polish and automation, not new manual features.
 
@@ -69,8 +69,9 @@ Compound Fitness is a coaching platform (not a tracker) built as **one backend +
 
 ## ➡️ Next Up
 
-1. **Approve `REMEDIATION_PLAN.md`**, decide on the PocketBase server changes (§10.1), and supply the PB version (§10.2).
-2. Implement remediation commits 1–7 (client-only, unblocked on approval); 8–9 need the server work.
+1. **Supply the PocketBase version** — `curl -s https://rack.tail6fa16c.ts.net/api/health` — unreachable from the dev environment and blocking commits 9–10.
+2. **Emergency hotfix (commit 1)**: stop the live pull-to-refresh data-loss path, browser-test on staging, ship ahead of the full remediation.
+3. Remediation commits 2–8, 11 (client-only); 9–10 need the server work and the version.
 3. **M5–M7**: training sync protection, Backup V2, remove the vestigial GitHub layer.
 4. **M8–M10**: internal boundaries, product-logic defects (lean-bulk/maintenance forecasting, recent-pace window, test control disabled in production), config/security cleanup.
 5. **Record-level synchronization design** for review — required before any native background health ingestion.
@@ -94,5 +95,6 @@ Full phase detail: see `ROADMAP.md`.
 | 8 | `NATIVE_BRIDGE_ARCHITECTURE.md` | PWA↔native boundary (proposed) |
 | 9 | `DECISIONS.md` | Architectural decision log (read before reversing anything) |
 | 10 | `CHANGELOG.md` | Product evolution over time |
-| 11 | `REMEDIATION_PLAN.md` | M1–M4 remediation plan (proposed, blocks further hardening) |
+| 11 | `REMEDIATION_PLAN_V2.md` | **Authorized** M1–M4 remediation plan (supersedes v1) |
+| — | `REMEDIATION_PLAN.md` | v1, superseded — kept for the correction record |
 | — | `FEATURE_SPECIFICATION_TEMPLATE.md` | Template for new feature specs |

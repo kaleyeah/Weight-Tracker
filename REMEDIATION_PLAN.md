@@ -64,9 +64,11 @@ In `photoSync()`, `map[…]` is assigned only on upload (line ~5249) and downloa
 *Fixed means:* completeness is proven by unique-ID count under a stable total order, and anything anomalous marks the listing incomplete.
 
 ### 1.9 Fix 9 — absent legacy flag migrates as clean
-`revAll()` (line **5309**) returns `{}` when `wl_rev` is missing; `revTrack()` defaults every counter to `0`; `revIsDirty()` is `0 > 0` → **false**. So every existing install upgrades as *clean* regardless of the legacy `wl_dirty` value.
+**CORRECTED — my earlier claim here was wrong.** A migration IIFE at line **5326** *does* read the legacy flag: `legacyDirty = localStorage.getItem(DIRTY_KEY) === "1"`. I missed it and wrongly reported "never read." The Product Architect's description is the accurate one.
 
-**Worse than the review states:** the review says non-`"1"` values migrate clean. In fact `wl_dirty` is **never read at all** by the hardening block — there is no migration path, only a default. An install carrying genuinely unsynced data upgrades to "clean" and can be adopted over on the first boot.
+The real defect: **only exact `"1"` is preserved as dirty. Missing, malformed, unknown, or previously incorrectly-cleared state is treated as clean, which is unsafe** — and the prior in-flight bug (Fix 3) may already have wrongly cleared the flag, so "clean" is not trustworthy evidence.
+
+Compounding this, the migration's own comment claims *"an unknown state is treated as dirty, because the failure mode of 'wrongly clean' is data loss"* — the code does the exact opposite of its comment. The comment must be corrected with the code.
 
 *Fixed means:* absence of a trusted baseline triggers content comparison, never an assumption of cleanliness.
 
@@ -117,7 +119,7 @@ The original init (line **4983**: `load(); loadTraining(); … refreshWeekPhotos
 | 16 | `pbPhotoUpload` / `Delete` / `FetchBlob` / `pbFileToken` | 4747–4785 | Fix 6 — live token/uid |
 | 17 | `photoSync()` map assignment | 5249, 5260 | Fix 7 — no rebuild |
 | 18 | `pbPhotoListAll()` / `phPagesComplete()` | 5198, 5206 | Fix 8 — unstable pagination |
-| 19 | `revAll()` default `{}` | 5309 | Fix 9 — false clean |
+| 19 | legacy dirty migration IIFE — only exact `"1"` kept dirty | 5326 | Fix 9 — false clean |
 | 20 | init block | 4983 | Fix 10 — pre-override |
 | 21 | `refreshWeekPhotos()` direct IDB | 1903 | Fix 10 — bypasses scoping |
 | 22 | `openLightbox()` body-level | 2611, 4890 | Fix 11 — survives transition |

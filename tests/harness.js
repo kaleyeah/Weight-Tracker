@@ -9,7 +9,16 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-const SRC = path.join(__dirname, '..', 'index.html');
+/* Resolve the shipping source so the suite runs from a repo checkout AND from an
+   extracted review archive (where index.html may sit beside tests/ or in full-source/). */
+const CANDIDATES = [
+  process.env.CF_SRC,
+  path.join(__dirname, '..', 'index.html'),
+  path.join(__dirname, 'index.html'),
+  path.join(__dirname, '..', 'full-source', 'index.html'),
+].filter(Boolean);
+const SRC = CANDIDATES.find(p => { try { return fs.statSync(p).isFile(); } catch (e) { return false; } });
+if (!SRC) { console.error('Cannot find index.html. Tried:\n  ' + CANDIDATES.join('\n  ') + '\nSet CF_SRC=/path/to/index.html'); process.exit(2); }
 
 /** Extract every /* @testable-start NAME ... @testable-end NAME *\/ block. */
 function testableBlocks(src) {
@@ -71,4 +80,4 @@ function report() {
   }
 }
 
-module.exports = { loadTestable, test, group, eq, ok, notOk, report };
+module.exports = { SRC, loadTestable, test, group, eq, ok, notOk, report };
