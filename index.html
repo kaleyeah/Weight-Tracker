@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Compound Fitness · build 2026-07-26.337-pb-c1f · deploy this file as index.html -->
+<!-- Compound Fitness · build 2026-07-26.338-pb-c1g · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -845,7 +845,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-26.337-pb-c1f";
+var APP_BUILD="2026-07-26.338-pb-c1g";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -7315,6 +7315,53 @@ cfQuarComplete=function(stamp){
     var comps={};(man.keys||[]).forEach(function(k){comps[k]=localStorage.getItem("cf:quarantine:"+stamp+":"+k);});
     return cfManifestValid(man,stamp,comps);
   }catch(e){return false;}};
+
+
+/* ============================================================
+   HARDENING — COMMIT 1g: Commit 1f re-review corrections
+   (1) The workout "fingerprint" (length + first 24 chars) could miss
+   ordinary same-length edits — the destructive context now carries the
+   COMPLETE raw workout string and compares exactly, per the Architect's
+   preferred option. (2) cfManifestValid now enforces the exact component
+   set {core, training, workout} — no subsets, duplicates, unknown keys,
+   or missing/invalid sizes — so an incomplete recovery set can never
+   pass the phase-2 commit or the export gate.
+   ============================================================ */
+
+/* @testable-start C1G */
+var CF_QUAR_COMPONENTS=["core","training","workout"];
+function cfSameStringSet(actual,expected){
+  if(!Array.isArray(actual)||actual.length!==expected.length)return false;
+  var seen={},i;
+  for(i=0;i<actual.length;i++){
+    if(seen[actual[i]])return false;               /* duplicates */
+    seen[actual[i]]=true;}
+  for(i=0;i<expected.length;i++)if(!seen[expected[i]])return false;   /* missing */
+  return true;}                                     /* same length + unique + all present ⇒ no unknowns */
+function cfManifestValid(man,stamp,comps){
+  if(!man||typeof man!=="object")return false;
+  if(String(man.stamp)!==String(stamp))return false;
+  if(!cfSameStringSet(man.keys,CF_QUAR_COMPONENTS))return false;
+  if(!man.sizes||typeof man.sizes!=="object")return false;
+  if(!cfSameStringSet(Object.keys(man.sizes),CF_QUAR_COMPONENTS))return false;
+  for(var i=0;i<CF_QUAR_COMPONENTS.length;i++){
+    var k=CF_QUAR_COMPONENTS[i],sz=man.sizes[k];
+    if(typeof sz!=="number"||sz<0||Math.floor(sz)!==sz)return false;
+    if(typeof comps[k]!=="string")return false;     /* absent or non-string component */
+    if(comps[k].length!==sz)return false;}
+  return true;}
+/* Cleanup decision as a pure step, so tests can prove PER-STAMP behavior
+   (F4 test-quality improvement): which stamp was authorized to delete. */
+function cfCleanupDecision(current,quarantined){
+  if(current===null)return "clean";                 /* source already gone */
+  if(quarantined!==null&&current===quarantined)return "delete";
+  return "superseded";}
+/* @testable-end C1G */
+
+/* The COMPLETE raw workout value — null (absent) is distinct from "" */
+function cfWorkoutIdentity(){try{return localStorage.getItem(WOKEY);}catch(e){return null;}}
+cfDestructiveCtx=function(){return {owner:pbUid(),gen:CF_SESSION_GEN,core:revLocal("core"),training:revLocal("training"),wo:cfWorkoutIdentity()};};
+/* cfCtxDrifted compares .wo with !== — exact raw-string (or null) equality */
 
 </script>
 </body>

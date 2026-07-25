@@ -4,7 +4,7 @@
 const { loadTestable, test, group, eq, ok, notOk, report, defer } = require('./harness');
 const { createEnv } = require('./integration-env');
 const SESSION = JSON.stringify({ uid: 'userA', token: 'tokA', email: 'a@x.com', remember: true });
-const C = loadTestable(['C1F']);
+const C = loadTestable(['C1F', 'C1G']);   // later declarations win, mirroring runtime
 
 group('F0 — pure guards', () => {
   const base = { owner: 'a', gen: 1, core: 5, training: 2, wo: '10:x' };

@@ -1,6 +1,6 @@
 # Commit 1d Notes — required explanations
 
-**Last Updated:** 2026-07-26 · Build `2026-07-26.337-pb-c1f` · Companion to the 1c/1d re-review responses. **1e addendum at the end.**
+**Last Updated:** 2026-07-26 · Build `2026-07-26.338-pb-c1g` · Companion to the 1c/1d re-review responses. **1e addendum at the end.**
 
 ## 1. The Coach Max result merge (required deliverable 9)
 
@@ -59,3 +59,11 @@ Executable proof: test D3 starts a recap, edits mid-poll, then lands a full serv
 - **Content-conditional, stamp-isolated cleanup.** A `cleanupPending` job may delete a source key **only while its current value byte-matches that stamp's own quarantined component**; an absent source counts as clean; anything else marks the job `cleanupSuperseded` with the component names — newer data is never deleted, and no stamp can touch another stamp's data. (Fixed **in place** in the 1e boot-repair IIFE, since it executes at script-eval time before any appended block could replace it.)
 - **Manifest integrity.** `cfManifestValid()` — parsed read-back, stamp match, expected component set, recorded lengths — required before the manifest counts as committed (phase 2) and before any export (`cfQuarComplete`).
 - **Session-generation semantics (per Verification C):** *Session generation represents account/session-boundary events (login, session clear, forced logout). Routine same-account token rotation is detected by the Coach token fingerprint and does not invalidate ordinary same-owner adoption* — covered by tests F6.
+
+---
+
+## 1g addendum (responses to the Commit 1f review)
+
+- **Workout identity, not a fingerprint.** `cfWorkoutIdentity()` returns the complete raw `WOKEY` string (null distinct from empty); the destructive context compares it exactly. The Architect's Verification B reasoning applies: when the original value is retained, exact byte equality is collision-free, synchronous, and strictly better than a digest. Tests G1–G2 use two workout strings with identical length AND identical 24-char prefix — precisely what the old check could not distinguish.
+- **Exact-set manifests.** `CF_QUAR_COMPONENTS = [core, training, workout]`; `cfSameStringSet` enforces same length + uniqueness + full membership (which together also exclude unknowns) over both `man.keys` and `Object.keys(man.sizes)`; sizes must be non-negative integers and every component must be a present string at its recorded length. One validator gates phase-2 commit, export, and inventory.
+- **Provable cleanup decisions.** `cfCleanupDecision(current, quarantined)` → `clean | delete | superseded` as a pure step, so per-stamp authorization is now directly assertable (the F4 test-quality note).

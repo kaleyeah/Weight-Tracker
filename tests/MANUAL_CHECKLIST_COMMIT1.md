@@ -1,6 +1,6 @@
-# Commits 1–1f — staging browser checklist (MUST pass before shipping)
+# Commits 1–1g — staging browser checklist (MUST pass before shipping)
 
-**Build:** `2026-07-26.337-pb-c1f`
+**Build:** `2026-07-26.338-pb-c1g`
 **Status:** NOT RUN — no staging PocketBase is reachable from the dev environment.
 
 The Architect's authorization is explicit: Commit 1 may be *coded* now but **must not ship** on automated tests alone. Automated tests cover the decision logic; everything below needs a real browser, real IndexedDB and a real server.
@@ -10,7 +10,7 @@ Two PocketBase accounts · two browser profiles or devices · offline mode · ne
 
 ## Record for every row
 
-**Case count: 63** (adds L1–L5) (A1–A6, B1–B4, C1–C5, D1–D3, E1–E2, F1–F5+F3b/F3c, G1–G8, H1–H8, J1–J10, K1–K5).
+**Case count: 67** (A1–A6, B1–B4, C1–C5, D1–D3, E1–E2, F1–F5+F3b/F3c, G1–G8, H1–H8, J1–J10, K1–K5, L1–L5, M1–M4). (A1–A6, B1–B4, C1–C5, D1–D3, E1–E2, F1–F5+F3b/F3c, G1–G8, H1–H8, J1–J10, K1–K5).
 `Test · Expected · Actual · Browser/device · Client build · PocketBase version · Pass/Fail · Notes`
 
 ---
@@ -101,3 +101,7 @@ Two PocketBase accounts · two browser profiles or devices · offline mode · ne
 | L3 | Log out; edit in another tab while the safety copy spins | Not wiped; still signed in; edit survives |
 | L4 | Set aside, write new data, force a leftover cleanup job, relaunch | Newer data NEVER deleted; stale job marked superseded; recovery set intact |
 | L5 | Session/token refresh while a recap is generating | Poll aborts silently (fingerprint) |
+| M1 | Start a restore; while the safety copy spins, change ONE rep count in the open workout (same-length edit) | Restore aborts; the edited draft survives |
+| M2 | Log out; while the safety copy spins, start a new workout | Not wiped; still signed in |
+| M3 | Dev tools: delete the `workout` component of a set-aside, keep its manifest | Inventory shows it incomplete; export refuses |
+| M4 | Dev tools: edit a set-aside manifest to claim only ["core"] | Export refuses (exact-set validation) |
