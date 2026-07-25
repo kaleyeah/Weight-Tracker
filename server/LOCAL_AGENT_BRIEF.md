@@ -85,5 +85,13 @@ git push origin claude/compound-fitness-roles-workflow-aala7o
 ```
 Finally run `bash setup-fixtures.sh teardown`, and tell the Product Owner: "Done — the results are pushed. Give them to your cloud Claude session and the Product Architect."
 
+### Step 8 — CLIENT staging phase (now authorized)
+
+The client build (`index.html`, `2026-07-26.339-pb-c1g2`) is **READY-FOR-STAGING** per the Product Architect. After the server kit passes its integration tests on staging:
+
+1. Serve the repo's `index.html` locally (e.g. `python3 -m http.server 8092` in the repo root) and point it at the STAGING PocketBase (login screen → Server settings → staging URL). Never production.
+2. Work through `tests/MANUAL_CHECKLIST_COMMIT1.md` — **67 cases** — using the two disposable `cf_test_*` accounts and two browser profiles. Automate with Playwright where practical (Chromium is fine); flag the genuinely manual ones and walk the Product Owner through those interactively.
+3. Record the staging evidence package the Architect requires: expected + actual per case, browser/build, exact PocketBase version, screenshots/logs for failures and conflict flows, deviations, disposable-fixtures confirmation, and whether the CAS kit was installed. Write it to `tests/CHECKLIST_RESULTS.md`, commit, and push to this branch.
+
 ### What NOT to do
 - Do not deploy to production. Do not change production API rules. Do not set `CF_MIN_CLIENT_BUILD`. Do not remove the bridge hooks. Do not run the browser checklist (`tests/MANUAL_CHECKLIST_COMMIT1.md`) yet — that happens after the Product Architect approves the client build. All of that is later, explicitly-approved work.

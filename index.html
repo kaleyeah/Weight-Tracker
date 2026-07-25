@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Compound Fitness · build 2026-07-26.338-pb-c1g · deploy this file as index.html -->
+<!-- Compound Fitness · build 2026-07-26.339-pb-c1g2 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -845,7 +845,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-26.338-pb-c1g";
+var APP_BUILD="2026-07-26.339-pb-c1g2";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -7340,6 +7340,7 @@ function cfSameStringSet(actual,expected){
   return true;}                                     /* same length + unique + all present ⇒ no unknowns */
 function cfManifestValid(man,stamp,comps){
   if(!man||typeof man!=="object")return false;
+  if(!comps||typeof comps!=="object")return false;
   if(String(man.stamp)!==String(stamp))return false;
   if(!cfSameStringSet(man.keys,CF_QUAR_COMPONENTS))return false;
   if(!man.sizes||typeof man.sizes!=="object")return false;
@@ -7358,9 +7359,16 @@ function cfCleanupDecision(current,quarantined){
   return "superseded";}
 /* @testable-end C1G */
 
-/* The COMPLETE raw workout value — null (absent) is distinct from "" */
-function cfWorkoutIdentity(){try{return localStorage.getItem(WOKEY);}catch(e){return null;}}
-cfDestructiveCtx=function(){return {owner:pbUid(),gen:CF_SESSION_GEN,core:revLocal("core"),training:revLocal("training"),wo:cfWorkoutIdentity()};};
+/* The COMPLETE raw workout value — null (absent) is distinct from "".
+   A storage READ FAILURE is distinct from both: it marks the context invalid,
+   so the destructive guard fails closed instead of mistaking an unreadable
+   workout for an absent one (Architect hardening note 1). */
+function cfWorkoutIdentity(){try{return {ok:true,value:localStorage.getItem(WOKEY)};}catch(e){return {ok:false,value:null};}}
+cfDestructiveCtx=function(){var w=cfWorkoutIdentity();
+  return {owner:pbUid(),gen:CF_SESSION_GEN,core:revLocal("core"),training:revLocal("training"),wo:w.value,woErr:!w.ok};};
+cfDestructiveStale=function(ctx){var n=cfDestructiveCtx();
+  if(ctx.woErr||n.woErr)return true;               /* unreadable ⇒ never proceed */
+  return cfCtxDrifted(ctx,n);};
 /* cfCtxDrifted compares .wo with !== — exact raw-string (or null) equality */
 
 </script>

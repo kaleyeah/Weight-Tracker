@@ -3,6 +3,8 @@
 **Build:** `2026-07-26.338-pb-c1g`
 **Status:** NOT RUN — no staging PocketBase is reachable from the dev environment.
 
+**Client build is READY-FOR-STAGING** (Product Architect verdict, 2026-07-25, after 7 review rounds). This checklist is the remaining client gate. The staging evidence package must record, per the verdict: expected + actual result for every case; browser/device and build; exact PocketBase version; screenshots/logs for failures and conflict flows; any deviations; confirmation that accounts/fixtures were disposable; whether the CAS server kit was installed; and a clear request for production review or remediation.
+
 The Architect's authorization is explicit: Commit 1 may be *coded* now but **must not ship** on automated tests alone. Automated tests cover the decision logic; everything below needs a real browser, real IndexedDB and a real server.
 
 ## Environment required
@@ -10,7 +12,7 @@ Two PocketBase accounts · two browser profiles or devices · offline mode · ne
 
 ## Record for every row
 
-**Case count: 67** (A1–A6, B1–B4, C1–C5, D1–D3, E1–E2, F1–F5+F3b/F3c, G1–G8, H1–H8, J1–J10, K1–K5, L1–L5, M1–M4). (A1–A6, B1–B4, C1–C5, D1–D3, E1–E2, F1–F5+F3b/F3c, G1–G8, H1–H8, J1–J10, K1–K5).
+**Case count: 67** (A1–A6, B1–B4, C1–C5, D1–D3, E1–E2, F1–F5+F3b/F3c, G1–G8, H1–H8, J1–J10, K1–K5, L1–L5, M1–M4).
 `Test · Expected · Actual · Browser/device · Client build · PocketBase version · Pass/Fail · Notes`
 
 ---

@@ -117,4 +117,22 @@ group('G3 — runtime export gate uses the exact-set validator', () => {
   test('export refused for the subset set', () => ok(toasts.some(t => /incomplete/.test(t))));
 });
 
+group('G4 — post-verdict hardening (non-blocking notes 1+2)', () => {
+  const env = createEnv({ localStorage: { wl_pb: SESSION, 'cf:lastOwner': 'userA' } });
+  const S = env.S;
+  test('manifest validator rejects a missing comps object', () =>
+    notOk(C.cfManifestValid({ stamp: '1', keys: ['core','training','workout'], sizes: { core: 0, training: 0, workout: 0 } }, '1', null)));
+  test('a storage read failure fails the destructive guard CLOSED', () => {
+    const ctx = S.cfDestructiveCtx();
+    const realGet = S.localStorage.getItem.bind(S.localStorage);
+    S.localStorage.getItem = (k) => { if (k === S.WOKEY) throw new Error('storage'); return realGet(k); };
+    ok(S.cfDestructiveStale(ctx), 'unreadable workout must never allow a destructive commit');
+    S.localStorage.getItem = realGet;
+  });
+  test('normal path unaffected: identical context is not stale', () => {
+    const ctx = S.cfDestructiveCtx();
+    notOk(S.cfDestructiveStale(ctx));
+  });
+});
+
 report();
