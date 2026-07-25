@@ -2,9 +2,9 @@
 
 **Last Updated:** 2026-07-25
 
-**Status:** Proposed — response to *Implementation Authorization: Remediation Plan Amendments*
+**Status:** Amended per the Product Architect's *PROCEED WITH CHANGES* review. All 17 required edits applied. **Commit 1 is implemented (coded, not shipped);** Commits 2–11 not started.
 
-> Supersedes `REMEDIATION_PLAN.md` (v1) — packaged in review archives as `02-v1-superseded.md`. Every amendment is incorporated. **No application code has been changed.** This answers the fifteen items required before coding.
+> Supersedes `REMEDIATION_PLAN.md` (v1) — packaged in review archives as `02-v1-superseded.md`. Every amendment from both review rounds is incorporated. This answers the fifteen items required before coding. **Commit 1 has since been implemented** at build `2026-07-25.332-pb-c1`; it is coded and tested but **not shipped** pending staging browser validation.
 >
 > **One item cannot be delivered from this environment: §3, the PocketBase version.** The host is unreachable here. Items 4, 5, 6 and 14 are version-dependent, so they are specified as designs with the version-sensitive parts explicitly marked rather than written as final code.
 
@@ -30,7 +30,7 @@ Two additions:
 - The IIFE's own comment says *"an unknown state is treated as dirty, because the failure mode of 'wrongly clean' is data loss."* **The code does the opposite of its comment.** The comment is corrected alongside the code, so the next reader is not misled the way I was.
 
 **Correction applied (documentation, done):** `REMEDIATION_PLAN.md` §1.9 and §2, `STATUS.md`, `DECISIONS.md` (ADR-013), `CHANGELOG.md`.
-**Correction pending (code, Commit 1):** the source comment at line 5325 and the M3 test descriptions **will be** corrected alongside the migration behaviour. No application code has changed yet. The no-baseline canonical comparison remains required regardless.
+**Correction applied (code, Commit 1 — done):** the source comment at the original migration now states what the code actually does and points at the corrective re-migration. The M4 assertions that encoded the unsafe branches are inverted. The no-baseline canonical comparison is implemented.
 
 ---
 
