@@ -84,9 +84,9 @@ group('I6 — unknown owner + meaningful data is NEVER auto-stamped (gate G)', (
     const app = env.S.document.getElementById('app');
     ok(/Is this your data\?/.test(app.innerHTML));
   });
-  test('claim screen (unclaimed) DOES offer export — data may be the same human\'s', () => {
+  test('claim screen has NO export (Architect ruling: unknown ≠ proven owner)', () => {
     const app = env.S.document.getElementById('app');
-    ok(/cf:export/.test(app.innerHTML));
+    notOk(/cf:export/.test(app.innerHTML), 'export only after claim, or via the signed-out recovery flow');
   });
 });
 

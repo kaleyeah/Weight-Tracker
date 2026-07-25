@@ -1,6 +1,6 @@
 # Compound Fitness — Code Architecture (How It Actually Works)
 
-**Last Updated:** 2026-07-24
+**Last Updated:** 2026-07-25
 
 **Status:** Active
 
@@ -10,7 +10,7 @@
 
 ## TL;DR
 
-- **One file.** The entire app is `index.html` (~5,000 lines, build `2026-07-23.331-pb`). It contains all markup, CSS, and a single `<script>` block of vanilla JavaScript.
+- **One file.** The entire app is `index.html` (~6,500 lines at build `2026-07-25.335-pb-c1d`, including the appended hardening blocks C1/C1b/C1c/C1d). All markup, CSS, and a single `<script>` block of vanilla JavaScript.
 - **No framework, no build step.** No React/Vue, no bundler, no npm. ~600 plain functions. You open the file and it runs.
 - **No external JS dependencies.** The only external resource is a Google Fonts stylesheet. All logic is inline.
 - **Local-first.** State lives in `localStorage`; progress photos live in `IndexedDB`. Everything works offline.

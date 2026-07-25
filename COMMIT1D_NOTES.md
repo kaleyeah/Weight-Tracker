@@ -1,0 +1,41 @@
+# Commit 1d Notes — required explanations
+
+**Last Updated:** 2026-07-25 · Build `2026-07-25.335-pb-c1d` · Companion to the Commit 1c re-review response.
+
+## 1. The Coach Max result merge (required deliverable 9)
+
+`genNightly()` no longer applies the server snapshot. The flow is now:
+
+1. **Pre-flight:** fresh `cloudGet` → `cfReconcile` (Architect ruling B — a clean check is only meaningful against the server's *current* content), then `pushDataPromise()` which rejects honestly if core is dirty.
+2. **Arrival re-checks:** the account uid captured at start must still be the authenticated uid and the verdict still `ok` — otherwise the result is dropped silently.
+3. **Merge, never adopt:** `mergeCoachResultOnly(day, d)` copies **only** the server-owned recap fields — `nightlyLog[day]`, `nightlySummary`, `weeklySummary` — extracted by the pure `cfCoachFieldsOf()`. It calls `saveLocal()` (not `save()`): the recap is server-authored, not a new athlete edit, so it neither bumps the revision nor marks anything clean.
+4. **Only if still clean** does the fetched state go through `cfReconcile(d, "coach-result")` — which re-checks dirty itself and can only agree/adopt/conflict safely. If the athlete edited during the poll, their edit stays, core stays dirty, and the recap still displays.
+
+Executable proof: test D3 starts a recap, edits mid-poll, then lands a full server snapshot lacking that edit — the edit survives, core stays dirty, only the recap merged.
+
+## 2. The startDate equality rule (required deliverable 10)
+
+`startDate` is user-editable, but its *generated* default is `todayISO()` — a moving target that would create false divergence between fresh installs. The exclusion the 1c review rejected is replaced by intent tracking:
+
+- **New flag `settings.startDateSet`** — stamped `true` the moment the athlete edits the start-date field (capture-phase `change` listener on `data-set="startDate"`). Synced like any setting; stable default `false`.
+- **Equality:** `startDate` participates when `startDateSet === true`.
+- **Deterministic legacy rule** (rows predating the flag, applied symmetrically inside normalization on both sides): the unflagged `startDate` counts as real intent **iff the payload contains weigh-ins** — an engaged athlete's start date is meaningful; a fresh install's generated date is noise. This makes fresh installs on different days equal (no false conflict) while historic divergence on active accounts surfaces as a real conflict once.
+- **`macroAuto` / `calTargetAuto`:** user intent — now in equality with stable semantic defaults (`true` = automatic).
+- **`onboarded` policy:** device/UI state — init *re-derives* it from data presence, so it carries no independent intent; excluded, documented here and test-covered. `seenNightly` (a read-marker) is treated the same way.
+
+## 3. Quarantine manifest example (required deliverable 11)
+
+`cfDisownLocal()` copies **core + training + workout draft**, verifies every copy byte-for-byte, writes the manifest **last** (its presence certifies a complete verified set), and only then deletes sources. Any failure removes the partial copies and keeps every source.
+
+```json
+// localStorage["cf:quarantine:1753490000000:manifest"]
+{
+  "stamp": "1753490000000",
+  "createdAt": 1753490000000,
+  "appBuild": "2026-07-25.335-pb-c1d",
+  "keys": ["core", "training", "workout"],
+  "sizes": { "core": 48211, "training": 9120, "workout": 3016 }
+}
+```
+
+**Recovery:** the signed-out login screen lists set-aside sets ("Data set aside on this device") with per-set **Save a copy** / **Delete**. Export lives *only* there — a newly authenticated account can no longer export unknown-owner data (Architect ruling A); after an explicit claim the data is the account's own and exports normally.

@@ -1,6 +1,6 @@
 # Commit 1+1b — staging browser checklist (MUST pass before shipping)
 
-**Build:** `2026-07-25.334-pb-c1c`
+**Build:** `2026-07-25.335-pb-c1d`
 **Status:** NOT RUN — no staging PocketBase is reachable from the dev environment.
 
 The Architect's authorization is explicit: Commit 1 may be *coded* now but **must not ship** on automated tests alone. Automated tests cover the decision logic; everything below needs a real browser, real IndexedDB and a real server.
@@ -10,7 +10,7 @@ Two PocketBase accounts · two browser profiles or devices · offline mode · ne
 
 ## Record for every row
 
-**Case count: 43** (A1–A6, B1–B4, C1–C5, D1–D3, E1–E2, F1–F5+F3b/F3c, G1–G8, H1–H8).
+**Case count: 53** (A1–A6, B1–B4, C1–C5, D1–D3, E1–E2, F1–F5+F3b/F3c, G1–G8, H1–H8).
 `Test · Expected · Actual · Browser/device · Client build · PocketBase version · Pass/Fail · Notes`
 
 ---
@@ -74,10 +74,20 @@ Two PocketBase accounts · two browser profiles or devices · offline mode · ne
 | G7 | Backup import | Snapshot saved first; import blocked if snapshot fails |
 | G8 | Sparse old server row vs default-filled local, same user meaning | Resolves to agree — no false conflict |
 | H1 | Edit while SIGNED OUT, then log back in same account | Edit survives; never adopted over |
-| H2 | Unknown-owner meaningful data, login | "Is this your data?" — claim / set aside / export; NO auto-claim, sync paused until answered |
-| H3 | Claim → continues login + reconciliation; Set aside → data quarantined, verified before removal |
+| H2 | Unknown-owner meaningful data, login | "Is this your data?" — claim / set aside / sign out. **NO export control** (ruling: unknown ≠ proven owner); sync paused until answered |
+| H3 | Claim → continues login + reconciliation; Set aside → core+training+**workout draft** all quarantined and verified byte-for-byte (manifest written last) before any source is removed |
 | H4 | Mismatch screen | No export control; switch account / sign out only |
 | H5 | Logout with clean data | Snapshot verified, wipe succeeds, cf:lastOwner cleared |
 | H6 | Restore a previous copy | Works; marks pending; snapshot-first verified |
 | H7 | GLP compound configured, no dose; sync | Treated as meaningful — never "empty" |
 | H8 | Setup link confirmed after boot | Reaches only the safe pull/write paths |
+| J1 | Start Coach Max, edit a note while it polls, recap arrives | Edit survives; core stays pending; recap displays; server-only data NOT adopted |
+| J2 | Log out (different account logs in) while a recap poll is in flight | Result dropped silently; nothing merged into the new account |
+| J3 | Change the start date in Settings on one device only; sync | Detected as a difference (never silently "agreed") |
+| J4 | Toggle automatic macros off on one device; sync | Detected as a difference |
+| J5 | Two fresh installs created on different days | No false conflict from the generated start dates |
+| J6 | Signed-out login screen after a set-aside | Lists the set with Save a copy / Delete; export absent everywhere else pre-claim |
+| J7 | Unknown-owner TRAINING-only data, cold start | Claim screen; first paint shows nothing |
+| J8 | Unknown-owner WORKOUT-DRAFT-only data, cold start | Claim screen; draft preserved through set-aside |
+| J9 | Slow IndexedDB week-photo callback across the ownership gate | Cannot repaint another owner's data |
+| J10 | Force an exception during boot (dev tools) | Visibility always restored — no permanent blank screen |

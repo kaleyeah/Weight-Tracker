@@ -11,6 +11,8 @@ function makeStorage(seed) {
     setItem: (k, v) => m.set(String(k), String(v)),
     removeItem: (k) => m.delete(k),
     clear: () => m.clear(),
+    key: (i) => Array.from(m.keys())[i] ?? null,
+    get length() { return m.size; },
     _map: m,
   };
 }
