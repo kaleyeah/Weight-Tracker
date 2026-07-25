@@ -1,6 +1,6 @@
 # Commits 1–1g — staging browser checklist (MUST pass before shipping)
 
-**Build:** `2026-07-26.338-pb-c1g`
+**Build:** `2026-07-26.339-pb-c1g2`
 **Status:** NOT RUN — no staging PocketBase is reachable from the dev environment.
 
 **Client build is READY-FOR-STAGING** (Product Architect verdict, 2026-07-25, after 7 review rounds). This checklist is the remaining client gate. The staging evidence package must record, per the verdict: expected + actual result for every case; browser/device and build; exact PocketBase version; screenshots/logs for failures and conflict flows; any deviations; confirmation that accounts/fixtures were disposable; whether the CAS server kit was installed; and a clear request for production review or remediation.
