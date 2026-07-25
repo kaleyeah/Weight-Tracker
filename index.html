@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Compound Fitness · build 2026-07-26.336-pb-c1e · deploy this file as index.html -->
+<!-- Compound Fitness · build 2026-07-26.337-pb-c1f · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -845,7 +845,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-26.336-pb-c1e";
+var APP_BUILD="2026-07-26.337-pb-c1f";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -7102,7 +7102,11 @@ cfDisownLocal=function(){
     toast("Data set aside and safely copied. Some old entries couldn’t be removed yet — they’ll be cleaned up automatically.");}
   location.reload();};
 
-/* boot repair: finish pending cleanups, fix a stale flag (idempotent) */
+/* boot repair: finish pending cleanups — CONTENT-CONDITIONAL and stamp-isolated
+   (Commit 1f). A pending job may delete a source key ONLY while its current
+   value still byte-matches that stamp's own quarantined component; anything
+   newer supersedes the job. One stamp can never touch another stamp's data
+   or a value written after the set-aside. */
 (function(){
   try{
     var KEYS={core:KEY,training:TKEY,workout:WOKEY};
@@ -7110,9 +7114,20 @@ cfDisownLocal=function(){
       var k2=localStorage.key(i)||"";
       var m=/^cf:quarantine:(\d+):cleanupPending$/.exec(k2);
       if(!m)continue;
+      var stamp=m[1];
       var pend=[];try{pend=JSON.parse(localStorage.getItem(k2))||[];}catch(e){}
-      var left=[];
-      pend.forEach(function(name){try{localStorage.removeItem(KEYS[name]);}catch(e){left.push(name);}});
+      var left=[],superseded=[];
+      pend.forEach(function(name){
+        var srcKey=KEYS[name];if(!srcKey){superseded.push(name);return;}
+        var cur=null;try{cur=localStorage.getItem(srcKey);}catch(e){left.push(name);return;}
+        if(cur===null)return;                                   /* already clean */
+        var quar=localStorage.getItem("cf:quarantine:"+stamp+":"+name);
+        if(quar!==null&&cur===quar){                            /* exact match: safe to finish */
+          try{localStorage.removeItem(srcKey);}catch(e){left.push(name);return;}
+          if(localStorage.getItem(srcKey)!==null)left.push(name);
+        }else superseded.push(name);                            /* newer data: NEVER deleted */
+      });
+      if(superseded.length)try{localStorage.setItem("cf:quarantine:"+stamp+":cleanupSuperseded",JSON.stringify(superseded));}catch(e){}
       if(left.length)localStorage.setItem(k2,JSON.stringify(left));
       else localStorage.removeItem(k2);}
     var flag=localStorage.getItem(CF_QUAR_FLAG);
@@ -7157,6 +7172,149 @@ cfQuarDelete=function(stamp){
     try{if((localStorage.getItem(CF_QUAR_FLAG)||"")===stamp)localStorage.removeItem(CF_QUAR_FLAG);}catch(e){}
     try{render();}catch(e){}
     toast(okAll?"Deleted":"Couldn’t fully delete — some entries remain");},{label:"Delete",danger:true});};
+
+
+/* ============================================================
+   HARDENING — COMMIT 1f: Commit 1e re-review corrections
+   (1) The revision/account guard applyCloudSafe gained in 1e is
+   generalized to EVERY destructive operation — restore, import and
+   logout-wipe all waited on an async safety copy and then acted without
+   re-checking whether the device changed during the wait. (2) Quarantine
+   boot cleanup is content-conditional (in-place fix earlier in this
+   file): a pending job may only delete a value that still byte-matches
+   its own stamp's quarantined component. Plus manifest/component
+   integrity verification before commit and before export.
+   ============================================================ */
+
+/* @testable-start C1F */
+/* One destructive-operation context for restore/import/logout (and the
+   adoption guard from 1e). Captured before the async safety copy begins,
+   re-verified immediately before the destructive commit. */
+function cfCtxDrifted(a,b){
+  return a.owner!==b.owner||a.gen!==b.gen||a.core!==b.core||a.training!==b.training||a.wo!==b.wo;}
+/* Manifest integrity: parsed, right stamp, expected component set, and
+   every component present with the recorded length. */
+function cfManifestValid(man,stamp,comps){
+  if(!man||typeof man!=="object")return false;
+  if(String(man.stamp)!==String(stamp))return false;
+  if(!Array.isArray(man.keys)||!man.keys.length)return false;
+  for(var i=0;i<man.keys.length;i++){
+    var k=man.keys[i];
+    if(!(k in comps)||comps[k]===null)return false;
+    if(man.sizes&&typeof man.sizes[k]==="number"&&man.sizes[k]!==comps[k].length)return false;}
+  return true;}
+/* @testable-end C1F */
+
+function cfWorkoutFp(){try{var w=localStorage.getItem(WOKEY)||"";return w.length+":"+(w.slice(0,24));}catch(e){return "0:";}}
+function cfDestructiveCtx(){return {owner:pbUid(),gen:CF_SESSION_GEN,core:revLocal("core"),training:revLocal("training"),wo:cfWorkoutFp()};}
+function cfDestructiveStale(ctx){return cfCtxDrifted(ctx,cfDestructiveCtx());}
+
+/* ---- restore: abort if the device changed while the safety copy was pending ---- */
+recRestore=function(id,cb){
+  recList().then(function(all){
+    var s=null;all.forEach(function(x){if(x.id===id)s=x;});
+    if(!s){cb&&cb(false);return;}
+    var ctx=cfDestructiveCtx();
+    cfSnapLocal("before-restore",function(ok){
+      if(!ok){toast("Couldn’t save a previous copy. Nothing was restored.");cb&&cb(false);return;}
+      if(cfDestructiveStale(ctx)){
+        toast("This device changed while preparing the restore — nothing was replaced. Try again.");cb&&cb(false);return;}
+      try{applyCloudRaw(s.core);
+        if(s.training){state.training=s.training;saveTrainingLocal();}
+        revBump("core");revBump("training");cfSetPending("push");
+        try{render();}catch(e){}cb&&cb(true);
+      }catch(e){cb&&cb(false);}});
+  }).catch(function(){cb&&cb(false);});};
+
+/* ---- import: context captured before the snapshot, re-verified after the
+   snapshot AND after the human-speed confirmation dialog ---- */
+applyImport=function(text){
+  var d;try{d=JSON.parse(text);}catch(err){toast("That isn't valid backup data");return;}
+  if(!d||typeof d!=="object"||(!("weights" in d)&&!("settings" in d))){toast("Unrecognized backup format");return;}
+  var ctx=cfDestructiveCtx();
+  cfSnapLocal("before-import",function(ok){
+    if(!ok){toast("Couldn’t save a previous copy. Nothing was imported.");return;}
+    if(cfDestructiveStale(ctx)){toast("This device changed while preparing the import — nothing was replaced. Try again.");return;}
+    askConfirm("Replace all data on this device with this backup? Current entries will be overwritten.",function(){
+      if(cfDestructiveStale(ctx)){toast("This device changed while the import was waiting — nothing was replaced. Try again.");return;}
+      state.settings=Object.assign({},DEFAULT_SETTINGS,d.settings||{});
+      state.weights=Array.isArray(d.weights)?d.weights:[];
+      state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.bodyfat=d.bodyfat||{};state.waist=d.waist||{};state.statuses=d.statuses||[];state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;state.nightlyLog=d.nightlyLog||{};state.skips=d.skips||{};state.glp=d.glp||glpDefault();
+      state.presets=(Array.isArray(d.presets)&&d.presets.length)?d.presets:DEFAULT_PRESETS.slice();
+      if(d.training&&typeof d.training==="object"){state.training=Object.assign({},state.training,d.training);saveTrainingLocal();revBump("training");}
+      glpNormalize();
+      state.pasteOpen=false;state.view="overview";applyTheme(state.settings.theme||"dark");save();
+      toast("Data restored"+(d.training?"":" (this backup has no training data)"));
+    },{label:"Replace",danger:false});});};
+
+/* ---- logout wipe: the safety copy must describe the state being deleted ---- */
+pbLogout=function(){
+  function wipe(){
+    var ctx=cfDestructiveCtx();
+    cfSnapLocal("before-logout",function(ok){
+      if(!ok){toast("Couldn’t save a previous copy, so this device wasn’t cleared. You’re still signed in.");return;}
+      if(cfDestructiveStale(ctx)){
+        toast("Changes were made while preparing to log out — nothing was cleared. You’re still signed in.");return;}
+      pbForceLogout();location.reload();});}
+  if(revAnyDirty()||cfPending){
+    wlChoose("You have changes that aren’t uploaded",
+      "Uploading is paused until the sync fix ships, so logging out now would clear changes that exist only on this device.",
+      [{label:"Stay signed in",primary:true},
+       {label:"Save a copy to my files first",hint:"Downloads a backup, then you can decide"},
+       {label:"Log out anyway",hint:"A previous copy is saved on this device first"}],
+      function(i){
+        if(i===1){try{exportData();}catch(e){toast("Couldn’t export");}return;}
+        if(i===2){wipe();return;}});
+    return;}
+  askConfirm("Log out on this device? Your data stays safe online — log back in any time.",wipe,{label:"Log out",danger:true});};
+
+/* ---- quarantine: verified manifest commit + content-conditional phase 3 ---- */
+cfDisownLocal=function(){
+  var stamp=String(Date.now());
+  var KEYS={core:KEY,training:TKEY,workout:WOKEY};
+  var src={},k;
+  try{for(k in KEYS)src[k]=localStorage.getItem(KEYS[k])||"";}
+  catch(e){toast("Couldn’t read this device’s data — nothing was changed");return;}
+  /* Phase 1 — copy + verify */
+  try{
+    for(k in KEYS)localStorage.setItem("cf:quarantine:"+stamp+":"+k,src[k]);
+    for(k in KEYS)if(localStorage.getItem("cf:quarantine:"+stamp+":"+k)!==src[k])throw new Error("verify "+k);
+  }catch(e){
+    try{for(k in KEYS)localStorage.removeItem("cf:quarantine:"+stamp+":"+k);}catch(e2){}
+    toast("Couldn’t set that data aside safely — nothing was changed");return;}
+  /* Phase 2 — manifest commit, READ BACK AND PARSED before it counts */
+  var manifest={stamp:stamp,createdAt:Date.now(),appBuild:(typeof APP_BUILD!=="undefined"?APP_BUILD:""),
+    keys:Object.keys(KEYS),sizes:{core:src.core.length,training:src.training.length,workout:src.workout.length}};
+  try{
+    localStorage.setItem("cf:quarantine:"+stamp+":manifest",JSON.stringify(manifest));
+    var back=null;try{back=JSON.parse(localStorage.getItem("cf:quarantine:"+stamp+":manifest"));}catch(e){}
+    if(!cfManifestValid(back,stamp,src))throw new Error("manifest verify");
+    localStorage.setItem(CF_QUAR_FLAG,stamp);
+  }catch(e){
+    try{for(k in KEYS)localStorage.removeItem("cf:quarantine:"+stamp+":"+k);
+        localStorage.removeItem("cf:quarantine:"+stamp+":manifest");}catch(e2){}
+    toast("Couldn’t set that data aside safely — nothing was changed");return;}
+  /* Phase 3 — content-conditional source cleanup; the recovery set is
+     never rolled back from here on */
+  var pendingKeys=[];
+  for(k in KEYS){
+    try{
+      if(localStorage.getItem(KEYS[k])===src[k])localStorage.removeItem(KEYS[k]);
+    }catch(e){pendingKeys.push(k);}}
+  try{localStorage.removeItem(REV_KEY);}catch(e){}
+  if(pendingKeys.length){
+    try{localStorage.setItem("cf:quarantine:"+stamp+":cleanupPending",JSON.stringify(pendingKeys));}catch(e){}
+    toast("Data set aside and safely copied. Some old entries couldn’t be removed yet — they’ll be cleaned up automatically.");}
+  location.reload();};
+
+/* export completeness now checks content lengths, not just key presence */
+cfQuarComplete=function(stamp){
+  try{
+    var man=JSON.parse(localStorage.getItem("cf:quarantine:"+stamp+":manifest")||"null");
+    if(!man)return false;
+    var comps={};(man.keys||[]).forEach(function(k){comps[k]=localStorage.getItem("cf:quarantine:"+stamp+":"+k);});
+    return cfManifestValid(man,stamp,comps);
+  }catch(e){return false;}};
 
 </script>
 </body>

@@ -1,6 +1,6 @@
 # Commit 1d Notes — required explanations
 
-**Last Updated:** 2026-07-26 · Build `2026-07-26.336-pb-c1e` · Companion to the 1c/1d re-review responses. **1e addendum at the end.**
+**Last Updated:** 2026-07-26 · Build `2026-07-26.337-pb-c1f` · Companion to the 1c/1d re-review responses. **1e addendum at the end.**
 
 ## 1. The Coach Max result merge (required deliverable 9)
 
@@ -50,3 +50,12 @@ Executable proof: test D3 starts a recap, edits mid-poll, then lands a full serv
 - **Coach request context.** `{owner, sessionGeneration, tokenFingerprint, day, requestId}` — session generation bumps on login, session clear, and forced logout, so A→B→A cannot present a valid context to a stale poll.
 - **Pairwise startDate rule.** Flag true → compare; flag absent → compare when the payload has any meaningful non-startDate state; ignore only when otherwise semantically empty. Documented residual: a legacy user whose *only* change was the start date is indistinguishable from a generated date.
 - **Quarantine phases.** Copy+verify → manifest commit (point of no rollback) → per-key cleanup with `cleanupPending` retry at boot and stale-flag repair. Export validates completeness and confirms with a plain statement that the file contains private health data.
+
+---
+
+## 1f addendum (responses to the Commit 1e review)
+
+- **Generalized destructive guard.** `cfDestructiveCtx()` = `{owner, sessionGeneration, coreRevision, trainingRevision, workoutFingerprint}`, captured before the async safety copy in **restore, import and logout-wipe**, re-verified immediately before the destructive commit (import verifies a second time after the confirm dialog, which waits at human speed). Drift ⇒ abort, keep the newer data and the safety copy, tell the athlete the device changed and to retry.
+- **Content-conditional, stamp-isolated cleanup.** A `cleanupPending` job may delete a source key **only while its current value byte-matches that stamp's own quarantined component**; an absent source counts as clean; anything else marks the job `cleanupSuperseded` with the component names — newer data is never deleted, and no stamp can touch another stamp's data. (Fixed **in place** in the 1e boot-repair IIFE, since it executes at script-eval time before any appended block could replace it.)
+- **Manifest integrity.** `cfManifestValid()` — parsed read-back, stamp match, expected component set, recorded lengths — required before the manifest counts as committed (phase 2) and before any export (`cfQuarComplete`).
+- **Session-generation semantics (per Verification C):** *Session generation represents account/session-boundary events (login, session clear, forced logout). Routine same-account token rotation is detected by the Coach token fingerprint and does not invalidate ordinary same-owner adoption* — covered by tests F6.

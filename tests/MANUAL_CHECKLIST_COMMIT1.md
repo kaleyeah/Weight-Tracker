@@ -1,6 +1,6 @@
-# Commits 1–1e — staging browser checklist (MUST pass before shipping)
+# Commits 1–1f — staging browser checklist (MUST pass before shipping)
 
-**Build:** `2026-07-26.336-pb-c1e`
+**Build:** `2026-07-26.337-pb-c1f`
 **Status:** NOT RUN — no staging PocketBase is reachable from the dev environment.
 
 The Architect's authorization is explicit: Commit 1 may be *coded* now but **must not ship** on automated tests alone. Automated tests cover the decision logic; everything below needs a real browser, real IndexedDB and a real server.
@@ -10,7 +10,7 @@ Two PocketBase accounts · two browser profiles or devices · offline mode · ne
 
 ## Record for every row
 
-**Case count: 58** (A1–A6, B1–B4, C1–C5, D1–D3, E1–E2, F1–F5+F3b/F3c, G1–G8, H1–H8, J1–J10, K1–K5).
+**Case count: 63** (adds L1–L5) (A1–A6, B1–B4, C1–C5, D1–D3, E1–E2, F1–F5+F3b/F3c, G1–G8, H1–H8, J1–J10, K1–K5).
 `Test · Expected · Actual · Browser/device · Client build · PocketBase version · Pass/Fail · Notes`
 
 ---
@@ -96,3 +96,8 @@ Two PocketBase accounts · two browser profiles or devices · offline mode · ne
 | K3 | Log out and back in (or switch accounts) while a recap is generating | Poll stops silently; nothing merged; busy state clears |
 | K4 | Simulate a failure while set-aside deletes old entries | Recovery set + manifest remain; cleanup finishes on next launch |
 | K5 | Export a set-aside copy | Confirmation states it contains private health data; incomplete sets refuse to export |
+| L1 | Restore a previous copy; edit a note while the safety copy spins (throttle IDB) | Restore aborts; edit survives; honest "device changed" message |
+| L2 | Import a backup; edit while the confirm dialog is open | Import aborts at confirm; edit survives |
+| L3 | Log out; edit in another tab while the safety copy spins | Not wiped; still signed in; edit survives |
+| L4 | Set aside, write new data, force a leftover cleanup job, relaunch | Newer data NEVER deleted; stale job marked superseded; recovery set intact |
+| L5 | Session/token refresh while a recap is generating | Poll aborts silently (fingerprint) |
