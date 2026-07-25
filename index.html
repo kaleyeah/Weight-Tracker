@@ -5284,6 +5284,92 @@ photoSync=function(done){
           return idbDeleteLocal(l.id).catch(function(){});}));})
       .then(finish);
   }).catch(function(){pbPhotoSyncing=false;done&&done();});};
+
+/* ============================================================
+   HARDENING — MILESTONE 3: revisions replace the dirty boolean
+   ------------------------------------------------------------
+   cloudPush() called markDirty(false) on any success. An edit made
+   while a push was in flight was therefore marked clean by the
+   completion of a request that never contained it, and was lost on
+   the next device that pulled. A push may now only mark a track
+   clean if the local state has not advanced since that request's
+   payload was built.
+   ============================================================ */
+
+/* @testable-start M3 — pure predicates, no DOM/network */
+/* Only the request carrying the CURRENT revision may mark it clean. */
+function revShouldClean(localRev,sentRev){return (localRev||0)===(sentRev||0);}
+/* Dirty means: edits exist that no successful push has covered. */
+function revIsDirtyFrom(local,success){return (local||0)>(success||0);}
+/* An older successful response must never lower a newer high-water mark. */
+function revMergeSuccess(currentSuccess,sentRev){return Math.max(currentSuccess||0,sentRev||0);}
+/* @testable-end M3 */
+
+var REV_KEY="wl_rev";
+function revAll(){try{return JSON.parse(localStorage.getItem(REV_KEY))||{};}catch(e){return {};}}
+function revSaveAll(o){try{localStorage.setItem(REV_KEY,JSON.stringify(o||{}));}catch(e){}}
+function revTrack(t){var a=revAll();var v=a[t];return {local:(v&&v.local)||0,attempted:(v&&v.attempted)||0,success:(v&&v.success)||0};}
+function revSet(t,v){var a=revAll();a[t]=v;revSaveAll(a);}
+function revLocal(t){return revTrack(t).local;}
+/* every user-generated change advances the local revision */
+function revBump(t){var v=revTrack(t);v.local=v.local+1;revSet(t,v);return v.local;}
+/* snapshot taken when a push payload is built */
+function revAttempt(t){var v=revTrack(t);v.attempted=v.local;revSet(t,v);return v.local;}
+/* returns true only if the track is now genuinely clean */
+function revCommit(t,sent){var v=revTrack(t);
+  v.success=revMergeSuccess(v.success,sent);revSet(t,v);
+  return revShouldClean(v.local,sent);}
+function revClean(t){var v=revTrack(t);v.success=v.local;revSet(t,v);return true;}
+function revIsDirty(t){var v=revTrack(t);return revIsDirtyFrom(v.local,v.success);}
+function revAnyDirty(){return revIsDirty("core")||revIsDirty("training");}
+
+/* Migrate the legacy boolean once. Conservative by design: an unknown state is
+   treated as dirty, because the failure mode of "wrongly clean" is data loss. */
+(function(){var a=revAll();if(a.core)return;
+  var legacyDirty=false;try{legacyDirty=localStorage.getItem(DIRTY_KEY)==="1";}catch(e){}
+  a.core={local:legacyDirty?1:0,attempted:0,success:0};
+  a.training={local:legacyDirty?1:0,attempted:0,success:0};
+  revSaveAll(a);})();
+
+/* Keep the old names working — every existing caller now drives revisions.
+   markDirty(false) means "local and server genuinely agree", which is only
+   true where the caller has just adopted the server's copy. */
+markDirty=function(v){if(v)revBump("core");else revClean("core");};
+isDirty=function(){return revIsDirty("core");};
+
+/* Re-scheduling must NOT bump the revision — bumping inside a retry would
+   advance local forever and the track could never become clean. */
+function schedulePushNoBump(ms){clearTimeout(pushTimer);pushTimer=setTimeout(function(){cloudPush();},ms||1400);}
+scheduleCloudPush=function(){if(!syncOn())return;revBump("core");setSync("saving");schedulePushNoBump(1400);};
+
+cloudPush=function(manual){
+  if(!syncOn()){if(manual)toast("Log in first");return;}
+  if(pushing){schedulePushNoBump(900);return;}
+  pushing=true;setSync("saving");resyncAllActivityTags();
+  var sent=revAttempt("core");           /* the revision this payload represents */
+  pbSave({data:payload()},function(ok,err){
+    pushing=false;
+    if(ok){
+      setLastSync();
+      if(revCommit("core",sent)){setSync("ok");if(manual)toast("Saved to your server");}
+      else{ /* the user edited while this request was in flight — still dirty */
+        setSync("saving");schedulePushNoBump(400);
+        if(manual)toast("Saved — sending your newest changes");}
+      return;}
+    /* a failed push leaves the track dirty; nothing is marked clean */
+    setSync(err==="offline"?"offline":"error",err==="auth"?"session expired — log in again":"");
+    if(manual)toast(err==="offline"?"No connection":err==="auth"?"Please log in again":"Save failed");});};
+
+/* Training gets its own revision track (its conflict handling lands in M5). */
+function scheduleTrainingPushNoBump(ms){clearTimeout(trainingPushTimer);trainingPushTimer=setTimeout(trainingPush,ms||1600);}
+scheduleTrainingPush=function(){if(!syncOn())return;revBump("training");scheduleTrainingPushNoBump(1600);};
+trainingPush=function(){
+  if(!syncOn())return;
+  var sent=revAttempt("training");
+  pbSave({training:state.training},function(ok){
+    if(ok){if(!revCommit("training",sent))scheduleTrainingPushNoBump(400);}
+    else scheduleTrainingPushNoBump(4000);   /* stays dirty, retried — not swallowed */
+  });};
 </script>
 </body>
 </html>
