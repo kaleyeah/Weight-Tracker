@@ -72,7 +72,7 @@ Compound Fitness is a coaching platform (not a tracker) built as **one backend +
 
 ## ➡️ Next Up
 
-1. ✅ **PocketBase version discovered: v0.39.8** (Admin UI footer). Server kit written — `server/pb_hooks/cf_cas.pb.js`, `server/DEPLOYMENT.md`, `server/tests/cas-server-tests.sh`. **Next operator action: deploy to STAGING per DEPLOYMENT.md and run the test script.**
+1. ✅ **PocketBase version discovered: v0.39.8** (Admin UI footer). Server kit written — `server/pb_hooks/cf_cas.pb.js`, `server/DEPLOYMENT.md`, `server/tests/cas-server-tests.sh`. **Deployment is delegated to a LOCAL Claude Code session** (the cloud environment cannot reach the Tailscale-only NAS): the Product Owner starts Claude Code on their own computer and points it at `server/LOCAL_AGENT_BRIEF.md`; it deploys to staging, runs the tests, and pushes `server/STAGING_RESULTS.md` back to this branch.
 2. **Run `tests/MANUAL_CHECKLIST_COMMIT1.md` on staging**, then ship Commit 1 ahead of the rest of the remediation.
 3. Remediation commits 2–8, 11 (client-only); 9–10 need the server work and the version.
 4. **M5–M7**: training sync protection, Backup V2, remove the vestigial GitHub layer.
