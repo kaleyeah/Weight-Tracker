@@ -5351,7 +5351,14 @@ cloudPush=function(manual){
     pushing=false;
     if(ok){
       setLastSync();
-      if(revCommit("core",sent)){setSync("ok");if(manual)toast("Saved to your server");}
+      if(revCommit("core",sent)){
+        /* both sides now hold this exact content — record the baseline that
+           boot/login/pull use to tell "I'm simply ahead" from "we diverged".
+           Recorded here, on the clean commit, not via a timer: the push is
+           async, so anything polling immediately after the call still sees
+           the pre-flight dirty state and would never record agreement. */
+        syncFpSet(syncFingerprint(payload()));
+        setSync("ok");if(manual)toast("Saved to your server");}
       else{ /* the user edited while this request was in flight — still dirty */
         setSync("saving");schedulePushNoBump(400);
         if(manual)toast("Saved — sending your newest changes");}
@@ -5370,6 +5377,291 @@ trainingPush=function(){
     if(ok){if(!revCommit("training",sent))scheduleTrainingPushNoBump(400);}
     else scheduleTrainingPushNoBump(4000);   /* stays dirty, retried — not swallowed */
   });};
+
+/* ============================================================
+   HARDENING — MILESTONE 4: protect dirty local data on
+   login, boot and pull
+   ------------------------------------------------------------
+   Reconciliation compared only the newest weigh-in/day key, which
+   cannot see an independent change: a GLP-1 dose, a symptom, a
+   settings change, a workout correction, a historical note, a skip,
+   a routine edit. Any of those could be silently replaced by the
+   server copy. Until record-level sync exists, a dirty local snapshot
+   is never silently replaced — and anything that can replace it takes
+   a recovery snapshot first.
+   ============================================================ */
+
+/* @testable-start M4 — pure predicates, no DOM/network */
+/* Cheap content fingerprint (djb2). Used to answer "has the server changed
+   since the last state we agreed on?" — which a date comparison cannot. */
+function syncFingerprint(o){
+  var s;try{s=JSON.stringify(o||{});}catch(e){return "0";}
+  var h=5381;for(var i=0;i<s.length;i++){h=((h<<5)+h+s.charCodeAt(i))|0;}
+  return String(h>>>0)+":"+s.length;}
+/* The reconciliation decision. Deliberately total — every branch is named,
+   and nothing falls through to "replace local".
+     seed     - server empty, local has data: upload
+     adopt    - local clean: server copy is safe to take
+     push     - local dirty, server unchanged since we last agreed: upload
+     conflict - local dirty AND server moved: ASK, never guess
+     idle     - nothing to do */
+function syncDecide(o){
+  var localDirty=!!o.localDirty,localData=!!o.localHasData,serverHas=!!o.serverHasData;
+  if(!serverHas)return localData?"seed":"idle";
+  if(!localDirty)return "adopt";
+  if(!localData)return "adopt";
+  if(o.serverFp&&o.lastAgreedFp&&o.serverFp===o.lastAgreedFp)return "push";
+  return "conflict";}
+/* @testable-end M4 */
+
+/* ---- recovery snapshots (IndexedDB, account-scoped, bounded) ---- */
+var REC_DB="wl_recovery",REC_STORE="snaps",REC_KEEP=3,recDBh=null;
+function recDB(){return new Promise(function(res,rej){
+  if(recDBh)return res(recDBh);
+  if(typeof indexedDB==="undefined")return rej("no idb");
+  var r=indexedDB.open(REC_DB,1);
+  r.onupgradeneeded=function(){var db=r.result;
+    if(!db.objectStoreNames.contains(REC_STORE))db.createObjectStore(REC_STORE,{keyPath:"id"});};
+  r.onsuccess=function(){recDBh=r.result;res(recDBh);};
+  r.onerror=function(){rej(r.error);};});}
+function recPut(rec){return recDB().then(function(db){return new Promise(function(res,rej){
+  var tx=db.transaction(REC_STORE,"readwrite");tx.objectStore(REC_STORE).put(rec);
+  tx.oncomplete=function(){res();};tx.onerror=function(){rej(tx.error);};});});}
+function recList(){return recDB().then(function(db){return new Promise(function(res,rej){
+  var out=[],tx=db.transaction(REC_STORE,"readonly"),rq=tx.objectStore(REC_STORE).openCursor();
+  rq.onsuccess=function(){var c=rq.result;if(c){out.push(c.value);c.continue();}
+    else res(out.sort(function(a,b){return b.createdAt-a.createdAt;}));};
+  rq.onerror=function(){rej(rq.error);};});});}
+function recDelete(id){return recDB().then(function(db){return new Promise(function(res){
+  var tx=db.transaction(REC_STORE,"readwrite");tx.objectStore(REC_STORE).delete(id);
+  tx.oncomplete=function(){res();};tx.onerror=function(){res();};});});}
+/* Snapshot BEFORE anything that can replace non-empty local data.
+   Stored in IndexedDB, not the localStorage blob, so size can't evict it. */
+function recSnapshot(reason,cb){
+  var me=pbUid()||"";
+  var snap={id:"s_"+Date.now()+"_"+String(Math.random()).slice(2,7),
+    accountId:me,createdAt:Date.now(),appBuild:(typeof APP_BUILD!=="undefined"?APP_BUILD:""),
+    reason:reason||"",localRevision:revLocal("core"),trainingRevision:revLocal("training"),
+    core:payload(),training:state.training};
+  recPut(snap).then(function(){
+    return recList().then(function(all){
+      var mine=all.filter(function(s){return (s.accountId||"")===me;});
+      return Promise.all(mine.slice(REC_KEEP).map(function(s){return recDelete(s.id);}));});})
+    .then(function(){cb&&cb(true);}).catch(function(){cb&&cb(false);});}
+function recRestore(id,cb){
+  recList().then(function(all){
+    var s=null;all.forEach(function(x){if(x.id===id)s=x;});
+    if(!s){cb&&cb(false);return;}
+    recSnapshot("before-restore",function(){
+      try{
+        applyCloudRaw(s.core);
+        if(s.training){state.training=s.training;saveTrainingLocal();}
+        revBump("core");revBump("training");   /* restored state is unsynced */
+        try{render();}catch(e){}
+        cb&&cb(true);
+      }catch(e){cb&&cb(false);}});
+  }).catch(function(){cb&&cb(false);});}
+
+/* ---- last-agreed fingerprint: the baseline conflict detection needs ---- */
+function syncFpGet(){try{return (revAll().serverFp)||"";}catch(e){return "";}}
+function syncFpSet(fp){var a=revAll();a.serverFp=fp||"";revSaveAll(a);}
+
+/* ---- three-way conflict overlay ---- */
+function wlChoose(title,msg,opts,cb){
+  var wrap=document.createElement("div");
+  wrap.style.cssText="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;padding:20px";
+  var btns=opts.map(function(o,i){
+    return '<button data-i="'+i+'" style="display:block;width:100%;margin-top:8px;padding:13px 14px;border-radius:12px;border:1px solid var(--line2);'
+      +(o.primary?'background:var(--accent);color:#1a1205;font-weight:800;':'background:var(--card2);color:var(--text);')
+      +'font-size:15px;text-align:left">'+esc(o.label)
+      +(o.hint?'<div style="font-weight:500;font-size:12px;opacity:.75;margin-top:3px">'+esc(o.hint)+'</div>':'')+'</button>';}).join("");
+  wrap.innerHTML='<div style="max-width:420px;width:100%;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px">'
+    +'<div style="font-weight:800;font-size:17px;margin-bottom:6px">'+esc(title)+'</div>'
+    +'<div style="color:var(--muted);font-size:14px;line-height:1.45">'+esc(msg)+'</div>'+btns+'</div>';
+  wrap.addEventListener("click",function(e){
+    var b=e.target.closest("button[data-i]");if(!b)return;
+    var i=+b.getAttribute("data-i");
+    try{document.body.removeChild(wrap);}catch(_e){}
+    cb&&cb(i);});
+  document.body.appendChild(wrap);}
+
+/* ---- safe adoption: snapshot first whenever local data would be replaced ---- */
+var applyCloudRaw=applyCloud;
+function applyCloudSafe(d,reason,cb){
+  var needSnap=false;try{needSnap=localHasData();}catch(e){}
+  function go(){applyCloudRaw(d);syncFpSet(syncFingerprint(d));revClean("core");cb&&cb();}
+  if(needSnap)recSnapshot(reason||"adopt-server",go);else go();}
+/* Any remaining direct caller of applyCloud gets the protected path too. */
+applyCloud=function(d){applyCloudSafe(d,"apply-cloud");};
+
+/* ---- conflict presentation (default favors preserving local data) ---- */
+function syncEnterConflict(d,ctx){
+  setSync("error","unsynced changes — needs your decision");
+  wlChoose("This device has unsynced changes",
+    "Your server copy also changed since this device last synced. Nothing has been overwritten. Choose which copy to keep — the other one is saved to recovery first.",
+    [{label:"Keep this device's data",hint:"Upload it to the server",primary:true},
+     {label:"Use the server copy",hint:"Replace this device (a recovery snapshot is saved first)"},
+     {label:"Cancel and review later",hint:"Leave everything as it is"}],
+    function(i){
+      if(i===0){recSnapshot("keep-local-over-server",function(){cloudPush(true);});return;}
+      if(i===1){applyCloudSafe(d,"use-server-copy",function(){setLastSync();setSync("ok");try{render();}catch(e){}toast("Server copy restored");});return;}
+      setSync("error","unsynced changes — not yet reconciled");});}
+
+/* ---- boot reconciliation ---- */
+autoSync=function(){
+  if(!syncOn())return;
+  try{phAccountChanged();}catch(e){}
+  pullConnections();
+  /* training is only pulled when this device has no pending training edits;
+     otherwise it would be replaced silently (full handling lands in M5) */
+  if(!revIsDirty("training"))trainingPull(function(){if(state.view==="train")render();});
+  setSync("syncing");
+  cloudGet(function(d,err){
+    if(err){setSync(err==="offline"?"offline":"error",err==="auth"?"session expired — log in again":"");return;}
+    var decision=syncDecide({localDirty:isDirty(),localHasData:localHasData(),
+      serverHasData:!cloudEmpty(d),serverFp:syncFingerprint(d),lastAgreedFp:syncFpGet()});
+    if(decision==="seed"||decision==="push"){cloudPush();return;}
+    if(decision==="adopt"){applyCloudSafe(d,"boot-adopt",function(){setLastSync();setSync("ok");render();});return;}
+    if(decision==="conflict"){syncEnterConflict(d,"boot");return;}
+    setSync("ok");});};
+
+/* ---- manual pull / pull-to-refresh: reconcile, never blind-replace ---- */
+cloudPull=function(manual,done){
+  setSync("syncing");
+  cloudGet(function(d,err){
+    if(err){setSync(err==="offline"?"offline":"error",err==="auth"?"session expired — log in again":"");
+      if(manual)toast(err==="offline"?"No connection":err==="auth"?"Please log in again":"Couldn't refresh");done&&done();return;}
+    var decision=syncDecide({localDirty:isDirty(),localHasData:localHasData(),
+      serverHasData:!cloudEmpty(d),serverFp:syncFingerprint(d),lastAgreedFp:syncFpGet()});
+    if(decision==="conflict"){syncEnterConflict(d,"pull");done&&done();return;}
+    if(decision==="seed"||decision==="push"){cloudPush(!!manual);if(manual)toast("Sending your changes");done&&done();return;}
+    applyCloudSafe(d,"manual-refresh",function(){
+      setLastSync();setSync("ok");render();if(manual)toast("Up to date");done&&done();});});};
+
+/* The destructive option still exists, but is explicit, confirmed and snapshotted. */
+function syncReplaceWithServer(){
+  askConfirm("Replace this device with the server copy? Anything on this device that hasn’t been uploaded will be replaced. A recovery snapshot is saved first.",
+    function(){
+      setSync("syncing");
+      cloudGet(function(d,err){
+        if(err){setSync("error");toast("Couldn't reach the server");return;}
+        applyCloudSafe(d,"explicit-replace",function(){setLastSync();setSync("ok");render();toast("This device now matches the server");});});},
+    {label:"Replace this device",danger:true});}
+
+/* ---- expired session: keep everything, stop authenticated work ---- */
+var _m4ClearSession=pbClearSession;
+pbClearSession=function(keepEmail){
+  try{clearTimeout(pushTimer);clearTimeout(trainingPushTimer);}catch(e){}
+  return _m4ClearSession.apply(this,arguments);};   /* data + wl_rev untouched */
+
+/* Explicit logout wipes this device's copy — so refuse to do it silently while
+   changes are still unsynced, and snapshot before wiping either way. */
+var _m4ForceLogout=pbForceLogout;
+pbForceLogout=function(){
+  /* the device copy is being wiped, so the revision ledger and the agreed
+     baseline that describe it must go too — otherwise the next account
+     inherits this one's "dirty" bookkeeping */
+  try{localStorage.removeItem(REV_KEY);}catch(e){}
+  return _m4ForceLogout.apply(this,arguments);};
+pbLogout=function(){
+  function wipe(){recSnapshot("before-logout",function(){pbForceLogout();location.reload();});}
+  if(revAnyDirty()){
+    wlChoose("You have changes that haven’t been saved to the server",
+      "Logging out clears this device's copy. Upload your changes first so nothing is lost.",
+      [{label:"Upload, then log out",primary:true},
+       {label:"Log out anyway",hint:"A recovery snapshot is saved on this device first"},
+       {label:"Cancel"}],
+      function(i){
+        if(i===0){cloudPush(true);setTimeout(function(){
+          if(!isDirty())wipe();else toast("Couldn't upload — still signed in");},1600);return;}
+        if(i===1){wipe();return;}});
+    return;}
+  askConfirm("Log out on this device? Your data stays safe on the server — log back in any time.",wipe,{label:"Log out",danger:true});};
+
+/* ---- login reconciliation ---- */
+pbDoLogin=function(){
+  if(pbLoginState.busy)return;
+  var em=(document.getElementById("wl-pb-email")||{}).value||"";
+  var pw=(document.getElementById("wl-pb-pass")||{}).value||"";
+  var bs=(document.getElementById("wl-pb-base")||{}).value||"";
+  var rmEl=document.getElementById("wl-pb-remember");
+  var remember=rmEl?!!rmEl.checked:true;
+  pbLoginState.remember=remember;
+  em=em.trim();
+  if(!em||!pw){pbLoginState.err="Enter your email and password.";pbRenderLogin();return;}
+  if(bs){var c=pbCfg();c.base=bs.trim();setPbCfg(c);}
+  pbLoginState.busy=true;pbLoginState.err="";pbRenderLogin();
+  pbLogin(em,pw,function(ok,why){
+    pbLoginState.busy=false;
+    if(!ok){
+      pbLoginState.err=(why==="bad")?"That email and password don’t match.":(why==="offline")?"Can’t reach the server. Is Tailscale on?":"Something went wrong. Try again.";
+      pbRenderLogin();return;}
+    pbLoginState.err="";
+    /* a different account on this device must not inherit the previous one's
+       photo caches, maps or object URLs */
+    try{phAccountChanged();phRefreshOrphanCount();}catch(e){}
+    setSync("syncing");
+    cloudGet(function(d,err){
+      function finish(){
+        trainingPull(function(){
+          setLastSync();setSync("ok");render();
+          toast("Welcome back"+(state.settings.name?(", "+state.settings.name):""));
+          photoSync(function(r){
+            if(r&&r.downloaded)toast(r.downloaded+" photo"+(r.downloaded===1?"":"s")+" restored");});});}
+      if(err||!d){finish();return;}
+      var decision=syncDecide({localDirty:isDirty(),localHasData:localHasData(),
+        serverHasData:!cloudEmpty(d),serverFp:syncFingerprint(d),lastAgreedFp:syncFpGet()});
+      if(decision==="conflict"){syncEnterConflict(d,"login");return;}
+      if(decision==="push"||decision==="seed"){cloudPush(false);finish();return;}
+      applyCloudSafe(d,"login-adopt",finish);});},remember);};
+
+/* recovery + destructive-replace surfaced on the account card */
+var _m4AccountCard=pbAccountCardHTML;
+var recSnapCount=0;
+function recRefreshCount(){recList().then(function(all){
+  var me=pbUid()||"";recSnapCount=all.filter(function(s){return (s.accountId||"")===me;}).length;}).catch(function(){});}
+pbAccountCardHTML=function(){
+  var html=_m4AccountCard.apply(this,arguments);
+  html+='<div class="wl-card" style="margin-top:10px">'
+    +'<button class="wl-btn" data-act="sync:replace">Replace this device with server copy</button>'
+    +'<div style="color:var(--muted);font-size:12px;margin-top:6px">Recovery snapshots on this device: '+recSnapCount+'</div>'
+    +(recSnapCount?'<button class="wl-btn" style="margin-top:8px" data-act="rec:restore">Restore a recovery snapshot</button>':'')
+    +'</div>';
+  return html;};
+document.addEventListener("click",function(e){
+  var el=e.target.closest("[data-act]");if(!el)return;
+  var a=el.getAttribute("data-act");
+  if(a==="sync:replace"){syncReplaceWithServer();return;}
+  if(a==="rec:restore"){
+    recList().then(function(all){
+      var me=pbUid()||"";
+      var mine=all.filter(function(s){return (s.accountId||"")===me;}).slice(0,REC_KEEP);
+      if(!mine.length){toast("No recovery snapshots");return;}
+      wlChoose("Restore a recovery snapshot",
+        "This replaces what's on the device now. The current state is snapshotted first.",
+        mine.map(function(s){
+          var n=(s.core&&s.core.weights&&s.core.weights.length)||0;
+          return {label:new Date(s.createdAt).toLocaleString(),
+                  hint:s.reason+" · "+n+" weigh-ins"};}).concat([{label:"Cancel"}]),
+        function(i){if(i>=mine.length)return;
+          recRestore(mine[i].id,function(okr){toast(okr?"Restored":"Couldn't restore");});});});
+    return;}
+});
+try{recRefreshCount();}catch(e){}
+
+/* ---- boot fix-up ----
+   init (the `load(); … render();` line above) runs BEFORE this block, so its
+   synchronous calls captured the pre-hardening photo readers — refreshWeekPhotos()
+   in particular would resolve with unscoped records and could paint another
+   account's thumbnails once. Its async continuations already use the hardened
+   functions; this re-runs the parts that didn't, so the first paint is corrected
+   rather than merely eventually consistent. */
+try{
+  wkPhotoKey=null;
+  clearPhotoURLs();
+  refreshWeekPhotos();
+  if(state.view==="photos"||state.view==="diary")render();
+}catch(e){}
 </script>
 </body>
 </html>
