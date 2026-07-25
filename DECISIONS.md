@@ -1,6 +1,6 @@
 # Compound Fitness — Architectural Decision Log
 
-**Last Updated:** 2026-07-24
+**Last Updated:** 2026-07-25
 
 **Status:** Active
 
@@ -293,3 +293,54 @@ Treat all documentation as **living documents**. Remove semantic version numbers
 - Docs stay maintainable: "what changed" is answered by Git; "is this current" by the Last Updated date and Status.
 - `STATUS.md` becomes the fastest way for a human or AI to sync on project state at the start of a session.
 - Supersedes the brief experiment of numbering the docs (`Version: 1.0` → `2.0`).
+
+---
+
+## ADR-013 — Local-first sync safety: revisions, fingerprint baselines, no silent replacement
+
+- **Date:** 2026-07-25
+- **Status:** Accepted
+- **Deciders:** Product Owner (brief), ChatGPT (Product Architect), Claude Code (implementation)
+
+### Context
+The live athlete app used a single boolean dirty flag and reconciled by comparing the newest weigh-in/day key. Both are unsound for a local-first app syncing a whole-document snapshot: a push that succeeded marked the app clean even if the user edited during the request, and a date comparison cannot see an independent change (a GLP-1 dose, symptom, settings change, historical correction, skip, or routine edit).
+
+### Decision
+Until record-level sync exists:
+1. **Monotonic revisions per sync track** (core, training) replace the dirty boolean. A response may mark a track clean only if the local revision has not advanced since that request's payload was built; success is a high-water mark so out-of-order responses cannot regress it.
+2. **A content fingerprint of the last agreed state** is the conflict baseline, replacing date heuristics. Local dirty + server unchanged since agreement ⇒ push; local dirty + server moved ⇒ **conflict**, never a silent winner.
+3. **Nothing that can replace non-empty local data runs without a recovery snapshot first** (IndexedDB, account-scoped, newest 3).
+4. Ordinary refresh means *reconcile*, not *replace*; the destructive path is a separate, explicitly labeled, confirmed action.
+
+### Alternatives considered
+- Keep date comparison, add more fields to it. Rejected: it is structurally blind to independent edits; enumerating fields is a losing race.
+- Last-writer-wins on the whole snapshot. Rejected: guarantees silent data loss, the exact failure being fixed.
+- Jump straight to record-level sync. Rejected: too large to land safely on a live app in one step; the design is being produced for review separately.
+
+### Consequences
+- Users can now be asked to resolve a genuine conflict; the default always preserves the device's data.
+- Whole-snapshot sync is safe enough to keep through Phase 2, but **must not** be extended to native background health ingestion.
+- Adds a revision ledger (`wl_rev`) and a recovery store to migrate later.
+
+---
+
+## ADR-014 — Photos are owned by an account, not by a device
+
+- **Date:** 2026-07-25
+- **Status:** Accepted
+- **Deciders:** Product Owner (brief), Claude Code (implementation)
+
+### Context
+IndexedDB photo records and the photo→server map carried no owner. After a logout both survived, so the next account's first sync treated the previous user's photos as its own pending uploads — a privacy breach — and, because the stale map still listed them, mirrored bogus remote deletions back onto the device. Separately, the server listing fetched a single 500-record page and treated absence from it as proof of deletion.
+
+### Decision
+Every local photo carries an immutable `ownerId`; display, upload, delete, reconcile and mapping all require it to equal the authenticated user. The photo→server map is keyed per account. Legacy ownerless photos are **quarantined** — never auto-attributed to whoever logs in next — and are claimable only by an explicit user action. Remote deletion may be inferred **only** from a complete, successful enumeration of all pages.
+
+### Alternatives considered
+- Wipe photo blobs on logout. Rejected: destroys photos that may not have uploaded yet — data loss to fix a privacy bug.
+- Auto-assign legacy photos to the current user. Rejected: on a shared device that is the leak, restated.
+
+### Consequences
+- Photos cannot cross account boundaries on a shared device.
+- A partial or failed listing now surfaces a recoverable sync error instead of deleting.
+- The discarded legacy map is re-established safely on the next sync via the server's UNIQUE (user, localId) index.

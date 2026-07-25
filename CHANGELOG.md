@@ -1,6 +1,6 @@
 # Compound Fitness — Changelog
 
-**Last Updated:** 2026-07-24
+**Last Updated:** 2026-07-25
 
 **Status:** Active
 
@@ -26,7 +26,19 @@ A high-level, human- and AI-readable log of how the **product** has evolved — 
 - **`STATUS.md`** — a single, always-current snapshot of project state (complete / in progress / blocked / next), meant to be read first at the start of every session.
 - **`README.md`** rewritten as the project entry point: points newcomers at `STATUS.md` first, indexes the docs with a reading order, and documents the "maintaining these docs" conventions.
 
+### Fixed
+- **Photos could cross account boundaries.** Photo records and the photo→server map were device-global, so after a logout the next account's first sync uploaded the previous user's photos into their account and mirrored bogus deletions back to the device. Photos are now owned by an account; legacy ownerless photos are quarantined rather than auto-attributed.
+- **Photo sync deleted photos past the first page.** The server listing fetched one 500-record page and treated absence as deletion, so at 501 records the oldest photos were removed locally. Listings now paginate fully and deletion is only inferred from a complete, successful enumeration.
+- **An edit made during a sync could be lost.** A push that succeeded marked everything clean even if the user had edited while it was in flight. Monotonic revisions now mean only the request carrying the current revision can mark a track clean.
+- **Server data could silently replace local edits.** Reconciliation compared only the newest date, which cannot see an independent change (a GLP-1 dose, symptom, settings change, historical correction, skip or routine edit). Divergence now raises an explicit conflict that defaults to keeping the device's data, and anything that can replace local data writes a recovery snapshot first.
+
+### Added
+- **Recovery snapshots** — account-scoped, kept on-device, listed and restorable from the account card.
+- **Dev-only test harness** — 60 tests that run against the real shipping source, plus a manual browser checklist for flows needing a real browser.
+
 ### Changed
+- Ordinary refresh (including pull-to-refresh) now **reconciles** rather than replacing; replacing the device with the server copy is a separate, confirmed, snapshotted action.
+- Logging out with unsynced changes offers to upload first, and snapshots before wiping.
 - **Documentation switched to a living-document model.** Removed semantic version numbers from the Bible docs; each now carries a `Last Updated` date and a `Status` field, with Git history as the authoritative version history. (Supersedes the brief `Version: 2.0` numbering.)
 
 ---

@@ -1,6 +1,6 @@
 # Compound Fitness — Project Status
 
-**Last Updated:** 2026-07-24
+**Last Updated:** 2026-07-25
 
 **Status:** Active
 
@@ -10,9 +10,10 @@
 
 ## Snapshot
 
-Compound Fitness is a coaching platform (not a tracker) built as **one backend + one PWA + thin native wrappers**. The **athlete app is ~90–95% complete** and running on a self-hosted PocketBase backend. Current focus is **documentation/foundation** and preparing **Phase 2 (the native shell)**; no coach-facing features exist yet.
+Compound Fitness is a coaching platform (not a tracker) built as **one backend + one PWA + thin native wrappers**. The **athlete app is ~90–95% complete** and running on a self-hosted PocketBase backend. Current focus is **live-app safety & architecture hardening** — making the athlete app safe enough to be the foundation for Phase 2. No coach-facing features exist yet.
 
-- **Current phase:** Phase 1 (Athlete App) wrapping up → Phase 2 (Native Shell) planning.
+- **Current phase:** Phase 1 (Athlete App) + **hardening brief (M1–M10)** → Phase 2 (Native Shell).
+- **Hardening progress:** ✅ M1–M4 (all four Blockers) implemented, tested, pushed — **awaiting review**. M5–M10 + record-level sync design not started.
 - **Backend:** self-hosted PocketBase (cutover 2026-07-21).
 - **Latest internal build:** `2026-07-23.331`.
 
@@ -34,6 +35,13 @@ Compound Fitness is a coaching platform (not a tracker) built as **one backend +
 - Retired GitHub-PAT storage path (security)
 - Data-safety guard: expired sessions never destroy unsynced local data
 
+**Hardening — Blockers (M1–M4), pending review**
+- M1: photos are account-scoped (ownerId gates display/upload/delete/reconcile); legacy photos quarantined, never auto-attributed
+- M2: photo listing paginates; deletion is never inferred from an incomplete enumeration (the 501-record bug)
+- M3: monotonic revisions replace the dirty boolean — an in-flight push can no longer mark a newer edit clean
+- M4: dirty local data is never silently replaced on login/boot/pull; recovery snapshots + three-way conflict choice defaulting to keep-local
+- Dev-only test harness: 60 tests run against the real shipping source (`node tests/run-all.js`) + browser checklist
+
 **Foundation / docs**
 - Product Bible set: Vision, Product History, Product Bible, Roles & Workflow, Technical Architecture, Roadmap, Feature Spec template
 - Decision log (`DECISIONS.md`) and product changelog (`CHANGELOG.md`)
@@ -43,25 +51,27 @@ Compound Fitness is a coaching platform (not a tracker) built as **one backend +
 
 ## 🚧 In Progress
 
-- **Documentation foundation** — assembling and standardizing the Product Bible (this session).
-- **Native Bridge Architecture** — `NATIVE_BRIDGE_ARCHITECTURE.md` drafted; **Status: Proposed**, awaiting ChatGPT (Product Architect) review before implementation.
+- **Hardening brief M1–M4** — implemented and pushed; **awaiting Product Owner / Product Architect review** and a run of `tests/MANUAL_CHECKLIST.md` against staging.
+- **Native Bridge Architecture** — `NATIVE_BRIDGE_ARCHITECTURE.md` drafted; **Status: Proposed**, awaiting review before implementation.
 - **Athlete app polish/automation** — remaining 5–10% is polish and automation, not new manual features.
 
 ---
 
 ## ⛔ Blocked / Awaiting Decision
 
-- **Phase 2 native build** is gated on **architecture review of the bridge proposal** (ADR-004, ADR-005 are `Proposed`, not `Accepted`). Nothing should be built against the bridge contract until that review lands.
-- No hard external blockers otherwise.
+- **M1–M4 need review + a staging pass** before they reach production. They change sync, auth and photo behavior on a live app; the manual checklist has not been run (no staging PocketBase in this environment).
+- **Phase 2 native build** is gated on **architecture review of the bridge proposal** (ADR-004, ADR-005 are `Proposed`, not `Accepted`).
+- **Native background health ingestion must not be built** against the current whole-snapshot `appdata.data` model — the record-level sync design (M-design) has to be approved first.
 
 ---
 
 ## ➡️ Next Up
 
-1. ChatGPT reviews `NATIVE_BRIDGE_ARCHITECTURE.md`; move ADR-004/005 to `Accepted` (or revise).
-2. Begin **Phase 2 — Native Shell**: HealthKit + Health Connect, push notifications, background sync, then App Store release.
-3. Implement the bridge transport (`bridge.js`) + first native capability module (health) as a thin vertical slice.
-4. Continue athlete-app polish/automation in parallel.
+1. **Review M1–M4** and run `tests/MANUAL_CHECKLIST.md` against a staging PocketBase (not production data).
+2. **M5–M7**: training sync protection, Backup V2, remove the vestigial GitHub layer.
+3. **M8–M10**: internal boundaries, product-logic defects (lean-bulk/maintenance forecasting, recent-pace window, test control disabled in production), config/security cleanup.
+4. **Record-level synchronization design** for review — required before any native background health ingestion.
+5. Then Phase 2 (Native Shell), once the bridge proposal is accepted.
 
 Full phase detail: see `ROADMAP.md`.
 
