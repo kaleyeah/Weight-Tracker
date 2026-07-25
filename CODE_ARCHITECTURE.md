@@ -54,7 +54,7 @@ There is one in-memory `state` object. The persisted slice is produced by `paylo
 | `skips` | map | skipped days/items |
 | `glp` | object | GLP-1 & Peptides: compounds, doses, symptoms, site rotation |
 | `weeklySummary`, `nightlySummary`, `nightlyLog` | object/map | Coach Max AI recaps |
-| `scriptVer` | map | per-record versioning used for sync conflict handling |
+| `scriptVer` | map | *(stale claim — corrected)* not per-record conflict versioning; it does not provide conflict handling |
 
 Workout/training detail also has its own persistence path (`saveTraining` / `loadTraining` / `trainingPush` / `trainingPull`).
 
@@ -83,7 +83,7 @@ Three layers, local-first:
   - `users` — auth (`/api/collections/users/auth-with-password`, records, password change).
   - `appdata` — the app-data records (`/api/collections/appdata/records`): the JSON blob synced per user.
   - `photos` + `files` — progress-photo records and file tokens (`/api/files/token`, `/api/files/photos/...`).
-- **Model:** the client is the source of truth for a session; it pushes the local `payload()` up and pulls it down, using per-record `scriptVer` to avoid clobbering. Boot-time recency guards prevent a stale server push from overwriting newer local data, and an expired session must never destroy unsynced local data (see `DECISIONS.md` ADR-011).
+- **Model:** the client pushes the whole local `payload()` up and pulls it down. **Correction:** earlier documentation claimed `scriptVer` and boot-time recency guards prevent clobbering — they do not. Whole-snapshot sync is **not concurrency-safe**; last writer wins. Server-enforced compare-and-swap is required and is not yet deployed (`REMEDIATION_PLAN_V2.md` §4).
 
 > **Legacy note (worth a reviewer's attention):** the code still contains an earlier **GitHub Contents API** sync layer (`ghPut`, `ghUrl`, `cloudPush/Pull`, `DEFAULT_REPO="kaleyeah/weight-data"`, calls to `api.github.com`). This predates the PocketBase cutover (ADR-010) and the stored token was removed for security. The **live** path is PocketBase; the GitHub functions are vestigial and a candidate for cleanup.
 

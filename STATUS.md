@@ -35,12 +35,12 @@ Compound Fitness is a coaching platform (not a tracker) built as **one backend +
 - Retired GitHub-PAT storage path (security)
 - Data-safety guard: expired sessions never destroy unsynced local data
 
-**Hardening — Blockers (M1–M4): first pass done, remediation required**
-- M1: photos are account-scoped (ownerId gates display/upload/delete/reconcile); legacy photos quarantined, never auto-attributed
+**⚠️ NOT under Complete — see Blocked.** The M1–M4 first pass is written but **unshipped and incomplete**; it must not be read as delivered work. Listed here only to record what the v1 attempt covered:
+- M1 (attempted): photos are account-scoped (ownerId gates display/upload/delete/reconcile); legacy photos quarantined, never auto-attributed
 - M2: photo listing paginates; deletion is never inferred from an incomplete enumeration (the 501-record bug)
 - M3: monotonic revisions replace the dirty boolean — an in-flight push can no longer mark a newer edit clean
 - M4: dirty local data is never silently replaced on login/boot/pull; recovery snapshots + three-way conflict choice defaulting to keep-local
-- Dev-only test harness: 60 tests run against the real shipping source (`node tests/run-all.js`) + browser checklist
+- Dev-only test harness: 60 **baseline** tests against the current unremediated source (`node tests/run-all.js`) + browser checklist. These validate today's behaviour — including one branch that must be removed — not the remediation.
 
 **Foundation / docs**
 - Product Bible set: Vision, Product History, Product Bible, Roles & Workflow, Technical Architecture, Roadmap, Feature Spec template

@@ -4,7 +4,7 @@
 
 **Status:** Proposed — response to *Implementation Authorization: Remediation Plan Amendments*
 
-> Supersedes `REMEDIATION_PLAN.md` (v1). Every amendment is incorporated. **No application code has been changed.** This answers the fifteen items required before coding.
+> Supersedes `REMEDIATION_PLAN.md` (v1) — packaged in review archives as `02-v1-superseded.md`. Every amendment is incorporated. **No application code has been changed.** This answers the fifteen items required before coding.
 >
 > **One item cannot be delivered from this environment: §3, the PocketBase version.** The host is unreachable here. Items 4, 5, 6 and 14 are version-dependent, so they are specified as designs with the version-sensitive parts explicitly marked rather than written as final code.
 
@@ -29,7 +29,8 @@ Two additions:
 - The prior in-flight bug (Fix 3) could already have cleared the flag while edits were pending, so a `"0"` is **not** evidence of a clean device.
 - The IIFE's own comment says *"an unknown state is treated as dirty, because the failure mode of 'wrongly clean' is data loss."* **The code does the opposite of its comment.** The comment is corrected alongside the code, so the next reader is not misled the way I was.
 
-**Correction applied to:** `REMEDIATION_PLAN.md` §1.9 and §2, `STATUS.md`, `DECISIONS.md` (ADR-013), `CHANGELOG.md`, the M3 test descriptions, and the source comment at line 5325. The no-baseline canonical comparison remains required regardless.
+**Correction applied (documentation, done):** `REMEDIATION_PLAN.md` §1.9 and §2, `STATUS.md`, `DECISIONS.md` (ADR-013), `CHANGELOG.md`.
+**Correction pending (code, Commit 1):** the source comment at line 5325 and the M3 test descriptions **will be** corrected alongside the migration behaviour. No application code has changed yet. The no-baseline canonical comparison remains required regardless.
 
 ---
 
@@ -40,26 +41,38 @@ Narrow, client-only, shippable before CAS. **Goal: stop live data loss. Nothing 
 **Removed:** the `dirty && !localData → adopt` branch. `syncDecide()` becomes:
 
 ```
-!serverHas          → localMeaningful ? "seed" : "idle"
-!localDirty         → serverDiffers ? "adopt" : "agree"
-localDirty && baseline trusted && serverFp === baseline → "push"
-localDirty && no trusted baseline → compare canonical content:
-        identical  → "agree"        (establish baseline silently)
-        different  → "conflict"
-        uncertain  → "conflict"     (preserve local)
-localDirty && server moved → "conflict"
+!serverHas && !localDirty                → "idle"
+!serverHas && localDirty                 → "hold-seed"    ← NOT an automatic POST
+!localDirty                              → serverDiffers ? "adopt" : "agree"
+localDirty && no trusted baseline        → canonical compare:
+        byte-identical → "agree"    (establish baseline silently)
+        otherwise      → "conflict" (includes "cannot compare")
+localDirty && baseline trusted && server === baseline → "hold-push"  ← NOT an automatic PATCH
+localDirty && server moved               → "conflict"
 ```
+
+**`hold-push` / `hold-seed` never write.** They set a visible pending state. Before server CAS exists there is **no automatic whole-snapshot write of any kind** — a fingerprint match cannot prevent a concurrent write landing after our read, and duplicate rows cannot be prevented without the unique index. This removes the contradiction the Architect identified between the old `push` branch and "no auto-upload without CAS".
+
+**Uploading is still possible, but only user-initiated**, and only when all four conditions hold: the latest server copy has just been fetched, the actual remote copy has been **stored successfully**, the user explicitly confirms, and no safer merge exists. Commit 1 therefore includes the *minimum* explicit remote-snapshot capability (the Architect's option (b) for §6C) rather than disabling upload entirely — otherwise the app would stop syncing upward completely, which trades silent overwrite for silent divergence and eventual loss on device failure.
+
+Comparison is **exact canonical equality** (recursive key-sorted serialization), never the 32-bit fingerprint. SHA-256 arrives in Commit 8.
 
 `localData` is never permission to overwrite; dirty ⇒ `adopt` is unreachable on every path (boot, login, **pull-to-refresh**).
 
 **`coreHasMeaningfulState()`** replaces `localHasData()` for empty-detection only, and covers **every** field in `payload()`: `settings` (beyond defaults), `weights`, `food`, `workouts`, `steps`, `notes`, `sleep`, `bodyfat`, `waist`, `statuses`, `presets` (beyond defaults), `skips`, `glp` (compounds/doses/symptoms), `weeklySummary`, `nightlySummary`, `nightlyLog`, `scriptVer`.
 
-**Also in the hotfix** (small, and each closes a live loss path):
-- Fix 4 fail-closed on the three destructive callers — an unverified snapshot cannot precede a wipe.
-- The line-5326 migration: unknown/malformed/absent ⇒ **dirty**, matching its comment.
-- No whole-snapshot auto-upload without CAS: `seed`/`push` from a dirty state require either a trusted baseline or explicit user action; otherwise the app holds in a pending-reconciliation state.
+**Also in the hotfix** (each closes a live loss path):
+- **Fail-closed** on every still-enabled destructive caller — an unverified snapshot can never precede a wipe or replacement.
+- **Line-5326 migration:** unknown / malformed / absent ⇒ **dirty**, and the misleading comment corrected with it.
+- **Keep-local overwrite preserves the remote side first**, or is disabled. No wording may promise "the online version was saved" unless the write actually succeeded.
+- **Minimal cross-account guard.** Commit 1 ships ahead of the full account scoping (Commit 4), so it must already prevent a newly authenticated user adopting, seeding, pushing or rendering a *previous* user's retained unscoped state. Identity is compared against owner metadata **recorded while authenticated** — never an unverified cached `pbCfg().uid`. On mismatch the legacy state is held for Commit 4 migration/export, not used.
+  *Honest limitation:* installs upgrading from before this build have no recorded owner, so the guard becomes effective from their first verified authenticated session; it cannot retroactively attribute pre-upgrade data.
 
-**Ships with:** the pull-to-refresh, GLP-only, note-only, settings-only and delete-all regression tests, plus a **browser test on staging** (architect DoD #17). Not shipped on test-pass alone.
+**Accepted trade-off:** automatic upward sync pauses until CAS lands. The Architect explicitly accepted reduced automation over silent loss. The pending state is made visible so a user is never misled into thinking data is backed up when it is not.
+
+**Approved minimum scope (Architect §6):** (1) no dirty adoption on pull/boot/login; (2) no automatic dirty push or seed before CAS; (3) exact canonical no-baseline equality; (4) complete `coreHasMeaningfulState()` for empty-detection only; (5) unknown/absent legacy dirty ⇒ dirty; (6) correct the misleading source comment; (7) fail closed before any still-enabled destructive replacement; (8) keep-local overwrite disabled unless the remote side is genuinely preserved; (9) minimal verified-account mismatch guard; (10) regression tests + staging browser validation.
+
+**Ships with:** pull-to-refresh, GLP-only, note-only, settings-only, delete-all, no-baseline-equal, no-baseline-divergent, no-auto-push and no-auto-seed regression tests, plus a **browser test on staging**. Code may be written now; **it cannot ship on test-pass alone.**
 
 ---
 
@@ -112,7 +125,7 @@ Inside **one** transaction, using the transaction-scoped app context for every r
 1. Require authentication; derive `userId` from context.
 2. Validate `subsystem ∈ {core, training}` — anything else 400.
 3. Validate `expectedRev` is a non-negative integer.
-4. Validate payload is an object and within the size cap (proposed **2 MB**; confirm against your row sizes).
+4. Validate payload is a plain object and within the size cap — **to be measured, not guessed** (see below).
 5. Find the user's single `appdata` row, or create it (see create race below).
 6. Read `coreRev` or `trainingRev` per `subsystem`.
 7. Compare with `expectedRev`.
@@ -124,7 +137,15 @@ Inside **one** transaction, using the transaction-scoped app context for every r
 
 **Create race:** the unique index on `user` is the arbiter. Both devices may attempt creation inside their transactions; one wins, the loser's insert violates the constraint and is caught → re-read inside the same transaction and either commit against the found row (if `expectedRev` matches) or return 409. Never a second row.
 
-**Idempotency:** `idempotencyKey` is stored with the last commit per subsystem. A repeat of the same key returns the original result rather than re-incrementing, so network retries can't double-advance a revision.
+**Idempotency ledger** (not a "last key" — that fails when a later key supersedes it and a delayed retry of the earlier key arrives). A dedicated server-side collection, unique on `user + subsystem + idempotencyKey`, storing `requestHash`, `expectedRev`, `resultingRev`, `responseStatus`, `createdAt`, `expiresAt`. The ledger write and the data commit occur **in the same transaction**. Same key + same `requestHash` replays the original result; same key + different request is **rejected**; keys are required, length-limited and validated; retention is bounded by policy.
+
+**Create semantics:** only `expectedRev = 0` may create a missing row. If no row exists and `expectedRev > 0`, return conflict/not-found — never silently create. A successful first commit returns revision **1**.
+
+**Unique-failure handling:** do **not** assume a failed insert can continue inside the same transaction — that is not safe to assume for the deployed PocketBase/SQLite behaviour. Instead: abort the transaction, retry the whole operation through the existing-row path, and re-check `expectedRev`. Proven by the concurrent-create integration test against the exact deployed version.
+
+**Validation** (all required): allowed `subsystem`; non-negative integer `expectedRev`; required, length-limited `idempotencyKey`; payload is a plain JSON object; payload byte size; `clientBuild`/`deviceId` length and format; and **no authoritative user field is read from the body**.
+
+**Access control:** the idempotency ledger and `appdata_archive` are **server/admin-only**. They contain health data and must not be readable by ordinary clients.
 
 ---
 
@@ -139,14 +160,15 @@ Runs **before** the unique index. Nothing divergent is discarded.
 5. **Select a canonical row** by a documented rule, applied in order:
    a. the row referenced by the most recent successful client sync, if determinable;
    b. otherwise the row with the most recent `updated`;
-   c. **if the candidates' `data`/`training` differ materially, do not auto-merge** — mark the user `needs-manual-resolution`, leave the rows in place, exclude that user from the index step, and report them.
+   c. **if the candidates differ at all, do not auto-merge** — mark the user `needs-manual-resolution`, leave the rows in place, and report them. **"Materially different" means canonical deep inequality of `data` or `training`** after stripping only PocketBase system metadata. Age, emptiness or an older `updated` timestamp are **not** grounds for calling a difference immaterial.
+   d. "most recent successful client sync" is used **only where real server-side evidence exists**; otherwise the deterministic rule for *canonically identical* rows is: most recently `updated`, with record ID as tie-breaker.
 6. **Never silently discard divergent content** — (5c) is the escape hatch and is expected to be used.
 7. **Archive or remove** non-canonical rows for auto-resolved users only.
 8. **Verify** exactly one row per user among resolved users.
 9. **Create the unique index** on `appdata.user`.
 10. **Verify** the constraint (attempt a duplicate insert; expect rejection).
 
-If any user remains unresolved, the index is created only after they are resolved by hand. **Rollback:** restore the backup; the archive collection is additive and safe to leave.
+**Unresolved divergent duplicates are a hard block.** They cannot be "excluded" from a global unique index — such an index is all-or-nothing. While any remain unresolved they block: creation of the unique index, activation of the CAS route in production, and the raw-write lockdown. They do **not** block client-only Commits 1–8. Archiving and analysis continue meanwhile. **Rollback:** restore the backup; the archive collection is additive and safe to leave.
 
 ---
 
@@ -180,9 +202,15 @@ deleteRule:         null
 
 **Superusers bypass collection rules entirely** — documented separately as an operational note; admin tooling must go through the route or knowingly accept the bypass.
 
-**Monitoring before step 9:** commit-route success/409 rates, raw-PATCH attempts by build, failed commits, old-client traffic share. Step 9 proceeds only when raw-PATCH traffic is effectively zero.
+**Monitoring** (raw-PATCH-by-build alone is insufficient — legacy clients may send no build metadata): raw create/update by endpoint **and authenticated user**; raw writes lacking build metadata; CAS commit success / 409 / 4xx / 5xx; commit p95 and p99 latency; unique-constraint failures; duplicate-row count; idempotency replay and mismatch rates; conflict rate by subsystem; minimum-build adoption; legacy writes after the announced deadline.
 
-**Between steps 6 and 9 the raw path is open** — that is a deliberate, time-boxed window, not defence in depth, and it closes at step 9.
+**The open raw-PATCH window is not acceptable on monitoring alone** — and the reason is revision integrity, not just adoption: an old client can change `data` by raw PATCH **without incrementing `coreRev`**, after which a new client commits against an unchanged revision and silently overwrites that update. CAS cannot be trusted while untracked raw writes are possible.
+
+**Preferred — compatibility revision bridge.** Before the new client deploys, install a server-side hook so that legacy standard writes stay visible to CAS: a raw update to `data` atomically increments `coreRev`; a raw update to `training` atomically increments `trainingRev`; a raw create initializes revisions safely; the commit route is **not** double-incremented by the hook; every legacy write is audit-stamped as raw/legacy. Old clients can still overwrite each other during the window, but new clients **detect** every legacy write.
+
+**Fallback — immediate fail-closed lockdown.** If the bridge cannot be implemented and tested safely, disable raw create/update at the same production cutover as the new client. Old clients then fail synchronization rather than writing blind, preserve their local state, and receive an update-required error where possible.
+
+**Hard deadline, not a telemetry gate:** recommended maximum transitional window **24–48 hours** after the CAS client is broadly available, subject to Product Owner approval.
 
 ---
 
@@ -195,8 +223,8 @@ cf:{userId}:core            cf:{userId}:sync:core        cf:{userId}:photoMap
 cf:{userId}:training        cf:{userId}:sync:training    cf:{userId}:lastSync
 cf:{userId}:workout                                      cf:{userId}:conflict
                                                          cf:{userId}:errors
-cf:local:core   cf:local:training          (pre-auth / unclaimed)
-cf:owner        cf:v                       (ownership metadata; schema version)
+cf:local:core   cf:local:training   cf:local:workout      (pre-auth / unclaimed)
+cf:lastOwner    cf:accounts         cf:v                  (last owner; retained-namespace registry; schema version)
 ```
 
 Sync record shape, per subsystem:
@@ -216,7 +244,9 @@ Every persisted blob carries an integrity header:
 
 A blob whose `_meta.ownerId` disagrees with the namespace it was loaded from is **not** loaded — it is quarantined and reported. Ownership is checked, not assumed.
 
-**`cf:owner` is ownership metadata only.** It answers "whose data is retained here," never "who is authorized." `storedOwnerId` and `authenticatedUserId` are tracked independently, and **nothing is displayed or synchronized unless they match.**
+**Ownership metadata only.** `cf:lastOwner` answers "whose data was last active here," never "who is authorized." A device accumulates **more than one** retained namespace over time, so `cf:accounts` is the registry; a single owner key is not an inventory. `storedOwnerId` and `authenticatedUserId` are tracked independently.
+
+**Display rule (clarified).** *Account-scoped* data requires `storedOwnerId === authenticatedUserId`. Deliberately unclaimed `cf:local:*` data **may** be displayed in local-only mode to an unauthenticated user — the one intended exception, and it is not account data. Authentication still selects only `cf:{authenticatedUserId}:*`. Legacy and quarantined photo records are part of this inventory and are never adopted by namespace selection.
 
 ---
 
@@ -227,13 +257,20 @@ Eight explicit states. No behaviour is inferred from `cf:owner` alone.
 | State | Loaded | Visible | May sync | May claim | Stays on device | On logout |
 |---|---|---|---|---|---|---|
 | **Fresh unauthenticated** | `cf:local:*` | local only | no | n/a | yes | n/a |
-| **Session expired, owner retained** | `cf:{owner}:*` | yes (read-only banner) | no — reauth required | n/a | yes | n/a |
+| **Authenticated owner, network unavailable / token unverified** | `cf:{uid}:*` | yes | queued, not failed | n/a | yes | normal flow |
+| **Confirmed session expiry (privacy-locked)** | retained securely, **not** loaded into active state | **no account data** — generic reauth screen | no | n/a | yes | n/a |
 | **Explicit logout** | none | none | no | n/a | per photo policy (§ below) | — |
 | **Authenticated as retained owner** | `cf:{uid}:*` | yes | yes | n/a | yes | normal flow |
 | **Authenticated as another owner** | `cf:{newUid}:*` only | new user only | new user only | never the old namespace | old namespace preserved, untouched | normal flow |
 | **Legacy unclaimed local data** | quarantine index | not mixed into any account | no | only `legacyCandidateOwnerId` | yes | retained |
-| **Migration failure** | nothing | recovery screen | no | no | yes | blocked |
+| **Migration failure** | quarantined source, read-only | recovery screen + **export/retry/diagnostics** | no | no | yes | blocked |
 | **Unresolved conflict** | account namespace | yes, with conflict banner | blocked until resolved | n/a | yes | must resolve or explicitly defer |
+
+**Offline ≠ expired.** A failed refresh with no network is *not* confirmed expiry: keep the session, load and display the owner's data, permit local edits, queue sync. Only a server-confirmed 401 privacy-locks the device — data retained but **not displayed**, behind *"Your data is safe on this device. Sign in to continue."* Same-account reauthentication unlocks it. Local-first data stays intact without being exposed to the next person holding a shared device.
+
+**Conflict scope is per subsystem**, matching `SyncCoordinator`: a core conflict blocks core, a training conflict blocks training, a photo error blocks photo operations; independent clean subsystems continue once authentication and ownership are established. The UI may hold the whole app during initial login until core ownership settles, but the underlying state stays subsystem-specific.
+
+**Migration failure retains export access.** The recovery screen can read the quarantined legacy source for export, retry and diagnostics — never loaded into active athlete state, but never unreachable either.
 
 **Cross-account login** (B ≠ retained A) enforces all nine architect rules: A's core/training/photos are not displayed, not offered as B's device copy, not uploaded, not relabelled; A's namespace is preserved untouched; B's is loaded or created; B reconciles only against B's server state.
 
@@ -263,7 +300,7 @@ runMigrationSafely()
 
 **Migration** (idempotent, gated on `cf:v`) — copy-not-move, as a *temporary* strategy with a bounded rollback window:
 
-1. Detect legacy storage. 2. Determine the known owner (from `cf:owner`, else a live `pbCfg().uid`, else none → `cf:local:*` / quarantine).
+1. Detect legacy storage. 2. Determine the known owner from **either** a currently *validated* authenticated identity **or** owner metadata previously persisted *while authenticated*. **Never** from an unverified cached `pbCfg().uid` — a stale cached UID could misattribute one person's data to another. If neither is available → `cf:local:*` / quarantine.
 3. Create an immutable recovery snapshot. 4. **Verify** it — failure aborts the migration.
 5. Copy into the new namespace. 6. Verify data equality, `_meta.ownerId`, `schemaVersion`.
 7. Mark the new schema active (`cf:v`). 8. **From that point, read and write only the new namespace** — no dual-read, no dual-write.
@@ -361,7 +398,7 @@ Adopting the architect's eleven commits exactly. Each is small, reviewable, test
 | 10 | **Client CAS wiring** — route integration, 409 handling, conflict state, server revision persistence, idempotent retries | 9 |
 | 11 | **UX and documentation** — athlete wording, Data Safety section, ADR corrections, status/changelog | 1–10 |
 
-Commit 1 ships as the **emergency hotfix** after browser validation, ahead of the rest. Commits 1–8 and 11 are client-only. **9–10 need §3.**
+Commit 1 ships as the **emergency hotfix** after browser validation, ahead of the rest. Commits **1–8 can begin** (client-only). **Commit 11 is not unblocked** — documentation may be drafted, but final UX and docs cannot complete until 9–10 resolve. **9–10 need §3.** Commit 1 may be *coded* now but **cannot ship** until its updated tests and the staging browser checklist pass.
 
 ---
 
@@ -387,6 +424,8 @@ Run against the **actually deployed** PocketBase version on staging ‹version-d
 | 14 | Core commit | `training` and `trainingRev` unchanged |
 | 15 | Training commit | `data` and `coreRev` unchanged |
 
+**Baseline vs. requirement.** The existing 60 tests are **baseline tests against the current, unremediated shipping source**, and `03-test-output.txt` is labelled as such. They are *not* validation of this plan — one of them (`m4-reconciliation.test.js`) currently asserts the unsafe `dirty + !localHasData → adopt` branch. Commit 1 **inverts** that assertion and adds: dirty delete-all, dirty GLP-only, dirty settings-only, no-baseline exact equality, no-baseline divergence, no automatic push before CAS, no automatic seed before safe create.
+
 **Client tests** cover every case in the authorization brief (reconciliation, account boundaries, photos, revisions/CAS, login/logout) via a Node simulation harness: in-memory `localStorage`, IndexedDB stub, and a **mock PocketBase implementing the commit route** (revisions, 409s, injectable pagination instability, 401/403/500, latency, interruption), plus a two-device simulator for races and account switches.
 
 **Reproducible test package** (architect complaint, valid): `tests/harness.js` and `run-all.js` resolve `path.join(__dirname,'..','index.html')`, which my archive layout broke by putting the source under `full-source/`. Fix: resolve the source via `CF_SRC` env var → `../index.html` → `./index.html` → `../full-source/index.html`, and ship the archive so `node tests/run-all.js` runs against the included source with no edits. No test output will be supplied that cannot be reproduced from the archive.
@@ -410,10 +449,10 @@ Run against the **actually deployed** PocketBase version on staging ‹version-d
 
 ## What I need to start
 
-**Unblocked now:** commits 1–8 and 11 (client-only). I can begin with the emergency hotfix immediately on your go-ahead.
+**Unblocked now:** commits **1–8** (client-only). Commit 11 depends on 9–10 and can only be drafted. Starting with Commit 1 — coded now, shipped only after staging validation.
 
 **Blocking:**
 1. **PocketBase version** (§3) — one command, blocks commits 9–10.
 2. **Who deploys the server changes** (§15.2) and when the cutover window opens.
 3. **Staging access**, or your confirmation that you will run the browser checklists (§15.4).
-4. **Payload size cap** confirmation (§4, proposed 2 MB).
+4. **Approve the measured payload cap** when the measurement report lands (§4) — Commit 9 prep measures current max, p95, near-term growth and proxy/server limits, then proposes a cap with headroom. Not a guessed number.

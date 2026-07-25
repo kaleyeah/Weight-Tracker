@@ -299,7 +299,7 @@ Treat all documentation as **living documents**. Remove semantic version numbers
 ## ADR-013 — Local-first sync safety: revisions, fingerprint baselines, no silent replacement
 
 - **Date:** 2026-07-25
-- **Status:** Accepted
+- **Status:** **Superseded in part** — see the Correction at the end of this entry
 - **Deciders:** Product Owner (brief), ChatGPT (Product Architect), Claude Code (implementation)
 
 ### Context
@@ -308,7 +308,7 @@ The live athlete app used a single boolean dirty flag and reconciled by comparin
 ### Decision
 Until record-level sync exists:
 1. **Monotonic revisions per sync track** (core, training) replace the dirty boolean. A response may mark a track clean only if the local revision has not advanced since that request's payload was built; success is a high-water mark so out-of-order responses cannot regress it.
-2. **A content fingerprint of the last agreed state** is the conflict baseline, replacing date heuristics. Local dirty + server unchanged since agreement ⇒ push; local dirty + server moved ⇒ **conflict**, never a silent winner.
+2. **A content fingerprint of the last agreed state** is the conflict baseline, replacing date heuristics. Local dirty + server moved ⇒ **conflict**, never a silent winner. *(Superseded: the "server unchanged ⇒ push" half is unsafe — a fingerprint match cannot prevent a concurrent write landing after the read. No automatic whole-snapshot write occurs before server CAS.)*
 3. **Nothing that can replace non-empty local data runs without a recovery snapshot first** (IndexedDB, account-scoped, newest 3).
 4. Ordinary refresh means *reconcile*, not *replace*; the destructive path is a separate, explicitly labeled, confirmed action.
 
@@ -319,7 +319,7 @@ Until record-level sync exists:
 
 ### Consequences
 - Users can now be asked to resolve a genuine conflict; the default always preserves the device's data.
-- Whole-snapshot sync is safe enough to keep through Phase 2, but **must not** be extended to native background health ingestion.
+- Whole-snapshot sync remains **transitional and is not concurrency-safe** until server-enforced CAS is deployed. It must not be extended to native background health ingestion.
 - Adds a revision ledger (`wl_rev`) and a recovery store to migrate later.
 
 ---
