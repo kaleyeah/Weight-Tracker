@@ -19,7 +19,7 @@ A high-level, human- and AI-readable log of how the **product** has evolved — 
 
 ## [Unreleased]
 
-### Fixed (coded in Commits 1→1f, awaiting staging validation — NOT shipped)
+### Fixed (coded in Commits 1→1g, awaiting staging validation — NOT shipped)
 - **Dirty local data could be silently replaced — including on pull-to-refresh.** A device whose only unsynced change was a GLP-1 dose, note, settings change or skip was reported as having "no local data" and was overwritten by the server. Dirty state can no longer be adopted over on any path. Build `2026-07-25.332-pb-c1`.
 - **Every backend write is frozen until server compare-and-swap exists.** Commit 1 removed auto-push from the decision table but the Architect found the real write path still open (`save()` → debounced `cloudPush()` → blind PATCH, plus the training scheduler and the Account-card Save button). Commit 1b closes them at the choke point — `pbSave` itself is gated shut, schedulers only record pending state, pre-existing timers are cancelled, and the Save button is rewired. Replacing a non-empty server copy is **not possible at all** before CAS (confirmation changes intent, not concurrency safety); the app offers an honest pause message and a file export instead.
 - **Destructive actions now fail closed.** Adopting the server copy, restoring a previous copy, replacing the device, and logging out all abort if the recovery copy cannot be verified. Logout no longer wipes on an unverified snapshot or completes on a timer.
