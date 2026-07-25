@@ -5170,6 +5170,120 @@ document.addEventListener("click",function(e){
 });
 
 try{phAccountChanged();phRefreshOrphanCount();}catch(e){}
+
+/* ============================================================
+   HARDENING — MILESTONE 2: photo pagination & deletion inference
+   ------------------------------------------------------------
+   pbPhotoList() fetched ONE page of 500 and photoSync treated any
+   local photo missing from it as "deleted on another device" — so at
+   501 records the oldest photos fell off the page and were deleted
+   from the device. Absence is now only evidence of deletion when the
+   server set was enumerated COMPLETELY and successfully.
+   ============================================================ */
+
+/* @testable-start M2 — pure predicates, no DOM/network */
+/* Deletion may be inferred only when ALL of:
+     - enumeration of the server set completed successfully,
+     - we previously knew this photo was on the server (mapStart),
+     - it is absent from the freshly enumerated server set.
+   A partial, interrupted, unauthorized or failed enumeration proves
+   nothing and must never delete local data. */
+function phMayInferDeletion(enumComplete,mapStart,serverById,rec){
+  if(!enumComplete)return false;
+  if(!rec||!rec.id)return false;
+  if(!mapStart||!mapStart[rec.id])return false;
+  return !(serverById&&serverById[rec.id]);}
+/* A page set is complete only when every page was fetched and the count
+   the server reported matches what we actually hold. */
+function phPagesComplete(pages,totalItems,collected){
+  if(!pages||pages.fetched!==pages.total)return false;
+  if(typeof totalItems==="number"&&totalItems!==collected)return false;
+  return true;}
+/* @testable-end M2 */
+
+/* Enumerate EVERY page. Resolves {items, complete} — never rejects, so a
+   failure degrades to "don't infer deletions" instead of aborting the sync. */
+function pbPhotoListAll(){
+  var items=[],perPage=200,fetched=0,total=1,totalItems=null;
+  function page(p){
+    return fetch(pbBase()+"/api/collections/photos/records?perPage="+perPage+"&page="+p
+        +"&filter="+encodeURIComponent('user="'+pbUid()+'"')+"&t="+Date.now(),
+        {headers:pbHeaders(),cache:"no-store"})
+      .then(function(r){return r.ok?r.json():Promise.reject(r.status);})
+      .then(function(j){
+        items=items.concat(j.items||[]);fetched++;
+        total=+j.totalPages||1;
+        if(typeof j.totalItems==="number")totalItems=j.totalItems;
+        if(p<total)return page(p+1);
+        return {items:items,
+                complete:phPagesComplete({fetched:fetched,total:total},totalItems,items.length),
+                error:null};});}
+  return page(1).catch(function(e){return {items:items,complete:false,error:e};});}
+
+/* Full replacement of photoSync: same four phases, but account-scoped (M1) and
+   deletion-safe (M2). Kept as one function so the ordering guarantees stay
+   obvious — uploads before the deletion pass, deletions last and gated. */
+photoSync=function(done){
+  if(!syncOn()||pbPhotoSyncing||typeof indexedDB==="undefined"){done&&done();return;}
+  pbPhotoSyncing=true;
+  var uploaded=0,downloaded=0,removed=0,incomplete=false;
+  var mapStart=pbPhotoMap(),map=pbPhotoMap();
+  function finish(){
+    setPbPhotoMap(map);pbPhotoSyncing=false;
+    if(uploaded||downloaded||removed){
+      try{wkPhotoKey=null;refreshWeekPhotos();}catch(e){}
+      if(state.view==="photos"||state.view==="diary")render();}
+    if(incomplete)setSync("error","photo list incomplete — nothing removed");
+    done&&done({uploaded:uploaded,downloaded:downloaded,removed:removed,complete:!incomplete});}
+
+  Promise.all([idbAll(),pbPhotoListAll()]).then(function(res){
+    var local=res[0]||[],listing=res[1]||{items:[],complete:false};
+    var server=listing.items||[];
+    incomplete=!listing.complete;
+    var byLocalId={};server.forEach(function(s){if(s.localId)byLocalId[s.localId]=s;});
+    var localIds={};local.forEach(function(l){localIds[l.id]=l;});
+
+    /* 1. upload what this account has and the server doesn't. Safe to re-run:
+          the server's UNIQUE (user, localId) index makes it idempotent. */
+    var ups=local.filter(function(l){return l.blob&&!byLocalId[l.id];}).map(function(l){
+      return pbPhotoUpload(l).then(function(s){map[l.id]=s.id;uploaded++;})
+        .catch(function(){/* one bad photo must not abort the sweep */});});
+
+    return Promise.all(ups)
+      .then(function(){
+        /* 2. download what the server has and this device doesn't */
+        var missing=server.filter(function(s){return s.localId&&!localIds[s.localId];});
+        if(!missing.length)return null;
+        return pbFileToken().then(function(tok){
+          return Promise.all(missing.map(function(s){
+            return pbPhotoFetchBlob(s,tok).then(function(b){
+              map[s.localId]=s.id;downloaded++;
+              var nrec={id:s.localId,date:s.date,week:s.week||s.date,pose:s.pose||"",
+                kind:s.kind||"progress",blob:b,ts:s.ts||Date.now()};
+              if(s.meal)nrec.meal=s.meal;
+              return idbAddLocal(nrec);   /* stamped with ownerId by M1 */
+            }).catch(function(){});}));});})
+      .then(function(){
+        /* 2b. metadata repair — reconcile meal labels without moving blobs */
+        var fixes=[];
+        local.forEach(function(l){
+          var s=byLocalId[l.id];if(!s)return;
+          if(s.meal&&(l.meal||"")!==s.meal){
+            fixes.push(idbAddLocal(Object.assign({},l,{meal:s.meal})).then(function(){downloaded++;}).catch(function(){}));
+          }else if(l.meal&&!s.meal){
+            fixes.push(fetch(pbBase()+"/api/collections/photos/records/"+s.id,{method:"PATCH",
+              headers:pbHeaders(true),body:JSON.stringify({meal:l.meal})}).catch(function(){}));
+          }});
+        return Promise.all(fixes);})
+      .then(function(){
+        /* 3. propagate deletions — ONLY against a complete enumeration */
+        if(incomplete)return null;
+        var gone=local.filter(function(l){return phMayInferDeletion(true,mapStart,byLocalId,l);});
+        return Promise.all(gone.map(function(l){
+          delete map[l.id];removed++;
+          return idbDeleteLocal(l.id).catch(function(){});}));})
+      .then(finish);
+  }).catch(function(){pbPhotoSyncing=false;done&&done();});};
 </script>
 </body>
 </html>
