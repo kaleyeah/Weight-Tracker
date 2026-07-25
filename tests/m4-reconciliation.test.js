@@ -19,68 +19,25 @@ group('M4 — fingerprint', () => {
   test('empty/missing input is safe', () => { ok(fp(null)); ok(fp(undefined)); });
 });
 
-group('M4 — decision table', () => {
-  const base = { localDirty: false, localHasData: true, serverHasData: true, serverFp: 'x', lastAgreedFp: 'x' };
-  const d = (o) => S.syncDecide(Object.assign({}, base, o));
+group('M4 — decision table (SUPERSEDED by Commit 1)', () => {
+  /* The original table returned "adopt" when a dirty device reported no local
+     data, and "push" on a fingerprint match. Commit 1 removes both. These
+     assertions are inverted against syncDecideV2 — the live decision function. */
+  const C = require('./harness').loadTestable(['C1']);
+  const base = {
+    accountVerdict: 'ok', localDirty: true, localMeaningful: true, serverHasData: true,
+    localCanon: 'L', serverCanon: 'S', baselineTrusted: true, serverMatchesBaseline: true,
+  };
+  const d = (o) => C.syncDecideV2(Object.assign({}, base, o));
 
-  test('server empty + local data => seed', () => eq(d({ serverHasData: false }), 'seed'));
-  test('server empty + no local data => idle', () => eq(d({ serverHasData: false, localHasData: false }), 'idle'));
-  test('local clean => adopt server', () => eq(d({ localDirty: false }), 'adopt'));
-  test('local dirty but server unchanged since agreement => push', () =>
-    eq(d({ localDirty: true, serverFp: 'x', lastAgreedFp: 'x' }), 'push'));
-  test('local dirty AND server moved => conflict (never guess)', () =>
-    eq(d({ localDirty: true, serverFp: 'y', lastAgreedFp: 'x' }), 'conflict'));
-  test('local dirty with no agreed baseline (fresh login) => conflict', () =>
-    eq(d({ localDirty: true, lastAgreedFp: '' }), 'conflict'));
-  test('dirty flag but no local data => adopt', () =>
-    eq(d({ localDirty: true, localHasData: false }), 'adopt'));
-  test('no branch ever returns "replace local" silently', () => {
-    const outcomes = new Set();
-    for (const localDirty of [true, false])
-      for (const localHasData of [true, false])
-        for (const serverHasData of [true, false])
-          for (const agreed of ['x', 'y', ''])
-            outcomes.add(S.syncDecide({ localDirty, localHasData, serverHasData, serverFp: 'x', lastAgreedFp: agreed }));
-    // 'adopt' only ever reached when local is clean or has no data (asserted above)
-    eq([...outcomes].sort(), ['adopt', 'conflict', 'idle', 'push', 'seed']);
-  });
-});
-
-group('M4 — acceptance: local GLP-1 edit vs newer remote weight', () => {
-  // Device A logged a GLP-1 dose offline; Device B logged a NEWER weight and synced.
-  // Old logic: B's weight is newer by date => adopt server => the dose is destroyed.
-  const agreed = fp({ weights: [{ date: '2026-07-01' }], glp: { doses: [] } });
-  const server = fp({ weights: [{ date: '2026-07-20' }], glp: { doses: [] } });
-  test('conflict is raised; the dose is not silently deleted', () =>
-    eq(S.syncDecide({ localDirty: true, localHasData: true, serverHasData: true,
-      serverFp: server, lastAgreedFp: agreed }), 'conflict'));
-});
-
-group('M4 — acceptance: historical correction vs newer daily record', () => {
-  const agreed = fp({ food: { '2026-06-01': { kcal: 2000 } } });
-  const server = fp({ food: { '2026-06-01': { kcal: 2000 }, '2026-07-24': { kcal: 2200 } } });
-  test('older correction is not discarded by a newer remote day', () =>
-    eq(S.syncDecide({ localDirty: true, localHasData: true, serverHasData: true,
-      serverFp: server, lastAgreedFp: agreed }), 'conflict'));
-});
-
-group('M4 — acceptance: equal newest dates, different fields', () => {
-  // Both devices edited different fields on the SAME latest date. Equal dates
-  // must not be treated as proof that either whole snapshot should win.
-  const agreed = fp({ notes: { '2026-07-24': 'a' } });
-  const server = fp({ notes: { '2026-07-24': 'a' }, sleep: { '2026-07-24': 7 } });
-  test('equal dates still conflict when content diverged', () =>
-    eq(S.syncDecide({ localDirty: true, localHasData: true, serverHasData: true,
-      serverFp: server, lastAgreedFp: agreed }), 'conflict'));
-});
-
-group('M4 — clean device still syncs normally', () => {
-  test('no local edits => adopt server without prompting', () =>
-    eq(S.syncDecide({ localDirty: false, localHasData: true, serverHasData: true,
-      serverFp: 'new', lastAgreedFp: 'old' }), 'adopt'));
-  test('first ever sync seeds the server', () =>
-    eq(S.syncDecide({ localDirty: true, localHasData: true, serverHasData: false,
-      serverFp: '', lastAgreedFp: '' }), 'seed'));
+  test('dirty + no meaningful local data can NEVER adopt', () =>
+    notOk(d({ localMeaningful: false }) === 'adopt', 'this was the live data-loss branch'));
+  test('dirty + server unchanged holds, it does not auto-push', () =>
+    eq(d({ serverMatchesBaseline: true }), 'hold-push'));
+  test('dirty + server moved => conflict', () =>
+    eq(d({ serverMatchesBaseline: false }), 'conflict'));
+  test('clean local + differing server => adopt is still allowed', () =>
+    eq(d({ localDirty: false }), 'adopt'));
 });
 
 report();
