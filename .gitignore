@@ -1,0 +1,43 @@
+# ─────────────────────────────────────────────────────────────
+# Weight-Tracker — the public GitHub Pages app (index.html ships).
+# Defensive: no secrets or local data should ever land here.
+# ─────────────────────────────────────────────────────────────
+
+# ── Credentials / secrets ──
+*.env
+.env
+.env.*
+*.key
+*.pem
+*.pfx
+*.p12
+id_rsa*
+.mcp.json
+pb.env
+anthropic.key
+*token*.txt
+pb_token.txt
+*secret*
+*credential*
+
+# ── Local data / dumps (should never be in the app repo) ──
+*.csv
+*.xlsx
+*.xls
+*.sql
+*.dump
+*.sqlite
+*.sqlite3
+*.db
+
+# ── Dependencies ──
+node_modules/
+
+# ── OS / editor cruft ──
+.DS_Store
+Thumbs.db
+*~
+
+# NOTE: index.html IS the deployable app and is intentionally tracked.
+# The `Authorization: "Bearer " + c.token` in it is app code using a
+# user-supplied token at runtime — not an embedded secret.
