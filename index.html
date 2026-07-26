@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-23.331 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-26.332 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -845,7 +845,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-23.331-pb";
+var APP_BUILD="2026-07-26.332-pb";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -2341,6 +2341,8 @@ function quickEntryHTML(){
     [["protein","Protein","g"],["fat","Fat","g"],["carbs","Carbs","g"]].forEach(function(f){var val=e[f[0]]!=null?e[f[0]]:"";body+='<label class="wl-field"><span>'+f[1]+' <em>'+f[2]+'</em></span><input class="wl-food-input wl-num" data-food="'+f[0]+'" type="text" inputmode="decimal" placeholder="0" value="'+val+'">';if(hasT&&t[f[0]]!=null)body+='<div class="wl-tbar" id="bar-'+f[0]+'">'+barInner(num(val),t[f[0]])+'</div>';body+='</label>';});
     var _cv=e.calories!=null?e.calories:"";
     body+='</div><label class="wl-field wl-field-full" style="margin-top:14px"><span>Total Calories <em>cal</em></span><input class="wl-food-input wl-num" data-food="calories" type="text" inputmode="decimal" placeholder="0" value="'+_cv+'">';if(hasT&&t.calories!=null)body+='<div class="wl-tbar" id="bar-calories">'+barInner(num(_cv),t.calories)+'</div>';body+='</label>';
+    var _fv=e.fiber!=null?e.fiber:"";
+    body+='<label class="wl-field wl-field-full" style="margin-top:14px"><span>Fiber <em>g · optional</em></span><input class="wl-food-input wl-num" data-food="fiber" type="text" inputmode="decimal" placeholder="0" value="'+_fv+'"></label>';
     body+='<div id="wl-calnotice">'+calNoticeHTML(sel)+'</div>';var _clk=isSkip(sel,"calories");body+=skipBtn("calories",_clk,"food");
     }
   else if(sec==="notes")body='<textarea class="wl-note-input" placeholder="Any notes for the AI summary (feeling sick, feeling good, on vacation…)" style="width:100%;min-height:96px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:14px;padding:11px 12px;box-sizing:border-box;outline:none;resize:vertical">'+esc(state.notes[sel]||"")+'</textarea>';
@@ -2355,7 +2357,7 @@ function weekStartFor(offset){var ws=parseInt(state.settings.weekStart,10)||0;va
 function weekDays(offset){var s=weekStartFor(offset),arr=[];for(var i=0;i<7;i++){var dd=new Date(s);dd.setDate(s.getDate()+i);arr.push(dd);}return arr;}
 function dayRow(d){var iso=toISO(d);var w=null;for(var i=0;i<state.weights.length;i++){if(state.weights[i].date===iso){w=state.weights[i].weight;break;}}
   var f=state.food[iso]||{};return {date:iso,dow:d.toLocaleDateString(undefined,{weekday:"long"}),d:d,weight:w,steps:num(state.steps[iso]),sleep:num(state.sleep[iso]),
-    calories:num(f.calories),protein:num(f.protein),fat:num(f.fat),carbs:num(f.carbs),activities:normActs(iso).map(actLabel),note:state.notes[iso]||""};}
+    calories:num(f.calories),fiber:num(f.fiber),protein:num(f.protein),fat:num(f.fat),carbs:num(f.carbs),activities:normActs(iso).map(actLabel),note:state.notes[iso]||""};}
 function fnum(v){return v==null?"—":(Math.abs(v)>=1000?Math.round(v).toLocaleString():(v%1===0?String(v):String(r1(v))));}
 function avgStatF(label,disp,sub,color){return '<div class="wl-stat"><div class="wl-stat-label">'+label+'</div><div class="wl-stat-val'+(color?" "+color:"")+'">'+disp+'</div><div class="wl-stat-sub">'+(sub||"&nbsp;")+'</div></div>';}
 function actStat(label,n,cat){var col={cardio:"#3b82f6",lifting:"#22c55e",rest:"#6b7280",supp:"#a855f7"}[cat]||"var(--text)";return '<div class="wl-stat"><div class="wl-stat-label">'+label+'</div><div class="wl-stat-val" style="color:'+col+'">'+n+'</div></div>';}
@@ -2430,8 +2432,8 @@ function view_summary(){
   return h+'</div>';}
 function csvCell(v){v=(v==null?"":String(v));return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
 function mdyy(iso){var d=parseISO(iso);return (d.getMonth()+1)+"/"+d.getDate()+"/"+String(d.getFullYear()).slice(-2);}
-function csvFor(days){var rows=[["Day","Date","Weight","Steps","Sleep","Calories","Protein","Fat","Carbs","Activities","Notes"]];
-  days.forEach(function(r){rows.push([r.dow,mdyy(r.date),r.weight!=null?r1(r.weight):"",r.steps!=null?Math.round(r.steps):"",r.sleep!=null?minToHM(r.sleep):"",r.calories!=null?Math.round(r.calories):"",r.protein!=null?r.protein:"",r.fat!=null?r.fat:"",r.carbs!=null?r.carbs:"",r.activities.join(", "),r.note||""]);});
+function csvFor(days){var rows=[["Day","Date","Weight","Steps","Sleep","Calories","Fiber","Protein","Fat","Carbs","Activities","Notes"]];
+  days.forEach(function(r){rows.push([r.dow,mdyy(r.date),r.weight!=null?r1(r.weight):"",r.steps!=null?Math.round(r.steps):"",r.sleep!=null?minToHM(r.sleep):"",r.calories!=null?Math.round(r.calories):"",r.fiber!=null?r.fiber:"",r.protein!=null?r.protein:"",r.fat!=null?r.fat:"",r.carbs!=null?r.carbs:"",r.activities.join(", "),r.note||""]);});
   return rows.map(function(row){return row.map(csvCell).join(",");}).join("\r\n");}
 function exportWeekCSV(){var days=weekDays(state.weekOffset).map(dayRow);shareOrDownload("weight-summary-"+toISO(weekStartFor(state.weekOffset))+".csv","text/csv",csvFor(days));}
 function exportAllCSV(){var set={};state.weights.forEach(function(x){set[x.date]=1;});Object.keys(state.food).forEach(function(k){set[k]=1;});Object.keys(state.steps).forEach(function(k){set[k]=1;});Object.keys(state.sleep).forEach(function(k){set[k]=1;});Object.keys(state.workouts).forEach(function(k){set[k]=1;});
@@ -4142,7 +4144,7 @@ addEventListener("input",function(e){
         var tc=num(state.settings.targetCalories);var cbar=document.getElementById("bar-calories");if(cbar&&tc!=null)cbar.innerHTML=barInner(num(entry.calories),tc);
       }
     }
-    var anyv=["calories","protein","carbs","fat"].some(function(k){return num(entry[k])!=null;});
+    var anyv=["calories","protein","carbs","fat","fiber"].some(function(k){return num(entry[k])!=null;});
     if(anyv){state.food[d]=entry;setSkip(d,"calories",false);}else delete state.food[d];save();
     var t=num(state.settings["target"+key.charAt(0).toUpperCase()+key.slice(1)]);
     var bar=document.getElementById("bar-"+key);if(bar&&t!=null)bar.innerHTML=barInner(num(el.value),t);
@@ -4547,14 +4549,14 @@ function pushDataPromise(){
    food macros + steps + sleep; weight/body-fat/waist come in a later pass. */
 function hkNum(v){if(v==null)return null;var s=String(v).replace(/[^0-9.\-]/g,"");if(!s||s==="."||s==="-")return null;var n=parseFloat(s);return isFinite(n)?n:null;}
 function hkDayLines(text){var out={};if(text==null)return out;var lines=String(text).split(/[\r\n]+/);for(var i=0;i<lines.length;i++){var line=lines[i].trim();if(!line)continue;var c=line.indexOf(",");if(c<0)continue;var day=line.slice(0,c).trim();if(!/^\d{4}-\d{2}-\d{2}$/.test(day))continue;var v=hkNum(line.slice(c+1));if(v==null||v<=0)continue;out[day]=(out[day]||0)+v;}return out;}
-function hkLabelToField(name){var n=String(name).toLowerCase().replace(/[^a-z]/g,"");if(n.indexOf("bodyfat")>=0)return "bodyfat";if(n.indexOf("protein")>=0)return "protein";if(n.indexOf("carb")>=0)return "carbs";if(n.indexOf("fat")>=0)return "fat";if(n.indexOf("calor")>=0||n.indexOf("energy")>=0)return "calories";if(n.indexOf("step")>=0)return "steps";if(n.indexOf("weight")>=0)return "weight";if(n.indexOf("waist")>=0)return "waist";if(n.indexOf("sleep")>=0||n.indexOf("asleep")>=0)return "sleep";return null;}
+function hkLabelToField(name){var n=String(name).toLowerCase().replace(/[^a-z]/g,"");if(n.indexOf("bodyfat")>=0)return "bodyfat";if(n.indexOf("protein")>=0)return "protein";if(n.indexOf("fiber")>=0||n.indexOf("fibre")>=0)return "fiber";if(n.indexOf("carb")>=0)return "carbs";if(n.indexOf("fat")>=0)return "fat";if(n.indexOf("calor")>=0||n.indexOf("energy")>=0)return "calories";if(n.indexOf("step")>=0)return "steps";if(n.indexOf("weight")>=0)return "weight";if(n.indexOf("waist")>=0)return "waist";if(n.indexOf("sleep")>=0||n.indexOf("asleep")>=0)return "sleep";return null;}
 function hkParseLabeled(text){var out={};var re=/([^\r\n,:]+?)\s*:\s*(-?[0-9][0-9.,]*)/g;var m;while((m=re.exec(String(text)))!==null){var field=hkLabelToField(m[1]);if(field&&out[field]===undefined)out[field]=m[2];}return out;}
 function hkMetricDays(value,forDay){var byDay=hkDayLines(value);var has=false;for(var k in byDay){has=true;break;}if(has)return byDay;if(forDay){var v=hkNum(value);if(v!=null&&v>0){var o={};o[forDay]=v;return o;}}return {};}
 function hkPlan(payload,fallbackFor){var out={food:{},steps:{},sleep:{},weight:{},bodyfat:{},waist:{},count:0};var hkR1=function(v){return Math.round(v*10)/10;};if(typeof payload==="string"){try{payload=JSON.parse(payload);}catch(e){payload=hkParseLabeled(payload);}}if(!payload||typeof payload!=="object")return out;var forDay=(payload["for"]!=null?String(payload["for"]).trim():"")||(fallbackFor||"");if(!/^\d{4}-\d{2}-\d{2}$/.test(forDay))forDay="";
-  var macros=["carbs","protein","fat","calories"],perDay={};
+  var macros=["carbs","protein","fat","fiber","calories"],perDay={};/* fiber stored alongside macros; never part of the 4/4/9 calorie math */
   macros.forEach(function(k){var byDay=hkMetricDays(payload[k],forDay);for(var day in byDay){if(!perDay[day])perDay[day]={};perDay[day][k]=byDay[day];}});
   for(var d in perDay){var vals=perDay[d],entry={},touched=false;
-    ["carbs","protein","fat"].forEach(function(k){if(vals[k]!=null){entry[k]=String(Math.round(vals[k]));touched=true;out.count++;}});
+    ["carbs","protein","fat","fiber"].forEach(function(k){if(vals[k]!=null){entry[k]=String(Math.round(vals[k]));touched=true;out.count++;}});
     if(vals.calories!=null){entry.calories=String(Math.round(vals.calories));entry.calAuto=false;touched=true;out.count++;}
     if(touched)out.food[d]=entry;}
   var st=hkMetricDays(payload.steps,forDay);for(var sd in st){out.steps[sd]=Math.round(st[sd]);out.count++;}
