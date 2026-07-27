@@ -19,6 +19,12 @@ A high-level, human- and AI-readable log of how the **product** has evolved — 
 
 ## [Unreleased]
 
+### Added (Product Owner feature builds `.332`–`.338`, built on main and merged into the hardened line as `2026-07-26.340-pb-c1g3`)
+- **Fiber tracking** — imports from Apple Health, optional field on the calories editor, CSV export column; deliberately excluded from the 4/4/9 calorie math.
+- **Weekly Macros card on Summary** — calories/protein/carbs/fat totals vs. goals, pro-rated to days elapsed, styled like the weekly Steps bar.
+- **Reopen a completed day** — clears its recap and restores "Complete today" + Health import; completion now checks full recap history so older completed days lock consistently.
+- **CSV export rework** — "Check in notes" rename, Cardio (zone 2+) / Weight Training / Activity Notes columns, training-only days included in Export All, UTF-8 BOM so Excel renders apostrophes, and a totals block with Daily Goal + Daily Average columns.
+
 ### Fixed (coded in Commits 1→1g — **client verdict: READY-FOR-STAGING**, not shipped, staging checklist NOT RUN)
 - **Dirty local data could be silently replaced — including on pull-to-refresh.** A device whose only unsynced change was a GLP-1 dose, note, settings change or skip was reported as having "no local data" and was overwritten by the server. Dirty state can no longer be adopted over on any path. Build `2026-07-25.332-pb-c1`.
 - **Every backend write is frozen until server compare-and-swap exists.** Commit 1 removed auto-push from the decision table but the Architect found the real write path still open (`save()` → debounced `cloudPush()` → blind PATCH, plus the training scheduler and the Account-card Save button). Commit 1b closes them at the choke point — `pbSave` itself is gated shut, schedulers only record pending state, pre-existing timers are cancelled, and the Save button is rewired. Replacing a non-empty server copy is **not possible at all** before CAS (confirmation changes intent, not concurrency safety); the app offers an honest pause message and a file export instead.

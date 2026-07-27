@@ -87,7 +87,7 @@ Finally run `bash setup-fixtures.sh teardown`, and tell the Product Owner: "Done
 
 ### Step 8 — CLIENT staging phase (now authorized)
 
-The client build (`index.html`, `2026-07-26.339-pb-c1g2`) is **READY-FOR-STAGING** per the Product Architect. After the server kit passes its integration tests on staging:
+The client build (`index.html`, `2026-07-26.340-pb-c1g3` — the approved `.339-pb-c1g2` hardening plus the Product Owner's merged feature builds `.332`–`.338`) is **READY-FOR-STAGING** per the Product Architect; before executing the checklist, confirm `tests/MANUAL_CHECKLIST_COMMIT1.md` still names the build you are serving (the Architect requires staging evidence to be tied to the exact confirmed artifact). After the server kit passes its integration tests on staging:
 
 1. Serve the repo's `index.html` locally (e.g. `python3 -m http.server 8092` in the repo root) and point it at the STAGING PocketBase (login screen → Server settings → staging URL). Never production.
 2. Work through `tests/MANUAL_CHECKLIST_COMMIT1.md` — **67 cases** — using the two disposable `cf_test_*` accounts and two browser profiles. Automate with Playwright where practical (Chromium is fine); flag the genuinely manual ones and walk the Product Owner through those interactively.
