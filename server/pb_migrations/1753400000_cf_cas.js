@@ -24,8 +24,12 @@ migrate((app) => {
      unique index on the same column and PocketBase rejects the duplicate
      definition ("The index definition already exists"), aborting the whole
      migration. See server/STAGING_RESULTS.md §4. */
+  /* Match "CREATE UNIQUE INDEX" specifically, not the word "unique" anywhere in
+     the statement — an index merely NAMED e.g. `idx_user_unique_lookup` but
+     declared non-unique must NOT satisfy this guard, or we would skip creating
+     real protection. Caught by migration.sh case M5. */
   const hasUserUnique = appdata.indexes.some((i) =>
-    /unique/i.test(i) && /\(\s*`?user`?\s*\)/i.test(i));
+    /create\s+unique\s+index/i.test(i) && /\(\s*`?user`?\s*\)/i.test(i));
   if (!hasUserUnique)
     appdata.indexes.push("CREATE UNIQUE INDEX idx_cf_appdata_user ON appdata (user)");
   /* LOCKDOWN-READY rules (applied at cutover step 7, kept here as the record
@@ -49,7 +53,16 @@ migrate((app) => {
       type: "base", name: "cf_commit_log",
       listRule: null, viewRule: null, createRule: null, updateRule: null, deleteRule: null,  // superusers only
       fields: [
-        { type: "relation", name: "user", required: true, collectionId: app.findCollectionByNameOrId("users").id, maxSelect: 1 },
+        /* cascadeDelete: true — Product Architect Round 2 decision 3. The ledger
+           exists only to support short-lived idempotency for an ACTIVE account;
+           once the account is gone the keys serve no product purpose. Without
+           cascade, `required: true` makes any user with ledger rows undeletable
+           ("not part of a required relation reference"), which with 30-day
+           retention would block account deletion for up to 30 days — ruled
+           unacceptable. Nullable orphans were rejected as weaker integrity and
+           prune-on-delete as an extra failure path. */
+        { type: "relation", name: "user", required: true, cascadeDelete: true,
+          collectionId: app.findCollectionByNameOrId("users").id, maxSelect: 1 },
         { type: "text", name: "subsystem", required: true, max: 16 },
         { type: "text", name: "key", required: true, max: 96 },
         { type: "text", name: "requestHash", max: 64 },

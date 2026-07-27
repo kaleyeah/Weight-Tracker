@@ -1,0 +1,4 @@
+# Disposable staging fixture credentials — generated per run, never committed.
+.fixture-creds.env
+# Per-run suite output; the curated copies live in the review package instead.
+evidence/

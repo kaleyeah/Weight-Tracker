@@ -1,40 +1,46 @@
 /// <reference path="../pb_data/types.d.ts" />
 /* Compound Fitness — server-enforced compare-and-swap for appdata.
-   PocketBase v0.39.8. Revised per the Product Architect server-kit addendum.
+   PocketBase v0.39.8.
 
    Schema is created by pb_migrations/1753400000_cf_cas.js (reproducible);
-   Admin-UI steps in DEPLOYMENT.md are a fallback only. */
+   Admin-UI steps in DEPLOYMENT.md are a fallback only.
 
-const CF_MAX_PAYLOAD_BYTES = 2 * 1024 * 1024;            // provisional until measured (DEPLOYMENT step 4)
-const CF_REQUEST_LIMIT     = CF_MAX_PAYLOAD_BYTES + 64 * 1024;   // full JSON envelope headroom
-const CF_MIN_CLIENT_BUILD  = "";                          // e.g. "2026-07-25.334" once the CAS client ships
-const CF_SUBSYSTEMS = { core: { field: "data", rev: "coreRev" },
-                        training: { field: "training", rev: "trainingRev" } };
+   ROUND 3 (Product Architect Round 2 review):
+     - All request-time constants and helpers now come from cf_cas_shared.js,
+       required INSIDE each handler. PocketBase runs handlers in a separate
+       goja runtime with no access to this file's lexical scope; relying on it
+       made every commit throw ReferenceError (STAGING_RESULTS.md §3).
+     - Payload cap 256 KiB, request envelope 320 KiB (Architect ruling).
+   The route's public contract is UNCHANGED — request fields and the
+   200/400/401/409/413/426/500 semantics are exactly as the approved client
+   build 2026-07-27.342-pb-c1h expects. */
 
-/* UTF-8 byte length — JS .length counts UTF-16 units, not bytes */
-function cfUtf8Bytes(s){ try { return unescape(encodeURIComponent(s)).length; } catch (e) { return s.length * 3; } }
+/* Top-level require is fine — this scope DOES exist at registration time, and
+   bodyLimit must be resolved when the route is registered. The handler below
+   still requires the module itself; it cannot see this binding. */
+const cfBoot = require(`${__hooks}/cf_cas_shared.js`);
 
 routerAdd("POST", "/api/cf/appdata/commit", (e) => {
+  /* Handler runtime: load everything we need here, never from file scope. */
+  const cf = require(`${__hooks}/cf_cas_shared.js`);
+
   const uid = e.auth.id;                                  // requireAuth middleware guarantees presence
   const body = e.requestInfo().body || {};
-  const sub = CF_SUBSYSTEMS[body.subsystem];
-  if (!sub) return e.json(400, { ok: false, error: "invalid subsystem" });
 
-  const expectedRev = body.expectedRev;
-  if (typeof expectedRev !== "number" || expectedRev < 0 || Math.floor(expectedRev) !== expectedRev) {
-    return e.json(400, { ok: false, error: "expectedRev must be a non-negative integer" });
-  }
+  let bad = cf.validateSubsystem(body.subsystem);         if (bad) return e.json(bad.status, bad.body);
+  bad = cf.validateExpectedRev(body.expectedRev);         if (bad) return e.json(bad.status, bad.body);
   const key = String(body.idempotencyKey || "");
-  if (!key || key.length > 96) return e.json(400, { ok: false, error: "idempotencyKey required (max 96 chars)" });
-  if (typeof body.payload !== "object" || body.payload === null || Array.isArray(body.payload)) {
-    return e.json(400, { ok: false, error: "payload must be a JSON object" });
-  }
+  bad = cf.validateKey(key);                              if (bad) return e.json(bad.status, bad.body);
+  bad = cf.validatePayload(body.payload);                 if (bad) return e.json(bad.status, bad.body);
+
+  const sub = cf.SUBSYSTEMS[body.subsystem];
+  const expectedRev = body.expectedRev;
   const payloadStr = JSON.stringify(body.payload);
-  if (cfUtf8Bytes(payloadStr) > CF_MAX_PAYLOAD_BYTES) return e.json(413, { ok: false, error: "payload too large" });
+  bad = cf.validatePayloadSize(payloadStr);               if (bad) return e.json(bad.status, bad.body);
+
   const clientBuild = String(body.clientBuild || "").slice(0, 64);
-  if (CF_MIN_CLIENT_BUILD && clientBuild && clientBuild < CF_MIN_CLIENT_BUILD) {
-    return e.json(426, { ok: false, error: "update-required", minBuild: CF_MIN_CLIENT_BUILD });
-  }
+  bad = cf.validateClientBuild(clientBuild);              if (bad) return e.json(bad.status, bad.body);
+
   /* deviceId is diagnostics only — stored as a short hash, never raw (addendum #9) */
   const deviceHash = body.deviceId ? $security.sha256(String(body.deviceId)).slice(0, 16) : "";
   const requestHash = $security.sha256(body.subsystem + "|" + expectedRev + "|" + payloadStr);
@@ -49,27 +55,30 @@ routerAdd("POST", "/api/cf/appdata/commit", (e) => {
       } catch (_) {}
       if (prior) {
         if (prior.getString("requestHash") !== requestHash) {
-          out = { status: 409, body: { ok: false, error: "idempotency key reused with a different request" } };
+          out = { status: 409, body: cf.keyReused() };
           return;
         }
-        out = { status: prior.getInt("responseStatus"),
-                body: { ok: prior.getInt("responseStatus") === 200, replay: true,
-                        subsystem: body.subsystem, newRev: prior.getInt("resultingRev") } };
+        const st = prior.getInt("responseStatus");
+        out = { status: st, body: cf.okReplay(body.subsystem, prior.getInt("resultingRev"), st) };
         return;
       }
       let rec = null;
       try { rec = txApp.findFirstRecordByFilter("appdata", "user = {:u}", { u: uid }); } catch (_) {}
       if (!rec) {
-        if (expectedRev !== 0) { out = { status: 409, body: { ok: false, conflict: true, subsystem: body.subsystem, serverRev: null, payload: null, error: "no row; only expectedRev 0 may create" } }; return; }
-        if (!allowCreate)      { out = { status: 409, body: { ok: false, conflict: true, subsystem: body.subsystem, serverRev: 0, payload: null } }; return; }
+        if (expectedRev !== 0) {
+          out = { status: 409, body: { ok: false, conflict: true, subsystem: body.subsystem,
+                                       serverRev: null, payload: null,
+                                       error: "no row; only expectedRev 0 may create" } };
+          return;
+        }
+        if (!allowCreate) { out = { status: 409, body: cf.conflict(body.subsystem, 0, null) }; return; }
         const col = txApp.findCollectionByNameOrId("appdata");
         rec = new Record(col);
         rec.set("user", uid); rec.set("coreRev", 0); rec.set("trainingRev", 0);
       }
       const serverRev = rec.getInt(sub.rev);
       if (serverRev !== expectedRev) {
-        out = { status: 409, body: { ok: false, conflict: true, subsystem: body.subsystem,
-                                     serverRev: serverRev, payload: rec.get(sub.field) } };
+        out = { status: 409, body: cf.conflict(body.subsystem, serverRev, rec.get(sub.field)) };
         return;
       }
       rec.set(sub.field, body.payload);
@@ -82,7 +91,7 @@ routerAdd("POST", "/api/cf/appdata/commit", (e) => {
       log.set("resultingRev", serverRev + 1); log.set("responseStatus", 200);
       log.set("clientBuild", clientBuild); log.set("deviceHash", deviceHash);
       txApp.save(log);
-      out = { status: 200, body: { ok: true, subsystem: body.subsystem, newRev: serverRev + 1 } };
+      out = { status: 200, body: cf.okCommit(body.subsystem, serverRev + 1) };
     });
   };
 
@@ -96,31 +105,32 @@ routerAdd("POST", "/api/cf/appdata/commit", (e) => {
       "user = {:u} && subsystem = {:s} && key = {:k}", { u: uid, s: body.subsystem, k: key }); } catch (_) {}
     if (ledgerNow) {                                       // concurrent same-key commit won — idempotent replay
       if (ledgerNow.getString("requestHash") !== requestHash)
-        return e.json(409, { ok: false, error: "idempotency key reused with a different request" });
-      return e.json(ledgerNow.getInt("responseStatus"),
-        { ok: ledgerNow.getInt("responseStatus") === 200, replay: true,
-          subsystem: body.subsystem, newRev: ledgerNow.getInt("resultingRev") });
+        return e.json(409, cf.keyReused());
+      const st = ledgerNow.getInt("responseStatus");
+      return e.json(st, cf.okReplay(body.subsystem, ledgerNow.getInt("resultingRev"), st));
     }
     try { rowNow = $app.findFirstRecordByFilter("appdata", "user = {:u}", { u: uid }); } catch (_) {}
     const looksLikeCreateRace = (expectedRev === 0) && rowNow;
     if (!looksLikeCreateRace) {
       $app.logger().error("CF commit failed (not a create race)", "user", uid, "err", String(err).slice(0, 300));
-      return e.json(500, { ok: false, error: "commit failed" });   // never a misleading 409
+      return e.json(500, cf.commitFailed());               // never a misleading 409
     }
     try { run(false); } catch (err2) {
       $app.logger().error("CF commit retry failed", "user", uid, "err", String(err2).slice(0, 300));
-      return e.json(500, { ok: false, error: "commit failed" });
+      return e.json(500, cf.commitFailed());
     }
   }
   return e.json(out.status, out.body);
-}, $apis.requireAuth("users"), $apis.bodyLimit(CF_REQUEST_LIMIT));
+}, $apis.requireAuth("users"), $apis.bodyLimit(cfBoot.REQUEST_LIMIT_BYTES));
 
 /* ---- transitional legacy-write bridge (snapshot fields only) ----
    Scope (addendum #12): ONLY data/training move revisions. health/coachreq are
    operational fields OUTSIDE the CAS revisions, by design — after lockdown the
    field-conditional update rule keeps them writable while snapshot fields are
    route-only. The route saves programmatically inside its transaction, which
-   fires no *RequestEvent hooks — never double-incremented. Remove at lockdown. */
+   fires no *RequestEvent hooks — never double-incremented. Remove at lockdown.
+   These handlers use only globals (e, $app, BadRequestError), so they are
+   unaffected by the handler-runtime scoping rule. */
 onRecordUpdateRequest((e) => {
   const body = e.requestInfo().body || {};
   if ("coreRev" in body || "trainingRev" in body) throw new BadRequestError("revision fields are server-managed");
@@ -144,7 +154,9 @@ onRecordCreateRequest((e) => {
 
 /* ---- idempotency-log retention (addendum #9): 30 days, pruned daily.
    Long enough for any realistic retry window; the log stores hashes only,
-   never payloads. Readable by superusers only (rules locked in migration). */
+   never payloads. Readable by superusers only (rules locked in migration).
+   Rows for DELETED users are removed immediately by the relation's
+   cascadeDelete, not by this job (Architect Round 2 decision 3). */
 cronAdd("cf_ledger_prune", "0 4 * * *", () => {
   try {
     const cutoff = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().replace("T", " ");
@@ -154,4 +166,5 @@ cronAdd("cf_ledger_prune", "0 4 * * *", () => {
   } catch (err) { $app.logger().error("CF ledger prune failed", "err", String(err).slice(0, 200)); }
 });
 
-$app.logger().info("CF CAS hook loaded", "build", "cas-2", "maxPayloadBytes", CF_MAX_PAYLOAD_BYTES, "minClientBuild", CF_MIN_CLIENT_BUILD || "(none)");
+$app.logger().info("CF CAS hook loaded", "build", "cas-3", "maxPayloadBytes", cfBoot.MAX_PAYLOAD_BYTES,
+  "requestLimitBytes", cfBoot.REQUEST_LIMIT_BYTES, "minClientBuild", cfBoot.MIN_CLIENT_BUILD || "(none)");

@@ -1,277 +1,250 @@
 # Staging Results — CAS Server Kit on PocketBase v0.39.8
 
-**Date:** 2026-07-27 (round 2 — supersedes the round-1 report on this branch, history in §12)
-**Executed by:** local Claude Code session on the Product Owner's workstation (`gbclaude`, Tailnet)
+**Date:** 2026-07-27 (round 3 — supersedes rounds 1 and 2; history in §11)
+**Executed by:** local Claude Code session on the Product Owner's workstation (`gbclaude`)
 **Branch:** `claude/compound-fitness-roles-workflow-aala7o`
-**Outcome:** ❌ **STILL BLOCKED — 3 further defects. 1 of 4 fixed. Do not deploy to production.**
+**Outcome:** ✅ **PHASE 1 GREEN — 172 assertions, 11 suites, 0 failures, teardown verified.**
 
-**Headline:** the migration defect from round 1 is fixed and verified. Getting past it revealed that **the commit route had never executed successfully anywhere** — a JS scoping fault made every request fail. With that patched on staging, the CAS logic itself proved **correct** under manual testing, but the automated suite cannot demonstrate it: its concurrency cases are invalidated by a shared temp file, and its teardown silently fails.
+All four Round 2 defects are fixed and verified. Every Product Architect Round 2 decision is implemented. **This is server-kit evidence only** — Phase 2 (the 75-case client checklist) was deliberately not run this cycle, so nothing here is production approval.
 
 ---
 
-## 1. Defect register
+## 1. Defect register (Round 2 → Round 3)
 
-| # | Defect | Severity | Status |
+| # | Defect | Ruling | Status |
 | --- | --- | --- | --- |
-| **1** | Migration unique-index guard matched by **name**, colliding with production's existing `idx_88qok6ts7v` | Blocker | ✅ **FIXED** — `0cc6029`, verified applied on staging |
-| **2** | Commit-route handler cannot see file top-level scope → `ReferenceError`, **every commit returns a generic 400** | Blocker | ❌ Open — diagnosed, staging-patched only, repo untouched |
-| **3** | `cas-server-tests.sh` concurrent cases share one request-body temp file → both requests send an identical body | High | ❌ Open — invalidates T1, T2, T3a, T13a |
-| **4** | `cf_commit_log.user` is a **required, non-cascading** relation → users with ledger rows cannot be deleted; teardown reports success anyway | High | ❌ Open — staging + production impact |
+| **1** | Migration matched the unique index by **name**, colliding with production's `idx_88qok6ts7v` | Fixed and accepted (R2) | ✅ **FIXED & VERIFIED** — `migration.sh` M2 |
+| **2** | Handler referenced file-scope constants → `ReferenceError`, every commit a generic 400 | Shared module `require()`d inside the handler | ✅ **FIXED & VERIFIED** — `route-smoke.sh` |
+| **3** | Concurrency tests shared one request-body temp file | Rebuild the matrix; assert bodies, not status | ✅ **FIXED & VERIFIED** — suite rebuilt, `cas-concurrency.py` |
+| **4** | Ledger relation `cascadeDelete:false` made users undeletable; teardown lied | `cascadeDelete: true`; teardown must verify | ✅ **FIXED & VERIFIED** — `deletion-and-retention.sh` |
+
+### New findings this round
+
+| # | Finding | Severity | Status |
+| --- | --- | --- | --- |
+| **5** | The index guard matched the word *"unique"* anywhere in the statement, so an index merely **named** `idx_user_unique_lookup` but declared **non-unique** satisfied it — the kit would skip creating real protection | Medium | ✅ Fixed — now matches `CREATE UNIQUE INDEX`; regression case M5d |
+| **6** | **PocketBase v0.39.8 exits with code 0 even when a migration FAILS** — verified for both `migrate up` and `serve` | Medium — **operational, unfixed by design** | ⚠️ **OPEN — needs an Architect/ops decision (§7)** |
 
 ---
 
-## 2. Defect 1 — migration index guard (FIXED)
-
-Round 1 root cause: the guard tested for the literal name `idx_cf_appdata_user`, but production carries an equivalent unique index named `` `idx_88qok6ts7v` ``. The guard passed, a duplicate definition was pushed, PocketBase rejected it, and the whole migration aborted.
-
-**Fix (`0cc6029`):** match on index *shape* — any UNIQUE index whose column list is exactly `(user)`, quoted or not. Unit-verified against 7 cases: production's existing index, our own index on re-run, fresh instance, non-unique-only, composite `(user, sub)`, a different column, and unquoted/whitespace forms.
-
-**Verified on staging** — migration applied cleanly against a fresh restore of production data:
+## 2. Results
 
 ```
-appdata cols:    [... 'health', 'coachreq', 'coreRev', 'trainingRev']
-appdata indexes: ['CREATE UNIQUE INDEX `idx_88qok6ts7v` ON `appdata` (`user`)']   ← adopted, not duplicated
-cf_commit_log:   created
-  indexes:       ['CREATE UNIQUE INDEX idx_cf_commit_key ON cf_commit_log (user, subsystem, key)']
-  rules:         (None, None, None, None, None)   ← all five locked, superuser-only ✅
-migration recorded: ['1753400000_cf_cas.js']
-appdata rev values: coreRev=0, trainingRev=0 on both existing rows
+route-smoke ............  7 passed, 0 failed
+validation ............. 15 passed, 0 failed
+cas-concurrency ........ 18 passed, 0 failed
+idempotency ............ 24 passed, 0 failed
+field-isolation ........ 12 passed, 0 failed
+auth-and-ownership .....  9 passed, 0 failed
+legacy-bridge ..........  7 passed, 0 failed
+payload-boundary ....... 12 passed, 0 failed
+deletion-and-retention . 24 passed, 0 failed
+migration .............. 35 passed, 0 failed
+fault-injection ........  9 passed, 0 failed
+                        ─────────────────────
+                        172 passed, 0 failed
+
+teardown: verified cf_test_1 removed (user + appdata + ledger all absent)
+          verified cf_test_2 removed (user + appdata + ledger all absent)
+          TEARDOWN OK
 ```
 
-Down-migration left deliberately asymmetric (drops only the index the kit created, never an adopted pre-existing one), now documented as intent. **Still pending Architect confirmation.**
+Per-suite logs: `evidence/*.log`.
 
 ---
 
-## 3. Defect 2 — the commit route has never worked (BLOCKER)
+## 3. Architect decisions — implementation
 
-### Evidence
+### 3.1 Decision 1 — shared module inside the handler runtime ✅
+
+`server/pb_hooks/cf_cas_shared.js` created; `cf_cas.pb.js` does `require(\`${__hooks}/cf_cas_shared.js\`)` **inside** the handler. It holds only deterministic, side-effect-free material — subsystem map, limits, minimum build, UTF-8 counting, validation helpers, response helpers — and no mutable request state, as required.
+
+The `require()` syntax works on v0.39.8, proven in staging. The hook now logs `build=cas-3`.
+
+**Required smoke test — all five cases:**
+
+| Case | Result |
+| --- | --- |
+| 1 valid commit reaches CAS logic | ✅ 200, `newRev` advances |
+| 2 invalid subsystem → exact JSON | ✅ 400 `"invalid subsystem"` |
+| 3 negative revision → exact JSON | ✅ 400 `"expectedRev must be a non-negative integer"` |
+| 4 payload limit → exact 413 JSON | ✅ 413 `"payload too large"`, `maxBytes: 262144` |
+| 5 minimum build → exact 426 JSON | ⏸️ **Not exercised** — `CF_MIN_CLIENT_BUILD` is empty by design pre-lockdown (§7) |
+
+`route-smoke.sh` aborts the entire run if the route returns a generic framework body, so the Round 2 failure mode cannot recur silently.
+
+### 3.2 Decision 2 — rebuild the test evidence ✅
+
+Both halves done.
+
+**A. Hardened assertions.** No test asserts a status alone. Every check verifies JSON content type plus the semantic fields — `ok`, exact `error`, `subsystem`, revision, payload, `replay`, row counts, and revision side effects. Round 2's T8/T9 could pass against a dead route; the equivalent cases now assert the exact error string.
+
+**B. Independently re-derived matrix.** The suite was rebuilt from `SERVER_NOTES.md`, the route contract, the migration contract, the bridge/lockdown contract and the idempotency threat model — not patched from the old script. `legacy/cas-server-tests.sh` and `legacy/setup-fixtures.sh` are retained as history and their results treated as non-evidence.
+
+Layout follows the Architect's structure, with `_lib.sh` / `_lib.py` added for shared assertions and `payload-boundary.sh` split out to match the required evidence file:
 
 ```
-ReferenceError: CF_SUBSYSTEMS is not defined at /home/griffin/staging-cas/pb.js:4:15(12)
+tests/  _lib.sh  _lib.py  fixtures.sh  route-smoke.sh  validation.sh
+        cas-concurrency.py  idempotency.py  field-isolation.sh
+        auth-and-ownership.sh  legacy-bridge.sh  payload-boundary.sh
+        deletion-and-retention.sh  migration.sh  fault-injection.sh
+        run-all.sh  legacy/
 ```
-— logged for **every** `POST /api/cf/appdata/commit`, HTTP status 0 → PocketBase returns a generic 400.
 
-### Root cause
+Concurrency runs in Python with a `threading.Barrier` for genuine overlap; every request builds its own body buffer.
 
-PocketBase serializes `routerAdd` handler functions and executes them in a **separate goja runtime**. The handler therefore cannot see its own file's top-level scope. Everything declared at `cf_cas.pb.js:8-15` is undefined inside the handler:
+### 3.3 Decision 3 — `cascadeDelete: true` ✅
 
-- `CF_SUBSYSTEMS` — first use at line 20, so the route dies immediately
-- `CF_MAX_PAYLOAD_BYTES` — the hook's own 413 check never runs
-- `CF_MIN_CLIENT_BUILD` — **the 426 update-required path is dead**, which matters directly for the lockdown plan in `SERVER_NOTES.md` §3
-- `cfUtf8Bytes()` — the UTF-8 size helper
+All seven required cases pass (`deletion-and-retention.sh`, 24 assertions):
 
-Only `$apis.bodyLimit(CF_REQUEST_LIMIT)` works, because it is evaluated at *registration* time in top-level scope.
+| Required case | Result |
+| --- | --- |
+| 1 delete user with no ledger | ✅ 204 |
+| 2 delete user with core ledger | ✅ 204 |
+| 3 delete user with core + training ledger | ✅ 204 |
+| 4 all that user's ledger rows gone | ✅ 0 remain |
+| 5 another user's rows remain | ✅ untouched |
+| 6 deleting a ledger row does not delete the user | ✅ user + appdata survive |
+| 7 teardown verifies status and absence | ✅ `fixtures.sh` checks every DELETE status, prints failure bodies, exits nonzero, and confirms user/appdata/ledger absence |
 
-The two bridge hooks (`onRecordUpdateRequest` / `onRecordCreateRequest`) and the prune cron reference no top-level constants, so they are unaffected — consistent with T7a/T7b passing.
+### 3.4 Decision 4a — asymmetric rollback ✅
 
-### Why this was not caught earlier
+All five required cases pass (`migration.sh`, 35 assertions):
 
-This is environment-independent. It would fail identically on the NAS. **It means the kit was never executed against a running PocketBase before this session.**
+| Required case | Result |
+| --- | --- |
+| fresh DB creates and removes its own index | ✅ M1 |
+| pre-existing equivalent index adopted and **preserved on down** | ✅ M2g — `idx_88qok6ts7v` survives rollback |
+| rerun produces no duplicate | ✅ M3 |
+| up/down/up clean | ✅ M4 |
+| composite / non-unique do not satisfy the guard | ✅ M5 (incl. finding 5) |
 
-### It also produces false passes
+Rule enforced: *rollback may remove only schema protection installed by this migration.*
 
-T8 (`invalid subsystem -> 400`) and T9 (`negative rev -> 400`) **passed against a completely dead route**, because a crashed handler also returns 400. Any test asserting only a 4xx status cannot distinguish "validation worked" from "the handler threw". Recommend asserting on the response body (`error: "invalid subsystem"`), not just the status.
+`migrate down` prompts `(y/N)` and **exits 0 when cancelled** — an early version of this suite scored that as a passing rollback. The harness now answers the prompt and treats a cancellation as failure.
 
-### Fix direction (NOT applied)
+### 3.5 Decision 4b — 256 KiB / 320 KiB ✅
 
-Declare the constants and helper **inside** the handler, or move them to a module loaded with `require(`${__hooks}/…`)` inside the handler. A staging-only patch doing the former is what produced §4's results; the repo hook is byte-identical to what the Architect holds.
+`MAX_PAYLOAD_BYTES = 256*1024`, `REQUEST_LIMIT_BYTES = MAX + 64*1024`. All six required boundary cases pass:
+
+| Required case | Result |
+| --- | --- |
+| just below cap succeeds | ✅ 261,120 B accepted |
+| exact boundary, documented inclusive | ✅ exactly 262,144 B accepted |
+| one byte above → exact route 413 | ✅ 262,145 B → `"payload too large"`, `maxBytes: 262144` |
+| multibyte UTF-8 counted in bytes | ✅ 131,069 `é` chars = 262,146 B rejected, though the character count alone is under the cap |
+| oversized envelope rejected by middleware | ✅ 413 from `$apis.bodyLimit` |
+| local/network failures cannot masquerade as 413 | ✅ bodies built on disk, non-emptiness asserted, transport errors checked |
+
+The fixtures are byte-matched to `JSON.stringify` (compact separators, `ensure_ascii=False`) — Python's defaults differ from JS on both counts and would otherwise mis-target the boundary by a byte and mis-encode multibyte text.
+
+### 3.6 Fault injection ✅
+
+| Case | Result |
+| --- | --- |
+| Forced mid-transaction rollback | ✅ F1 — read-only store: server fails closed, revision unchanged, no ledger row |
+| Missing-ledger fail-closed | ✅ F2 — **500**, never 200, never a false 409; revision unchanged, no ledger row |
+
+`chmod` against a *running* server does nothing — SQLite holds writable descriptors and permissions are only consulted at `open()`. F1 therefore stops the server, revokes write permission, restarts, and attempts the commit. Normal commits still work afterwards (F3).
 
 ---
 
-## 4. Suite results (with defect 2 patched on staging only)
-
-```
-== auth (users + superuser) ==
-== validation (5/8/9) ==
-PASS  T5 unauthenticated rejected (401)
-PASS  T8 invalid subsystem -> 400
-PASS  T9 negative rev -> 400
-== T10 oversized payload ==
-PASS  T10 oversized -> 413
-== T3 concurrent FIRST-ROW creation ==
-FAIL  T3a exactly one first-commit succeeded  (want 1, got 2)      ← defect 3
-PASS  T3b exactly one row exists
-== discover current coreRev ==
-PASS  probe wrong-rev -> 409        serverRev=1
-== T1/T2 concurrent same-expectedRev ==
-FAIL  T1 exactly one 200  (want 1, got 2)                          ← defect 3
-FAIL  T2 exactly one 409  (want 1, got 0)                          ← defect 3
-== T13 idempotent replay + concurrent same-key ==
-FAIL  T13a replay -> 200  (want 200, got 409)                      ← defect 3 (knock-on)
-PASS  T13b replay does not double-increment
-PASS  T13c same key, different body -> 409
-PASS  T-ledger-race both same-key commits end 200 (one live, one replay)
-== T14/T15 field isolation, both directions ==
-PASS  T15a training commit -> 200
-PASS  T15b coreRev unchanged by training commit
-PASS  T14a 409 returns the user's OWN core payload (ownership)
-PASS  T14b trainingRev unchanged by core probe
-== T7 raw writes: bridge or lockdown, exactly-once bump ==
-PASS  T7a revision fields not client-settable -> 400
-PASS  T7b bridge bumped coreRev EXACTLY once
-== T6 cross-user isolation ==
-PASS  T6a user2 cannot touch user1 row (404)
-      raw-create-forge status 400 (hook pins owner to the authenticated user)
-== T4 REAL unique-index test ==
-PASS  T4 second VALID row for same user rejected by unique index (400)
-
-RESULT: 17 passed, 4 failed
-```
-
-Unpatched (kit exactly as shipped) the same run dies at T3 with `FATAL: no serverRev` after 4 misleading passes.
-
----
-
-## 5. Defect 3 — the concurrency tests cannot test concurrency
-
-`cas-server-tests.sh:26-28`:
-
-```bash
-commit(){ # token subsystem expectedRev key payloadjson
-  python3 -c '...' "$2" "$3" "$4" "$5" > "$TMP/req.json"
-  curl ... --data-binary "@$TMP/req.json"; }
-```
-
-Every call writes the request body to the **same** `$TMP/req.json`. The concurrency cases invoke it twice in parallel (`commit ... & commit ... & wait`), so the second write clobbers the first before curl reads it and **both requests transmit an identical body** — same `idempotencyKey`, same payload. The server then correctly performs one live commit and one idempotent replay, and the suite scores that as "two 200s, expected one".
-
-Proof from the ledger — one row per *successful* commit, none for the supposed losers:
-
-```
-key=k-1785135609-f1     sub=core     exp=0 -> res=1 status=200
-key=k-1785135609-c2     sub=core     exp=1 -> res=2 status=200
-key=k-1785135609-race   sub=core     exp=2 -> res=3 status=200
-key=k-1785135609-t1     sub=training exp=0 -> res=1 status=200
-```
-
-Keys `…-f2` and `…-c1` have **no ledger row at all** — those requests were never sent under those keys. T13a then fails as a knock-on: the script assumes the `c1` branch won, replays `c1`, and gets a genuine 409 because `c2` was the key actually committed.
-
-**Fix direction (NOT applied):** give each invocation its own body file (`$TMP/req.$BASHPID.$RANDOM.json`) or pass the body on stdin.
-
----
-
-## 6. The CAS logic itself is correct (verified manually)
-
-Because the suite cannot demonstrate the concurrency paths, they were driven by hand with genuinely distinct parallel requests. Full transcript in `evidence/manual-cas-repro.log`.
-
-**A. Same expectedRev, different keys and payloads:**
-```
-alpha -> 200 {"newRev":5,"ok":true,"subsystem":"core"}
-beta  -> 409 {"conflict":true,"ok":false,"payload":{"who":"alpha"},"serverRev":5,"subsystem":"core"}
-verification probe -> serverRev 5, stored payload {"who":"alpha"}
-```
-Exactly one winner; the loser receives the winner's revision *and* payload — what the client needs to reconcile. This is what T1/T2 intended.
-
-**B. Concurrent first-row creation, expectedRev 0, different keys:**
-```
-alpha -> 409 {"conflict":true,"ok":false,"payload":{"first":"beta"},"serverRev":1,"subsystem":"core"}
-beta  -> 200 {"newRev":1,"ok":true,"subsystem":"core"}
-row count after the race: 1
-```
-Exactly one first commit, exactly one row, and the loser gets a real 409 — not a 500, not a fake success. The unique index arbitrates inside the transaction exactly as `SERVER_NOTES.md` §2 describes. This is what T3a/T3b intended.
-
-**Conclusion: no CAS correctness defect was found.** Defects 2–4 are a scoping fault, a harness fault and a schema-relation fault. But note this rests on manual reproduction of two paths, not on a green suite — it is not equivalent to full test coverage.
-
----
-
-## 7. Defect 4 — the ledger pins user accounts, and teardown lies about it
-
-`setup-fixtures.sh teardown` reported success:
-```
-deleted cf_test_1@staging.invalid
-deleted cf_test_2@staging.invalid
-```
-`cf_test_1` was **still present afterwards**. The real response:
-```
-DELETE /api/collections/users/records/u1pbrtqaiurm5np
--> 400 {"message":"Failed to delete record. Make sure that the record is not part of a required relation reference."}
-```
-
-**Cause.** The migration declares the ledger's owner relation as `required: true, cascadeDelete: false`:
-```json
-{"name":"user","type":"relation","required":true,"cascadeDelete":false,"collectionId":"_pb_users_auth_","maxSelect":1}
-```
-So any user with `cf_commit_log` rows cannot be deleted. `cf_test_2` deleted cleanly only because it never committed anything.
-
-**Two distinct problems:**
-1. **Schema.** With 30-day ledger retention (`SERVER_NOTES.md` §2), a real athlete account becomes **undeletable for up to 30 days after their last write**. That is a product and data-protection question — account deletion would fail with an opaque relation error — and it deserves an explicit decision, not a default. Options: `cascadeDelete: true`; or make `user` optional and null it on delete; or have the prune job clear rows for deleted users.
-2. **Harness.** `setup-fixtures.sh:20` echoes `deleted $em` without checking the DELETE status, so a failed cleanup is indistinguishable from a successful one. On a staging copy of production data, a teardown that silently leaves disposable accounts behind is a hygiene problem in its own right.
-
-**Workaround confirmed:** purge the user's ledger rows first, then delete the user → `204`. Used to finish cleanup this session.
-
----
-
-## 8. Environment
+## 4. Environment
 
 | Item | Value |
 | --- | --- |
-| PocketBase (staging binary) | `pocketbase version 0.39.8` — official `pocketbase_0.39.8_linux_amd64.zip` |
-| Production version | v0.39.8 per `DEPLOYMENT.md` known state; not re-queried |
-| Staging host | `127.0.0.1:8091` — loopback only, never exposed to Tailnet/LAN |
-| Staging form | Bare binary (`DEPLOYMENT.md` step 1 permits it), **not** a container |
-| Backup restored | `pb_backup_acme_20260727065658.zip`, **29,180,202 bytes**, sha256 `e752216997d42754032279e3a345157cf459fb756ff90212329a96bf0bebd128` |
-| Restored state | users=2, appdata=2, photos=22; **no duplicate owners** (DEPLOYMENT step 2 PASS) |
+| PocketBase | v0.39.8 (`pocketbase_0.39.8_linux_amd64`) |
+| Staging host | `127.0.0.1:8091`, loopback only |
+| Staging form | Bare binary, clean disposable instance |
+| Schema source | **Production collections export** (`Settings → Export collections`) — schema only, **zero records** |
+| Hook build | `cas-3`, `maxPayloadBytes=262144 requestLimitBytes=327680 minClientBuild=(none)` |
 
-**Production was never written to.** The only production request all session was an unauthenticated `GET /api/health`. The backup was created manually by the Product Owner in the Admin UI; the backup API was not called. No production superuser credentials were used or requested — a disposable staging superuser was minted offline with `pocketbase superuser upsert`.
+**No production health data was used this round.** Rounds 1–2 restored a full production backup; this round used the schema export plus synthetic disposable users only, so no athlete record ever reached the workstation. The `idx_88qok6ts7v` production condition was reproduced from the exported schema, so migration portability is still tested against the real production shape.
 
----
-
-## 9. Payload cap measurement (DEPLOYMENT step 4)
-
-Sizes only — no health data was printed, copied or transmitted.
-
-| Record | `data` | `training` |
-| --- | ---: | ---: |
-| user 1 (`4rqrai74jwdiyu2`) | 2 B | 2 B |
-| user 2 (`93hpzp5s1exymd9`) | **18,954 B** | **18,900 B** |
-
-- Max observed **18,954 B**; step-4 formula (× ~4) → **≈ 75,816 B (~74 KiB)** vs the **2 MiB** provisional cap in the hook.
-- **Unchanged** — `DEPLOYMENT.md` reserves this for Architect approval, and no ruling came back with the round-1 package.
-- Caveat: the hook's own size check is inside the broken handler (defect 2), so the 413 observed in T10 came from `$apis.bodyLimit`, **not** from `CF_MAX_PAYLOAD_BYTES`. The cap as configured is currently untested at any value.
+**Production was never written to.** No production request at all this round.
 
 ---
 
-## 10. Not run
+## 5. Route contract — unchanged
 
-- **Fault-injection appendix** (forced mid-transaction rollback; missing-ledger fail-closed) — deferred, since the suite is not trustworthy until defect 3 is fixed.
-- **Brief step 8, the 75-case client checklist** — skipped by Product Owner decision this cycle. `tests/CHECKLIST_RESULTS.md` not created. Precondition still verified: `tests/MANUAL_CHECKLIST_COMMIT1.md:3` and `index.html:2` both name `2026-07-27.342-pb-c1h`.
+The Architect's Phase 2 condition is that the public contract must not change. It has not:
 
----
+| Element | Status |
+| --- | --- |
+| Request fields (`subsystem`, `expectedRev`, `idempotencyKey`, `payload`, `clientBuild`, `deviceId`) | unchanged |
+| 200 success `{ok, subsystem, newRev}` | unchanged |
+| 409 conflict `{ok:false, conflict:true, serverRev, payload}` | unchanged |
+| 400 validation meanings | unchanged (error strings now centralised, values identical) |
+| 401 unauthorized | unchanged |
+| 413 oversized | unchanged shape; **cap value changed 2 MiB → 256 KiB** per decision 4b, and the body now also carries `maxBytes` |
+| 426 update required | unchanged |
+| 500 internal commit failure | unchanged |
 
-## 11. Deviations
-
-| # | Deviation | Reason |
-| --- | --- | --- |
-| D1 | Local bare-binary staging, not a NAS container | SSH to `rack` refused (`publickey,password`); no Docker socket access. Product Owner chose the local path; touches neither NAS nor production. |
-| D2 | Backup created manually by the Product Owner | Explicit instruction: no production writes, no backup API. |
-| D3 | No production superuser credentials used | Disposable staging superuser minted offline instead. |
-| D4 | **A staging-only patch was applied to the hook** to diagnose defect 2 | Without it the route is 100% dead and nothing downstream can be observed. The patch is clearly marked in the staging copy and was **never** committed; `server/pb_hooks/cf_cas.pb.js` in this branch is unchanged. §4's results are explicitly "with that patch applied". |
-| D5 | Defects 2, 3, 4 diagnosed but **not fixed** | Product Owner chose report-only. |
-| D6 | `CF_MAX_PAYLOAD_BYTES` left at 2 MiB | No Architect ruling received. |
-| D7 | Ledger rows manually purged to complete teardown | Defect 4 blocked the scripted path; staging was destroyed immediately after regardless. |
+The only client-visible changes are the smaller cap and the additional `maxBytes` field — both additive/ruled. Client `2026-07-27.342-pb-c1h` should not require changes; confirmation requested (§7).
 
 ---
 
-## 12. Round-1 history
+## 6. Data handling
 
-The first attempt (same day, earlier) failed at the migration with `indexes: (1: The index definition already exists..)` and nothing applied. That report was pushed as `a6482fe`; the Architect returned a status file directing "fix migration, rerun staging, then submit a new staging review package", which authorised the §2 fix. Round 2 is that rerun. The round-1 asks on **rollback semantics** and the **payload cap number** were never answered and remain open.
-
----
-
-## 13. Data handling
-
-- The staging copy contained **real health data** for 2 real users. It lived only at `/home/griffin/staging-cas` (mode 700), bound to 127.0.0.1.
-- **No destructive test ever touched the real user rows** — all destructive work ran against `cf_test_*` disposables. Real records were read for byte-size measurement only.
-- Fixtures torn down (with the §7 workaround); staging restore, backup copy and disposable credentials **shredded and deleted** at session end.
-- Copies remaining outside this session: the Product Owner's uploaded file, their browser download, and the backup entry on the NAS. **Recommend deleting the workstation copies.**
-- Any further staging cycle needs a **fresh backup export**.
+- No real health data on the workstation this round; the schema export contains no records.
+- Destructive tests ran only against disposable `cf_test_*` accounts; teardown verified.
+- Staging instance, schema export, and disposable superuser credentials destroyed at session end.
+- Rounds 1–2 backups were shredded then; copies may remain in the Product Owner's uploads/downloads and on the NAS.
 
 ---
 
-## 14. What the next session needs
+## 7. Open items for the Product Architect
 
-1. **Architect ruling on defect 2's fix shape** — constants inside the handler, or a `require()`d module. This blocks everything.
-2. **Fix defect 3** before any suite output is treated as evidence; consider also asserting on response bodies so a dead handler cannot produce passes.
-3. **Decision on defect 4** — cascade, nullable, or prune-on-delete — and fix the teardown's unchecked DELETE.
-4. Then re-run: migration → hook → fixtures → full suite → both fault-injection cases, and only then the 75-case client checklist.
-5. Still open from round 1: **rollback semantics** (§2) and the **payload cap number** (§9).
-6. **Production remains untouched and unapproved.** Nothing here is production-readiness evidence.
+1. **Finding 6 — migration failure exits 0.** `migrate up` *and* `serve` return exit code 0 when a migration is refused; the only signal is the log line. `DEPLOYMENT.md` step 3 says "copy the migration in and restart", so a supervisor or deploy script trusting `$?` would read a refused migration as success. The server does not serve, so it fails safe — but it fails *silently*. Recommend the production runbook assert on the log line, or add an explicit pre-flight `migrate up` whose output is grepped. Recorded as `migration.sh` M6c rather than hidden.
+2. **426 path unexercised.** `CF_MIN_CLIENT_BUILD` is empty pre-lockdown by design, so smoke case 5 cannot run. The path is covered by `route-smoke.sh` under `CF_MIN_BUILD_ENABLED=1`. It must be exercised **before** the lockdown step, since `SERVER_NOTES.md` §3 depends on old clients getting 426 rather than a generic error.
+3. **Confirm the contract delta is acceptable** — 413 body gained `maxBytes`, cap is now 256 KiB — and that the `.342-pb-c1h` verdict therefore still carries into Phase 2.
+4. **Phase 2 authorisation.** The 75-case checklist was skipped by Product Owner decision this cycle. Server Phase 1 is now green and no longer blocks it.
+
+---
+
+## 8. Round 3 changes
+
+| File | Change |
+| --- | --- |
+| `pb_hooks/cf_cas_shared.js` | **New** — shared module, all request-time constants and helpers |
+| `pb_hooks/cf_cas.pb.js` | Requires the module inside the handler; `cas-3`; 256 KiB/320 KiB |
+| `pb_migrations/1753400000_cf_cas.js` | `cascadeDelete: true`; guard matches `CREATE UNIQUE INDEX` |
+| `tests/` | Rebuilt — 13 new files, 11 suites, 172 assertions |
+| `tests/legacy/` | Round 2 scripts retained as history, results treated as non-evidence |
+
+---
+
+## 9. Reproducing
+
+```bash
+cd server/tests
+BASE=http://127.0.0.1:8091 ADMIN_EMAIL=<staging-superuser> ADMIN_PASS=<pw> \
+  STAGING_CONFIRM=YES bash fixtures.sh
+
+BASE=http://127.0.0.1:8091 ADMIN_EMAIL=<staging-superuser> ADMIN_PASS=<pw> \
+  PB_BIN=<pocketbase> PB_DATA_DIR=<pb_data> PB_HOOKS_DIR=<pb_hooks> \
+  PB_MIGRATIONS_DIR=<srv_migrations> PRISTINE_DIR=<pristine> \
+  MIGRATIONS_DIR=<mig_migrations> STAGING_CONFIRM=YES bash run-all.sh
+```
+
+`PRISTINE_DIR` is a `pb_data` carrying the production schema with the CAS migration **not** applied. Keep the server's migrations directory separate from the migration suite's: the fault-injection rename makes PocketBase auto-generate migration files, which otherwise contaminate the migration fixtures.
+
+---
+
+## 10. Honest limitations
+
+- **Phase 2 not run.** No client build was exercised against this server. Server-kit evidence only.
+- **Smoke case 5 (426) not exercised** — see §7.2.
+- **No production-scale data.** Synthetic payloads only; the largest real payload measured in Round 2 was 18,954 B against a 262,144 B cap.
+- **Single-node.** SQLite/WAL on one host. Concurrency is genuine (threaded, barrier-synchronised) but not distributed.
+- **The suite is new.** It found six defects including two of its own, and its own harness bugs produced false passes twice before being caught. It is more rigorous than Round 2's, not infallible.
+
+---
+
+## 11. Round history
+
+| Round | Outcome |
+| --- | --- |
+| 1 | Migration aborted on the production index; nothing applied. Pushed as `a6482fe`. |
+| 2 | Migration fixed; route found dead (defect 2); harness invalid (defect 3); ledger blocked deletion (defect 4). Architect returned **CHANGES REQUIRED**. |
+| 3 | All four fixed and verified; two new findings (5 fixed, 6 open). **Phase 1 green.** |
