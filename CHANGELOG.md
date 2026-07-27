@@ -19,6 +19,10 @@ A high-level, human- and AI-readable log of how the **product** has evolved — 
 
 ## [Unreleased]
 
+### Deployed to production (2026-07-27)
+- **The CAS server kit is live.** Server-enforced compare-and-swap for `appdata` is deployed on the production PocketBase, verified by the deployment gate: 20 checks, 0 failures. Both athletes' existing records came through the migration byte-for-byte unchanged, confirmed by content hash and not merely by size. The disposable probe account used to prove the commit route executes was deleted immediately with verified absence, and the integrity baseline destroyed. Production's pre-existing unique index was adopted rather than duplicated, exactly as designed.
+- **The system is now in the bridge window.** The server enforces CAS while existing clients still write the old way; the bridge keeps revisions truthful so a CAS client can detect every legacy write. Lockdown is deliberately not done — it waits for the CAS client (Commit 10). Nothing about the athlete experience changes today.
+
 ### Approved for production (2026-07-27)
 - **Product Architect ruling: APPROVED FOR PRODUCTION DEPLOYMENT** for `2026-07-27.342-pb-c1h`, after both staging gates passed — the CAS server kit (172 assertions, 0 failures) and the 75-case client checklist (39 verified, 0 failures). Client staging is signed off; the five conflict-UI cases are **formally deferred to Commit 10 (CAS Client Conflict Resolution)** as its acceptance criteria; the set-aside family (H3 + 8 dependents) is to be automated with an **independent manifest reader** plus one manual production-readiness confirmation. *Nothing is deployed to production yet — that is a separate, explicitly-authorized step.*
 
