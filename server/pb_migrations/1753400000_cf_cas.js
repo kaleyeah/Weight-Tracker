@@ -18,7 +18,15 @@ migrate((app) => {
     appdata.fields.add(new NumberField({ name: "coreRev", min: 0, onlyInt: true }));
   if (!appdata.fields.getByName("trainingRev"))
     appdata.fields.add(new NumberField({ name: "trainingRev", min: 0, onlyInt: true }));
-  if (!appdata.indexes.find((i) => i.includes("idx_cf_appdata_user")))
+  /* Match on index SHAPE, not on our chosen name. An equivalent unique index
+     may already exist under an Admin-UI-generated name — production carries
+     `idx_88qok6ts7v` on appdata(user). Guarding by name alone pushes a second
+     unique index on the same column and PocketBase rejects the duplicate
+     definition ("The index definition already exists"), aborting the whole
+     migration. See server/STAGING_RESULTS.md §4. */
+  const hasUserUnique = appdata.indexes.some((i) =>
+    /unique/i.test(i) && /\(\s*`?user`?\s*\)/i.test(i));
+  if (!hasUserUnique)
     appdata.indexes.push("CREATE UNIQUE INDEX idx_cf_appdata_user ON appdata (user)");
   /* LOCKDOWN-READY rules (applied at cutover step 7, kept here as the record
      of intent — the migration itself does NOT change rules, so old clients
@@ -61,6 +69,12 @@ migrate((app) => {
   try { const log = app.findCollectionByNameOrId("cf_commit_log"); app.delete(log); } catch (_) {}
   try {
     const appdata = app.findCollectionByNameOrId("appdata");
+    /* Deliberate asymmetry with the up-migration: drop ONLY the index this kit
+       created (by our name). A pre-existing unique index adopted above —
+       production's `idx_88qok6ts7v` — is NOT dropped, because rollback must not
+       remove protection the kit never installed. Previously this was the same
+       behaviour by accident of naming; it is now intent. PENDING Product
+       Architect confirmation (STAGING_REVIEW_PROMPT.md ask #2). */
     appdata.indexes = appdata.indexes.filter((i) => !i.includes("idx_cf_appdata_user"));
     const c = appdata.fields.getByName("coreRev"); if (c) appdata.fields.removeById(c.id);
     const t = appdata.fields.getByName("trainingRev"); if (t) appdata.fields.removeById(t.id);
