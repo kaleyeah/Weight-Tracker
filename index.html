@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-26.335 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-26.336 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -851,7 +851,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-26.335-pb";
+var APP_BUILD="2026-07-26.336-pb";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -2444,6 +2444,22 @@ function view_summary(){
   h+='<div class="wl-card"><div class="wl-card-head"><span>Weekly Totals</span></div><div class="wl-statrow" style="grid-template-columns:repeat(3,1fr)">'+
     sumStat("Calories",tot.calories||null,"")+sumStat("Steps",tot.steps||null,"")+sumStat("Weigh-ins",wv.length,"")+
     sumStat("Cardio min",ts.cardioZ2Mins||null,"")+sumStat("Lifting min",ts.liftMins||null,"")+sumStat("Cardio sessions",ts.cardioZ2Sessions||null,"")+'</div></div>';
+  /* Weekly Macros — totals consumed vs a goal PRO-RATED to the days elapsed in the
+     DISPLAYED week: all 7 for a finished week, through today for the current one, so
+     a mid-week bar reads as true adherence rather than always looking behind. A macro
+     with no goal set still shows its total, just without a bar. */
+  var _elapsedDays=days.filter(function(r){return r.date<=_tI;});
+  var _elapsed=_elapsedDays.length;
+  /* Total over the SAME window the goal is pro-rated to, so numerator and denominator
+     always cover the same days (a full week reads identically to before). */
+  function _macTot(k){var t=0;_elapsedDays.forEach(function(r){if(r[k]!=null)t+=r[k];});return t;}
+  var _macH="";
+  [["Calories",_macTot("calories"),tCal,""],["Protein",_macTot("protein"),tProt,"g"],["Carbs",_macTot("carbs"),tCarb,"g"],["Fat",_macTot("fat"),tFat,"g"]].forEach(function(m){
+    var v=Math.round(m[1]||0),daily=m[2],unit=m[3];
+    if(daily!=null&&_elapsed>0){_macH+=goalBarHTML(m[0],v,Math.round(daily*_elapsed),unit,false);}
+    else{_macH+='<div class="wl-goalrow"><div class="wl-goalrow-top"><span>'+m[0]+'</span><span class="wl-goalrow-val">'+v.toLocaleString()+(unit?' '+unit:'')+'</span></div></div>';}
+  });
+  h+='<div class="wl-card"><div class="wl-card-head"><span>Weekly Macros'+((_elapsed>0&&_elapsed<7)?' <em>'+_elapsed+' of 7 days so far</em>':'')+'</span></div>'+_macH+'</div>';
   var avgCal=avg("calories"),avgStep=avg("steps"),avgProt=avg("protein"),avgFat=avg("fat"),avgCarb=avg("carbs");
   var calOverGoal=(tCal!=null&&avgCal!=null&&avgCal>tCal);
   function acol(has,red){return has?(red?"bad":"good"):"";}
