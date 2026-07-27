@@ -110,7 +110,11 @@ All tests must pass. Send the full output back to Claude — it goes into the re
 
 ## Step 7 — PRODUCTION RUNBOOK
 
-**Authorisation:** Product Architect, 2026-07-27 — **APPROVED FOR PRODUCTION DEPLOYMENT** for build `2026-07-27.342-pb-c1h`, subject to the four operational prerequisites below. Staging is green on both gates (`STAGING_RESULTS.md` Phase 1, `tests/CHECKLIST_RESULTS.md` Phase 2).
+**Authorisation:** Product Architect, 2026-07-27 — **APPROVED FOR PRODUCTION CUTOVER**. Architecture, server gate, client staging and operational hardening all approved. Staging is green on both gates (`STAGING_RESULTS.md` Phase 1, `tests/CHECKLIST_RESULTS.md` Phase 2); the gate itself was reviewed twice more and the required V15 sentinel and security hardenings are in place.
+
+> **Execute exactly as documented. The Architect's conditions:** use this runbook; use the verified gate; run the sentinel with `SENTINEL_WITH_HASH=YES`; use the approved disposable probe-account workflow; **if the gate reports `NOT VERIFIED` at any point, abort immediately and execute the rollback in P5**; record all production verification evidence for archival. *No further architecture changes are authorized as part of this release.*
+
+**Still required before anything runs: the Product Owner's explicit go-ahead in the session.** Architect authorization is not an instruction to deploy.
 
 | Prerequisite | Where it is satisfied |
 | --- | --- |

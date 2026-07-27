@@ -95,9 +95,9 @@ The client build (`index.html`, `2026-07-27.342-pb-c1h` — the approved hardeni
 
 ### Step 9 — Production deployment (APPROVED, NOT AUTHORIZED TO START)
 
-The Product Architect ruled **APPROVED FOR PRODUCTION DEPLOYMENT** on 2026-07-27 for build `2026-07-27.342-pb-c1h`. That is architectural approval, **not** an instruction to deploy. Do not begin until the Product Owner explicitly says to, in this session.
+The Product Architect gave **FINAL AUTHORIZATION — APPROVED FOR PRODUCTION CUTOVER** on 2026-07-27 for build `2026-07-27.342-pb-c1h`, after six review rounds. That is authorization, **not** an instruction to deploy. Do not begin until the Product Owner explicitly says to, in this session.
 
-When they do: follow `server/DEPLOYMENT.md` **Step 7** exactly (P0→P7). The gate is **P3, `server/tests/verify-deployment.sh`** — never a process exit code, never "the container came back", never the `CF CAS hook loaded` line. Ask the Product Owner the one question P3 needs answered first: create a temporary disposable `cf_test_prod@staging.invalid` account so the handler-execution probe can run, or waive it with `ACCEPT_ROUTE_PROBE_ONLY=YES` and record the caveat.
+When they do: follow `server/DEPLOYMENT.md` **Step 7** exactly (P0→P7). The gate is **P3, `server/tests/verify-deployment.sh`** — never a process exit code, never "the container came back", never the `CF CAS hook loaded` line. The Architect's conditions are binding: `SENTINEL_WITH_HASH=YES`, the disposable probe-account workflow, and **abort + roll back immediately on any `NOT VERIFIED`**. Record every result in `server/PRODUCTION_CUTOVER_RESULTS.md` — archival evidence is required.
 
 Deferred to the Commit 10 (CAS client) cycle, and not part of this deployment: the five conflict-UI checklist cases and the independent manifest reader (`tests/CHECKLIST_RESULTS.md` §9).
 

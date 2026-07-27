@@ -251,6 +251,7 @@ BASE=http://127.0.0.1:8091 ADMIN_EMAIL=<staging-superuser> ADMIN_PASS=<pw> \
 | 4 | Architect ruling received: **APPROVED FOR PRODUCTION DEPLOYMENT** subject to operational prerequisites. Finding 6 ruled a runbook requirement; `verify-deployment.sh` written and tested to satisfy it. See §12. |
 | 5 | Gate reviewed: **APPROVED WITH ONE REQUIRED CHANGE** — the V15 integrity sentinel. Implemented and tested; probe-account, rollback-trigger and monitoring decisions applied; rollback asymmetry confirmed. See §13. |
 | 6 | V15 reviewed: **APPROVED PENDING TWO SECURITY HARDENINGS** — credentials out of process arguments, and safe sentinel-file handling; hash mode made mandatory for production. All three done. See §14. |
+| 7 | **APPROVED FOR PRODUCTION CUTOVER** (final). See §15. |
 
 ---
 
@@ -441,3 +442,16 @@ The rig grows to eleven states, **59 assertions, 0 failures**:
 S10a–c are static checks by design: sampling `ps` mid-request is racy, and what matters is that no code path can put a credential on a command line at all.
 
 Plus the full staging suite re-run described in §14.1. Total evidence this round: **59 rig assertions + 172 suite assertions, 0 failures**.
+
+
+---
+
+## 15. Final authorization
+
+**Product Architect, 2026-07-27 — APPROVED FOR PRODUCTION CUTOVER.**
+
+> Architecture: Approved · Server Gate: Approved · Client Staging: Approved · Operational Hardening: Approved
+>
+> "Proceed with the production cutover exactly as documented." Conditions: use the approved runbook; use the verified deployment gate; run the mandatory hash sentinel (`SENTINEL_WITH_HASH=YES`); use the approved disposable probe-account workflow; **if the deployment gate reports NOT VERIFIED at any point, abort immediately and execute the approved rollback procedure**; record all production verification evidence for archival. *No further architecture changes are authorized as part of this release.*
+
+Six review rounds preceded this: three on the server kit, one client staging phase, and two on the gate itself. Nothing has been deployed to production. Execution waits on the Product Owner's explicit go-ahead, then follows `DEPLOYMENT.md` Step 7 (P0→P7) and produces `server/PRODUCTION_CUTOVER_RESULTS.md` as the archival evidence record the Architect requires.
