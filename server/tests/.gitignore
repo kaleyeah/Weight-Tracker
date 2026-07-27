@@ -1,5 +1,8 @@
-# Disposable staging fixture credentials — generated per run, never committed.
+# Disposable fixture / probe credentials — generated per run, never committed.
 .fixture-creds.env
+.probe-creds.env
+# V15 integrity baselines: no payloads, but they carry record and user IDs.
+*.sentinel.json
 # Per-run suite output; the curated copies live in the review package instead.
 evidence/
 __pycache__/

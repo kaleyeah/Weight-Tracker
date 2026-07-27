@@ -32,6 +32,11 @@
 #   BASE=https://<host> ADMIN_EMAIL=.. ADMIN_PASS=.. bash verify-deployment.sh
 #
 # Optional:
+#   SENTINEL_CAPTURE=<file>       capture the V15 integrity baseline and exit
+#                                 (run this BEFORE deploying — runbook P0)
+#   SENTINEL_VERIFY=<file>        verify against that baseline (runbook P3)
+#   SENTINEL_WITH_HASH=YES        capture content hashes as well as byte lengths
+#   ACCEPT_NO_SENTINEL=YES        proceed without V15, recording the caveat
 #   PROBE_EMAIL/PROBE_PASS        disposable cf_test_* user for the handler probes (V11b/c)
 #   ACCEPT_ROUTE_PROBE_ONLY=YES   proceed without V11b/c, recording the caveat
 #   PB_LOG_FILE=/path/serve.log   also grep the console log for the boot line (V11d)
@@ -60,6 +65,24 @@ if [ -n "$ATOK" ]; then cf_ok "V1  superuser auth"; else
   cf_bad "V1  superuser auth failed — cannot read schema"
   echo "ABORT: without a superuser token the schema cannot be verified."
   cf_summary "verify-deployment"; exit 1
+fi
+
+# ---- V15 capture mode: run BEFORE deploying, then exit ----------------------
+# Deliberately placed before every schema check, because at capture time the
+# revision fields do not exist yet and those checks are all expected to fail.
+if [ -n "${SENTINEL_CAPTURE:-}" ]; then
+  echo ""
+  echo "== V15 integrity sentinel — CAPTURE (pre-deployment baseline) =="
+  HASHARG=""; [ "${SENTINEL_WITH_HASH:-}" = "YES" ] && HASHARG="--with-hash"
+  if python3 "$DIR/_sentinel.py" capture "$BASE" "$ATOK" "$SENTINEL_CAPTURE" $HASHARG; then
+    echo ""
+    echo "RESULT: BASELINE CAPTURED — pass it back as SENTINEL_VERIFY=$SENTINEL_CAPTURE after deploying."
+    echo "        The file holds six scalars per row and no payloads. Keep it local; delete it after the cutover."
+    exit 0
+  fi
+  echo ""
+  echo "RESULT: BASELINE NOT CAPTURED — do NOT deploy. Without it, V15 cannot prove the athletes' rows were untouched."
+  exit 1
 fi
 
 # Fetch a collection's definition into $CF_TMP/col.json; prints "" on failure.
@@ -122,6 +145,29 @@ except Exception: print("<error>"); raise SystemExit
 c=collections.Counter(i.get("user") for i in items)
 print(sum(1 for u,n in c.items() if n>1))')
 cf_eq "V10 no user owns two appdata rows" "0" "$DUPES"
+
+# ---- V15 existing-appdata integrity sentinel (Architect-required) -----------
+# Everything above proves the schema and the route. Only this proves the
+# athletes' own rows came through the deployment untouched. Read-only: it
+# measures payloads in memory and never writes them anywhere.
+if [ -n "${SENTINEL_VERIFY:-}" ]; then
+  if [ ! -r "$SENTINEL_VERIFY" ]; then
+    cf_bad "V15 baseline file is missing or unreadable: $SENTINEL_VERIFY"
+  else
+    SENTINEL_OUT=$(python3 "$DIR/_sentinel.py" verify "$BASE" "$ATOK" "$SENTINEL_VERIFY" 2>&1)
+    SENTINEL_RC=$?
+    printf '%s\n' "$SENTINEL_OUT" | sed 's/^/      /'
+    if [ "$SENTINEL_RC" = "0" ]; then
+      cf_ok "V15 existing appdata rows are byte-for-byte unchanged"
+    else
+      cf_bad "V15 EXISTING APPDATA CHANGED ACROSS THE DEPLOYMENT — roll back" "$(printf '%s' "$SENTINEL_OUT" | head -c 400)"
+    fi
+  fi
+elif [ "${ACCEPT_NO_SENTINEL:-}" = "YES" ]; then
+  cf_ok "V15 SKIPPED by ACCEPT_NO_SENTINEL=YES — no pre-deployment baseline was supplied, so nothing here proves the existing athlete rows survived the deployment. Not an approved path for production."
+else
+  cf_bad "V15 no integrity baseline supplied — capture one BEFORE deploying with SENTINEL_CAPTURE=<file> (runbook P0), or set ACCEPT_NO_SENTINEL=YES to proceed with the caveat recorded"
+fi
 
 # ---- V11 the commit route is live ------------------------------------------
 # V11a: unauthenticated POST. A registered route answers 401 (requireAuth);

@@ -86,8 +86,13 @@ migrate((app) => {
        created (by our name). A pre-existing unique index adopted above —
        production's `idx_88qok6ts7v` — is NOT dropped, because rollback must not
        remove protection the kit never installed. Previously this was the same
-       behaviour by accident of naming; it is now intent. PENDING Product
-       Architect confirmation (STAGING_REVIEW_PROMPT.md ask #2). */
+       behaviour by accident of naming; it is now intent.
+
+       CONFIRMED by the Product Architect, 2026-07-27 (production gate review):
+       "The down migration MUST remove only idx_cf_appdata_user created by this
+        kit and MUST preserve any equivalent pre-existing production index
+        (including idx_88qok6ts7v)."
+       Enforced by migration.sh case M2g. */
     appdata.indexes = appdata.indexes.filter((i) => !i.includes("idx_cf_appdata_user"));
     const c = appdata.fields.getByName("coreRev"); if (c) appdata.fields.removeById(c.id);
     const t = appdata.fields.getByName("trainingRev"); if (t) appdata.fields.removeById(t.id);

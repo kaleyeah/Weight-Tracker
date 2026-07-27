@@ -118,6 +118,7 @@ All tests must pass. Send the full output back to Claude — it goes into the re
 | Verify migrations with explicit post-migration checks, **not** the process exit code | P3, `tests/verify-deployment.sh` |
 | Keep the Commit 10 deferred cases as a separate release gate | `tests/CHECKLIST_RESULTS.md` §9 — does not block this deployment |
 | Preserve the rollback procedure and monitoring plan | P5 and P6 |
+| **Existing-appdata integrity sentinel (V15)** — required by the gate review, 2026-07-27 | P0 captures the baseline, **P3 verifies it** |
 
 > ### The one rule that governs this whole section
 > **PocketBase v0.39.8 exits 0 when a migration FAILS.** Both `migrate up` and `serve` print `Error: failed to apply migration …` and return **exit code 0**; on `serve` the process exits *without ever starting the server*. A step of the form `docker restart pocketbase && echo deployed` therefore reports success while PocketBase is **down**, and with a restart policy it will restart into the same refusal indefinitely.
@@ -128,7 +129,15 @@ All tests must pass. Send the full output back to Claude — it goes into the re
 
 1. Admin UI → **Settings → Backups → Create backup**; download it off the NAS. Verify nonzero size. **Record filename, size and SHA-256.**
 2. Record the pre-deploy baseline for comparison after P3: PocketBase version, `appdata` row count, the `appdata` index list, and the current API rules.
-3. Confirm the Product Owner is available for the whole window — P5 (rollback) needs a decision, not a script.
+3. **Capture the V15 integrity sentinel — before touching anything.**
+   ```bash
+   cd server/tests
+   BASE=https://rack.tail6fa16c.ts.net ADMIN_EMAIL=<superuser> ADMIN_PASS=<ask-interactively> \
+   SENTINEL_CAPTURE=/tmp/cf-preflight.sentinel.json \
+     bash verify-deployment.sh
+   ```
+   This records `id`, `user`, `coreRev`, `trainingRev` and the UTF-8 byte lengths of `data` and `training` for every existing row, and exits. It reads the payloads to measure them and **writes none of them anywhere** — the file holds six scalars per row. It still carries record and user IDs, so keep it local and delete it after the cutover. If it does not print `BASELINE CAPTURED`, **stop**: without it, nothing in P3 can prove the athletes' rows survived.
+4. Confirm the Product Owner is available for the whole window — P5 (rollback) needs a decision, not a script.
 
 ### P1 — Pre-flight on a copy (never on the live instance)
 
@@ -155,13 +164,26 @@ Any line containing `failed to apply migration` is a **STOP**. The most likely c
 
 ```bash
 cd server/tests
+
+# 1. create the disposable probe account (Architect-approved: this is the only
+#    production write in the runbook — one user row, no health data)
+BASE=https://rack.tail6fa16c.ts.net ADMIN_EMAIL=<superuser> ADMIN_PASS=<pw> \
+  bash probe-account.sh create
+set -a; . ./.probe-creds.env; set +a
+
+# 2. run the gate
 BASE=https://rack.tail6fa16c.ts.net \
 ADMIN_EMAIL=<superuser> ADMIN_PASS=<ask-interactively> \
 PB_DATA_DIR=/path/to/pb_data \
 PB_BIN=/path/to/pocketbase \
 PB_LOG_FILE=/tmp/pb-deploy.log \
-PROBE_EMAIL=cf_test_prod@staging.invalid PROBE_PASS=<disposable> \
+SENTINEL_VERIFY=/tmp/cf-preflight.sentinel.json \
   bash verify-deployment.sh
+
+# 3. delete the probe account IMMEDIATELY afterwards, pass or fail, and
+#    confirm the user, its appdata row and its ledger rows are all gone
+BASE=https://rack.tail6fa16c.ts.net ADMIN_EMAIL=<superuser> ADMIN_PASS=<pw> \
+  bash probe-account.sh teardown
 ```
 
 `verify-deployment.sh` is **read-only and safe against production** — every request is a GET, a superuser auth, or a probe rejected before any database access. It is the one script here that does not refuse to run against the production hostname, because verifying production is its job. It asserts schema, index shapes, ledger rules, and that the route actually executes our code; full check list in `STAGING_RESULTS.md` §12.3.
@@ -169,10 +191,9 @@ PROBE_EMAIL=cf_test_prod@staging.invalid PROBE_PASS=<disposable> \
 - `RESULT: VERIFIED` + exit 0 → proceed.
 - Anything else → **do not proceed. Go to P5.**
 
-**One decision the Product Owner must make before P3.** `PROBE_EMAIL`/`PROBE_PASS` (checks V11b and V11c) prove our handler *executes* rather than merely being registered — the exact failure Round 2 shipped. Production has no disposable account, so either:
+**The probe account is settled.** The Product Architect ruled on 2026-07-27: *"Use a disposable production probe account. Execute authenticated route probes. Delete the account immediately afterward. Verify account and ledger absence."* Steps 1 and 3 above are that ruling; `probe-account.sh` addresses exactly one hard-coded `cf_test_*` address and cannot be pointed at a real athlete. **`ACCEPT_ROUTE_PROBE_ONLY=YES` is no longer an approved path for production** — it remains in the script for staging spot-checks only, and it leaves a route that throws on every request looking healthy, which is precisely what Round 2 shipped.
 
-- **(a) preferred — create one temporarily.** Add `cf_test_prod@staging.invalid` via the Admin UI, run P3, then delete it and confirm absence. This writes a user row to production and no health data, and the script refuses any `PROBE_EMAIL` not named `cf_test_*`.
-- **(b) skip it.** Set `ACCEPT_ROUTE_PROBE_ONLY=YES`. V11a still proves the route is registered, but **a registered route that throws on every request would pass**. If you choose this, record the caveat in the deployment log and treat the first real CAS client commit as the outstanding verification.
+**V15 is the check that looks at the athletes' own rows.** Everything else in the gate proves the schema and the route. `SENTINEL_VERIFY` compares all six recorded values per row against the P0 baseline and fails the run if any of them moved — including a row that vanished, or one that appeared during the window. Note what it does *not* cover: byte length cannot see a change that happens to preserve length. `SENTINEL_WITH_HASH=YES` at capture time adds a SHA-256 of each payload's canonical form and closes that gap; it is off by default because the six values are what was specified. Both behaviours are demonstrated in `STAGING_RESULTS.md` §13.
 
 ### P4 — Client and bridge window
 
@@ -181,7 +202,16 @@ PROBE_EMAIL=cf_test_prod@staging.invalid PROBE_PASS=<disposable> \
 
 ### P5 — Rollback
 
-**Decision criteria — roll back immediately if any of these hold:** P3 reports NOT VERIFIED; the service does not answer `/api/health`; `CF commit failed` appears in the logs for a real user; or `appdata` row count differs from the P0 baseline.
+**Decision criteria — roll back immediately if any of these hold** (approved by the Product Architect, 2026-07-27):
+
+| Trigger | How you see it |
+| --- | --- |
+| P3 reports `NOT VERIFIED` | the gate's exit code and verdict line |
+| `/api/health` unavailable | check V0, or any monitor — this is also how a refused migration presents |
+| A real `CF commit failure` | `CF commit failed` / `CF commit retry failed` in the server console log |
+| `appdata` row-count mismatch vs. the P0 baseline | check V15, which fails on a row that vanished or appeared |
+| **Duplicate-owner detection** | check V10 — two rows for one user means the unique index is not protecting the table, and the CAS invariant is unenforceable |
+| V15 integrity failure | any of the six sentinel values changed on an existing row |
 
 | Situation | Action |
 | --- | --- |
@@ -202,6 +232,7 @@ For the whole bridge window, watch:
 | `CF commit failed` / `CF commit retry failed` | server console log | a real commit hit a 500 — investigate before lockdown |
 | `cf_commit_log` row growth | Admin UI (superuser) | commits are flowing; a flat ledger with active clients means the route is not being used |
 | `CF ledger pruned` | server console log, daily ~04:00 | the 30-day retention cron is alive |
+| **HTTP 409 rate on `/api/cf/appdata/commit`** | `/api/logs` (superuser), filtered on the commit route | **Architect-required.** A conflict is normal and expected — it is how CAS refuses a stale write. An unexpected *spike* is not: it means clients are repeatedly losing the same race, which points at a revision that is advancing without them (a legacy write path still open, or a bridge double-bump). Establish the baseline rate in the first hour and watch for departures from it. |
 | `/api/health` | any monitor | catches the restart-loop failure mode described above |
 
 Confirm **zero** `CF legacy raw snapshot write` lines over a full day before removing the bridge hooks.

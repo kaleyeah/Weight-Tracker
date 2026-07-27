@@ -1,11 +1,11 @@
 # Staging Results — CAS Server Kit on PocketBase v0.39.8
 
-**Date:** 2026-07-27 (round 3, plus the round 4 addendum in §12 — supersedes rounds 1 and 2; history in §11)
+**Date:** 2026-07-27 (round 3, plus the round 4 and round 5 addenda in §12–§13 — supersedes rounds 1 and 2; history in §11)
 **Executed by:** local Claude Code session on the Product Owner's workstation (`gbclaude`)
 **Branch:** `claude/compound-fitness-roles-workflow-aala7o`
 **Outcome:** ✅ **PHASE 1 GREEN — 172 assertions, 11 suites, 0 failures, teardown verified.**
 
-All four Round 2 defects are fixed and verified. Every Product Architect Round 2 decision is implemented. This was **server-kit evidence only** when written — Phase 2 has since run (`tests/CHECKLIST_RESULTS.md`, 0 failures) and the Product Architect has since ruled **APPROVED FOR PRODUCTION DEPLOYMENT** subject to operational prerequisites. **§12 records that ruling and the safeguard it required.**
+All four Round 2 defects are fixed and verified. Every Product Architect Round 2 decision is implemented. This was **server-kit evidence only** when written — Phase 2 has since run (`tests/CHECKLIST_RESULTS.md`, 0 failures) and the Product Architect has since ruled **APPROVED FOR PRODUCTION DEPLOYMENT** subject to operational prerequisites. **§12 records that ruling and the safeguard it required; §13 records the gate review that followed — APPROVED WITH ONE REQUIRED CHANGE (the V15 integrity sentinel), now implemented.**
 
 ---
 
@@ -249,6 +249,7 @@ BASE=http://127.0.0.1:8091 ADMIN_EMAIL=<staging-superuser> ADMIN_PASS=<pw> \
 | 2 | Migration fixed; route found dead (defect 2); harness invalid (defect 3); ledger blocked deletion (defect 4). Architect returned **CHANGES REQUIRED**. |
 | 3 | All four fixed and verified; two new findings (5 fixed, 6 open). **Phase 1 green.** |
 | 4 | Architect ruling received: **APPROVED FOR PRODUCTION DEPLOYMENT** subject to operational prerequisites. Finding 6 ruled a runbook requirement; `verify-deployment.sh` written and tested to satisfy it. See §12. |
+| 5 | Gate reviewed: **APPROVED WITH ONE REQUIRED CHANGE** — the V15 integrity sentinel. Implemented and tested; probe-account, rollback-trigger and monitoring decisions applied; rollback asymmetry confirmed. See §13. |
 
 ---
 
@@ -301,6 +302,7 @@ A read-only verifier that ignores exit codes entirely and asserts the deployed s
 | V11d | optional — the `CF CAS hook loaded` console line, when a log file is supplied |
 | V12 | optional — the `_migrations` row, read from a read-only sqlite handle |
 | V13 | optional — binary version |
+| **V15** | **existing appdata rows are unchanged across the deployment** — added in Round 5 at the Architect's requirement; see §13 |
 | V14a–d | lockdown state (step 7 only): `createRule` null, all four `:isset = false` clauses present, owner scoping intact, and a stale `clientBuild` actually refused **426** — the only way to know `CF_MIN_CLIENT_BUILD` was really set, since it is a hook constant and not schema |
 
 Exit 0 means verified; anything else prints `RESULT: NOT VERIFIED — do NOT proceed with the cutover.`
@@ -332,3 +334,52 @@ Exact-boundary behaviour remains `payload-boundary.sh`'s job against disposable 
 ### 12.6 Also established
 
 **The `CF CAS hook loaded` line is not retrievable from `/api/logs` on v0.39.8.** It is emitted at hook-registration time and appears only on the server console; `/api/logs` held request logs exclusively. Every previous round read it from the container/console log, which is correct — but a runbook step of the form "confirm via the Admin UI → Logs" would have failed. V11d reads a supplied log file (`docker logs <container> > /tmp/pb.log`) and is optional, because V11b and V11c prove strictly more than the boot line does.
+
+
+---
+
+## 13. Round 5 — the production gate review verdict, and V15
+
+**Date:** 2026-07-27. Again no staging server was redeployed; this is the Architect's verdict on the Round 4 gate, and the work it required.
+
+### 13.1 Verdict
+
+> **Status: APPROVED WITH ONE REQUIRED CHANGE.** Required implementation before production cutover: add V15 to `verify-deployment.sh` — an existing-`appdata` integrity sentinel. "Before deployment record for every existing appdata row: record id, user id, coreRev, trainingRev, UTF-8 byte length of data, UTF-8 byte length of training. After deployment verify all six values are unchanged. This is a non-destructive integrity check only."
+> — Product Architect, 2026-07-27
+
+Everything else in the operational package was approved. **Do not execute the cutover until V15 has been added and verified.**
+
+Also decided in the same review:
+
+| Decision | Applied |
+| --- | --- |
+| Use a disposable production probe account; run the authenticated probes; delete it immediately afterwards; verify account **and ledger** absence | `server/tests/probe-account.sh`, mandated in `DEPLOYMENT.md` P3 steps 1 and 3. `ACCEPT_ROUTE_PROBE_ONLY=YES` is no longer an approved production path |
+| Add duplicate-owner detection to the rollback triggers | P5 trigger table — check V10 |
+| Monitor for unexpected spikes in HTTP 409 during the bridge window | P6 monitoring table, read from `/api/logs` filtered on the commit route |
+| **Rollback asymmetry CONFIRMED** — the down-migration must remove only `idx_cf_appdata_user` and must preserve any equivalent pre-existing production index including `idx_88qok6ts7v` | The "PENDING Architect confirmation" comment is removed from `pb_migrations/1753400000_cf_cas.js` and replaced with the confirmation. Enforced by `migration.sh` M2g |
+
+### 13.2 What V15 closes
+
+The Round 4 gate proved the schema was right and the route worked. It never read an athlete's row, so a migration that disturbed a real payload would have passed it. That gap was raised as ask #1 of the Round 4 package and the Architect closed it by requiring the sentinel.
+
+`server/tests/_sentinel.py` implements it, in its own module rather than another curl in the shell script, for one reason: **`data` and `training` hold real health data.** They are fetched, measured in memory, and discarded — never written to disk, never logged, never printed. (`_lib.sh`'s `cf_req` writes every response body to a temp file, which is fine for synthetic staging responses and not fine here.) The baseline file holds six scalars per row and no payloads; it does carry record and user IDs, so the runbook says keep it local and delete it after the cutover.
+
+Two design points worth stating:
+
+- **Byte length is measured over a canonical serialization** — sorted keys, no whitespace — so a re-serialization by the server cannot produce a spurious mismatch.
+- **Pre-migration rows have no revision fields at all.** `coreRev`/`trainingRev` do not exist on `appdata` until the migration adds them, so a P0 baseline records them as 0, and the migration is required to leave them at 0. A row that comes back with a nonzero revision therefore *fails* V15 — the migration must add the fields, not set them. Verified by the rig.
+
+### 13.3 V15 test evidence
+
+Four scenarios, each seeding two athlete-shaped rows on an unmigrated instance, capturing the baseline exactly as P0 does, then deploying for real. Mutations are applied to the sqlite file with the server stopped, so no hook is involved — the point is to catch a payload that changed without anything on the write path touching it.
+
+| Scenario | Expected | Actual |
+| --- | --- | --- |
+| S7 — clean deployment, rows untouched | V15 passes | **VERIFIED** — "all 2 existing row(s) unchanged"; absent revisions correctly recorded as 0 and still 0 after the migration |
+| S8 — one payload grows during the window | V15 fails and names it | **NOT VERIFIED** — `dataBytes changed 71 -> 77`, run refuses the cutover |
+| S9 — a mutation that **preserves byte length** | *documented limitation* | **VERIFIED (passes)** — the six required values cannot see it |
+| S9b — the same mutation, baseline captured with `SENTINEL_WITH_HASH=YES` | caught | **NOT VERIFIED** — `dataHash changed` |
+
+**S9 is recorded as a limitation, not as a pass.** A byte-length sentinel is blind to a same-length change. `SENTINEL_WITH_HASH=YES` adds a SHA-256 of each payload's canonical form at capture time and closes it. It is **off by default** because the six values are what the ruling specified — turning it on is the Architect's call, and it is the one open question in the return package.
+
+Full rig: **46 assertions, 0 failures** across ten scenarios (S1–S6 from Round 4, S7–S9b here). Zero writes by the verifier confirmed after every applicable run by reading sqlite directly.

@@ -52,7 +52,10 @@ Sourcing `_lib.sh` does not make any other script here production-safe.
 | `migration.sh` | Portability, index adoption, asymmetric rollback |
 | `fault-injection.sh` | Forced rollback; missing-ledger fail-closed |
 | `run-all.sh` | Ordered runner, writes per-suite evidence logs |
-| `verify-deployment.sh` | **Read-only post-deployment verification — the production cutover gate.** Asserts deployed state (fields, index shapes, ledger rules/cascade, route registration, handler execution, configured cap, optional lockdown state) instead of trusting an exit code |
+| `verify-deployment.sh` | **Read-only post-deployment verification — the production cutover gate.** Asserts deployed state (fields, index shapes, ledger rules/cascade, route registration, handler execution, configured cap, existing-row integrity, optional lockdown state) instead of trusting an exit code |
+| `_sentinel.py` | **V15 existing-appdata integrity sentinel.** Measures payloads in memory and never writes them anywhere; the baseline holds six scalars per row |
+| `probe-account.sh` | The disposable **production** probe account the gate's handler checks need — create, then teardown with verified user/appdata/ledger absence |
+| `rig/verify-rig.sh` | Self-checking harness for the gate: ten instance states, 46 assertions |
 
 ## Running
 
@@ -89,4 +92,20 @@ confirm `CF_MIN_CLIENT_BUILD` was really set, since it is a hook constant rather
 than schema. Without `PROBE_EMAIL`/`PROBE_PASS` the handler-execution checks
 cannot run and the script fails unless you waive them with
 `ACCEPT_ROUTE_PROBE_ONLY=YES` — a registered route that throws on every request
-would otherwise pass, which is exactly what Round 2 shipped.
+would otherwise pass, which is exactly what Round 2 shipped. For production that
+waiver is not an approved path; use `probe-account.sh` instead.
+
+**V15 needs a baseline captured BEFORE you deploy**, or it cannot prove the
+existing rows survived:
+
+```bash
+# before deploying
+BASE=<url> ADMIN_EMAIL=.. ADMIN_PASS=.. SENTINEL_CAPTURE=/tmp/pre.sentinel.json \
+  bash verify-deployment.sh
+# after deploying, alongside the other checks
+BASE=<url> ADMIN_EMAIL=.. ADMIN_PASS=.. SENTINEL_VERIFY=/tmp/pre.sentinel.json ...
+```
+
+`SENTINEL_WITH_HASH=YES` at capture time also records a SHA-256 of each payload's
+canonical form. Byte length alone cannot see a change that preserves length —
+demonstrated both ways in `STAGING_RESULTS.md` §13.3.

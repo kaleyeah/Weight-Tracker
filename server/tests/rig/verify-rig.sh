@@ -167,7 +167,7 @@ echo ""
 # ---- S1: nothing applied ----------------------------------------------------
 echo "== S1: neither migration nor hook applied =="
 D=$(prep unmigrated); start_instance "$D" "$WORK/hooks" "$WORK/migs" "$WORK/s1.serve.log"; wait_up
-RC=$(run_verifier "$EV/s1-unmigrated.log" ACCEPT_ROUTE_PROBE_ONLY=YES)
+RC=$(run_verifier "$EV/s1-unmigrated.log" ACCEPT_ROUTE_PROBE_ONLY=YES ACCEPT_NO_SENTINEL=YES)
 eq "S1 verifier refuses an unmigrated instance" 1 "$RC"
 grep -q 'RESULT: NOT VERIFIED' "$EV/s1-unmigrated.log" && ok "S1 verdict line is NOT VERIFIED" || bad "S1 missing NOT VERIFIED verdict"
 stop_instance
@@ -176,7 +176,7 @@ stop_instance
 echo "== S2: migration applied but the hook is MISSING =="
 D=$(prep nohook); start_instance "$D" "$WORK/hooks" "$WORK/migs" "$WORK/s2.serve.log"; wait_up
 make_probe_user
-RC=$(run_verifier "$EV/s2-hook-missing.log" PROBE_EMAIL="$PROBE_EMAIL" PROBE_PASS="$PROBE_PASS")
+RC=$(run_verifier "$EV/s2-hook-missing.log" PROBE_EMAIL="$PROBE_EMAIL" PROBE_PASS="$PROBE_PASS" ACCEPT_NO_SENTINEL=YES)
 eq "S2 verifier refuses a schema-only deploy" 1 "$RC"
 grep -q 'V11a commit route is ABSENT' "$EV/s2-hook-missing.log" && ok "S2 identified the absent route" || bad "S2 did not identify the absent route"
 grep -q 'V2a appdata.coreRev exists (number)' "$EV/s2-hook-missing.log" && ok "S2 schema checks still passed — the failure is specific, not blanket" || bad "S2 schema checks did not pass"
@@ -202,7 +202,7 @@ cols=[r[1] for r in c.execute('PRAGMA table_info(appdata)')]
 print('coreRev' in cols)" | grep -q False \
   && ok "S3 nothing was applied when it refused" || bad "S3 a refused migration applied something"
 # the server never came up, so the verifier's very first check catches it
-RC=$(run_verifier "$EV/s3-verifier.log" ACCEPT_ROUTE_PROBE_ONLY=YES)
+RC=$(run_verifier "$EV/s3-verifier.log" ACCEPT_ROUTE_PROBE_ONLY=YES ACCEPT_NO_SENTINEL=YES)
 eq "S3 verifier catches the refused migration" 1 "$RC"
 grep -q 'ABORT: the instance did not answer /api/health' "$EV/s3-verifier.log" \
   && ok "S3 verifier aborts before making any other claim" || bad "S3 verifier did not abort at V0"
@@ -211,7 +211,7 @@ grep -q 'ABORT: the instance did not answer /api/health' "$EV/s3-verifier.log" \
 echo "== S4: correctly deployed (pre-lockdown) =="
 D=$(prep migrated); start_instance "$D" "$WORK/hooks" "$WORK/migs" "$WORK/s4.serve.log"; wait_up
 make_probe_user
-RC=$(run_verifier "$EV/s4-verified.log" PROBE_EMAIL="$PROBE_EMAIL" PROBE_PASS="$PROBE_PASS" PB_DATA_DIR="$D" PB_BIN="$PB_BIN" PB_LOG_FILE="$WORK/s4.serve.log")
+RC=$(run_verifier "$EV/s4-verified.log" PROBE_EMAIL="$PROBE_EMAIL" PROBE_PASS="$PROBE_PASS" PB_DATA_DIR="$D" PB_BIN="$PB_BIN" PB_LOG_FILE="$WORK/s4.serve.log" ACCEPT_NO_SENTINEL=YES)
 eq "S4 verifier accepts a correct deployment" 0 "$RC"
 grep -q 'RESULT: VERIFIED' "$EV/s4-verified.log" && ok "S4 verdict line is VERIFIED" || bad "S4 missing VERIFIED verdict"
 grep -q 'V11c configured payload cap is 256 KiB (262144)' "$EV/s4-verified.log" \
@@ -223,7 +223,7 @@ assert_no_writes "$D" "S4"
 echo "== S5: negative control — EXPECT_LOCKDOWN against a NON-locked-down instance =="
 D=$(prep migrated); start_instance "$D" "$WORK/hooks" "$WORK/migs" "$WORK/s5.serve.log"; wait_up
 make_probe_user
-RC=$(run_verifier "$EV/s5-lockdown-negative.log" PROBE_EMAIL="$PROBE_EMAIL" PROBE_PASS="$PROBE_PASS" EXPECT_LOCKDOWN=YES)
+RC=$(run_verifier "$EV/s5-lockdown-negative.log" PROBE_EMAIL="$PROBE_EMAIL" PROBE_PASS="$PROBE_PASS" EXPECT_LOCKDOWN=YES ACCEPT_NO_SENTINEL=YES)
 eq "S5 lockdown checks are not vacuous" 1 "$RC"
 grep -q 'V14d stale clientBuild is refused with 426' "$EV/s5-lockdown-negative.log" \
   && ok "S5 V14d failed as it must when CF_MIN_CLIENT_BUILD is unset" || bad "S5 V14d did not report"
@@ -244,7 +244,7 @@ JSON
 ST=$(curl -sS -o "$WORK/lockrules.out" -w '%{http_code}' -X PATCH "$BASE/api/collections/appdata" \
   -H "Authorization: $ATOK" -H 'Content-Type: application/json' --data-binary "@$WORK/lockrules.json")
 eq "S6 lockdown rules applied" 200 "$ST"
-RC=$(run_verifier "$EV/s6-lockdown-verified.log" PROBE_EMAIL="$PROBE_EMAIL" PROBE_PASS="$PROBE_PASS" EXPECT_LOCKDOWN=YES PB_DATA_DIR="$D" PB_BIN="$PB_BIN" PB_LOG_FILE="$WORK/s6.serve.log")
+RC=$(run_verifier "$EV/s6-lockdown-verified.log" PROBE_EMAIL="$PROBE_EMAIL" PROBE_PASS="$PROBE_PASS" EXPECT_LOCKDOWN=YES PB_DATA_DIR="$D" PB_BIN="$PB_BIN" PB_LOG_FILE="$WORK/s6.serve.log" ACCEPT_NO_SENTINEL=YES)
 eq "S6 verifier accepts a locked-down deployment" 0 "$RC"
 grep -q 'V14d stale clientBuild is refused with 426 (CF_MIN_CLIENT_BUILD is set) (status 426' "$EV/s6-lockdown-verified.log" \
   && ok "S6 a stale client really is refused 426" || bad "S6 426 not observed"
@@ -252,6 +252,103 @@ grep -q 'V12 migration recorded in _migrations' "$EV/s6-lockdown-verified.log" \
   && ok "S6 migration ledger row confirmed" || bad "S6 migration ledger not confirmed"
 stop_instance
 assert_no_writes "$D" "S6"
+
+# ---- V15 integrity sentinel -------------------------------------------------
+# The scenarios above never look at anyone's rows. These do: they seed two
+# athlete-shaped rows on an UNMIGRATED instance, capture the baseline exactly as
+# runbook P0 does, then deploy for real and verify. `mutate` is applied to the
+# sqlite file while the server is stopped, so the change is invisible to the
+# hooks — which is the point: V15 must catch a payload that changed without
+# anything on the write path being involved.
+seed_rows() { # two rows with athlete-shaped payloads, via the API
+  local tok uid
+  tok=$(admin_token)
+  for n in 1 2; do
+    uid=$(api -X POST "$BASE/api/collections/users/records" -H "Authorization: $tok" \
+      -H 'Content-Type: application/json' \
+      -d "{\"email\":\"cf_seed_$n@staging.invalid\",\"password\":\"seed-password-12345\",\"passwordConfirm\":\"seed-password-12345\"}" \
+      | python3 -c 'import sys,json;print(json.load(sys.stdin).get("id",""))')
+    api -o /dev/null -X POST "$BASE/api/collections/appdata/records" -H "Authorization: $tok" \
+      -H 'Content-Type: application/json' \
+      -d "{\"user\":\"$uid\",\"data\":{\"weights\":[{\"date\":\"2026-07-0$n\",\"kg\":8$n.5}],\"note\":\"seed $n\"},\"training\":{\"sessions\":[{\"day\":$n}]}}" >/dev/null
+  done
+}
+sentinel_scenario() { # label mutate-mode expect-rc expect-grep [--with-hash]
+  local label="$1" mutate="$2" want_rc="$3" want_grep="$4" hashopt="${5:-}"
+  local D base_file="$WORK/$label.sentinel.json"
+  D=$(prep unmigrated); start_instance "$D" "$WORK/hooks" "$WORK/migs" "$WORK/$label.pre.log"; wait_up
+  seed_rows
+  local caprc
+  caprc=$(run_verifier "$EV/$label-capture.log" SENTINEL_CAPTURE="$base_file" \
+            ${hashopt:+SENTINEL_WITH_HASH=YES})
+  eq "$label baseline captured before deployment" 0 "$caprc"
+  grep -q 'coreRev=0 trainingRev=0' "$EV/$label-capture.log" \
+    && ok "$label pre-migration rows have no revisions — recorded as 0" \
+    || bad "$label baseline did not normalize the absent revision fields"
+  stop_instance
+
+  case "$mutate" in
+    none) ;;
+    grow) python3 - "$D" <<'PY'
+import sqlite3, sys, json
+c = sqlite3.connect(sys.argv[1] + "/data.db")
+rid, raw = c.execute("select id,data from appdata order by id limit 1").fetchone()
+d = json.loads(raw); d["note"] = d.get("note", "") + " EXTRA"
+c.execute("update appdata set data=? where id=?", (json.dumps(d), rid)); c.commit()
+print("mutated (longer):", rid)
+PY
+      ;;
+    samelen) python3 - "$D" <<'PY'
+import sqlite3, sys, json
+c = sqlite3.connect(sys.argv[1] + "/data.db")
+rid, raw = c.execute("select id,data from appdata order by id limit 1").fetchone()
+d = json.loads(raw)
+# same number of bytes, different content: 81.5 -> 91.5
+d["weights"][0]["kg"] = float(str(d["weights"][0]["kg"]).replace("8", "9", 1))
+new = json.dumps(d)
+assert len(new.encode()) == len(json.dumps(json.loads(raw)).encode()), "not the same length"
+c.execute("update appdata set data=? where id=?", (new, rid)); c.commit()
+print("mutated (identical length):", rid)
+PY
+      ;;
+  esac
+
+  # now deploy for real: migration + hook against the same data directory
+  cp "$REPO/server/pb_hooks/"*.js "$WORK/hooks/"
+  cp "$REPO/server/pb_migrations/"*.js "$WORK/migs/"
+  start_instance "$D" "$WORK/hooks" "$WORK/migs" "$WORK/$label.post.log"; wait_up
+  make_probe_user
+  local rc
+  rc=$(run_verifier "$EV/$label-verify.log" SENTINEL_VERIFY="$base_file" \
+         PROBE_EMAIL="$PROBE_EMAIL" PROBE_PASS="$PROBE_PASS")
+  eq "$label verifier verdict after deployment" "$want_rc" "$rc"
+  grep -q "$want_grep" "$EV/$label-verify.log" \
+    && ok "$label reported: $want_grep" || bad "$label expected output matching: $want_grep"
+  stop_instance
+  # NOT printed to stdout: capturing this function with $( ) would run it in a
+  # subshell, discarding every assertion it made and its pass/fail counts.
+  SENTINEL_DIR="$D"
+}
+
+echo "== S7: sentinel round-trip across a REAL deployment, rows untouched =="
+sentinel_scenario s7-sentinel-clean none 0 'V15 existing appdata rows are byte-for-byte unchanged'
+grep -q 'V15 INTEGRITY SENTINEL: all 2 existing row(s) unchanged' "$EV/s7-sentinel-clean-verify.log" \
+  && ok "S7 both seeded rows survived the migration unchanged" || bad "S7 sentinel did not confirm both rows"
+
+echo "== S8: a payload changed during the window — V15 must catch it =="
+sentinel_scenario s8-sentinel-tamper grow 1 'V15 EXISTING APPDATA CHANGED ACROSS THE DEPLOYMENT'
+grep -q 'dataBytes changed' "$EV/s8-sentinel-tamper-verify.log" \
+  && ok "S8 named the field that changed" || bad "S8 did not name the changed field"
+grep -q 'RESULT: NOT VERIFIED' "$EV/s8-sentinel-tamper-verify.log" \
+  && ok "S8 the run refuses the cutover" || bad "S8 did not refuse the cutover"
+
+echo "== S9: LIMITATION — a same-length change is invisible to byte length alone =="
+sentinel_scenario s9-sentinel-samelen samelen 0 'V15 existing appdata rows are byte-for-byte unchanged'
+ok "S9 DOCUMENTED LIMITATION: a mutation that preserves byte length PASSES the six required values"
+echo "== S9b: the optional content hash catches the same mutation =="
+sentinel_scenario s9b-sentinel-hash samelen 1 'V15 EXISTING APPDATA CHANGED ACROSS THE DEPLOYMENT' --with-hash
+grep -q 'dataHash changed' "$EV/s9b-sentinel-hash-verify.log" \
+  && ok "S9b SENTINEL_WITH_HASH=YES detects what byte length cannot" || bad "S9b hash did not detect the mutation"
 
 # =============================================================================
 printf '\n---- verify-rig: %d passed, %d failed ----\n' "$PASS" "$FAIL"
