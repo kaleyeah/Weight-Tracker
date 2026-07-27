@@ -19,7 +19,8 @@ A high-level, human- and AI-readable log of how the **product** has evolved — 
 
 ## [Unreleased]
 
-### Added (Product Owner feature builds `.332`–`.338`, built on main and merged into the hardened line as `2026-07-26.340-pb-c1g3`)
+### Added (Product Owner feature builds `.332`–`.339`, built on main and merged into the hardened line — now `2026-07-27.341-pb-c1g4`)
+- **Progress Card** — styled, self-contained, print-friendly HTML report exported alongside the CSV in one tap; adapts for full-history range.
 - **Fiber tracking** — imports from Apple Health, optional field on the calories editor, CSV export column; deliberately excluded from the 4/4/9 calorie math.
 - **Weekly Macros card on Summary** — calories/protein/carbs/fat totals vs. goals, pro-rated to days elapsed, styled like the weekly Steps bar.
 - **Reopen a completed day** — clears its recap and restores "Complete today" + Health import; completion now checks full recap history so older completed days lock consistently.
