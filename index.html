@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-26.332 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-26.333 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -845,7 +845,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-26.332-pb";
+var APP_BUILD="2026-07-26.333-pb";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -2357,7 +2357,28 @@ function weekStartFor(offset){var ws=parseInt(state.settings.weekStart,10)||0;va
 function weekDays(offset){var s=weekStartFor(offset),arr=[];for(var i=0;i<7;i++){var dd=new Date(s);dd.setDate(s.getDate()+i);arr.push(dd);}return arr;}
 function dayRow(d){var iso=toISO(d);var w=null;for(var i=0;i<state.weights.length;i++){if(state.weights[i].date===iso){w=state.weights[i].weight;break;}}
   var f=state.food[iso]||{};return {date:iso,dow:d.toLocaleDateString(undefined,{weekday:"long"}),d:d,weight:w,steps:num(state.steps[iso]),sleep:num(state.sleep[iso]),
-    calories:num(f.calories),fiber:num(f.fiber),protein:num(f.protein),fat:num(f.fat),carbs:num(f.carbs),activities:normActs(iso).map(actLabel),note:state.notes[iso]||""};}
+    calories:num(f.calories),fiber:num(f.fiber),protein:num(f.protein),fat:num(f.fat),carbs:num(f.carbs),activities:normActs(iso).map(actLabel),
+    cardioSess:(((state.training||{}).sessions||{})[iso]||[]).filter(function(s){return s.kind==="cardio";}),
+    liftSess:(((state.training||{}).liftSessions||{})[iso]||[]),
+    note:state.notes[iso]||""};}
+/* ---- CSV export cells for training ----
+   One line per session: "Name, Duration: N mins, Zone: N, Avg HR: N, estimated cals burned: N".
+   Parts with no logged value are omitted rather than left blank. Multiple sessions in a
+   day are joined with " | ". Cardio is filtered to ZONE 2+ to match the app's weekly
+   cardio-goal rule (weekTrainingStats), where an unset zone also counts. */
+function csvIsZ2(s){var z=num(s.zone);return z==null||z>=2;}
+function csvSessLine(name,s){var p=[name];
+  var m=num(s.mins);if(m!=null)p.push("Duration: "+Math.round(m)+" mins");
+  var z=num(s.zone);if(z!=null)p.push("Zone: "+z);
+  var hr=num(s.hr);if(hr!=null)p.push("Avg HR: "+Math.round(hr));
+  var c=num(s.cal);if(c!=null)p.push("estimated cals burned: "+Math.round(c));
+  return p.join(", ");}
+function csvCardioCell(r){return (r.cardioSess||[]).filter(csvIsZ2).map(function(s){return csvSessLine(s.type||"Cardio",s);}).join(" | ");}
+function csvLiftCell(r){return (r.liftSess||[]).map(function(s){return csvSessLine(s.name||"Weight training",s);}).join(" | ");}
+function csvActNotesCell(r){var out=[];
+  (r.cardioSess||[]).filter(csvIsZ2).forEach(function(s){var n=(s.notes||"").trim();if(n)out.push((s.type||"Cardio")+" Notes: "+n);});
+  (r.liftSess||[]).forEach(function(s){var n=(s.notes||"").trim();if(n)out.push((s.name||"Weight training")+" Notes: "+n);});
+  return out.join(" | ");}
 function fnum(v){return v==null?"—":(Math.abs(v)>=1000?Math.round(v).toLocaleString():(v%1===0?String(v):String(r1(v))));}
 function avgStatF(label,disp,sub,color){return '<div class="wl-stat"><div class="wl-stat-label">'+label+'</div><div class="wl-stat-val'+(color?" "+color:"")+'">'+disp+'</div><div class="wl-stat-sub">'+(sub||"&nbsp;")+'</div></div>';}
 function actStat(label,n,cat){var col={cardio:"#3b82f6",lifting:"#22c55e",rest:"#6b7280",supp:"#a855f7"}[cat]||"var(--text)";return '<div class="wl-stat"><div class="wl-stat-label">'+label+'</div><div class="wl-stat-val" style="color:'+col+'">'+n+'</div></div>';}
@@ -2432,11 +2453,13 @@ function view_summary(){
   return h+'</div>';}
 function csvCell(v){v=(v==null?"":String(v));return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
 function mdyy(iso){var d=parseISO(iso);return (d.getMonth()+1)+"/"+d.getDate()+"/"+String(d.getFullYear()).slice(-2);}
-function csvFor(days){var rows=[["Day","Date","Weight","Steps","Sleep","Calories","Fiber","Protein","Fat","Carbs","Activities","Notes"]];
-  days.forEach(function(r){rows.push([r.dow,mdyy(r.date),r.weight!=null?r1(r.weight):"",r.steps!=null?Math.round(r.steps):"",r.sleep!=null?minToHM(r.sleep):"",r.calories!=null?Math.round(r.calories):"",r.fiber!=null?r.fiber:"",r.protein!=null?r.protein:"",r.fat!=null?r.fat:"",r.carbs!=null?r.carbs:"",r.activities.join(", "),r.note||""]);});
+function csvFor(days){var rows=[["Day","Date","Weight","Steps","Sleep","Calories","Fiber","Protein","Fat","Carbs","Check in notes","Cardio","Weight Training","Activity Notes"]];
+  days.forEach(function(r){rows.push([r.dow,mdyy(r.date),r.weight!=null?r1(r.weight):"",r.steps!=null?Math.round(r.steps):"",r.sleep!=null?minToHM(r.sleep):"",r.calories!=null?Math.round(r.calories):"",r.fiber!=null?r.fiber:"",r.protein!=null?r.protein:"",r.fat!=null?r.fat:"",r.carbs!=null?r.carbs:"",r.note||"",csvCardioCell(r),csvLiftCell(r),csvActNotesCell(r)]);});
   return rows.map(function(row){return row.map(csvCell).join(",");}).join("\r\n");}
 function exportWeekCSV(){var days=weekDays(state.weekOffset).map(dayRow);shareOrDownload("weight-summary-"+toISO(weekStartFor(state.weekOffset))+".csv","text/csv",csvFor(days));}
 function exportAllCSV(){var set={};state.weights.forEach(function(x){set[x.date]=1;});Object.keys(state.food).forEach(function(k){set[k]=1;});Object.keys(state.steps).forEach(function(k){set[k]=1;});Object.keys(state.sleep).forEach(function(k){set[k]=1;});Object.keys(state.workouts).forEach(function(k){set[k]=1;});
+  /* training-only days must appear too, now that cardio/lifting are exported */
+  Object.keys(((state.training||{}).sessions)||{}).forEach(function(k){set[k]=1;});Object.keys(((state.training||{}).liftSessions)||{}).forEach(function(k){set[k]=1;});
   var days=Object.keys(set).sort().map(function(iso){return dayRow(parseISO(iso));});
   if(!days.length){toast("No data to export");return;}shareOrDownload("weight-history-"+todayISO()+".csv","text/csv",csvFor(days));}
 function shareOrDownload(name,mime,text){
