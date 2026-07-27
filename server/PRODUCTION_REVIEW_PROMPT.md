@@ -1,10 +1,10 @@
-# Production Gate — RETURN for final confirmation (for ChatGPT / Product Architect)
+# Production Gate — RETURN after the two security hardenings (for ChatGPT / Product Architect)
 
 **Last Updated:** 2026-07-27
 
-**Status:** Active — the Architect returned **APPROVED WITH ONE REQUIRED CHANGE** (the V15 integrity sentinel) and asked for the updated package back before the cutover runs. This is that return. Companion to `STAGING_RESULTS.md` §13. Follows the `REVIEW_REQUEST.md` pattern.
+**Status:** Active — the Architect returned **APPROVED PENDING TWO SECURITY HARDENINGS** and asked for one final package confirming they are complete. This is that package. Companion to `STAGING_RESULTS.md` §14.
 
-> Copy the block below into ChatGPT and attach `cf-production-gate-v15-20260727.zip`.
+> Copy the block below into ChatGPT and attach `cf-production-gate-final-20260727.zip`.
 
 ---
 
@@ -15,89 +15,89 @@ You are the Product Architect for Compound Fitness. I'm the Product Owner.
 Claude Code is the Lead Engineer. Per our workflow you decide WHAT gets built
 and review WHAT was built; Claude decides HOW.
 
-You reviewed the production gate and returned APPROVED WITH ONE REQUIRED
-CHANGE: add the V15 existing-appdata integrity sentinel, and do not execute the
-cutover until it is added and verified. You asked for the updated package back
-for final confirmation. Here it is. Nothing has been deployed to production.
+You reviewed V15 and returned APPROVED PENDING TWO SECURITY HARDENINGS, asking
+for one final package confirming they are complete. All three required changes
+are done. Nothing has been deployed to production.
 
 Read in this order:
 
-  1. STAGING_RESULTS.md §13   — the verdict as applied, what V15 closes, and
-                                the four V15 scenarios including the one that
-                                documents a limitation rather than a pass
-  2. _sentinel.py             — the sentinel itself
-  3. verify-deployment.sh     — V15 in the gate (capture mode, verify mode)
-  4. DEPLOYMENT.md Step 7     — P0 capture, P3 probe-account + verify, P5, P6
-  5. probe-account.sh         — the disposable production probe account
-  6. evidence/                — the full rig transcript, generated at build time
-  7. rig/verify-rig.sh        — the harness, if you want to audit the method
+  1. STAGING_RESULTS.md §14   — the three hardenings, what was found, and the
+                                evidence
+  2. _lib.sh                  — the cf_curl helper (the header never reaches a
+                                command line)
+  3. _sentinel.py             — stdin token, secure_write(), destroy
+  4. DEPLOYMENT.md Step 7     — P0 capture with hashes, P3.4 verified deletion
+  5. evidence/                — full rig transcript, generated at build time
+  6. rig/verify-rig.sh        — the harness, S10a-m are the new security checks
 
-Every item you required or decided is implemented:
+1. CREDENTIALS OUT OF PROCESS ARGUMENTS — done, and it was worse than one
+   token. /proc/<pid>/cmdline is world-readable, so every request in the kit
+   published a live superuser token to every local user for the life of the
+   request. Three classes of exposure, all closed:
+     - 11 curl call sites across 8 scripts, plus cf_req in _lib.sh: a new
+       cf_curl helper writes the Authorization header into a 0600 curl config
+       file inside the 0700 temp directory and passes -K.
+     - _sentinel.py took the token as argv[3]: it now reads it from stdin and
+       refuses to run without it.
+     - ACCOUNT PASSWORDS were also being passed to `python3 -c` as argv, in
+       cf_auth and in three scripts that create users. This was not on your
+       list; it is the same defect with a different credential, found while
+       implementing the first two. They now travel through the environment,
+       readable by the same uid and root only.
+   cf_commit_body still passes subsystem, revision and idempotency key through
+   argv. That is deliberate — they are not secrets — and the rig check is
+   written to distinguish them rather than banning argv outright.
 
-  - V15 IMPLEMENTED. For every existing appdata row the gate records id, user,
-    coreRev, trainingRev, and the UTF-8 byte lengths of data and training
-    before deployment, and requires all six unchanged afterwards. It also fails
-    if a row vanished or appeared during the window. Non-destructive: payloads
-    are fetched, measured in memory and discarded — never written to disk,
-    never logged, never printed. The baseline file holds six scalars per row.
-    It lives in its own module because _lib.sh writes every response body to a
-    temp file, which is acceptable for synthetic staging responses and not for
-    real health data.
-  - PROBE ACCOUNT as you ruled: probe-account.sh creates exactly one hard-coded
-    cf_test_prod@staging.invalid, the gate runs the authenticated probes, and
-    teardown runs immediately afterwards and verifies user, appdata AND ledger
-    absence rather than trusting a 204. ACCEPT_ROUTE_PROBE_ONLY is now
-    explicitly not an approved production path.
-  - ROLLBACK TRIGGERS now include duplicate-owner detection (check V10), plus
-    V15 integrity failure, in a table in P5.
-  - MONITORING now includes the HTTP 409 rate on the commit route during the
-    bridge window, read from /api/logs, with a note on how to read a spike:
-    conflicts are normal, a spike means a revision is advancing without the
-    clients that are losing the race.
-  - ROLLBACK ASYMMETRY: the "PENDING Architect confirmation" comment is removed
-    from the migration and replaced with your confirmation. No PENDING comments
-    referring to that decision remain anywhere in the repo.
+   This rewrote the SHARED HTTP LAYER, so I re-ran the entire staging suite to
+   prove nothing broke: 11 suites, 172 assertions, 0 failures, verified
+   teardown — identical to Round 3.
 
-Rig result: 46 assertions, 0 failures across ten instance states. The four new
-ones seed two athlete-shaped rows on an unmigrated instance, capture the
-baseline exactly as P0 does, then deploy for real. Mutations are applied to the
-sqlite file with the server stopped, so no hook is involved — the point is to
-catch a payload that changed without anything on the write path touching it.
+2. SENTINEL FILE SAFETY — done. secure_write() refuses a symlink or
+   non-regular target before writing, writes to a mkstemp file in the same
+   directory, fchmod 0600, fsync, atomic os.replace, then re-checks with lstat
+   that the result is not a symlink, is mode 0600, and is owned by the caller.
+   Any failure reports "BASELINE NOT CAPTURED — do NOT deploy".
+   `_sentinel.py destroy` deletes the baseline and confirms absence, refusing
+   to delete through a symlink. Runbook P3.4 runs it after a pass; P5 runs it
+   after a rollback.
 
-  S7  clean deployment, rows untouched        -> V15 passes, both rows unchanged
-  S8  one payload grows during the window     -> V15 FAILS, names dataBytes,
-                                                 run refuses the cutover
-  S9  a mutation that PRESERVES byte length   -> V15 PASSES (see below)
-  S9b the same mutation, hash mode enabled    -> V15 FAILS, names dataHash
+3. HASH MODE MANDATORY FOR PRODUCTION — done, and made structural rather than
+   procedural. Hash mode is now ON BY DEFAULT at capture, so forgetting the
+   flag cannot silently weaken the check. SENTINEL_NO_HASH=YES disables it with
+   a warning, and a hashless baseline is then REFUSED at verify time unless
+   ACCEPT_NO_HASH=YES is also set. The runbook passes SENTINEL_WITH_HASH=YES
+   explicitly as you instructed. This closes the open question I raised last
+   round — you answered it.
 
-One thing I am flagging rather than quietly deciding:
+Evidence: the rig is now eleven states, 59 assertions, 0 failures, plus the
+172-assertion staging suite re-run. The new checks:
 
-  S9 IS A REAL LIMITATION OF THE CHECK YOU SPECIFIED. A byte-length sentinel
-  cannot see a change that happens to preserve length — in the test, editing a
-  weight from 81.5 to 91.5 is invisible to all six values. I implemented
-  exactly the six you specified as the default, and added SENTINEL_WITH_HASH=YES
-  as an OPTIONAL capture-time flag that also records a SHA-256 of each payload's
-  canonical form, which catches it. It is off by default because the six values
-  are what you ruled.
+  S10a-c  no token in a curl command line, no token in _sentinel.py argv, no
+          password reaching python through argv
+  S10d-e  the captured baseline is mode 0600 and owned by the running user
+  S10f    hash mode is the default at capture
+  S10g    the baseline is PARSED and confirmed to contain no payload fields
+  S10h-i  secure_write refuses a symlink target and leaves it untouched
+  S10j-k  destroy deletes the baseline and absence is confirmed
+  S10l-m  a hashless baseline is refused, and only ACCEPT_NO_HASH waives it
 
-  Should the production cutover capture the baseline WITH hashes? The cost is
-  that the baseline file then contains a hash of each athlete's health data
-  (irreversible, but a stronger identifier than a byte count). The benefit is
-  that V15 becomes an actual integrity check rather than a size check. My
-  recommendation is yes, with the baseline treated as sensitive and deleted
-  after the cutover — but this is your call, and it is the only open question.
+S10a-c are static checks by design: sampling `ps` mid-request is racy, and what
+matters is that no code path can put a credential on a command line at all.
 
-Also worth your attention, unchanged from the last package: the gate has never
-run against production. It has only run against throwaway instances built from
-a synthetic production-shaped schema, so index adoption is exercised against
-the real index NAME but not against real data volume, and the rig is
-single-node. V15 is the first check that will read real athlete rows, and it
-will do so for the first time during P0 of the actual cutover.
+Two defects in my own work, recorded rather than hidden: the first automated
+rewrite of the curl call sites stripped the Authorization header from
+continuation lines without adding cf_curl, which would have left those requests
+silently UNAUTHENTICATED; and the same pattern's \s* swallowed a newline and
+welded a line-continuation backslash onto the next token. Both were caught
+before commit, by reading the diff and by the syntax and behaviour checks.
 
-Two questions:
+Unchanged and still true: the gate has never run against production. It has
+only run against throwaway instances built from a synthetic production-shaped
+schema. V15 will read real athlete rows for the first time during P0 of the
+actual cutover.
 
-1. FINAL CONFIRMATION — is the gate now sufficient to execute the cutover?
-2. THE HASH DECISION above — default byte lengths only, or capture with hashes?
+One question: are the two hardenings satisfactory, and do you authorize the
+production cutover?
 ```
 
 ---
@@ -111,13 +111,14 @@ Two questions:
 | `docs/DEPLOYMENT.md` | Step 7 runbook — P0 capture, P3 probe + verify, P5 triggers, P6 monitoring |
 | `docs/CHECKLIST_RESULTS.md` | The client staging ruling as applied, and the Commit 10 gate |
 | `docs/SERVER_NOTES.md`, `docs/STATUS.md`, `docs/DECISIONS.md`, `docs/CHANGELOG.md` | Threat model; current state; ADR-015; product log |
-| `code/verify-deployment.sh` | The gate, now with V15 |
+| `code/verify-deployment.sh` | The gate, with V15 and hash enforcement |
+| `code/_lib.sh` | The shared HTTP layer, with `cf_curl` |
 | `code/_sentinel.py` | The integrity sentinel |
 | `code/probe-account.sh` | The disposable production probe account |
-| `code/rig/verify-rig.sh` | The self-checking harness — ten states, 46 assertions |
-| `code/_lib.sh`, `code/pb_hooks/`, `code/pb_migrations/` | Shared assertions and the kit under verification |
+| `code/rig/verify-rig.sh` | The self-checking harness — eleven states, 59 assertions |
+| `code/pb_hooks/`, `code/pb_migrations/` | The kit under verification |
 | `evidence/00-rig-run.log` | Full rig transcript, generated when the archive was built |
-| `evidence/s1…s9b*.log` | Per-scenario output, including the V15 capture and verify runs |
+| `evidence/s1…s10*.log` | Per-scenario output, including the V15 and security runs |
 | `diff/production-gate.patch` | The complete diff since the last package |
 
 No health data, credentials or tokens — schema, code and logs from synthetic loopback instances only.
@@ -128,4 +129,4 @@ No health data, credentials or tokens — schema, code and logs from synthetic l
 PB_BIN=/path/to/pocketbase-0.39.8 bash server/tests/rig/verify-rig.sh <evidence-dir>
 ```
 
-Self-contained: it builds its own production-shaped schema (including production's `idx_88qok6ts7v` index name), seeds athlete-shaped rows for the V15 scenarios, runs ten states, and asserts the gate's verdict on each. Requires only the binary — no copy of production data.
+Self-contained: it builds its own production-shaped schema (including production's `idx_88qok6ts7v` index name), seeds athlete-shaped rows for the V15 scenarios, runs eleven states, and asserts the gate's verdict on each. Requires only the binary — no copy of production data.
