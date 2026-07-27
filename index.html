@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-26.334 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-26.335 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -748,6 +748,12 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 .wl-ck-done-banner{display:flex;align-items:center;gap:10px;margin:0 -4px -6px;padding:12px 14px;border-top:1px solid var(--line);background:linear-gradient(180deg,rgba(92,214,160,.10),rgba(92,214,160,.02));border-radius:0 0 16px 16px;}
 .wl-ck-done-check{width:22px;height:22px;border-radius:50%;background:var(--good);color:var(--on-good);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;flex:none;}
 .wl-ck-done-txt{font-size:13.5px;font-weight:700;color:var(--good);}
+.wl-ck-reopen{margin-left:auto;flex:none;background:none;border:none;padding:4px 2px;font-family:var(--sans);font-size:12.5px;font-weight:700;color:var(--muted);cursor:pointer;text-decoration:underline;text-underline-offset:2px;}
+.wl-ck-reopen:active{color:var(--text);}
+.wl-ck-done-banner.ask{display:block;}
+.wl-ck-reopen-q{font-size:13px;font-weight:600;color:var(--text);line-height:1.45;}
+.wl-ck-reopen-btns{display:flex;gap:8px;margin-top:10px;}
+.wl-ck-reopen-btns .wl-btn{flex:1;padding:10px 0;font-size:14px;}
 .wl-ck-note{flex:1;text-align:right;font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .wl-ck-go{color:var(--faint);font-size:16px;flex:none;}
 .wl-ck-top .wl-ck-val{flex:1;}
@@ -845,7 +851,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-26.334-pb";
+var APP_BUILD="2026-07-26.335-pb";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -1099,7 +1105,7 @@ function dayDots(iso){var seen={},cats=[];function _ad(c){if(!seen[c]){seen[c]=1
 var state={settings:Object.assign({},DEFAULT_SETTINGS),weights:[],food:{},workouts:{},steps:{},notes:{},sleep:{},bodyfat:{},waist:{},statuses:[],weeklySummary:null,nightlySummary:null,nightlyLog:{},presets:DEFAULT_PRESETS.slice(),
   view:"overview",calY:new Date().getFullYear(),calM:new Date().getMonth(),weekOffset:0,trendMode:"W",trendOffset:0,calOpen:false,sumOpen:true,nightOpen:true,genBusy:false,nightBusy:false,diaryWeeks:1,
   training:{cardioTypes:DEFAULT_CARDIO_TYPES.slice(),sessions:{},exercises:[],routines:[],liftSessions:{}},cardioForm:null,manageOpen:false,actAddCat:null,actPick:null,exForm:null,routineId:null,riPickOpen:false,noteEdit:null,liftForm:null,workout:null,setMenu:null,woPrompt:false,bwEdit:false,histView:null,exMenu:null,woReplaceEi:null,liftViewId:null,liftViewDate:null,woResume:false,liftEdit:null,quickEntry:null,
-  selDate:todayISO(),foodDate:todayISO(),alertDismissed:false,confirmReset:false,skips:{},glp:glpDefault(),glpDraft:null,glpSheet:null};
+  selDate:todayISO(),foodDate:todayISO(),alertDismissed:false,confirmReset:false,skips:{},glp:glpDefault(),glpDraft:null,glpSheet:null,reopenAsk:null};
 
 function load(){
   try{var raw=localStorage.getItem(KEY);if(raw){var d=JSON.parse(raw);
@@ -1854,7 +1860,16 @@ function ckNotes(sel){
 }
 function ckRowSkip(label,val,sec){return '<button class="wl-ck-row" data-act="dl:open" data-sec="'+sec+'"><span class="wl-ck-l"><span class="wl-ck-ic"></span><span class="wl-ck-lab">'+label+'</span></span><span class="wl-ck-val" style="color:var(--faint);font-style:italic">'+val+'</span><span class="wl-ck-go">›</span></button>';}
 function skipBtn(sec,on,word){return '<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="skip:'+sec+'">'+(on?"Un-skip \u2014 I\u2019ll log "+word:"Not tracking "+word+" today")+'</button>'+(on?'<div class="wl-hint" style="margin-top:8px">Marked skipped \u2014 still counts as checked in. Logging when you can gives your coach a truer read over time.</div>':'');}
-function completeBtnHTML(sel){var selToday=sel===todayISO();if(state.nightBusy)return '<div class="wl-hint" style="margin-top:12px;text-align:center">⏳ Completing… generating your recap.</div>';var ns=state.nightlySummary;var hasRecap=ns&&ns.date===sel&&ns.text;if(hasRecap)return '';/* regenerate moved into the recap card header (wl-recaplink) */return '<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="night:gen">Complete '+(selToday?"today":"this day")+'</button>';}
+/* The recap for a given day, wherever it lives: the per-day log first, then the
+   "latest recap" slot. A day having a recap is what makes it Completed. */
+function dayRecap(iso){var l=(state.nightlyLog||{})[iso];if(l&&l.text)return l;var ns=state.nightlySummary;return (ns&&ns.date===iso&&ns.text)?ns:null;}
+/* Reopen a completed day: drop its recap from both stores so the day reverts to
+   not-completed (Complete today + Health import return). Destructive by design. */
+function reopenDay(iso){var lg=state.nightlyLog||{};if(lg[iso])delete lg[iso];state.nightlyLog=lg;
+  var ns=state.nightlySummary;if(ns&&ns.date===iso)state.nightlySummary=null;
+  if(state.settings&&state.settings.seenNightly===iso)state.settings.seenNightly=null;
+  state.reopenAsk=null;save();render();toast("Day reopened");}
+function completeBtnHTML(sel){var selToday=sel===todayISO();if(state.nightBusy)return '<div class="wl-hint" style="margin-top:12px;text-align:center">⏳ Completing… generating your recap.</div>';var hasRecap=!!dayRecap(sel);if(hasRecap)return '';/* regenerate moved into the recap card header (wl-recaplink) */return '<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="night:gen">Complete '+(selToday?"today":"this day")+'</button>';}
 function hkButtonHTML(sel){
   if(!isOwner())return "";
   if(state.hkDone&&state.hkDone.date===sel){var _hd=new Date(state.hkDone.ts);var _hh=_hd.getHours()%12;if(_hh===0)_hh=12;var _hm=(_hd.getMinutes()<10?"0":"")+_hd.getMinutes();
@@ -1868,7 +1883,7 @@ function todayChecklistHTML(sel){
   var steps=num(state.steps[sel]),sleep=num(state.sleep[sel]);
   var hasCal=num(f.calories)!=null||num(f.protein)!=null||num(f.carbs)!=null||num(f.fat)!=null;
   var modeType=dayStatus(sel);
-  var _completed=!!(state.nightlySummary&&state.nightlySummary.date===sel&&state.nightlySummary.text); /* day is Completed (recap generated via "Complete today") -> lock it, hide Health import */
+  var _completed=!!dayRecap(sel); /* day is Completed (a recap exists for it) -> lock it, hide Health import */
   if(modeType){var mh='<div class="wl-card wl-check"><div class="wl-ck-head"><span class="wl-ck-title">'+(sel===todayISO()?"Today":"This day")+'\u2019s Check-in</span><span class="wl-ck-cnt">'+(modeType==="sick"?"Resting up":"Resting easy")+'</span></div>';
     mh+=(wt!=null)?ckRow(true,"Weight",r1(wt)+" "+u,"weight",false):ckRowSkip("Weight","Optional","weight");
     mh+=(steps!=null)?ckRow(true,"Steps",Math.round(steps).toLocaleString(),"steps",false):ckRowSkip("Steps","Optional","steps");
@@ -1877,14 +1892,22 @@ function todayChecklistHTML(sel){
     mh+=ckNotes(sel);if(!_completed)mh+=hkButtonHTML(sel);return mh+'</div>';}
   var wSkip=isSkip(sel,"weight"),stSkip=isSkip(sel,"steps"),slSkip=isSkip(sel,"sleep"),calSkip=isSkip(sel,"calories");
   var done=((wt!=null||wSkip)?1:0)+((steps!=null||stSkip)?1:0)+((hasCal||calSkip)?1:0)+((sleep!=null||slSkip)?1:0);
-  var _allDone=(_completed&&sel===todayISO()); /* completion state = day Completed via "Complete today" (recap generated), not merely 4/4 filled */
+  var _allDone=_completed; /* completion state = day Completed via "Complete today" (a recap exists), not merely 4/4 filled */
   var h='<div class="wl-card wl-check'+(_allDone?' wl-check-done':'')+'"><div class="wl-ck-head"><span class="wl-ck-title">'+(sel===todayISO()?"Today":"This day")+'\u2019s Check-in</span><span class="wl-ck-cnt'+(_allDone?' allgood':'')+'">'+(_allDone?'All done':done+' of 4 done')+'</span></div>';
   h+=(sleep!=null)?ckRow(true,"Sleep",minToHM(sleep),"sleep",false):(slSkip?ckRowSkip("Sleep","Skipped","sleep"):ckRow(false,"Sleep","Add","sleep",false));
   h+=(wt!=null)?ckRow(true,"Weight",r1(wt)+" "+u,"weight",false):(wSkip?ckRowSkip("Weight","Skipped","weight"):ckRow(false,"Weight","Add","weight",false));
   h+=(hasCal||!calSkip)?ckCalories(sel):ckRowSkip("Calories","Skipped","calories");
   h+=(steps!=null)?ckRow(true,"Steps",Math.round(steps).toLocaleString(),"steps",false):(stSkip?ckRowSkip("Steps","Skipped","steps"):ckRow(false,"Steps","Add","steps",false));
   h+=ckNotes(sel);if(!_completed)h+=hkButtonHTML(sel); /* hide Health import only once the day is Completed (recap generated), not merely when 4/4 are filled */
-  if(_allDone)h+='<div class="wl-ck-done-banner"><span class="wl-ck-done-check">✓</span><span class="wl-ck-done-txt">You’re logged for today — nice work.</span></div>';
+  if(_allDone){
+    if(state.reopenAsk===sel){
+      h+='<div class="wl-ck-done-banner ask"><div class="wl-ck-reopen-q">Reopen this day? Its coach recap will be cleared.</div>'+
+         '<div class="wl-ck-reopen-btns"><button class="wl-btn wl-btn-ghost" data-act="day:reopencancel">Cancel</button><button class="wl-btn wl-btn-primary" data-act="day:reopendo" data-date="'+sel+'">Reopen</button></div></div>';
+    }else{
+      h+='<div class="wl-ck-done-banner"><span class="wl-ck-done-check">✓</span><span class="wl-ck-done-txt">'+(sel===todayISO()?"You’re logged for today — nice work.":"This day is complete.")+'</span>'+
+         '<button class="wl-ck-reopen" data-act="day:reopenask" data-date="'+sel+'">Reopen</button></div>';
+    }
+  }
   return h+'</div>';
 }
 function activitySummaryHTML(sel){
@@ -4022,6 +4045,9 @@ document.addEventListener("click",function(e){
     if(cf.id){for(var i=0;i<list.length;i++){if(list[i].id===cf.id){list[i]=sess;break;}}}else list.push(sess);
     state.training.sessions[d]=list;syncCardioTags(d);saveTraining();save();state.cardioForm=null;state.view="train";toast("Cardio logged");render();return;}
   if(a==="cardio:del"){var did=el.getAttribute("data-id");var dd2=state.selDate;var sList=(state.training.sessions[dd2])||[];var victim=sList.filter(function(s){return s.id===did;})[0];askConfirm("Delete this "+((victim&&victim.type)||"cardio")+" session"+(victim&&victim.mins?" ("+victim.mins+" min)":"")+"? This can\u2019t be undone.",function(){var l2=((state.training.sessions[dd2])||[]).filter(function(s){return s.id!==did;});if(l2.length)state.training.sessions[dd2]=l2;else delete state.training.sessions[dd2];syncCardioTags(dd2);saveTraining();save();if(state.cardioForm&&state.cardioForm.id===did)state.cardioForm=null;});return;}
+  if(a==="day:reopenask"){state.reopenAsk=el.getAttribute("data-date")||state.selDate;render();return;}
+  if(a==="day:reopencancel"){state.reopenAsk=null;render();return;}
+  if(a==="day:reopendo"){reopenDay(el.getAttribute("data-date")||state.selDate);return;}
   if(a==="night:gen"){genNightly();return;}
   if(a==="tdee:apply"){var _ta=tdeeAnalysis();var _tp=_ta&&_ta.prop;if(!_tp){toast("Nothing to apply");render();return;}var _s=state.settings;_s.targetCalories=String(_tp.cal);_s.calTargetAuto=false;if(_tp.carbs!=null){_s.targetCarbs=String(_tp.carbs);_s.targetFat=String(_tp.fat);_s.macroAuto=false;}if(_tp.steps!=null)_s.stepsGoal=String(_tp.steps);if(_tp.cardio!=null)_s.cardioMinGoal=String(_tp.cardio);_s.tdeeApplied=todayISO();delete _s.tdeeSnooze;save();toast("Plan updated \u2014 targets adjusted");render();return;}
   if(a==="tdee:later"){state.settings.tdeeSnooze=todayISO();save();render();return;}
