@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-26.336 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-26.338 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -851,7 +851,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-26.336-pb";
+var APP_BUILD="2026-07-26.338-pb";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -2492,15 +2492,35 @@ function view_summary(){
   return h+'</div>';}
 function csvCell(v){v=(v==null?"":String(v));return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
 function mdyy(iso){var d=parseISO(iso);return (d.getMonth()+1)+"/"+d.getDate()+"/"+String(d.getFullYear()).slice(-2);}
-function csvFor(days){var rows=[["Day","Date","Weight","Steps","Sleep","Calories","Fiber","Protein","Fat","Carbs","Check in notes","Cardio","Weight Training","Activity Notes"]];
+/* A second block a few lines below the daily rows: macro totals vs goals over the SAME
+   window the rows cover (days up to today), so the figures reconcile with the app's
+   Weekly Macros card — goals are pro-rated to the days elapsed, not a flat x7.
+   `label` is "Weekly" for the single-week export, "Period" for the full-history one. */
+function csvSummaryBlock(days,label){
+  var _tI=todayISO();var el=days.filter(function(r){return r.date<=_tI;});var n=el.length;var s=state.settings;
+  function tot(k){var t=0;el.forEach(function(r){if(r[k]!=null)t+=r[k];});return Math.round(t);}
+  function goal(v){var d=num(v);return (d!=null&&n>0)?Math.round(d*n):"";}
+  function dgoal(v){var d=num(v);return d!=null?d:"";}
+  /* Daily average is over DAYS IN THE PERIOD (n), not just the days that had a value —
+     so the block reconciles: avg x n = total, and daily goal x n = period goal. */
+  function davg(k){return n>0?r1(tot(k)/n):"";}
+  function row(name,k,g){return [name,tot(k),goal(g),dgoal(g),davg(k)];}
+  return [[],[],[],[],["Name",label+" Totals",label+" Goals","Daily Goal","Daily Average"],
+    row("Calories","calories",s.targetCalories),
+    row("Protein","protein",s.targetProtein),
+    row("Fat","fat",s.targetFat),
+    row("Carbs","carbs",s.targetCarbs)];
+}
+function csvFor(days,sumLabel){var rows=[["Day","Date","Weight","Steps","Sleep","Calories","Fiber","Protein","Fat","Carbs","Check in notes","Cardio","Weight Training","Activity Notes"]];
   days.forEach(function(r){rows.push([r.dow,mdyy(r.date),r.weight!=null?r1(r.weight):"",r.steps!=null?Math.round(r.steps):"",r.sleep!=null?minToHM(r.sleep):"",r.calories!=null?Math.round(r.calories):"",r.fiber!=null?r.fiber:"",r.protein!=null?r.protein:"",r.fat!=null?r.fat:"",r.carbs!=null?r.carbs:"",r.note||"",csvCardioCell(r),csvLiftCell(r),csvActNotesCell(r)]);});
+  if(sumLabel)csvSummaryBlock(days,sumLabel).forEach(function(r){rows.push(r);});
   return rows.map(function(row){return row.map(csvCell).join(",");}).join("\r\n");}
-function exportWeekCSV(){var days=weekDays(state.weekOffset).map(dayRow);shareOrDownload("weight-summary-"+toISO(weekStartFor(state.weekOffset))+".csv","text/csv",csvFor(days));}
+function exportWeekCSV(){var days=weekDays(state.weekOffset).map(dayRow);shareOrDownload("weight-summary-"+toISO(weekStartFor(state.weekOffset))+".csv","text/csv",csvFor(days,"Weekly"));}
 function exportAllCSV(){var set={};state.weights.forEach(function(x){set[x.date]=1;});Object.keys(state.food).forEach(function(k){set[k]=1;});Object.keys(state.steps).forEach(function(k){set[k]=1;});Object.keys(state.sleep).forEach(function(k){set[k]=1;});Object.keys(state.workouts).forEach(function(k){set[k]=1;});
   /* training-only days must appear too, now that cardio/lifting are exported */
   Object.keys(((state.training||{}).sessions)||{}).forEach(function(k){set[k]=1;});Object.keys(((state.training||{}).liftSessions)||{}).forEach(function(k){set[k]=1;});
   var days=Object.keys(set).sort().map(function(iso){return dayRow(parseISO(iso));});
-  if(!days.length){toast("No data to export");return;}shareOrDownload("weight-history-"+todayISO()+".csv","text/csv",csvFor(days));}
+  if(!days.length){toast("No data to export");return;}shareOrDownload("weight-history-"+todayISO()+".csv","text/csv",csvFor(days,"Period"));}
 function shareOrDownload(name,mime,text){
   /* Excel opens a BOM-less CSV as Windows-1252, so UTF-8 curly apostrophes (iOS
      autocorrects the typed quote to U+2019) come out garbled. A UTF-8 BOM makes
