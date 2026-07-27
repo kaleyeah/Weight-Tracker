@@ -250,6 +250,7 @@ BASE=http://127.0.0.1:8091 ADMIN_EMAIL=<staging-superuser> ADMIN_PASS=<pw> \
 | 3 | All four fixed and verified; two new findings (5 fixed, 6 open). **Phase 1 green.** |
 | 4 | Architect ruling received: **APPROVED FOR PRODUCTION DEPLOYMENT** subject to operational prerequisites. Finding 6 ruled a runbook requirement; `verify-deployment.sh` written and tested to satisfy it. See §12. |
 | 5 | Gate reviewed: **APPROVED WITH ONE REQUIRED CHANGE** — the V15 integrity sentinel. Implemented and tested; probe-account, rollback-trigger and monitoring decisions applied; rollback asymmetry confirmed. See §13. |
+| 6 | V15 reviewed: **APPROVED PENDING TWO SECURITY HARDENINGS** — credentials out of process arguments, and safe sentinel-file handling; hash mode made mandatory for production. All three done. See §14. |
 
 ---
 
@@ -383,3 +384,60 @@ Four scenarios, each seeding two athlete-shaped rows on an unmigrated instance, 
 **S9 is recorded as a limitation, not as a pass.** A byte-length sentinel is blind to a same-length change. `SENTINEL_WITH_HASH=YES` adds a SHA-256 of each payload's canonical form at capture time and closes it. It is **off by default** because the six values are what the ruling specified — turning it on is the Architect's call, and it is the one open question in the return package.
 
 Full rig: **46 assertions, 0 failures** across ten scenarios (S1–S6 from Round 4, S7–S9b here). Zero writes by the verifier confirmed after every applicable run by reading sqlite directly.
+
+
+---
+
+## 14. Round 6 — the two security hardenings
+
+**Date:** 2026-07-27. The Architect reviewed V15 and returned **APPROVED PENDING TWO SECURITY HARDENINGS**, with hash mode made mandatory as a third required change. All three are implemented and tested. No staging server was redeployed.
+
+### 14.1 Credentials out of process arguments
+
+> "Remove the PocketBase superuser token from process arguments. Do not pass credentials on the command line. Use a protected environment variable or stdin."
+
+`/proc/<pid>/cmdline` is world-readable on Linux. Every `curl -H "Authorization: <token>"` in this kit published a live superuser token to every local user for the lifetime of the request, and `_sentinel.py` took the token as `argv[3]`. Three classes of exposure were found and closed:
+
+| Exposure | Sites | Fix |
+| --- | --- | --- |
+| Superuser/user token in `curl` argv | **11** call sites across 8 scripts, plus `cf_req` in `_lib.sh` | new `cf_curl` helper writes the header to a **0600** curl config file inside the 0700 temp dir and passes `-K`; the token never reaches a command line |
+| Superuser token in `_sentinel.py` argv | capture and verify | token now arrives on **stdin**; the script refuses to run without it |
+| Account passwords in `python3 -c` argv | `cf_auth` in `_lib.sh`, plus `fixtures.sh`, `probe-account.sh`, `deletion-and-retention.sh` | passed through the **environment** instead — readable by the same uid and root only |
+
+The last row was not in the Architect's list. It was found while implementing the first two: the same defect, a different credential. `cf_commit_body` still passes subsystem, revision and idempotency key through argv, which is correct — those are not secrets, and the rig's S10c check is written to distinguish them.
+
+**This changed the shared HTTP layer, so the whole staging suite was re-run to prove nothing broke: 11 suites, 172 assertions, 0 failures — identical to Round 3, with verified teardown.**
+
+### 14.2 Sentinel file safety
+
+> "Create atomically. Refuse symlinks. Owner-only permissions (0600). Verify permissions after creation. Delete after verification or rollback and confirm absence."
+
+`secure_write()` in `_sentinel.py`: refuses a symlink or non-regular target *before* writing; writes to a `mkstemp` file in the same directory; `fchmod` 0600; `fsync`; `os.replace` for an atomic rename; then re-checks with `lstat` that the result is not a symlink, is mode 0600, and is owned by the current user. Any failure raises and the capture reports `BASELINE NOT CAPTURED — do NOT deploy`.
+
+`_sentinel.py destroy <file>` deletes the baseline and confirms absence, refusing to delete through a symlink. Runbook P3.4 runs it after a pass, and P5 runs it after a rollback.
+
+### 14.3 Hash mode mandatory for production
+
+> "Production cutover MUST enable SENTINEL_WITH_HASH=YES. Hash mode is now mandatory for production because byte-length checks alone cannot detect same-length payload mutations."
+
+This answers the open question from Round 5 §13.3. Hash mode is now **on by default** at capture rather than opt-in, so forgetting the flag cannot silently weaken the check. `SENTINEL_NO_HASH=YES` disables it and prints a warning; a hashless baseline is then **refused** at verify time unless `ACCEPT_NO_HASH=YES` is also set. The runbook passes `SENTINEL_WITH_HASH=YES` explicitly anyway, as instructed.
+
+### 14.4 Test evidence
+
+The rig grows to eleven states, **59 assertions, 0 failures**:
+
+| Check | Asserts |
+| --- | --- |
+| S10a | no script passes a token via a `curl` command-line header |
+| S10b | no script passes the token to `_sentinel.py` as an argument |
+| S10c | no password reaches python through argv |
+| S10d–e | the captured baseline is mode **0600** and owned by the running user |
+| S10f | hash mode is the **default** at capture |
+| S10g | the baseline contains no payload fields — parsed and checked, not assumed |
+| S10h–i | `secure_write` refuses a symlink target, and the target is left untouched |
+| S10j–k | `destroy` deletes the baseline and absence is confirmed |
+| S10l–m | a hashless baseline is refused, and only `ACCEPT_NO_HASH=YES` waives it |
+
+S10a–c are static checks by design: sampling `ps` mid-request is racy, and what matters is that no code path can put a credential on a command line at all.
+
+Plus the full staging suite re-run described in §14.1. Total evidence this round: **59 rig assertions + 172 suite assertions, 0 failures**.

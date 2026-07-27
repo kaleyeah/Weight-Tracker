@@ -25,8 +25,10 @@ N=$(date +%s%N)
 
 mkuser() { # email -> prints "id token"
   local em="$1" pw="cf-del-$(python3 -c 'import secrets;print(secrets.token_urlsafe(12))')"
-  python3 -c 'import json,sys;print(json.dumps({"email":sys.argv[1],"password":sys.argv[2],"passwordConfirm":sys.argv[2],"verified":True}))' \
-    "$em" "$pw" > "$CF_TMP/mk.json"
+  ( umask 077
+    CF_EM="$em" CF_NEWPW="$pw" python3 -c \
+      'import json,os;print(json.dumps({"email":os.environ["CF_EM"],"password":os.environ["CF_NEWPW"],"passwordConfirm":os.environ["CF_NEWPW"],"verified":True}))' \
+      > "$CF_TMP/mk.json" )
   cf_req POST /api/collections/users/records "$ATOK" "$CF_TMP/mk.json"
   local id; id=$(cf_json id)
   local tok; tok=$(cf_user_token "$em" "$pw")
@@ -75,8 +77,8 @@ cf_eq "D5b user D still exists" "$ID_D" "$(cf_user_id "$ATOK" "cf_test_del_d_$N@
 
 # ---- D6: deleting a ledger row does not delete the user ---------------------
 echo "== D6: the cascade is one-directional =="
-ROW=$(curl -sS --max-time 30 -G "$BASE/api/collections/cf_commit_log/records" --data-urlencode "filter=user=\"$ID_D\"" \
-      -H "Authorization: $ATOK" | python3 -c 'import sys,json;i=json.load(sys.stdin).get("items",[]);print(i[0]["id"] if i else "")')
+ROW=$(cf_curl "$ATOK" -sS --max-time 30 -G "$BASE/api/collections/cf_commit_log/records" --data-urlencode "filter=user=\"$ID_D\"" \
+      | python3 -c 'import sys,json;i=json.load(sys.stdin).get("items",[]);print(i[0]["id"] if i else "")')
 if [ -n "$ROW" ]; then
   cf_req DELETE "/api/collections/cf_commit_log/records/$ROW" "$ATOK"
   cf_eq "D6a ledger row deleted" 204 "$CF_STATUS" "$CF_BODY"

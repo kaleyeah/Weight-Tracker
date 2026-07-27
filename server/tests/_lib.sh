@@ -33,14 +33,32 @@ cf_eq() { # name expected actual [context]
 }
 
 # ---- HTTP -------------------------------------------------------------------
-# cf_req METHOD PATH TOKEN BODYFILE_OR_EMPTY  -> writes /tmp status+headers+body
+# CREDENTIALS NEVER APPEAR IN PROCESS ARGUMENTS (Product Architect, 2026-07-27:
+# "Remove the PocketBase superuser token from process arguments. Do not pass
+# credentials on the command line."). `/proc/<pid>/cmdline` is world-readable,
+# so `curl -H "Authorization: <token>"` publishes a live superuser token to
+# every local user for the lifetime of the request. The header now goes into a
+# 0600 curl config file inside a 0700 temp directory, read with -K. Passwords
+# reach python through the environment — readable by the same uid and root
+# only — never through argv.
 CF_TMP="${CF_TMP:-$(mktemp -d)}"
+chmod 700 "$CF_TMP" 2>/dev/null
+
+# cf_curl TOKEN [curl args...] — curl with an Authorization header that never
+# appears in `ps`. An empty token means an unauthenticated request.
+cf_curl() {
+  local tok="$1"; shift
+  if [ -z "$tok" ]; then curl "$@"; return $?; fi
+  ( umask 077; printf 'header = "Authorization: %s"\n' "$tok" > "$CF_TMP/auth.curlrc" )
+  curl -K "$CF_TMP/auth.curlrc" "$@"
+}
+
+# cf_req METHOD PATH TOKEN BODYFILE_OR_EMPTY  -> writes /tmp status+headers+body
 cf_req() {
   local method="$1" path="$2" tok="${3:-}" bodyfile="${4:-}"
   local args=(-sS --max-time 60 -o "$CF_TMP/body" -D "$CF_TMP/hdr" -w '%{http_code}' -X "$method" "$BASE$path")
-  [ -n "$tok" ] && args+=(-H "Authorization: $tok")
   if [ -n "$bodyfile" ]; then args+=(-H 'Content-Type: application/json' --data-binary "@$bodyfile"); fi
-  CF_STATUS=$(curl "${args[@]}" 2>"$CF_TMP/err") || CF_STATUS="000"
+  CF_STATUS=$(cf_curl "$tok" "${args[@]}" 2>"$CF_TMP/err") || CF_STATUS="000"
   CF_BODY=$(cat "$CF_TMP/body" 2>/dev/null)
   CF_CTYPE=$(grep -i '^content-type:' "$CF_TMP/hdr" 2>/dev/null | head -1 | tr -d '\r' | cut -d' ' -f2-)
 }
@@ -154,27 +172,32 @@ cf_assert_replay() { # name expected_newRev
 
 # ---- auth / admin helpers ---------------------------------------------------
 cf_auth() { # identity password collectionpath -> token on stdout
-  python3 -c 'import json,sys;print(json.dumps({"identity":sys.argv[1],"password":sys.argv[2]}))' "$1" "$2" > "$CF_TMP/auth.json"
+  # identity/password travel through the environment, never argv
+  ( umask 077
+    CF_ID="$1" CF_PW="$2" python3 -c \
+      'import json,os;print(json.dumps({"identity":os.environ["CF_ID"],"password":os.environ["CF_PW"]}))' \
+      > "$CF_TMP/auth.json" )
   curl -sS --max-time 30 "$BASE/$3" -H 'Content-Type: application/json' --data-binary "@$CF_TMP/auth.json" \
     | python3 -c 'import sys,json;print(json.load(sys.stdin).get("token",""))'
+  rm -f "$CF_TMP/auth.json"
 }
 cf_user_token()  { cf_auth "$1" "$2" "api/collections/users/auth-with-password"; }
 cf_admin_token() { cf_auth "$1" "$2" "api/collections/_superusers/auth-with-password"; }
 
 cf_user_id() { # admintoken email
-  curl -sS --max-time 30 -G "$BASE/api/collections/users/records" --data-urlencode "filter=email=\"$2\"" -H "Authorization: $1" \
+  cf_curl "$1" -sS --max-time 30 -G "$BASE/api/collections/users/records" --data-urlencode "filter=email=\"$2\"" \
     | python3 -c 'import sys,json;i=json.load(sys.stdin).get("items",[]);print(i[0]["id"] if i else "")'
 }
 cf_appdata_rows() { # admintoken userid -> count
-  curl -sS --max-time 30 -G "$BASE/api/collections/appdata/records" --data-urlencode "filter=user=\"$2\"" -H "Authorization: $1" \
+  cf_curl "$1" -sS --max-time 30 -G "$BASE/api/collections/appdata/records" --data-urlencode "filter=user=\"$2\"" \
     | python3 -c 'import sys,json;print(len(json.load(sys.stdin).get("items",[])))'
 }
 cf_ledger_rows() { # admintoken userid -> count
-  curl -sS --max-time 30 -G "$BASE/api/collections/cf_commit_log/records" --data-urlencode "filter=user=\"$2\"" -H "Authorization: $1" \
+  cf_curl "$1" -sS --max-time 30 -G "$BASE/api/collections/cf_commit_log/records" --data-urlencode "filter=user=\"$2\"" \
     | python3 -c 'import sys,json;print(json.load(sys.stdin).get("totalItems",0))'
 }
 cf_rev() { # admintoken userid field(coreRev|trainingRev)
-  curl -sS --max-time 30 -G "$BASE/api/collections/appdata/records" --data-urlencode "filter=user=\"$2\"" -H "Authorization: $1" \
+  cf_curl "$1" -sS --max-time 30 -G "$BASE/api/collections/appdata/records" --data-urlencode "filter=user=\"$2\"" \
     | python3 -c 'import sys,json;i=json.load(sys.stdin).get("items",[]);print(i[0][sys.argv[1]] if i else "-")' "$3"
 }
 

@@ -273,14 +273,17 @@ seed_rows() { # two rows with athlete-shaped payloads, via the API
       -d "{\"user\":\"$uid\",\"data\":{\"weights\":[{\"date\":\"2026-07-0$n\",\"kg\":8$n.5}],\"note\":\"seed $n\"},\"training\":{\"sessions\":[{\"day\":$n}]}}" >/dev/null
   done
 }
-sentinel_scenario() { # label mutate-mode expect-rc expect-grep [--with-hash]
-  local label="$1" mutate="$2" want_rc="$3" want_grep="$4" hashopt="${5:-}"
+sentinel_scenario() { # label mutate-mode expect-rc expect-grep [nohash]
+  local label="$1" mutate="$2" want_rc="$3" want_grep="$4" hashmode="${5:-hash}"
   local D base_file="$WORK/$label.sentinel.json"
   D=$(prep unmigrated); start_instance "$D" "$WORK/hooks" "$WORK/migs" "$WORK/$label.pre.log"; wait_up
   seed_rows
   local caprc
-  caprc=$(run_verifier "$EV/$label-capture.log" SENTINEL_CAPTURE="$base_file" \
-            ${hashopt:+SENTINEL_WITH_HASH=YES})
+  if [ "$hashmode" = "nohash" ]; then
+    caprc=$(run_verifier "$EV/$label-capture.log" SENTINEL_CAPTURE="$base_file" SENTINEL_NO_HASH=YES)
+  else
+    caprc=$(run_verifier "$EV/$label-capture.log" SENTINEL_CAPTURE="$base_file")
+  fi
   eq "$label baseline captured before deployment" 0 "$caprc"
   grep -q 'coreRev=0 trainingRev=0' "$EV/$label-capture.log" \
     && ok "$label pre-migration rows have no revisions — recorded as 0" \
@@ -319,8 +322,14 @@ PY
   start_instance "$D" "$WORK/hooks" "$WORK/migs" "$WORK/$label.post.log"; wait_up
   make_probe_user
   local rc
-  rc=$(run_verifier "$EV/$label-verify.log" SENTINEL_VERIFY="$base_file" \
-         PROBE_EMAIL="$PROBE_EMAIL" PROBE_PASS="$PROBE_PASS")
+  if [ "$hashmode" = "nohash" ]; then
+    rc=$(run_verifier "$EV/$label-verify.log" SENTINEL_VERIFY="$base_file" ACCEPT_NO_HASH=YES \
+           PROBE_EMAIL="$PROBE_EMAIL" PROBE_PASS="$PROBE_PASS")
+  else
+    rc=$(run_verifier "$EV/$label-verify.log" SENTINEL_VERIFY="$base_file" \
+           PROBE_EMAIL="$PROBE_EMAIL" PROBE_PASS="$PROBE_PASS")
+  fi
+  SENTINEL_BASE_FILE="$base_file"
   eq "$label verifier verdict after deployment" "$want_rc" "$rc"
   grep -q "$want_grep" "$EV/$label-verify.log" \
     && ok "$label reported: $want_grep" || bad "$label expected output matching: $want_grep"
@@ -343,12 +352,90 @@ grep -q 'RESULT: NOT VERIFIED' "$EV/s8-sentinel-tamper-verify.log" \
   && ok "S8 the run refuses the cutover" || bad "S8 did not refuse the cutover"
 
 echo "== S9: LIMITATION — a same-length change is invisible to byte length alone =="
-sentinel_scenario s9-sentinel-samelen samelen 0 'V15 existing appdata rows are byte-for-byte unchanged'
-ok "S9 DOCUMENTED LIMITATION: a mutation that preserves byte length PASSES the six required values"
-echo "== S9b: the optional content hash catches the same mutation =="
-sentinel_scenario s9b-sentinel-hash samelen 1 'V15 EXISTING APPDATA CHANGED ACROSS THE DEPLOYMENT' --with-hash
+sentinel_scenario s9-sentinel-samelen samelen 0 'V15 existing appdata rows are byte-for-byte unchanged' nohash
+ok "S9 DOCUMENTED LIMITATION: with SENTINEL_NO_HASH=YES, a mutation preserving byte length PASSES the six required values"
+echo "== S9b: the DEFAULT hash mode catches the same mutation =="
+sentinel_scenario s9b-sentinel-hash samelen 1 'V15 EXISTING APPDATA CHANGED ACROSS THE DEPLOYMENT'
 grep -q 'dataHash changed' "$EV/s9b-sentinel-hash-verify.log" \
-  && ok "S9b SENTINEL_WITH_HASH=YES detects what byte length cannot" || bad "S9b hash did not detect the mutation"
+  && ok "S9b the default hash mode detects what byte length cannot" || bad "S9b hash did not detect the mutation"
+
+# ---- S10: the two security hardenings ---------------------------------------
+# Required by the Product Architect, 2026-07-27: no credentials in process
+# arguments, and a sentinel baseline that is created safely and destroyed
+# verifiably.
+echo "== S10: credential exposure and sentinel file safety =="
+
+# S10a is a static check by design: sampling `ps` during a request is racy, and
+# what matters is that no code path can put a token on a command line at all.
+LEAKS=$(grep -rn -- '-H "Authorization: \$' "$REPO/server/tests"/*.sh "$REPO/server/tests"/*.py 2>/dev/null | wc -l)
+eq "S10a no script passes a token via a curl command-line header" 0 "$LEAKS"
+PYLEAKS=$(grep -rn '_sentinel.py[^|]*\$ATOK' "$REPO/server/tests"/*.sh 2>/dev/null | wc -l)
+eq "S10b no script passes the token to _sentinel.py as an argument" 0 "$PYLEAKS"
+# credential-specific: cf_commit_body legitimately passes subsystem/rev/key
+# through argv, and those are not secrets
+PWLEAKS=$(grep -rln 'password.*sys\.argv\|sys\.argv.*password' "$REPO/server/tests"/*.sh "$REPO/server/tests"/*.py 2>/dev/null | wc -l)
+eq "S10c no password reaches python through argv" 0 "$PWLEAKS"
+
+# S10d: the baseline written by the last sentinel scenario is owner-only.
+if [ -n "${SENTINEL_BASE_FILE:-}" ] && [ -f "$SENTINEL_BASE_FILE" ]; then
+  eq "S10d baseline permissions are 0600" "600" "$(stat -c '%a' "$SENTINEL_BASE_FILE")"
+  eq "S10e baseline is owned by this user" "$(id -u)" "$(stat -c '%u' "$SENTINEL_BASE_FILE")"
+  grep -q '"withHash": true' "$SENTINEL_BASE_FILE" \
+    && ok "S10f hash mode is the default at capture" || bad "S10f baseline was captured without hashes by default"
+  python3 -c "
+import json,sys
+d=json.load(open(sys.argv[1]))
+bad=[k for r in d['rows'] for k in r if k in ('data','training')]
+print('LEAK' if bad else 'clean')" "$SENTINEL_BASE_FILE" | grep -q clean \
+    && ok "S10g baseline contains no payload fields — only the recorded scalars" \
+    || bad "S10g THE BASELINE CONTAINS PAYLOAD DATA"
+else
+  bad "S10d-g no baseline file to inspect"
+fi
+
+# S10h: capture refuses to write through a symlink.
+SYMTARGET="$WORK/symlink-target.json"; SYMLINK="$WORK/evil.sentinel.json"
+rm -f "$SYMTARGET" "$SYMLINK"; : > "$SYMTARGET"; ln -s "$SYMTARGET" "$SYMLINK"
+SYMOUT=$(printf 'not-a-real-token\n' | python3 -c "
+import sys, os
+sys.path.insert(0, os.path.join('$REPO', 'server/tests'))
+import importlib.util
+spec = importlib.util.spec_from_file_location('s', os.path.join('$REPO','server/tests/_sentinel.py'))
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+try:
+    m.secure_write('$SYMLINK', {'rows': []})
+    print('WROTE THROUGH SYMLINK')
+except RuntimeError as e:
+    print('refused:', e)" 2>&1)
+case "$SYMOUT" in
+  refused*symlink*) ok "S10h capture refuses to write through a symlink";;
+  *) bad "S10h symlink not refused: $SYMOUT";;
+esac
+[ -s "$SYMTARGET" ] && bad "S10i the symlink target was written to" || ok "S10i the symlink target is untouched"
+
+# S10j: destroy removes the baseline and confirms absence.
+if [ -n "${SENTINEL_BASE_FILE:-}" ] && [ -f "$SENTINEL_BASE_FILE" ]; then
+  DOUT=$(python3 "$REPO/server/tests/_sentinel.py" destroy "$SENTINEL_BASE_FILE" 2>&1)
+  case "$DOUT" in
+    *"deleted and absence confirmed"*) ok "S10j destroy deletes the baseline and confirms absence";;
+    *) bad "S10j destroy did not confirm absence: $DOUT";;
+  esac
+  [ -e "$SENTINEL_BASE_FILE" ] && bad "S10k the baseline still exists after destroy" \
+    || ok "S10k the baseline is really gone"
+fi
+
+# S10l: a hashless baseline is refused unless explicitly waived.
+grep -q 'V15 the baseline was captured WITHOUT content hashes' "$EV/s9-sentinel-samelen-verify.log" \
+  && bad "S10l the nohash run should have been waived by ACCEPT_NO_HASH, not refused" \
+  || ok "S10l ACCEPT_NO_HASH=YES waives the hash requirement (and only then)"
+# needs a live instance — every scenario above stopped its own
+D=$(prep migrated); start_instance "$D" "$WORK/hooks" "$WORK/migs" "$WORK/s10.serve.log"; wait_up
+run_verifier "$EV/s10-hashless-refused.log" \
+  SENTINEL_VERIFY="$WORK/s9-sentinel-samelen.sentinel.json" ACCEPT_ROUTE_PROBE_ONLY=YES >/dev/null
+stop_instance
+grep -q 'V15 the baseline was captured WITHOUT content hashes' "$EV/s10-hashless-refused.log" \
+  && ok "S10m without the waiver, a hashless baseline is refused" \
+  || bad "S10m a hashless baseline was accepted without ACCEPT_NO_HASH"
 
 # =============================================================================
 printf '\n---- verify-rig: %d passed, %d failed ----\n' "$PASS" "$FAIL"

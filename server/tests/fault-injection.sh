@@ -23,8 +23,8 @@ UID1=$(cf_user_id "$ATOK" "$EMAIL")
 N=$(date +%s%N)
 
 rev() { cf_commit "$T1" core 999999 "fx-probe-$N-$RANDOM" '{}'; cf_server_rev; }
-ledger_for() { curl -sS --max-time 30 -G "$BASE/api/collections/cf_commit_log/records" \
-  --data-urlencode "filter=user=\"$UID1\" && key=\"$1\"" -H "Authorization: $ATOK" \
+ledger_for() { cf_curl "$ATOK" -sS --max-time 30 -G "$BASE/api/collections/cf_commit_log/records" \
+  --data-urlencode "filter=user=\"$UID1\" && key=\"$1\"" \
   | python3 -c 'import sys,json;print(json.load(sys.stdin).get("totalItems",0))'; }
 
 # ---- F1 forced mid-transaction rollback ------------------------------------
@@ -95,7 +95,7 @@ cf_eq "F1d the server is healthy again after the injection" 200 "$CF_STATUS" "$C
 echo "== F2: a missing ledger collection must fail CLOSED =="
 BEFORE=$(rev)
 KEY="fx-$N-noledger"
-LEDGER_ID=$(curl -sS --max-time 30 "$BASE/api/collections/cf_commit_log" -H "Authorization: $ATOK" \
+LEDGER_ID=$(cf_curl "$ATOK" -sS --max-time 30 "$BASE/api/collections/cf_commit_log" \
   | python3 -c 'import sys,json;print(json.load(sys.stdin).get("id",""))')
 if [ -z "$LEDGER_ID" ]; then
   cf_bad "F2 could not resolve the cf_commit_log collection id"

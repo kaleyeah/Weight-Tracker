@@ -34,14 +34,28 @@ deployment records them as 0, and the migration must leave them at 0. A row that
 comes back with a nonzero revision after deployment therefore FAILS this check —
 the migration is required to add the fields, not to set them.
 
-Usage:
-    _sentinel.py capture <base> <token> <outfile> [--with-hash]
-    _sentinel.py verify  <base> <token> <baseline-file>
+SECURITY (Product Architect, 2026-07-27):
+  * The superuser token is read from STDIN, never from argv — `/proc/<pid>/cmdline`
+    is world-readable, so a token on the command line is a token published to
+    every local user for the lifetime of the process.
+  * The baseline file is created atomically (write to a 0600 temp file in the
+    same directory, fsync, rename), refuses to follow symlinks, and its owner-only
+    permissions are verified after creation.
+  * `destroy` deletes it and confirms absence, for use after verification or
+    rollback.
 
-Exit 0 on success; 1 on any mismatch or fetch failure.
+Usage:
+    _sentinel.py capture <base> <outfile> [--with-hash]   # token on stdin
+    _sentinel.py verify  <base> <baseline-file>           # token on stdin
+    _sentinel.py destroy <baseline-file>                  # no token needed
+
+Exit 0 on success; 1 on any mismatch, fetch failure or insecure file state.
 """
 import json
+import os
+import stat
 import sys
+import tempfile
 import urllib.error
 import urllib.request
 
@@ -95,6 +109,52 @@ def fetch_rows(base, token, with_hash=False):
     return rows
 
 
+def secure_write(path, doc):
+    """Atomic, 0600, symlink-refusing, permissions verified after the fact."""
+    if os.path.islink(path):
+        raise RuntimeError("refusing to write through a symlink: %s" % path)
+    if os.path.exists(path) and not os.path.isfile(path):
+        raise RuntimeError("refusing to write over a non-regular file: %s" % path)
+    directory = os.path.dirname(os.path.abspath(path)) or "."
+    fd, tmp = tempfile.mkstemp(dir=directory, prefix=".sentinel-", suffix=".tmp")
+    try:
+        os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "w") as fh:
+            json.dump(doc, fh, indent=2, sort_keys=True)
+            fh.write("\n")
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, path)              # atomic within the same filesystem
+    except Exception:
+        try: os.unlink(tmp)
+        except OSError: pass
+        raise
+    st = os.lstat(path)                    # lstat: verify the RESULT, not a link target
+    if stat.S_ISLNK(st.st_mode):
+        raise RuntimeError("baseline is a symlink after writing: %s" % path)
+    mode = stat.S_IMODE(st.st_mode)
+    if mode != 0o600:
+        raise RuntimeError("baseline permissions are %o, expected 600: %s" % (mode, path))
+    if st.st_uid != os.geteuid():
+        raise RuntimeError("baseline is not owned by this user: %s" % path)
+    return mode
+
+
+def cmd_destroy(path):
+    if os.path.islink(path):
+        print("V15 SENTINEL: refusing to delete through a symlink: %s" % path)
+        return 1
+    if not os.path.exists(path):
+        print("V15 SENTINEL: baseline already absent: %s" % path)
+        return 0
+    os.unlink(path)
+    if os.path.exists(path):
+        print("V15 SENTINEL: FAILED to delete the baseline: %s" % path)
+        return 1
+    print("V15 SENTINEL: baseline deleted and absence confirmed: %s" % path)
+    return 0
+
+
 def cmd_capture(base, token, outfile, with_hash):
     rows = fetch_rows(base, token, with_hash)
     doc = {
@@ -103,11 +163,9 @@ def cmd_capture(base, token, outfile, with_hash):
         "rowCount": len(rows),
         "rows": [rows[k] for k in sorted(rows)],
     }
-    with open(outfile, "w") as fh:
-        json.dump(doc, fh, indent=2, sort_keys=True)
-        fh.write("\n")
-    print("SENTINEL CAPTURED  rows=%d  file=%s%s"
-          % (len(rows), outfile, "  (with content hashes)" if with_hash else ""))
+    mode = secure_write(outfile, doc)
+    print("SENTINEL CAPTURED  rows=%d  file=%s  mode=%04o%s"
+          % (len(rows), outfile, mode, "  (with content hashes)" if with_hash else ""))
     for r in doc["rows"]:
         print("  row %s user=%s coreRev=%s trainingRev=%s dataBytes=%s trainingBytes=%s"
               % (r["id"], r["user"], r["coreRev"], r["trainingRev"], r["dataBytes"], r["trainingBytes"]))
@@ -154,12 +212,20 @@ def cmd_verify(base, token, baseline_file):
 
 
 def main(argv):
-    if len(argv) < 5:
-        print(__doc__.strip().splitlines()[-4], file=sys.stderr)
-        print("usage: _sentinel.py capture|verify <base> <token> <file> [--with-hash]", file=sys.stderr)
+    if len(argv) >= 3 and argv[1] == "destroy":
+        return cmd_destroy(argv[2])
+    if len(argv) < 4:
+        print("usage: _sentinel.py capture|verify <base> <file> [--with-hash]   (token on stdin)",
+              file=sys.stderr)
+        print("       _sentinel.py destroy <file>", file=sys.stderr)
         return 2
-    mode, base, token, path = argv[1], argv[2], argv[3], argv[4]
-    with_hash = "--with-hash" in argv[5:]
+    mode, base, path = argv[1], argv[2], argv[3]
+    with_hash = "--with-hash" in argv[4:]
+    # the token arrives on stdin so that it never appears in /proc/<pid>/cmdline
+    token = sys.stdin.readline().strip()
+    if not token:
+        print("V15 SENTINEL ERROR: no superuser token on stdin", file=sys.stderr)
+        return 2
     try:
         if mode == "capture":
             return cmd_capture(base, token, path, with_hash)

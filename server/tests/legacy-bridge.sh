@@ -16,8 +16,8 @@ N=$(date +%s%N)
 
 cf_commit "$T1" core 999999 "lb-probe-$N" '{}'; CUR=$(cf_server_rev)
 if [ "$CUR" = "0" ]; then cf_commit "$T1" core 0 "lb-seed-$N" '{"seed":1}'; CUR=1; fi
-RID=$(curl -sS --max-time 30 -G "$BASE/api/collections/appdata/records" --data-urlencode "filter=user=\"$UID1\"" \
-      -H "Authorization: $ATOK" | python3 -c 'import sys,json;i=json.load(sys.stdin).get("items",[]);print(i[0]["id"] if i else "")')
+RID=$(cf_curl "$ATOK" -sS --max-time 30 -G "$BASE/api/collections/appdata/records" --data-urlencode "filter=user=\"$UID1\"" \
+      | python3 -c 'import sys,json;i=json.load(sys.stdin).get("items",[]);print(i[0]["id"] if i else "")')
 
 echo "== raw snapshot PATCH: bridge (pre-lockdown) or blocked (post-lockdown) =="
 BEFORE=$(cf_rev "$ATOK" "$UID1" coreRev)

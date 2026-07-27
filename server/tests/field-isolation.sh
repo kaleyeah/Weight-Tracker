@@ -39,8 +39,8 @@ printf '%s' "$TP" | grep -q 'training-only' && cf_ok "FI6 training conflict retu
   || cf_bad "FI6 training conflict should carry the training payload" "$TP"
 
 echo "== operational fields move no revision (SERVER_NOTES §1) =="
-RID=$(curl -sS --max-time 30 -G "$BASE/api/collections/appdata/records" --data-urlencode "filter=user=\"$UID1\"" \
-      -H "Authorization: $ATOK" | python3 -c 'import sys,json;i=json.load(sys.stdin).get("items",[]);print(i[0]["id"] if i else "")')
+RID=$(cf_curl "$ATOK" -sS --max-time 30 -G "$BASE/api/collections/appdata/records" --data-urlencode "filter=user=\"$UID1\"" \
+      | python3 -c 'import sys,json;i=json.load(sys.stdin).get("items",[]);print(i[0]["id"] if i else "")')
 C_BEFORE=$(cf_rev "$ATOK" "$UID1" coreRev); T_BEFORE=$(cf_rev "$ATOK" "$UID1" trainingRev)
 printf '{"health":null}' > "$CF_TMP/h.json"
 cf_req PATCH "/api/collections/appdata/records/$RID" "$T1" "$CF_TMP/h.json"

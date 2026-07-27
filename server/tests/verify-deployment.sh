@@ -35,7 +35,11 @@
 #   SENTINEL_CAPTURE=<file>       capture the V15 integrity baseline and exit
 #                                 (run this BEFORE deploying — runbook P0)
 #   SENTINEL_VERIFY=<file>        verify against that baseline (runbook P3)
-#   SENTINEL_WITH_HASH=YES        capture content hashes as well as byte lengths
+#   SENTINEL_WITH_HASH=YES        content hashes as well as byte lengths. ON BY
+#                                 DEFAULT and MANDATORY for production; only
+#                                 SENTINEL_NO_HASH=YES turns it off, and a
+#                                 hashless baseline then fails V15 unless
+#                                 ACCEPT_NO_HASH=YES is also set
 #   ACCEPT_NO_SENTINEL=YES        proceed without V15, recording the caveat
 #   PROBE_EMAIL/PROBE_PASS        disposable cf_test_* user for the handler probes (V11b/c)
 #   ACCEPT_ROUTE_PROBE_ONLY=YES   proceed without V11b/c, recording the caveat
@@ -73,11 +77,21 @@ fi
 if [ -n "${SENTINEL_CAPTURE:-}" ]; then
   echo ""
   echo "== V15 integrity sentinel — CAPTURE (pre-deployment baseline) =="
-  HASHARG=""; [ "${SENTINEL_WITH_HASH:-}" = "YES" ] && HASHARG="--with-hash"
-  if python3 "$DIR/_sentinel.py" capture "$BASE" "$ATOK" "$SENTINEL_CAPTURE" $HASHARG; then
+  # Hash mode is ON unless explicitly disabled. The Architect made it mandatory
+  # for production because byte length alone cannot see a same-length mutation.
+  HASHARG="--with-hash"
+  if [ "${SENTINEL_NO_HASH:-}" = "YES" ]; then
+    HASHARG=""
+    echo "WARNING: SENTINEL_NO_HASH=YES — byte lengths only. A payload edit that"
+    echo "         preserves length will be invisible. Not permitted for production."
+  fi
+  # token on stdin, never argv: /proc/<pid>/cmdline is world-readable
+  if printf '%s\n' "$ATOK" | python3 "$DIR/_sentinel.py" capture "$BASE" "$SENTINEL_CAPTURE" $HASHARG; then
     echo ""
     echo "RESULT: BASELINE CAPTURED — pass it back as SENTINEL_VERIFY=$SENTINEL_CAPTURE after deploying."
-    echo "        The file holds six scalars per row and no payloads. Keep it local; delete it after the cutover."
+    echo "        The file holds six scalars per row (plus content hashes) and no payloads."
+    echo "        It is mode 0600 and carries record and user IDs: keep it local, and delete it"
+    echo "        after the cutover with:  python3 _sentinel.py destroy $SENTINEL_CAPTURE"
     exit 0
   fi
   echo ""
@@ -87,8 +101,8 @@ fi
 
 # Fetch a collection's definition into $CF_TMP/col.json; prints "" on failure.
 col_fetch() { # name -> writes $CF_TMP/col.json, echoes http status
-  curl -sS --max-time 30 -o "$CF_TMP/col.json" -w '%{http_code}' \
-    "$BASE/api/collections/$1" -H "Authorization: $ATOK"
+  cf_curl "$ATOK" -sS --max-time 30 -o "$CF_TMP/col.json" -w '%{http_code}' \
+    "$BASE/api/collections/$1"
 }
 # Query the fetched collection with a tiny python expression over `c`.
 col_q() { python3 -c '
@@ -136,8 +150,8 @@ if [ "$ST" = "200" ]; then
 fi
 
 # ---- V10 no duplicate owners (the condition the unique index must prevent) ---
-DUPES=$(curl -sS --max-time 60 -G "$BASE/api/collections/appdata/records" \
-  --data-urlencode "perPage=500" --data-urlencode "fields=user" -H "Authorization: $ATOK" \
+DUPES=$(cf_curl "$ATOK" -sS --max-time 60 -G "$BASE/api/collections/appdata/records" \
+  --data-urlencode "perPage=500" --data-urlencode "fields=user" \
   | python3 -c '
 import sys,json,collections
 try: items=json.load(sys.stdin).get("items",[])
@@ -154,7 +168,13 @@ if [ -n "${SENTINEL_VERIFY:-}" ]; then
   if [ ! -r "$SENTINEL_VERIFY" ]; then
     cf_bad "V15 baseline file is missing or unreadable: $SENTINEL_VERIFY"
   else
-    SENTINEL_OUT=$(python3 "$DIR/_sentinel.py" verify "$BASE" "$ATOK" "$SENTINEL_VERIFY" 2>&1)
+    # Refuse a hashless baseline: byte length alone cannot see a same-length
+    # payload mutation, which is why hash mode was made mandatory.
+    BASELINE_HASHED=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("withHash",False))' "$SENTINEL_VERIFY" 2>/dev/null)
+    if [ "$BASELINE_HASHED" != "True" ] && [ "${ACCEPT_NO_HASH:-}" != "YES" ]; then
+      cf_bad "V15 the baseline was captured WITHOUT content hashes — mandatory for production, since byte length cannot detect a same-length payload change. Re-capture without SENTINEL_NO_HASH, or set ACCEPT_NO_HASH=YES to accept the weaker check"
+    fi
+    SENTINEL_OUT=$(printf '%s\n' "$ATOK" | python3 "$DIR/_sentinel.py" verify "$BASE" "$SENTINEL_VERIFY" 2>&1)
     SENTINEL_RC=$?
     printf '%s\n' "$SENTINEL_OUT" | sed 's/^/      /'
     if [ "$SENTINEL_RC" = "0" ]; then

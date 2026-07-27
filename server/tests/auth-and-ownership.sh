@@ -19,8 +19,8 @@ N=$(date +%s%N)
 # make sure user1 has a row
 cf_commit "$T1" core 999999 "ao-probe-$N" '{}'; C1=$(cf_server_rev)
 cf_commit "$T1" core "$C1" "ao-seed-$N" '{"owner":"user1"}' >/dev/null 2>&1
-RID1=$(curl -sS --max-time 30 -G "$BASE/api/collections/appdata/records" --data-urlencode "filter=user=\"$UID1\"" \
-       -H "Authorization: $ATOK" | python3 -c 'import sys,json;i=json.load(sys.stdin).get("items",[]);print(i[0]["id"] if i else "")')
+RID1=$(cf_curl "$ATOK" -sS --max-time 30 -G "$BASE/api/collections/appdata/records" --data-urlencode "filter=user=\"$UID1\"" \
+      | python3 -c 'import sys,json;i=json.load(sys.stdin).get("items",[]);print(i[0]["id"] if i else "")')
 
 echo "== cross-user access =="
 printf '{"data":{"steal":true}}' > "$CF_TMP/steal.json"
@@ -40,7 +40,7 @@ if [ "$CF_STATUS" = "200" ]; then
   # allowed to create, but the hook must have rewritten the owner to user2
   cf_eq "AO3 raw create pins owner to the authenticated user (not the forged id)" "$UID2" "$FORGED_OWNER" "$CF_BODY"
   NEWID=$(cf_json id)
-  [ -n "$NEWID" ] && [ "$NEWID" != "<missing>" ] && curl -sS -o /dev/null -X DELETE "$BASE/api/collections/appdata/records/$NEWID" -H "Authorization: $ATOK"
+  [ -n "$NEWID" ] && [ "$NEWID" != "<missing>" ] && cf_curl "$ATOK" -sS -o /dev/null -X DELETE "$BASE/api/collections/appdata/records/$NEWID"
 else
   # rejected outright (e.g. unique index because user2 already owns a row) — also acceptable,
   # but it must NOT have created a row owned by user1

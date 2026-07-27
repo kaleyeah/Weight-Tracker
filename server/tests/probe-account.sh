@@ -46,8 +46,10 @@ create)
   ID=$(cf_user_id "$ATOK" "$PROBE")
   [ -z "$ID" ] || { echo "REFUSED: $PROBE already exists (id $ID). Run teardown first."; exit 2; }
   PW="cf-probe-$(python3 -c 'import secrets;print(secrets.token_urlsafe(18))')"
-  python3 -c 'import json,sys;print(json.dumps({"email":sys.argv[1],"password":sys.argv[2],"passwordConfirm":sys.argv[2],"verified":True}))' \
-    "$PROBE" "$PW" > "$CF_TMP/u.json"
+  ( umask 077
+    CF_EM="$PROBE" CF_NEWPW="$PW" python3 -c \
+      'import json,os;print(json.dumps({"email":os.environ["CF_EM"],"password":os.environ["CF_NEWPW"],"passwordConfirm":os.environ["CF_NEWPW"],"verified":True}))' \
+      > "$CF_TMP/u.json" )
   cf_req POST /api/collections/users/records "$ATOK" "$CF_TMP/u.json"
   if [ "$CF_STATUS" != "200" ]; then
     echo "FAIL: create $PROBE -> HTTP $CF_STATUS: $(printf '%s' "$CF_BODY" | cf_redact | head -c 200)"; exit 1
@@ -72,8 +74,8 @@ teardown)
   else
     # appdata row first — the probes should never have created one, so say so
     # loudly if there is one rather than quietly cleaning it up.
-    RID=$(curl -sS --max-time 30 -G "$BASE/api/collections/appdata/records" --data-urlencode "filter=user=\"$ID\"" \
-          -H "Authorization: $ATOK" | python3 -c 'import sys,json;i=json.load(sys.stdin).get("items",[]);print(i[0]["id"] if i else "")')
+    RID=$(cf_curl "$ATOK" -sS --max-time 30 -G "$BASE/api/collections/appdata/records" --data-urlencode "filter=user=\"$ID\"" \
+      | python3 -c 'import sys,json;i=json.load(sys.stdin).get("items",[]);print(i[0]["id"] if i else "")')
     if [ -n "$RID" ]; then
       echo "NOTE     $PROBE has an appdata row ($RID) — the gate probes are supposed to write nothing."
       echo "         Record this: it means something on the route reached the write path."

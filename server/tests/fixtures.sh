@@ -28,8 +28,8 @@ if [ "${1:-}" = "teardown" ]; then
     if [ -z "$ID" ]; then echo "absent   $em (nothing to delete)"; continue; fi
 
     # appdata row first (no cascade from users -> appdata is assumed)
-    RID=$(curl -sS --max-time 30 -G "$BASE/api/collections/appdata/records" --data-urlencode "filter=user=\"$ID\"" \
-          -H "Authorization: $ATOK" | python3 -c 'import sys,json;i=json.load(sys.stdin).get("items",[]);print(i[0]["id"] if i else "")')
+    RID=$(cf_curl "$ATOK" -sS --max-time 30 -G "$BASE/api/collections/appdata/records" --data-urlencode "filter=user=\"$ID\"" \
+      | python3 -c 'import sys,json;i=json.load(sys.stdin).get("items",[]);print(i[0]["id"] if i else "")')
     if [ -n "$RID" ]; then
       cf_req DELETE "/api/collections/appdata/records/$RID" "$ATOK"
       if [ "$CF_STATUS" != "204" ] && [ "$CF_STATUS" != "200" ]; then
@@ -62,8 +62,10 @@ fi
 PW="cf-test-$(python3 -c 'import secrets;print(secrets.token_urlsafe(18))')"
 RC=0
 for em in $USERS; do
-  python3 -c 'import json,sys;print(json.dumps({"email":sys.argv[1],"password":sys.argv[2],"passwordConfirm":sys.argv[2],"verified":True}))' \
-    "$em" "$PW" > "$CF_TMP/u.json"
+  ( umask 077
+    CF_EM="$em" CF_NEWPW="$PW" python3 -c \
+      'import json,os;print(json.dumps({"email":os.environ["CF_EM"],"password":os.environ["CF_NEWPW"],"passwordConfirm":os.environ["CF_NEWPW"],"verified":True}))' \
+      > "$CF_TMP/u.json" )
   cf_req POST /api/collections/users/records "$ATOK" "$CF_TMP/u.json"
   if [ "$CF_STATUS" = "200" ]; then echo "created  $em"
   else echo "FAIL     create $em -> HTTP $CF_STATUS: $(printf '%s' "$CF_BODY" | cf_redact | head -c 200)"; RC=1; fi

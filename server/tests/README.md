@@ -106,6 +106,14 @@ BASE=<url> ADMIN_EMAIL=.. ADMIN_PASS=.. SENTINEL_CAPTURE=/tmp/pre.sentinel.json 
 BASE=<url> ADMIN_EMAIL=.. ADMIN_PASS=.. SENTINEL_VERIFY=/tmp/pre.sentinel.json ...
 ```
 
-`SENTINEL_WITH_HASH=YES` at capture time also records a SHA-256 of each payload's
-canonical form. Byte length alone cannot see a change that preserves length —
-demonstrated both ways in `STAGING_RESULTS.md` §13.3.
+`SENTINEL_WITH_HASH=YES` also records a SHA-256 of each payload's canonical form.
+It is **on by default and mandatory for production** — byte length alone cannot
+see a change that preserves length, demonstrated both ways in
+`STAGING_RESULTS.md` §13.3. `SENTINEL_NO_HASH=YES` turns it off and the gate then
+refuses the baseline unless `ACCEPT_NO_HASH=YES` is also set.
+
+**Credentials never appear in process arguments.** `/proc/<pid>/cmdline` is
+world-readable, so `cf_curl` writes the Authorization header into a 0600 curl
+config file, `_sentinel.py` takes its token on stdin, and passwords reach helper
+processes through the environment. Rig checks S10a–c enforce this statically —
+if you add a script here, do not reintroduce `-H "Authorization: $TOK"`.

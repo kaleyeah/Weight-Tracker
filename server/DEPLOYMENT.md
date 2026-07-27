@@ -134,9 +134,14 @@ All tests must pass. Send the full output back to Claude — it goes into the re
    cd server/tests
    BASE=https://rack.tail6fa16c.ts.net ADMIN_EMAIL=<superuser> ADMIN_PASS=<ask-interactively> \
    SENTINEL_CAPTURE=/tmp/cf-preflight.sentinel.json \
+   SENTINEL_WITH_HASH=YES \
      bash verify-deployment.sh
    ```
-   This records `id`, `user`, `coreRev`, `trainingRev` and the UTF-8 byte lengths of `data` and `training` for every existing row, and exits. It reads the payloads to measure them and **writes none of them anywhere** — the file holds six scalars per row. It still carries record and user IDs, so keep it local and delete it after the cutover. If it does not print `BASELINE CAPTURED`, **stop**: without it, nothing in P3 can prove the athletes' rows survived.
+   This records `id`, `user`, `coreRev`, `trainingRev`, the UTF-8 byte lengths of `data` and `training`, and a SHA-256 of each payload's canonical form, for every existing row — then exits. It reads the payloads to measure them and **writes none of them anywhere**.
+
+   **`SENTINEL_WITH_HASH=YES` is mandatory for production** (Product Architect, 2026-07-27) because byte length alone cannot detect a same-length payload change. It is on by default; the gate refuses a hashless baseline at P3 unless `ACCEPT_NO_HASH=YES` is set, which is not an approved production path.
+
+   The file is created atomically, mode **0600**, refusing to follow a symlink, and its permissions are verified after writing. It carries record and user IDs, so keep it local — and delete it in P3.4. If the run does not print `BASELINE CAPTURED`, **stop**: without it, nothing in P3 can prove the athletes' rows survived.
 4. Confirm the Product Owner is available for the whole window — P5 (rollback) needs a decision, not a script.
 
 ### P1 — Pre-flight on a copy (never on the live instance)
@@ -184,7 +189,13 @@ SENTINEL_VERIFY=/tmp/cf-preflight.sentinel.json \
 #    confirm the user, its appdata row and its ledger rows are all gone
 BASE=https://rack.tail6fa16c.ts.net ADMIN_EMAIL=<superuser> ADMIN_PASS=<pw> \
   bash probe-account.sh teardown
+
+# 4. destroy the integrity baseline and confirm it is gone — after a PASS, and
+#    equally after a rollback. It carries record and user IDs.
+python3 _sentinel.py destroy /tmp/cf-preflight.sentinel.json
 ```
+
+**Credentials never appear in process arguments.** `/proc/<pid>/cmdline` is world-readable, so a superuser token passed as `curl -H "Authorization: …"` would be visible to every local user for the life of the request. The kit now puts the header in a 0600 curl config file read with `-K`, hands the sentinel its token on **stdin**, and passes passwords to helper processes through the environment. Verified by rig checks S10a–c (Product Architect requirement, 2026-07-27).
 
 `verify-deployment.sh` is **read-only and safe against production** — every request is a GET, a superuser auth, or a probe rejected before any database access. It is the one script here that does not refuse to run against the production hostname, because verifying production is its job. It asserts schema, index shapes, ledger rules, and that the route actually executes our code; full check list in `STAGING_RESULTS.md` §12.3.
 
@@ -219,6 +230,8 @@ BASE=https://rack.tail6fa16c.ts.net ADMIN_EMAIL=<superuser> ADMIN_PASS=<pw> \
 | Migration applied, kit misbehaving | `pocketbase migrate down --dir=… --migrationsDir=…` (answer the `y/N` prompt; **check the output, not `$?`** — a cancelled revert also exits 0). The down-migration removes `coreRev`, `trainingRev`, `cf_commit_log` and **only the index this kit created** — production's `idx_88qok6ts7v` is deliberately preserved (`migration.sh` M2g). |
 | Hook misbehaving, schema fine | Delete `pb_hooks/cf_cas.pb.js` and `cf_cas_shared.js`, restart. The schema is inert without the hook; clients keep working via raw PATCH. |
 | Anything worse | Settings → Backups → **Restore** the P0 backup. |
+
+After a rollback, destroy the integrity baseline as well: `python3 _sentinel.py destroy /tmp/cf-preflight.sentinel.json` — it confirms absence rather than assuming the delete worked.
 
 After any rollback, re-run P3 — it should now report `NOT VERIFIED` for the expected reasons (route absent, fields gone), which confirms the rollback actually took effect.
 
