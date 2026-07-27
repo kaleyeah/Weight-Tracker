@@ -80,13 +80,14 @@ Compound Fitness is a coaching platform (not a tracker) built as **one backend +
 
 1. ✅ **Server kit staging deployment — DONE.** v0.39.8; Phase 1 green in Round 3 (`server/STAGING_RESULTS.md`).
 2. ✅ **`tests/MANUAL_CHECKLIST_COMMIT1.md` on staging — DONE.** 75 cases, 0 failures (`tests/CHECKLIST_RESULTS.md`).
-3. ✅ **PRODUCTION CUTOVER — DONE 2026-07-27, gate VERIFIED.** Now in the **bridge window**: server enforces CAS, clients still write the legacy way, revisions kept truthful by the bridge. Next is **Commit 10 (CAS client)**, then lockdown (P7). Follow `server/DEPLOYMENT.md` Step 7 (P0 backup → P1 pre-flight on a copy → P2 apply → **P3 `tests/verify-deployment.sh`, the only accepted gate** → P4 bridge window → P5 rollback → P6 monitoring → P7 lockdown). One decision is needed up front: whether to create a temporary disposable `cf_test_prod@staging.invalid` account so P3 can prove the handler executes, or to waive it with `ACCEPT_ROUTE_PROBE_ONLY=YES` and record the caveat (P3).
-4. **Commit 10 (CAS client) gate — carried forward.** Its acceptance criteria now include the five deferred checklist cases (A6, C4, C5, F5, K1) and an **independent manifest reader** for H3 + 8 dependents (`tests/CHECKLIST_RESULTS.md` §9). Neither blocks the `.342` production deployment.
-5. Remediation commits 2–8, 11 (client-only); 9–10 need the server work and the version.
-6. **M5–M7**: training sync protection, Backup V2, remove the vestigial GitHub layer.
-7. **M8–M10**: internal boundaries, product-logic defects (lean-bulk/maintenance forecasting, recent-pace window, test control disabled in production), config/security cleanup.
-8. **Record-level synchronization design** for review — required before any native background health ingestion.
-9. Then Phase 2 (Native Shell), once the bridge proposal is accepted.
+3. 🔨 **COMMIT 10 (CAS CLIENT) — Architect spec received, APPROVED TO BUILD.** Full WHAT specification at `features/commit10/spec/`; the pre-coding plan (HOW) is written and awaiting Architect review at `features/commit10/implementation/00-PRE-CODING-PLAN.md`. **No implementation code written yet.** Scope: CAS route client for core+training, recovery-first conflict UX with keep-local default, coalesced 3s-debounced pushes, honest per-subsystem status, the five deferred cases, and the independent manifest reader — all release blockers. Explicitly excluded: lockdown, bridge removal, any server change, semantic merge, record-level sync.
+4. ✅ **PRODUCTION CUTOVER — DONE 2026-07-27, gate VERIFIED.** Now in the **bridge window**: server enforces CAS, clients still write the legacy way, revisions kept truthful by the bridge. Next is **Commit 10 (CAS client)**, then lockdown (P7). Follow `server/DEPLOYMENT.md` Step 7 (P0 backup → P1 pre-flight on a copy → P2 apply → **P3 `tests/verify-deployment.sh`, the only accepted gate** → P4 bridge window → P5 rollback → P6 monitoring → P7 lockdown). One decision is needed up front: whether to create a temporary disposable `cf_test_prod@staging.invalid` account so P3 can prove the handler executes, or to waive it with `ACCEPT_ROUTE_PROBE_ONLY=YES` and record the caveat (P3).
+5. **Commit 10 (CAS client) gate — carried forward.** Its acceptance criteria now include the five deferred checklist cases (A6, C4, C5, F5, K1) and an **independent manifest reader** for H3 + 8 dependents (`tests/CHECKLIST_RESULTS.md` §9). Neither blocks the `.342` production deployment.
+6. Remediation commits 2–8, 11 (client-only); 9–10 need the server work and the version.
+7. **M5–M7**: training sync protection, Backup V2, remove the vestigial GitHub layer.
+8. **M8–M10**: internal boundaries, product-logic defects (lean-bulk/maintenance forecasting, recent-pace window, test control disabled in production), config/security cleanup.
+9. **Record-level synchronization design** for review — required before any native background health ingestion.
+10. Then Phase 2 (Native Shell), once the bridge proposal is accepted.
 
 Full phase detail: see `ROADMAP.md`.
 
