@@ -3,9 +3,34 @@
 **Build under test:** `2026-07-27.342-pb-c1h` (served from this repo's `index.html`, unmodified)
 **Date:** 2026-07-27
 **Verdict basis:** Product Architect, 2026-07-27 — *"VERDICT CARRIES OVER TO .342 — STAGING MAY PROCEED (75 CASES)"*, and the Round 3 ruling **SERVER KIT APPROVED FOR STAGING / AUTHORIZE PHASE 2**.
-**Outcome:** **0 failures.** 39 cases verified by automation, 1 partial, 35 not automated (each with a stated reason).
+**Outcome:** **0 failures.** 39 cases verified by automation, 5 formally deferred to Commit 10, 31 not automated (each with a stated reason).
+**Ruling on this package:** Product Architect, 2026-07-27 — **CLIENT STAGING APPROVED** (§0).
 
-> **This is not production approval.** Client staging approval is explicitly not production approval, and 35 of 75 cases were not exercised. §6 states what that leaves unproven.
+> **§0 supersedes the caution below for client staging only.** The Architect has since ruled the release APPROVED FOR PRODUCTION DEPLOYMENT subject to operational prerequisites; §6 still states exactly what these 75 cases do and do not prove, and 31 of them remain unexercised.
+
+---
+
+## 0. Product Architect ruling (2026-07-27)
+
+Received after this package was submitted; recorded verbatim in substance.
+
+**1. Is 39/75 with 0 failures sufficient for client staging sign-off? — YES.**
+
+> "The key factor is not the raw number of automated passes, but whether every checklist item has an explicit disposition. Because the omitted cases are explicitly accounted for rather than ignored, I consider the client staging gate satisfied. **Ruling: CLIENT STAGING APPROVED.**"
+
+**2. Should the Commit-10-dependent cases be formally deferred? — YES.**
+
+> "Those cases depend on functionality that is intentionally outside the `.342-pb-c1h` release. They should not remain as 'open staging work.' Instead, they become acceptance criteria for the CAS client implementation. Record them as: **Deferred to Commit 10 (CAS Client Conflict Resolution)**. When Commit 10 begins, those five cases become mandatory regression/acceptance tests before that feature ships. **Ruling: FORMALLY DEFERRED TO COMMIT 10.**"
+
+Applied below: **A6, C4, C5, F5, K1** are reclassified 🔻 DEFERRED and no longer counted against `.342`. A6's evidence is retained unchanged — the half that was verified stays verified.
+
+**3. H3 and its eight dependents — automate with an independent manifest reader.**
+
+> "Testing the manifest using the same implementation that produces it weakens the evidence. An independent manifest reader provides a second implementation that validates the contract rather than the code. I would still perform one manual verification during production readiness to confirm the human-visible behavior, but the recurring regression should be automated independently. **Ruling: build an independent manifest reader for regression; keep one manual production-readiness confirmation.**"
+
+Not yet built — tracked as a Commit 10 gate item (§9). H3, J6, K4, K5, L4 and M1–M4 stay ⏸️ NOT AUTOMATED until it exists.
+
+**Overall: APPROVED FOR PRODUCTION DEPLOYMENT**, subject to four operational prerequisites — run the runbook, verify migrations by explicit post-migration checks rather than process exit code, keep the deferred cases as a separate release gate, and preserve the rollback procedure and monitoring plan. `server/DEPLOYMENT.md` §7 is that runbook; `server/tests/verify-deployment.sh` is the explicit check, tested in `server/STAGING_RESULTS.md` §12.
 
 ---
 
@@ -28,10 +53,12 @@
 | Result | Count | Cases |
 | --- | ---: | --- |
 | ✅ Verified pass | 39 | A1–A5, B1–B4, C1–C2, D1–D3, E1–E2, F1, F3b, F4, G1–G4, G6, G8, H1, H2, H4, H5, H7, J1, J3–J5, J10, N1, N5, N6, N8 |
-| ⚠️ Partial | 1 | A6 |
+| 🔻 Deferred to Commit 10 | 5 | A6, C4, C5, F5, K1 |
 | ❌ Fail | 0 | — |
-| ⏸️ Not automated | 35 | C3–C5, F2, F3, F3c, F5, G5, G7, H3, H6, H8, J2, J6–J9, K1–K5, L1–L5, M1–M4, N2–N4, N7 |
+| ⏸️ Not automated | 31 | C3, F2, F3, F3c, G5, G7, H3, H6, H8, J2, J6–J9, K2–K5, L1–L5, M1–M4, N2–N4, N7 |
 | **Total** | **75** | matches the checklist's declared case count |
+
+The deferred five need the conflict-resolution UI, which does not exist in `.342` and is Commit 10 work. Per the Architect's ruling they are acceptance criteria for that commit, not open staging work — mandatory regression tests before the CAS client ships. A6 previously stood as the single ⚠️ PARTIAL; its verified half (the local historical correction survives a genuine server-side divergence) still holds and is unchanged below.
 
 **What the passes establish.** The central guarantee holds: an ordinary edit produces **zero** `POST`/`PATCH` to `appdata` even after every debounce elapses (B1, B2, G1, G2, G3), while the device correctly shows pending. Data survives offline→reconnect for every entry type the live defect concerned (A1–A4). Cross-account containment holds — user A's unsynced data is neither shown to, uploaded by, nor adopted into user B's session (D1), and is still intact when A returns (D2). The ownership gate distinguishes *unknown* owner (claim screen, no export control — H2, D3) from *proven different* owner (mismatch screen, switch/sign-out only, no export — H4). Recovery fails closed when IndexedDB is blocked (C1, C2). Export escapes hostile text and writes nothing to the backend (N5, N6).
 
@@ -47,7 +74,7 @@
 | A3 | settings change only, offline → reconnect → refresh | entry still present; never silently replaced | present: 199 — *snapshot writes during the whole flow: 0* | ✅ PASS |
 | A4 | skip only, offline → reconnect → refresh | entry still present; never silently replaced | present: [{"date":"2026-07-27","type":"skip"}] — *snapshot writes during the whole flow: 0* | ✅ PASS |
 | A5 | delete all local data while pending, then refresh | not treated as "nothing to lose"; no silent adopt | server seed committed OK via the CAS route (200, newRev 1); the .342 client did NOT adopt it (state.weights stayed []) — consistent with the pending-device guard. After local delete-all + refresh: weights=[], rev unchanged {local:2,success:0}, snapshot writes 0, commit calls 0. No silent adopt, no push. — *Weaker than intended: because the client never adopted the seeded server copy, this verifies 'no silent adopt and no push' but not 'server data survives a local wipe'. The stronger form needs the CAS client (Commit 10), which reads/writes through the commit route.* | ✅ PASS |
-| A6 | historical correction on A, newer weigh-in on B, reconcile | correction not discarded; conflict offered | local historical correction (2026-07-10) RETAINED after a genuine server-side commit of a newer weigh-in via the CAS route; snapshot writes 0, commit calls 0. Conflict/choice was NOT surfaced in the UI. — *Half the expectation is verified: the correction is not discarded. The 'conflict offered' half is NOT met — the .342 client has no conflict-resolution UI because that is Commit 10 (CAS client) work, which SERVER_NOTES.md §4 sequences after this kit passes. Recorded as PARTIAL, not a pass.* | ⚠️ PARTIAL |
+| A6 | historical correction on A, newer weigh-in on B, reconcile | correction not discarded; conflict offered | local historical correction (2026-07-10) RETAINED after a genuine server-side commit of a newer weigh-in via the CAS route; snapshot writes 0, commit calls 0. Conflict/choice was NOT surfaced in the UI. — *Half the expectation is verified: the correction is not discarded. The 'conflict offered' half is NOT met — the .342 client has no conflict-resolution UI because that is Commit 10 (CAS client) work, which SERVER_NOTES.md §4 sequences after this kit passes. Recorded as PARTIAL, not a pass. **DEFERRED TO COMMIT 10** by Architect ruling 2026-07-27 (§0): the unmet half is an acceptance criterion for the CAS client, not an open item against .342.* | 🔻 DEFERRED |
 
 ### B. No automatic whole-snapshot write before CAS
 
@@ -65,8 +92,8 @@
 | C1 | IndexedDB blocked, then "use the online version" | nothing replaced; error shown; local intact | local note after: phase2 note; upload path: invoked — *before: (gone)* | ✅ PASS |
 | C2 | IndexedDB blocked, then log out | still signed in; device not cleared | token still present: true; note: phase2 note | ✅ PASS |
 | C3 | blocked IndexedDB, then restore a previous copy | nothing restored; current state intact | Requires an existing recovery snapshot created before IDB is blocked; the harness cannot both create and block the same store in one profile without also disabling the creation path, which would make the assertion vacuous. | ⏸️ NOT AUTOMATED |
-| C4 | conflict → "keep this device's changes" | online copy saved as a previous copy; state holds pending | Needs a genuine server/local divergence — see A6. Not reachable pre-CAS through the UI. | ⏸️ NOT AUTOMATED |
-| C5 | C4 with recovery blocked | upload refused; wording never claims a copy was saved | Depends on C4. | ⏸️ NOT AUTOMATED |
+| C4 | conflict → "keep this device's changes" | online copy saved as a previous copy; state holds pending | Needs a genuine server/local divergence — see A6. Not reachable pre-CAS through the UI. **DEFERRED TO COMMIT 10** (§0). | 🔻 DEFERRED |
+| C5 | C4 with recovery blocked | upload refused; wording never claims a copy was saved | Depends on C4. **DEFERRED TO COMMIT 10** (§0). | 🔻 DEFERRED |
 
 ### D. Cross-account guard
 
@@ -93,7 +120,7 @@
 | F3b | Coach Max while core is pending | honest "paused until the sync fix ships" message — not a fake server error | core pending true; honest wording true; fake-error wording false; writes during flow 0; coachreq writes 0 — *previous run hit the onboarding screen on a fresh fixture, so the recap control was never genuinely exercised* | ✅ PASS |
 | F3c | Apple Health import | values apply locally AND the server inbox clears; re-observe does not duplicate | Requires an Apple Health payload delivered through the native bridge; the bridge is Phase 2 of the roadmap and is not present in the browser build. | ⏸️ NOT AUTOMATED |
 | F4 | offline for a session, then reconnect | no data loss; pending state accurate | note kept; weights [{"date":"2026-07-27","weight":180}]; pending true | ✅ PASS |
-| F5 | explicit "Replace this device with the online copy" | confirms, snapshots, replaces | The explicit replace path requires a non-empty divergent server copy to replace with — same blocker as A6/C4 pre-CAS. | ⏸️ NOT AUTOMATED |
+| F5 | explicit "Replace this device with the online copy" | confirms, snapshots, replaces | The explicit replace path requires a non-empty divergent server copy to replace with — same blocker as A6/C4 pre-CAS. **DEFERRED TO COMMIT 10** (§0). | 🔻 DEFERRED |
 
 ### G. Further no-write regressions
 
@@ -140,7 +167,7 @@
 
 | # | Test | Expected | Actual | Result |
 |---|---|---|---|---|
-| K1 | edit while a server-adopt recovery snapshot is pending | see checklist | Requires a genuine server-adopt in progress — unreachable pre-CAS (A6). | ⏸️ NOT AUTOMATED |
+| K1 | edit while a server-adopt recovery snapshot is pending | see checklist | Requires a genuine server-adopt in progress — unreachable pre-CAS (A6). **DEFERRED TO COMMIT 10** (§0). | 🔻 DEFERRED |
 | K2 | break recovery storage, then "Complete today" with a diverged server | see checklist | Requires both a diverged server (A6) and the recap backend (F3). | ⏸️ NOT AUTOMATED |
 | K3 | log out / switch accounts while a recap is generating | see checklist | Recap backend not wired on staging. | ⏸️ NOT AUTOMATED |
 | K4 | simulate a failure while set-aside deletes old entries | see checklist | Depends on set-aside (H3). | ⏸️ NOT AUTOMATED |
@@ -208,9 +235,9 @@ Every one was re-run with a corrected setup before being recorded.
 
 ## 6. What is NOT proven
 
-The 35 unautomated cases are not a formality — they cluster around real gaps:
+The 31 unautomated cases (plus the 5 now deferred to Commit 10) are not a formality — they cluster around real gaps:
 
-1. **The conflict-resolution UI does not exist yet.** A6 is partial and C4, C5, F5, K1 are unrun because the `.342` client has no conflict UI. Per `SERVER_NOTES.md` §4 that is **Commit 10 (CAS client)** work, sequenced after this kit passes. Until then, "conflict offered" cannot be verified by anyone.
+1. **The conflict-resolution UI does not exist yet.** A6, C4, C5, F5 and K1 are now formally **deferred to Commit 10** (§0, §9.1) because the `.342` client has no conflict UI. Per `SERVER_NOTES.md` §4 that is **Commit 10 (CAS client)** work, sequenced after this kit passes. Until then, "conflict offered" cannot be verified by anyone.
 2. **The recap backend is not wired on staging** — F3, J2, K2, K3, L5, N2, N3 depend on Coach Max actually generating a recap.
 3. **The native Health bridge is absent from the browser build** — F3c and N4 require it.
 4. **Set-aside quarantine (H3) is unverified**, and 8 further cases (J6, K4, K5, L4, M1–M4) depend on it. Verifying byte-for-byte manifest integrity using the app's own manifest reader would be circular; it needs an independent reader or a human.
@@ -225,15 +252,47 @@ Cases 4–6 are the ones I would most want a human to run before production.
 | --- | --- | --- |
 | 1 | Chromium only — not Safari/iOS, not a real device | No iOS device or Safari available on this host. The checklist's "two browser profiles" was satisfied with two isolated Playwright contexts. |
 | 2 | Staging schema from a collections export, not a production restore | Product Owner instruction: keep real health data off the workstation. The production `idx_88qok6ts7v` condition is preserved by the export. |
-| 3 | 35 cases automated-not-run rather than performed manually | Recorded honestly per case rather than claimed. |
+| 3 | 35 cases automated-not-run rather than performed manually (5 have since been deferred to Commit 10, leaving 31) | Recorded honestly per case rather than claimed. |
 | 4 | A5/A6 divergence created via the CAS commit route | The client never auto-uploads pre-CAS, so no UI path produces divergence. |
 | 5 | H5 precondition (clean state) set directly via `revClean` | Test setup, not the behaviour under test; the logout path itself was exercised through the real UI dialog. |
 
-## 8. Request to the Product Architect
+## 8. Request to the Product Architect — ✅ ANSWERED 2026-07-27
+
+**All three questions are ruled in §0.** Kept here as the record of what was asked.
 
 **Requesting production review of the server kit, and a ruling on whether the client may proceed** given that 35 cases remain unexercised and 1 is partial.
 
 Specifically:
-1. Is 39/75 verified with 0 failures sufficient for client staging sign-off, given the unautomated set is dominated by features that do not exist yet (conflict UI, recap backend, Health bridge)?
-2. Should the Commit-10-dependent cases (A6, C4, C5, F5, K1) be formally **deferred to the CAS client cycle** rather than counted against `.342`?
-3. Do you want the set-aside family (H3 + 8 dependents) run manually before production, or automated with an independent manifest reader?
+1. Is 39/75 verified with 0 failures sufficient for client staging sign-off, given the unautomated set is dominated by features that do not exist yet (conflict UI, recap backend, Health bridge)? → **YES — CLIENT STAGING APPROVED.**
+2. Should the Commit-10-dependent cases (A6, C4, C5, F5, K1) be formally **deferred to the CAS client cycle** rather than counted against `.342`? → **YES — FORMALLY DEFERRED TO COMMIT 10.**
+3. Do you want the set-aside family (H3 + 8 dependents) run manually before production, or automated with an independent manifest reader? → **Automate with an independent reader; keep one manual production-readiness confirmation.**
+
+---
+
+## 9. Commit 10 gate — carried forward, not closed
+
+The Architect's ruling converts two of this package's gaps into acceptance criteria for the CAS client. Neither blocks the `.342` production deployment; both block **Commit 10**.
+
+### 9.1 The five deferred cases
+
+| # | What it needs | Why it cannot pass against `.342` |
+| --- | --- | --- |
+| A6 | historical correction vs. newer weigh-in — *conflict offered* | no conflict-resolution UI exists; the retain-the-correction half is already verified |
+| C4 | conflict → "keep this device's changes" | same UI |
+| C5 | C4 with recovery blocked | depends on C4 |
+| F5 | explicit "Replace this device with the online copy" | needs a divergent server copy reachable through the UI, which only the CAS client produces |
+| K1 | edit while a server-adopt recovery snapshot is pending | needs a genuine server-adopt in progress |
+
+**These are mandatory regression/acceptance tests before Commit 10 ships** — not optional coverage.
+
+### 9.2 The independent manifest reader — not yet built
+
+H3 (set-aside quarantine verified byte-for-byte) plus **J6, K4, K5, L4, M1–M4** are unverified because automating them with the app's own manifest reader would be circular: the implementation that writes the manifest would also be the one attesting it is correct.
+
+Required shape, per the ruling:
+
+- **A second, independent implementation** that parses the quarantine manifest from stored bytes and validates the *contract* — exact `{core, training, workout}` component set, no subsets, duplicates, unknown keys or invalid sizes (the rule Commit 1g enforces) — without importing or reusing the app's reader.
+- **Recurring regression** runs against that reader.
+- **One manual production-readiness confirmation** of the human-visible behaviour, kept in addition to the automation.
+
+Until it exists, all nine cases stay ⏸️ NOT AUTOMATED and §6 continues to name this as the largest genuine gap. It involves deleting user data, which is why the Architect ruled it explicitly rather than leaving it to the harness.

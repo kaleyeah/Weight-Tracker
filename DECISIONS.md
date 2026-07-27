@@ -1,6 +1,6 @@
 # Compound Fitness — Architectural Decision Log
 
-**Last Updated:** 2026-07-25
+**Last Updated:** 2026-07-27
 
 **Status:** Active
 
@@ -355,3 +355,34 @@ Every local photo carries an immutable `ownerId`; display, upload, delete, recon
 - Photos cannot cross account boundaries on a shared device.
 - A partial or failed listing now surfaces a recoverable sync error instead of deleting.
 - The discarded legacy map is re-established safely on the next sync via the server's UNIQUE (user, localId) index.
+
+---
+
+## ADR-015 — Deployment success is verified by asserted state, never by a process exit code
+
+- **Date:** 2026-07-27
+- **Status:** Accepted
+- **Deciders:** Product Architect (ruling), Claude Code (implementation)
+
+### Context
+PocketBase v0.39.8 returns **exit code 0 when a migration fails**. Both `migrate up` and `serve` print `Error: failed to apply migration …` and exit 0; on `serve` the process exits *without ever starting the server*. Round 3 found this (`migration.sh` case M6c) and Round 4 re-measured it. A deployment step of the form `docker restart pocketbase && echo deployed` therefore reports success while PocketBase is **down**, and a container restart policy turns that into a silent restart loop. The `CF CAS hook loaded` line is printed *before* the migration runs, so its presence proves nothing either.
+
+The Product Architect ruled this a **runbook requirement, not an application defect**: "Production deployment scripts must never treat an exit status of 0 as sufficient evidence that migrations succeeded."
+
+### Decision
+Deployment correctness is established by asserting the **resulting state**, not by observing the deploying process. `server/tests/verify-deployment.sh` is that assertion and is the only accepted gate (`DEPLOYMENT.md` Step 7 P3). It ignores exit codes entirely and checks schema fields, index shapes, ledger collection and rules, cascade behaviour, route registration, and — via probes rejected before any database access — that the handler *executes our code* and enforces the configured payload cap.
+
+Two supporting rules follow from it:
+
+1. **Any production-facing probe must be write-proof by construction, not by arithmetic.** The first cap probe committed a 256 KiB payload because "cap + 1 byte" was measured with python's `json.dumps` while the server measures `JSON.stringify`, one byte narrower. The probe now sends `expectedRev = 2^31-1`, so a misconfigured server answers 409 instead of committing, whatever its cap turns out to be.
+2. **A registered route is not a working route.** Round 2 shipped a route that answered every request with `ReferenceError`. Liveness checks that only distinguish 401 from 404 would have passed it, so handler execution is verified separately and its absence is a failure unless explicitly waived.
+
+### Alternatives considered
+- **Grep the deploy log for `failed to apply migration`.** Rejected as the primary gate: it verifies the absence of one known error string rather than the presence of the intended state, and says nothing about a hook that loaded but cannot execute.
+- **Patch PocketBase or wrap it to propagate a nonzero status.** Rejected: forking the backend to fix an operational assumption is a much larger liability than asserting state.
+- **Trust the Admin UI Logs view.** Rejected on evidence — the boot line is not in `/api/logs` on v0.39.8 at all (`STAGING_RESULTS.md` §12.6).
+
+### Consequences
+- Deployment and rollback both end in the same command; after a rollback the verifier is expected to report `NOT VERIFIED` for known reasons, which is how the rollback is confirmed.
+- The kit gains one script that may run against production. It is read-only by construction and does not call `cf_guard`; every other script in `server/tests/` still refuses production outright.
+- Post-lockdown state is verifiable too: `CF_MIN_CLIENT_BUILD` is a hook constant rather than schema, so the only proof it was set is a stale client actually being refused **426** (check V14d).

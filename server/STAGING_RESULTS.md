@@ -1,11 +1,11 @@
 # Staging Results — CAS Server Kit on PocketBase v0.39.8
 
-**Date:** 2026-07-27 (round 3 — supersedes rounds 1 and 2; history in §11)
+**Date:** 2026-07-27 (round 3, plus the round 4 addendum in §12 — supersedes rounds 1 and 2; history in §11)
 **Executed by:** local Claude Code session on the Product Owner's workstation (`gbclaude`)
 **Branch:** `claude/compound-fitness-roles-workflow-aala7o`
 **Outcome:** ✅ **PHASE 1 GREEN — 172 assertions, 11 suites, 0 failures, teardown verified.**
 
-All four Round 2 defects are fixed and verified. Every Product Architect Round 2 decision is implemented. **This is server-kit evidence only** — Phase 2 (the 75-case client checklist) was deliberately not run this cycle, so nothing here is production approval.
+All four Round 2 defects are fixed and verified. Every Product Architect Round 2 decision is implemented. This was **server-kit evidence only** when written — Phase 2 has since run (`tests/CHECKLIST_RESULTS.md`, 0 failures) and the Product Architect has since ruled **APPROVED FOR PRODUCTION DEPLOYMENT** subject to operational prerequisites. **§12 records that ruling and the safeguard it required.**
 
 ---
 
@@ -195,8 +195,8 @@ The only client-visible changes are the smaller cap and the additional `maxBytes
 
 ## 7. Open items for the Product Architect
 
-1. **Finding 6 — migration failure exits 0.** `migrate up` *and* `serve` return exit code 0 when a migration is refused; the only signal is the log line. `DEPLOYMENT.md` step 3 says "copy the migration in and restart", so a supervisor or deploy script trusting `$?` would read a refused migration as success. The server does not serve, so it fails safe — but it fails *silently*. Recommend the production runbook assert on the log line, or add an explicit pre-flight `migrate up` whose output is grepped. Recorded as `migration.sh` M6c rather than hidden.
-2. **426 path unexercised.** `CF_MIN_CLIENT_BUILD` is empty pre-lockdown by design, so smoke case 5 cannot run. The path is covered by `route-smoke.sh` under `CF_MIN_BUILD_ENABLED=1`. It must be exercised **before** the lockdown step, since `SERVER_NOTES.md` §3 depends on old clients getting 426 rather than a generic error.
+1. **Finding 6 — migration failure exits 0.** ✅ **RULED 2026-07-27 — see §12.1.** `migrate up` *and* `serve` return exit code 0 when a migration is refused; the only signal is the log line. `DEPLOYMENT.md` step 3 says "copy the migration in and restart", so a supervisor or deploy script trusting `$?` would read a refused migration as success. The server does not serve, so it fails safe — but it fails *silently*. Recommend the production runbook assert on the log line, or add an explicit pre-flight `migrate up` whose output is grepped. Recorded as `migration.sh` M6c rather than hidden.
+2. **426 path unexercised.** ✅ **Now exercised — see §12.4, case V14d** (on a throwaway rig with `CF_MIN_CLIENT_BUILD` set, not on the shared staging instance). `CF_MIN_CLIENT_BUILD` is empty pre-lockdown by design, so smoke case 5 cannot run. The path is covered by `route-smoke.sh` under `CF_MIN_BUILD_ENABLED=1`. It must be exercised **before** the lockdown step, since `SERVER_NOTES.md` §3 depends on old clients getting 426 rather than a generic error.
 3. **Confirm the contract delta is acceptable** — 413 body gained `maxBytes`, cap is now 256 KiB — and that the `.342-pb-c1h` verdict therefore still carries into Phase 2.
 4. **Phase 2 authorisation.** The 75-case checklist was skipped by Product Owner decision this cycle. Server Phase 1 is now green and no longer blocks it.
 
@@ -248,3 +248,87 @@ BASE=http://127.0.0.1:8091 ADMIN_EMAIL=<staging-superuser> ADMIN_PASS=<pw> \
 | 1 | Migration aborted on the production index; nothing applied. Pushed as `a6482fe`. |
 | 2 | Migration fixed; route found dead (defect 2); harness invalid (defect 3); ledger blocked deletion (defect 4). Architect returned **CHANGES REQUIRED**. |
 | 3 | All four fixed and verified; two new findings (5 fixed, 6 open). **Phase 1 green.** |
+| 4 | Architect ruling received: **APPROVED FOR PRODUCTION DEPLOYMENT** subject to operational prerequisites. Finding 6 ruled a runbook requirement; `verify-deployment.sh` written and tested to satisfy it. See §12. |
+
+---
+
+## 12. Round 4 — Architect ruling and the post-deployment verifier
+
+**Date:** 2026-07-27. No staging server was redeployed this round; this section records a ruling and the safeguard it required, tested against throwaway v0.39.8 instances on the workstation (loopback only, synthetic data only, production never contacted).
+
+### 12.1 The ruling on finding 6
+
+> "This should become a runbook requirement, not an application defect. Production deployment scripts must never treat an exit status of 0 as sufficient evidence that migrations succeeded. The deployment process should instead verify success explicitly, for example by checking: expected schema/version, migration records, required indexes, required collections/fields, before allowing deployment to continue. This should be documented as an operational safeguard for PocketBase v0.39.8."
+> — Product Architect, 2026-07-27
+
+**Accepted.** The behaviour is not changed and not worked around; it is now assumed false and verified against directly.
+
+### 12.2 The hazard, characterised more precisely than in Round 3
+
+Re-measured on 2026-07-27 against a throwaway instance seeded with two `appdata` rows for one owner:
+
+```
+$ pocketbase serve --http=127.0.0.1:8095 --dir=... --migrationsDir=...
+2026/07/27 20:12:45 INFO CF CAS hook loaded build=cas-3 maxPayloadBytes=262144 ...
+Error: failed to apply migration 1753400000_cf_cas.js: Error: duplicate appdata rows
+  for user dupuser000000001 — resolve before migrating (DEPLOYMENT.md step 2)
+>>> serve exit code with a REFUSED migration: 0
+
+$ pocketbase migrate up --dir=... --migrationsDir=...
+Error: failed to apply migration 1753400000_cf_cas.js: Error: duplicate appdata rows ...
+>>> migrate up exit code: 0
+```
+
+Round 3 recorded this as "a refused migration reads as success". It is worse than that: on `serve` the process **exits without ever starting the server**, and still returns 0. A deploy step of the form `docker restart pocketbase && echo deployed` therefore reports success while PocketBase is **down** — and on a container with a restart policy, restarts into the same refusal indefinitely. The hook's own boot line is printed *before* the failure, so its presence in the log proves nothing about the migration.
+
+### 12.3 The safeguard — `server/tests/verify-deployment.sh`
+
+A read-only verifier that ignores exit codes entirely and asserts the deployed state directly. **It is the only script in `server/tests/` that deliberately does not call `cf_guard`,** because verifying production is its job; in exchange every request is a GET, a superuser auth, or a probe rejected before any database access.
+
+| Check | Asserts |
+| --- | --- |
+| V0 | the instance answers `/api/health` — catches the refused-migration case immediately, since the server never starts |
+| V1 | superuser auth (schema reads need it) |
+| V2–V3 | `appdata.coreRev` / `trainingRev` exist, integer-only, min 0 |
+| V4 | exactly **one** UNIQUE index on `appdata(user)` — matched by shape, the same regex pair the migration uses, so production's `idx_88qok6ts7v` counts and a near-miss index does not |
+| V5–V7 | `cf_commit_log` exists, carries all ten fields, unique on `(user, subsystem, key)` |
+| V8 | every ledger API rule still `null` (superuser-only) — one non-null rule exposes a health-data-adjacent ledger |
+| V9 | ledger `user` relation still cascades (Round 2 decision 3 — otherwise account deletion blocks for up to 30 days) |
+| V10 | no user owns two `appdata` rows |
+| V11a | the commit route is registered — 401 from `requireAuth`, not 404 |
+| V11b | **our code executes**: an invalid subsystem returns our exact `"invalid subsystem"` string. Round 2's route was registered and threw `ReferenceError` on every request; V11a alone would have passed against it |
+| V11c | the **configured** cap, read back from a 413 (`maxBytes=262144`) rather than trusted from a log line |
+| V11d | optional — the `CF CAS hook loaded` console line, when a log file is supplied |
+| V12 | optional — the `_migrations` row, read from a read-only sqlite handle |
+| V13 | optional — binary version |
+| V14a–d | lockdown state (step 7 only): `createRule` null, all four `:isset = false` clauses present, owner scoping intact, and a stale `clientBuild` actually refused **426** — the only way to know `CF_MIN_CLIENT_BUILD` was really set, since it is a hook constant and not schema |
+
+Exit 0 means verified; anything else prints `RESULT: NOT VERIFIED — do NOT proceed with the cutover.`
+
+### 12.4 Verifier test evidence (5 scenarios, throwaway v0.39.8 instances)
+
+| Scenario | Expected | Actual |
+| --- | --- | --- |
+| Migration refused (duplicate rows), `serve` exits 0 | caught | **NOT VERIFIED** — V0 fails, run aborts before any other claim |
+| Neither migration nor hook applied | caught | **NOT VERIFIED** — 9 failures (V2a–c, V3a–c, V5, V11a, V11b/c) |
+| Migration applied, **hook missing** — the partial deploy that passes every schema check | caught | **NOT VERIFIED** — 3 failures (V11a 404, V11b, V11c) |
+| Correctly deployed, pre-lockdown | verified | **VERIFIED** — 19 passed, 0 failed, exit 0 |
+| Correctly deployed **and locked down** (`CF_MIN_CLIENT_BUILD=2026-07-27.342`, step-7 rules applied) | verified | **VERIFIED** — 26 passed, 0 failed, exit 0; V14d observed the real **426 update-required** |
+| Negative control: `EXPECT_LOCKDOWN=YES` against a **non**-locked-down instance | must fail | **NOT VERIFIED** — V14a, V14b, V14d fail; V14 is not vacuous |
+
+**Zero writes confirmed after every run** by reading the sqlite file directly: `appdata rows: []`, `cf_commit_log rows: 0`.
+
+### 12.5 A harness fault found and corrected (recorded, not hidden)
+
+The first version of the V11c cap probe **committed a 256 KiB payload** to the probe account instead of being rejected. The payload was sized as "cap + 1 byte" using python's `json.dumps`, which emits `{"v": "…"}`; the hook measures `JSON.stringify`, which emits `{"v":"…"}` — one byte narrower. "One over" on the client was therefore *exactly* the cap on the wire, and the cap is inclusive by design.
+
+The fix is not better arithmetic. A production-safe probe must not be able to write **whatever** the server's configuration turns out to be, so it is now write-proof by construction:
+
+- `expectedRev` is `2147483647`. If the deployed cap were larger than the probe payload, the request falls through to the revision check and answers **409** — never a commit — and V11c fails loudly with "the cap did NOT reject a 272 KiB payload". Verified: that is exactly what V14d does when `CF_MIN_CLIENT_BUILD` is unset.
+- the payload overshoots by 16 KiB rather than 1 byte, so it is over the cap under any serialization, while staying under the 320 KiB envelope limit so it still reaches our handler rather than the framework's.
+
+Exact-boundary behaviour remains `payload-boundary.sh`'s job against disposable staging users.
+
+### 12.6 Also established
+
+**The `CF CAS hook loaded` line is not retrievable from `/api/logs` on v0.39.8.** It is emitted at hook-registration time and appears only on the server console; `/api/logs` held request logs exclusively. Every previous round read it from the container/console log, which is correct — but a runbook step of the form "confirm via the Admin UI → Logs" would have failed. V11d reads a supplied log file (`docker logs <container> > /tmp/pb.log`) and is optional, because V11b and V11c prove strictly more than the boot line does.

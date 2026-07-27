@@ -5,10 +5,19 @@ decision 2): *"Do not simply patch the existing script and call it validated."*
 The Round 2 script is kept as history in `legacy/` and its results are treated
 as non-evidence.
 
-**STAGING ONLY.** Every entry point calls `cf_guard`, which refuses to run
-without `STAGING_CONFIRM=YES`, refuses any URL containing the production host,
-and refuses anything that is not a loopback address. Destructive cases run only
-against disposable `cf_test_*` accounts.
+**STAGING ONLY — with exactly one deliberate exception.** Every entry point
+here calls `cf_guard`, which refuses to run without `STAGING_CONFIRM=YES`,
+refuses any URL containing the production host, and refuses anything that is not
+a loopback address. Destructive cases run only against disposable `cf_test_*`
+accounts.
+
+The exception is **`verify-deployment.sh`**, which does *not* call `cf_guard`
+because verifying production is its entire purpose (`DEPLOYMENT.md` Step 7 P3).
+In exchange it is strictly read-only: every request is a GET, a superuser auth,
+or a probe rejected before any database access, and its probes are write-proof
+by construction rather than by byte arithmetic — see `STAGING_RESULTS.md` §12.5
+for the first version, which was not, and committed 256 KiB to a probe account.
+Sourcing `_lib.sh` does not make any other script here production-safe.
 
 ## Design rules
 
@@ -43,6 +52,7 @@ against disposable `cf_test_*` accounts.
 | `migration.sh` | Portability, index adoption, asymmetric rollback |
 | `fault-injection.sh` | Forced rollback; missing-ledger fail-closed |
 | `run-all.sh` | Ordered runner, writes per-suite evidence logs |
+| `verify-deployment.sh` | **Read-only post-deployment verification — the production cutover gate.** Asserts deployed state (fields, index shapes, ledger rules/cascade, route registration, handler execution, configured cap, optional lockdown state) instead of trusting an exit code |
 
 ## Running
 
@@ -59,3 +69,24 @@ BASE=http://127.0.0.1:8091 ADMIN_EMAIL=<staging-superuser> ADMIN_PASS=<pw> \
 
 `run-all.sh` runs the teardown itself and fails the run if any disposable user,
 `appdata` row or ledger row survives.
+
+## Verifying a deployment (staging or production)
+
+```bash
+cd server/tests
+BASE=<url> ADMIN_EMAIL=<superuser> ADMIN_PASS=<pw> \
+  PROBE_EMAIL=cf_test_1@staging.invalid PROBE_PASS=<disposable> \
+  bash verify-deployment.sh
+```
+
+Exit 0 and `RESULT: VERIFIED` is the only accepted evidence that a deployment
+succeeded. PocketBase v0.39.8 exits 0 when a migration *fails* — and on `serve`
+exits without starting the server at all — so exit status, "the container came
+back", and the `CF CAS hook loaded` line all prove nothing (ADR-015).
+
+Add `EXPECT_LOCKDOWN=YES` after the step-7 lockdown; V14d is the only way to
+confirm `CF_MIN_CLIENT_BUILD` was really set, since it is a hook constant rather
+than schema. Without `PROBE_EMAIL`/`PROBE_PASS` the handler-execution checks
+cannot run and the script fails unless you waive them with
+`ACCEPT_ROUTE_PROBE_ONLY=YES` — a registered route that throws on every request
+would otherwise pass, which is exactly what Round 2 shipped.

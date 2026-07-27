@@ -1,6 +1,6 @@
 # Local Agent Brief — Deploy the CAS Server Kit to STAGING
 
-**Last Updated:** 2026-07-25
+**Last Updated:** 2026-07-27
 
 **Audience:** a Claude Code session running ON THE PRODUCT OWNER'S OWN COMPUTER (inside their Tailscale network). The cloud session that wrote this kit cannot reach the server; you can. **The Product Owner is not an operator — do the work for them.** Ask them for at most: the PocketBase superuser login when needed, and yes/no confirmations. Never ask them to run commands themselves.
 
@@ -93,5 +93,13 @@ The client build (`index.html`, `2026-07-27.342-pb-c1h` — the approved hardeni
 2. Work through `tests/MANUAL_CHECKLIST_COMMIT1.md` — **75 cases** — using the two disposable `cf_test_*` accounts and two browser profiles. Automate with Playwright where practical (Chromium is fine); flag the genuinely manual ones and walk the Product Owner through those interactively.
 3. Record the staging evidence package the Architect requires: expected + actual per case, browser/build, exact PocketBase version, screenshots/logs for failures and conflict flows, deviations, disposable-fixtures confirmation, and whether the CAS kit was installed. Write it to `tests/CHECKLIST_RESULTS.md`, commit, and push to this branch.
 
+### Step 9 — Production deployment (APPROVED, NOT AUTHORIZED TO START)
+
+The Product Architect ruled **APPROVED FOR PRODUCTION DEPLOYMENT** on 2026-07-27 for build `2026-07-27.342-pb-c1h`. That is architectural approval, **not** an instruction to deploy. Do not begin until the Product Owner explicitly says to, in this session.
+
+When they do: follow `server/DEPLOYMENT.md` **Step 7** exactly (P0→P7). The gate is **P3, `server/tests/verify-deployment.sh`** — never a process exit code, never "the container came back", never the `CF CAS hook loaded` line. Ask the Product Owner the one question P3 needs answered first: create a temporary disposable `cf_test_prod@staging.invalid` account so the handler-execution probe can run, or waive it with `ACCEPT_ROUTE_PROBE_ONLY=YES` and record the caveat.
+
+Deferred to the Commit 10 (CAS client) cycle, and not part of this deployment: the five conflict-UI checklist cases and the independent manifest reader (`tests/CHECKLIST_RESULTS.md` §9).
+
 ### What NOT to do
-- Do not deploy to production. Do not change production API rules. Do not set `CF_MIN_CLIENT_BUILD`. Do not remove the bridge hooks. Do not run the browser checklist (`tests/MANUAL_CHECKLIST_COMMIT1.md`) yet — that happens after the Product Architect approves the client build. All of that is later, explicitly-approved work.
+- Do not start the production deployment without the Product Owner saying so in this session — Architect approval is not the same as being told to go. Do not change production API rules, set `CF_MIN_CLIENT_BUILD`, or remove the bridge hooks before the bridge window closes (Step 7 P7); those are the *end* of the cutover, not the start.

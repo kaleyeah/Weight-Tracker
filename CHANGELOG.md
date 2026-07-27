@@ -1,6 +1,6 @@
 # Compound Fitness — Changelog
 
-**Last Updated:** 2026-07-25
+**Last Updated:** 2026-07-27
 
 **Status:** Active
 
@@ -18,6 +18,18 @@ A high-level, human- and AI-readable log of how the **product** has evolved — 
 ---
 
 ## [Unreleased]
+
+### Approved for production (2026-07-27)
+- **Product Architect ruling: APPROVED FOR PRODUCTION DEPLOYMENT** for `2026-07-27.342-pb-c1h`, after both staging gates passed — the CAS server kit (172 assertions, 0 failures) and the 75-case client checklist (39 verified, 0 failures). Client staging is signed off; the five conflict-UI cases are **formally deferred to Commit 10 (CAS Client Conflict Resolution)** as its acceptance criteria; the set-aside family (H3 + 8 dependents) is to be automated with an **independent manifest reader** plus one manual production-readiness confirmation. *Nothing is deployed to production yet — that is a separate, explicitly-authorized step.*
+
+### Added (deployment safety)
+- **`server/tests/verify-deployment.sh`** — read-only post-deployment verification that is safe to run against production, and the only accepted gate for the cutover. It asserts the deployed state directly (revision fields, unique index shapes, ledger collection/rules/cascade, route registration, that the handler actually executes our code, and the configured 256 KiB cap) instead of trusting the deploying process. Tested across five scenarios including a refused migration, a schema-applied-but-hook-missing partial deploy, and the post-lockdown state.
+- **`server/DEPLOYMENT.md` Step 7 is now a production runbook** — backup and baseline, pre-flight migration on a copy, apply, verify, bridge window, rollback with explicit decision criteria, monitoring signals, and lockdown re-verification.
+
+### Fixed (documentation that would have misled the operator)
+- **PocketBase v0.39.8 exits 0 when a migration fails** — and on `serve` it exits *without starting the server*, so a deploy step trusting `$?` reports success while the backend is down. Now recorded as ADR-015 and enforced by the runbook: deployment success is established by asserting state, never by a process exit code.
+- **"Verify the hook loaded via Admin UI → Logs" was wrong.** The `CF CAS hook loaded` line never reaches `/api/logs` on v0.39.8 (request logs only); it appears on the server console. It is also printed *before* migrations run, so it was never evidence of a successful deploy.
+- Step 5 now copies **both** hook files — omitting `cf_cas_shared.js` leaves the route registered but throwing on every request, the exact defect Round 2 shipped.
 
 ### Added (Product Owner feature builds `.332`–`.339`, built on main and merged into the hardened line — now `2026-07-27.342-pb-c1h`)
 - **Commit 1h (merge-review fix):** reopening a completed day now invalidates any in-flight Coach recap request for that day (per-day recap generation token captured in the request context), so a late poll result can never silently restore the recap the athlete deleted; the Reopen control is not offered while a recap is generating. Ordinary edits during a poll still merge narrowly — explicitly preserved and tested. 277 automated tests; staging checklist expanded to 75 cases.
