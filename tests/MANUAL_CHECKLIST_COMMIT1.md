@@ -1,9 +1,9 @@
-# Commits 1–1g — staging browser checklist (MUST pass before shipping)
+# Commits 1–1h — staging browser checklist (MUST pass before shipping)
 
-**Build:** `2026-07-27.341-pb-c1g4`
+**Build:** `2026-07-27.342-pb-c1h`
 **Status:** NOT RUN — no staging PocketBase is reachable from the dev environment.
 
-**Client build is READY-FOR-STAGING** (Product Architect verdict, 2026-07-25, after 7 review rounds). This checklist is the remaining client gate. The staging evidence package must record, per the verdict: expected + actual result for every case; browser/device and build; exact PocketBase version; screenshots/logs for failures and conflict flows; any deviations; confirmation that accounts/fixtures were disposable; whether the CAS server kit was installed; and a clear request for production review or remediation.
+**Verdict state:** READY-FOR-STAGING was issued for the hardening line (2026-07-25, 7 review rounds), but the `.341` merge review found one feature-integration defect (reopen vs. in-flight recap — fixed in Commit 1h) and required these N-section cases. **Staging must not begin until the Architect's focused confirmation review of the corrected build (`.342-pb-c1h`).** This checklist is the remaining client gate once confirmed. The staging evidence package must record, per the verdict: expected + actual result for every case; browser/device and build; exact PocketBase version; screenshots/logs for failures and conflict flows; any deviations; confirmation that accounts/fixtures were disposable; whether the CAS server kit was installed; and a clear request for production review or remediation.
 
 The Architect's authorization is explicit: Commit 1 may be *coded* now but **must not ship** on automated tests alone. Automated tests cover the decision logic; everything below needs a real browser, real IndexedDB and a real server.
 
@@ -12,7 +12,7 @@ Two PocketBase accounts · two browser profiles or devices · offline mode · ne
 
 ## Record for every row
 
-**Case count: 67** (A1–A6, B1–B4, C1–C5, D1–D3, E1–E2, F1–F5+F3b/F3c, G1–G8, H1–H8, J1–J10, K1–K5, L1–L5, M1–M4).
+**Case count: 75** (A1–A6, B1–B4, C1–C5, D1–D3, E1–E2, F1–F5+F3b/F3c, G1–G8, H1–H8, J1–J10, K1–K5, L1–L5, M1–M4, N1–N8).
 `Test · Expected · Actual · Browser/device · Client build · PocketBase version · Pass/Fail · Notes`
 
 ---
@@ -107,3 +107,15 @@ Two PocketBase accounts · two browser profiles or devices · offline mode · ne
 | M2 | Log out; while the safety copy spins, start a new workout | Not wiped; still signed in |
 | M3 | Dev tools: delete the `workout` component of a set-aside, keep its manifest | Inventory shows it incomplete; export refuses |
 | M4 | Dev tools: edit a set-aside manifest to claim only ["core"] | Export refuses (exact-set validation) |
+
+### N. Merged feature verification (Architect's .341 merge review — features `.332`–`.339` + the 1h reopen fix)
+| # | Test | Expected |
+|---|---|---|
+| N1 | Completed day, core already dirty, confirm Reopen | Recap clears; other edits survive; core remains pending; zero snapshot POST/PATCH |
+| N2 | Start recap regeneration, then confirm Reopen before the poll returns | In-flight request is invalidated; late recap is ignored; day stays reopened (UI: Reopen is not offered while generating — "Recap updating…" shows instead; verify via a second tab/dev tools if needed) |
+| N3 | Reopen an older completed day | Only that day's recap clears; unrelated latest/history recap remains correct |
+| N4 | Apple Health import containing fiber | Fiber applies locally; core becomes pending; `health` inbox clears through the operational allowlist; repeat observation does not duplicate; calorie value is not recalculated from fiber |
+| N5 | Export week/all while core is dirty | CSV and Progress Card contain current unsynced local values; dirty state remains dirty; zero backend write |
+| N6 | Export data containing curly apostrophes, quotes, commas, and HTML-like text | CSV opens as UTF-8; Progress Card escapes user text; no executable markup or broken document |
+| N7 | Full-history export with a training-only day | Training-only day appears in CSV and Progress Card; no state mutation |
+| N8 | Signed-out normal login screen after session expiry | Normal CSV/Progress Card controls are inaccessible; only the separately approved quarantine-recovery export may appear where applicable |

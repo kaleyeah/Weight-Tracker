@@ -19,7 +19,8 @@ A high-level, human- and AI-readable log of how the **product** has evolved — 
 
 ## [Unreleased]
 
-### Added (Product Owner feature builds `.332`–`.339`, built on main and merged into the hardened line — now `2026-07-27.341-pb-c1g4`)
+### Added (Product Owner feature builds `.332`–`.339`, built on main and merged into the hardened line — now `2026-07-27.342-pb-c1h`)
+- **Commit 1h (merge-review fix):** reopening a completed day now invalidates any in-flight Coach recap request for that day (per-day recap generation token captured in the request context), so a late poll result can never silently restore the recap the athlete deleted; the Reopen control is not offered while a recap is generating. Ordinary edits during a poll still merge narrowly — explicitly preserved and tested. 277 automated tests; staging checklist expanded to 75 cases.
 - **Progress Card** — styled, self-contained, print-friendly HTML report exported alongside the CSV in one tap; adapts for full-history range.
 - **Fiber tracking** — imports from Apple Health, optional field on the calories editor, CSV export column; deliberately excluded from the 4/4/9 calorie math.
 - **Weekly Macros card on Summary** — calories/protein/carbs/fat totals vs. goals, pro-rated to days elapsed, styled like the weekly Steps bar.

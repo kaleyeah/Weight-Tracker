@@ -87,10 +87,10 @@ Finally run `bash setup-fixtures.sh teardown`, and tell the Product Owner: "Done
 
 ### Step 8 — CLIENT staging phase (now authorized)
 
-The client build (`index.html`, `2026-07-27.341-pb-c1g4` — the approved hardening plus the Product Owner's merged feature builds `.332`–`.339`) is **READY-FOR-STAGING** per the Product Architect; before executing the checklist, confirm `tests/MANUAL_CHECKLIST_COMMIT1.md` still names the build you are serving (the Architect requires staging evidence to be tied to the exact confirmed artifact). After the server kit passes its integration tests on staging:
+The client build (`index.html`, `2026-07-27.342-pb-c1h` — the approved hardening plus the Product Owner's merged feature builds `.332`–`.339` plus the Commit 1h reopen fix) requires the Architect's focused confirmation review before the checklist runs; before executing, confirm `tests/MANUAL_CHECKLIST_COMMIT1.md` names the build you are serving AND that STATUS.md records the Architect's confirmation of that exact build (the Architect requires staging evidence tied to the exact confirmed artifact). After the server kit passes its integration tests on staging:
 
 1. Serve the repo's `index.html` locally (e.g. `python3 -m http.server 8092` in the repo root) and point it at the STAGING PocketBase (login screen → Server settings → staging URL). Never production.
-2. Work through `tests/MANUAL_CHECKLIST_COMMIT1.md` — **67 cases** — using the two disposable `cf_test_*` accounts and two browser profiles. Automate with Playwright where practical (Chromium is fine); flag the genuinely manual ones and walk the Product Owner through those interactively.
+2. Work through `tests/MANUAL_CHECKLIST_COMMIT1.md` — **75 cases** — using the two disposable `cf_test_*` accounts and two browser profiles. Automate with Playwright where practical (Chromium is fine); flag the genuinely manual ones and walk the Product Owner through those interactively.
 3. Record the staging evidence package the Architect requires: expected + actual per case, browser/build, exact PocketBase version, screenshots/logs for failures and conflict flows, deviations, disposable-fixtures confirmation, and whether the CAS kit was installed. Write it to `tests/CHECKLIST_RESULTS.md`, commit, and push to this branch.
 
 ### What NOT to do
