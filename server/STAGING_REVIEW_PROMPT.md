@@ -1,10 +1,10 @@
-# Staging Review Request — CAS Server Kit (for ChatGPT / Product Architect)
+# Staging Review Request — CAS Server Kit, Round 2 (for ChatGPT / Product Architect)
 
 **Last Updated:** 2026-07-27
 
 **Status:** Active — blocking. Companion to `STAGING_RESULTS.md`. Follows the `REVIEW_REQUEST.md` pattern; see `ROLES_AND_WORKFLOW.md` Step 4.
 
-> Copy the block below into ChatGPT and attach `cf-cas-staging-20260727.zip`.
+> Copy the block below into ChatGPT and attach `cf-cas-staging-round2-20260727.zip`.
 
 ---
 
@@ -15,81 +15,92 @@ You are the Product Architect for Compound Fitness. I'm the Product Owner.
 Claude Code is the Lead Engineer. Per our workflow you decide WHAT gets built
 and review WHAT was built; Claude decides HOW.
 
-Attached is the staging evidence package for the CAS server kit (compare-and-
-swap for appdata on PocketBase v0.39.8). Read in this order:
+This is ROUND 2 of the CAS server kit staging attempt. You previously returned
+a status file directing: "Fix migration, rerun staging, then submit a new
+staging review package." The migration is fixed and verified. The rerun found
+three further defects. Read in this order:
 
-  1. STAGING_RESULTS.md              — what happened; §4 is the blocker
-  2. evidence/migration-failure.log  — the verbatim failure
-  3. kit/pb_migrations/1753400000_cf_cas.js — the artifact that fails
-  4. docs/DEPLOYMENT.md              — the procedure the results are keyed to
-  5. docs/SERVER_NOTES.md            — threat model, field mapping, cutover
-  6. kit/pb_hooks/cf_cas.pb.js + kit/tests/*.sh — unexercised; context only
+  1. STAGING_RESULTS.md              — §1 is the defect register; start there
+  2. evidence/manual-cas-repro.log   — proof the CAS logic itself is correct
+  3. evidence/cas-tests-patched.log  — 17 passed / 4 failed
+  4. evidence/cas-tests-unpatched.log — the kit exactly as you hold it: route dead
+  5. kit/pb_hooks/cf_cas.pb.js       — defect 2 lives at lines 8-15 vs line 20
+  6. kit/tests/cas-server-tests.sh   — defect 3 lives at lines 26-28
+  7. kit/pb_migrations/…cf_cas.js    — defect 1 FIXED here; defect 4 at the
+                                       cf_commit_log user relation
+  8. docs/                           — DEPLOYMENT, SERVER_NOTES, LOCAL_AGENT_BRIEF
 
 Context so you evaluate rather than rediscover:
 
-  - STAGING FAILED. The migration aborts before applying anything. The hook,
-    the ledger, all 13 integration tests and both fault-injection cases are
-    UNVERIFIED — not passing, not failing. Unrun.
-  - Root cause: the migration guards its unique-index creation by index NAME
-    (`idx_cf_appdata_user`). Production already carries an equivalent unique
-    index on appdata(user) under an Admin-UI-generated name, `idx_88qok6ts7v`.
-    The guard passes, a duplicate definition is pushed, PocketBase rejects it,
-    the migration aborts atomically. This reproduces identically on production
-    — it is not a staging artifact.
-  - The invariant you wanted (one appdata row per user, unique-indexed) is
-    ALREADY TRUE in production. The migration fails while adding protection
-    that exists.
-  - Staging was a local bare-binary PocketBase v0.39.8 on my workstation,
-    restored from a fresh production backup, bound to 127.0.0.1 only. SSH to
-    the NAS was unavailable. Production was never written to — the only
-    production request all session was an unauthenticated GET /api/health.
-  - No real credentials were used; a disposable staging superuser was minted
-    offline. No destructive test ran against the two real athlete rows. The
-    staging restore has been destroyed.
-  - Claude diagnosed the defect and proposed a fix but did NOT apply it, on my
-    instruction. The kit in this zip is byte-identical to what you hold.
+  - THE COMMIT ROUTE HAD NEVER WORKED. PocketBase runs routerAdd handlers in a
+    separate goja runtime, so the handler cannot see its file's top-level
+    scope. CF_SUBSYSTEMS, CF_MAX_PAYLOAD_BYTES, CF_MIN_CLIENT_BUILD and
+    cfUtf8Bytes are all undefined inside the handler. Every commit threw
+    ReferenceError and returned a generic 400. This is environment-independent
+    — it would fail identically on the NAS. The kit had evidently never been
+    executed against a running PocketBase before this session.
+  - Two tests PASSED against that completely dead route (T8, T9 both assert
+    only "expect 400", and a crashed handler returns 400). Status-only
+    assertions cannot tell validation from a crash.
+  - The suite's concurrency cases cannot test concurrency: both parallel
+    commit() calls write the request body to the SAME temp file, so both curls
+    send an identical body. The server correctly does one commit + one
+    idempotent replay; the suite scores that as a failure. T1, T2, T3a and
+    T13a are ALL harness artifacts, not server defects.
+  - Driven by hand with genuinely distinct concurrent requests, the CAS logic
+    is CORRECT on both critical paths — same-rev race and first-row create
+    race. One winner, one real 409 carrying the winner's revision and payload,
+    exactly one row. No CAS correctness defect was found.
+  - The ledger's user relation is required + non-cascading, so a user with
+    cf_commit_log rows CANNOT BE DELETED. Teardown reported success while
+    leaving the account behind, because it never checks the DELETE status.
+  - Claude fixed ONLY the migration (authorised by your status return). Defects
+    2, 3 and 4 are diagnosed but NOT fixed, on my instruction. The hook and the
+    test scripts in this zip are byte-identical to what you hold. The §4 suite
+    results required a staging-only patch, clearly marked, never committed.
+  - Production was never written to. One unauthenticated GET /api/health, and
+    nothing else, all session. Staging was a loopback-only local instance from
+    a fresh backup, destroyed afterwards.
 
-I want four things, in priority order:
+I want five things, in priority order:
 
-1. VERDICT ON THE MIGRATION FIX (this blocks everything — staging and
-   production both). §4 of STAGING_RESULTS.md proposes matching on index SHAPE
-   (any unique index on (user)) rather than on our chosen name. Accept, revise,
-   or reject with an alternative. Consider explicitly: is silently adopting a
-   pre-existing index of unknown provenance the right call, or should the
-   migration fail loudly and make me reconcile the naming first? I care more
-   about which is safer at production cutover than which is less work.
+1. VERDICT ON THE DEFECT 2 FIX SHAPE (blocks everything). Constants and helper
+   declared inside the handler, or moved to a module loaded with require()
+   inside the handler? The second is the PocketBase-idiomatic way to share code
+   across hooks and survives the kit growing; the first is a smaller diff. Pick
+   one so this doesn't get re-litigated at production cutover.
 
-2. ROLLBACK SEMANTICS. The down-migration filters `idx_cf_appdata_user` out of
-   appdata.indexes — a no-op against production, where the index is named
-   `idx_88qok6ts7v`. Arguably correct (rollback should not drop an index the
-   kit never created), but right now it's an accident of naming rather than a
-   decision. Tell me what the down-migration SHOULD do, and I'll have it
-   written down as intent either way.
+2. HOW MUCH OF THIS KIT DO YOU NOW DISTRUST? A route that never ran means the
+   integration suite never exercised it, and two tests passed against a corpse.
+   Tell me whether you want (a) the suite hardened to assert on response bodies
+   rather than status codes alone, (b) an independent re-derivation of the test
+   matrix from SERVER_NOTES.md rather than patching the existing script, or
+   (c) something else before any of this counts as evidence. I would rather
+   spend a cycle on this than carry a false green into production.
 
-3. PAYLOAD CAP RULING (DEPLOYMENT.md step 4 reserves this for you). Measured on
-   staging: max data = 18,954 B, max training = 18,900 B; the other athlete's
-   records are empty. The step-4 formula (max x ~4) gives ~74 KiB against the
-   2 MiB provisional cap now in the hook. Claude's concern: 4x headroom derived
-   from a single 19 KB sample is thin for data that grows with training
-   history, and the 413 path is itself untested. Give me a number and the
-   reasoning, or tell me to keep 2 MiB until there's a real growth curve.
+3. RULING ON DEFECT 4 — the undeletable-user problem. With 30-day ledger
+   retention, a real athlete account is undeletable for up to 30 days after
+   their last write, failing with an opaque relation error. cascadeDelete:true,
+   nullable owner, or prune-on-delete? This is a data-protection question as
+   much as a schema one, so I want your call rather than Claude's default.
 
-4. RE-RUN SCOPE. Once the migration is fixed, does your 2026-07-27 confirmation
-   ("VERDICT CARRIES OVER TO .342 — STAGING MAY PROCEED (75 CASES)") still
-   stand for the client checklist, or does a changed server kit require
-   re-confirmation before the 75 cases run? I don't want to burn a staging
-   cycle producing evidence you'd reject on artifact grounds.
+4. CARRIED OVER FROM ROUND 1, STILL UNANSWERED:
+   a. Rollback semantics. The down-migration drops only the index the kit
+      created and deliberately leaves an adopted pre-existing one alone
+      (production's `idx_88qok6ts7v`). Confirm or correct — it is currently
+      documented as intent on Claude's judgement, not yours.
+   b. Payload cap. Measured max 18,954 B; the step-4 formula gives ~74 KiB
+      against the 2 MiB provisional. Note the hook's own size check is inside
+      the broken handler, so the cap is untested at ANY value. Give me a number
+      or tell me to hold at 2 MiB pending a real growth curve.
 
-Two smaller items Claude flagged in the test scripts but did not touch — rule on
-whether they get fixed before the suite is trusted as evidence:
-  - cas-server-tests.sh: the raw-create-forge case asserts nothing (it only
-    logs its status), so the ownership-forgery scenario cannot fail the suite.
-  - setup-fixtures.sh: its production-host guard is weaker than the equivalent
-    guard in cas-server-tests.sh — and the weaker one is in the script that
-    CREATES users.
+5. RE-RUN SCOPE. Does your 2026-07-27 client confirmation ("VERDICT CARRIES
+   OVER TO .342 — STAGING MAY PROCEED (75 CASES)") still stand once the server
+   kit changes again? The 75-case checklist was deliberately skipped this cycle
+   and needs a working server anyway.
 
-Do not treat anything here as production-readiness evidence. Nothing in the kit
-has been exercised end to end.
+Do not treat anything here as production-readiness evidence. The fault-injection
+cases were not run, and the suite is not trustworthy until defect 3 is fixed.
 ```
 
 ---
@@ -98,11 +109,13 @@ has been exercised end to end.
 
 | Path | What it is |
 | --- | --- |
-| `STAGING_RESULTS.md` | The report — §4 is the blocker, §10 the deviations |
-| `evidence/migration-failure.log` | Verbatim boot + failure output |
-| `kit/pb_migrations/1753400000_cf_cas.js` | The failing migration, as shipped |
-| `kit/pb_hooks/cf_cas.pb.js` | The hook — loads, otherwise unexercised |
-| `kit/tests/*.sh` | Fixture + integration suite, never invoked |
+| `STAGING_RESULTS.md` | Round-2 report — §1 defect register, §12 round-1 history |
+| `evidence/manual-cas-repro.log` | Hand-driven proof the CAS logic is correct |
+| `evidence/cas-tests-unpatched.log` | The kit as shipped — route dead, 4 misleading passes |
+| `evidence/cas-tests-patched.log` | With the staging-only scope patch — 17 passed / 4 failed |
+| `evidence/migration-*.log` | Round-1 failure and round-2 clean boot |
+| `evidence/teardown.log` | Teardown reporting success while leaving an account behind |
+| `kit/` | Migration (fixed), hook and tests — hook + tests byte-identical to yours |
 | `docs/` | `DEPLOYMENT.md`, `SERVER_NOTES.md`, `LOCAL_AGENT_BRIEF.md` |
 
-No health data, credentials, or tokens are in the package — schema, code and logs only.
+No health data, credentials or tokens are in the package — schema, code and logs only.
