@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Compound Fitness · build 2026-07-26.339-pb-c1g2 · deploy this file as index.html -->
+<!-- Compound Fitness · build 2026-07-26.340-pb-c1g3 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -748,6 +748,12 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 .wl-ck-done-banner{display:flex;align-items:center;gap:10px;margin:0 -4px -6px;padding:12px 14px;border-top:1px solid var(--line);background:linear-gradient(180deg,rgba(92,214,160,.10),rgba(92,214,160,.02));border-radius:0 0 16px 16px;}
 .wl-ck-done-check{width:22px;height:22px;border-radius:50%;background:var(--good);color:var(--on-good);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;flex:none;}
 .wl-ck-done-txt{font-size:13.5px;font-weight:700;color:var(--good);}
+.wl-ck-reopen{margin-left:auto;flex:none;background:none;border:none;padding:4px 2px;font-family:var(--sans);font-size:12.5px;font-weight:700;color:var(--muted);cursor:pointer;text-decoration:underline;text-underline-offset:2px;}
+.wl-ck-reopen:active{color:var(--text);}
+.wl-ck-done-banner.ask{display:block;}
+.wl-ck-reopen-q{font-size:13px;font-weight:600;color:var(--text);line-height:1.45;}
+.wl-ck-reopen-btns{display:flex;gap:8px;margin-top:10px;}
+.wl-ck-reopen-btns .wl-btn{flex:1;padding:10px 0;font-size:14px;}
 .wl-ck-note{flex:1;text-align:right;font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .wl-ck-go{color:var(--faint);font-size:16px;flex:none;}
 .wl-ck-top .wl-ck-val{flex:1;}
@@ -845,7 +851,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-26.339-pb-c1g2";
+var APP_BUILD="2026-07-26.340-pb-c1g3";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -1099,7 +1105,7 @@ function dayDots(iso){var seen={},cats=[];function _ad(c){if(!seen[c]){seen[c]=1
 var state={settings:Object.assign({},DEFAULT_SETTINGS),weights:[],food:{},workouts:{},steps:{},notes:{},sleep:{},bodyfat:{},waist:{},statuses:[],weeklySummary:null,nightlySummary:null,nightlyLog:{},presets:DEFAULT_PRESETS.slice(),
   view:"overview",calY:new Date().getFullYear(),calM:new Date().getMonth(),weekOffset:0,trendMode:"W",trendOffset:0,calOpen:false,sumOpen:true,nightOpen:true,genBusy:false,nightBusy:false,diaryWeeks:1,
   training:{cardioTypes:DEFAULT_CARDIO_TYPES.slice(),sessions:{},exercises:[],routines:[],liftSessions:{}},cardioForm:null,manageOpen:false,actAddCat:null,actPick:null,exForm:null,routineId:null,riPickOpen:false,noteEdit:null,liftForm:null,workout:null,setMenu:null,woPrompt:false,bwEdit:false,histView:null,exMenu:null,woReplaceEi:null,liftViewId:null,liftViewDate:null,woResume:false,liftEdit:null,quickEntry:null,
-  selDate:todayISO(),foodDate:todayISO(),alertDismissed:false,confirmReset:false,skips:{},glp:glpDefault(),glpDraft:null,glpSheet:null};
+  selDate:todayISO(),foodDate:todayISO(),alertDismissed:false,confirmReset:false,skips:{},glp:glpDefault(),glpDraft:null,glpSheet:null,reopenAsk:null};
 
 function load(){
   try{var raw=localStorage.getItem(KEY);if(raw){var d=JSON.parse(raw);
@@ -1854,7 +1860,16 @@ function ckNotes(sel){
 }
 function ckRowSkip(label,val,sec){return '<button class="wl-ck-row" data-act="dl:open" data-sec="'+sec+'"><span class="wl-ck-l"><span class="wl-ck-ic"></span><span class="wl-ck-lab">'+label+'</span></span><span class="wl-ck-val" style="color:var(--faint);font-style:italic">'+val+'</span><span class="wl-ck-go">›</span></button>';}
 function skipBtn(sec,on,word){return '<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="skip:'+sec+'">'+(on?"Un-skip \u2014 I\u2019ll log "+word:"Not tracking "+word+" today")+'</button>'+(on?'<div class="wl-hint" style="margin-top:8px">Marked skipped \u2014 still counts as checked in. Logging when you can gives your coach a truer read over time.</div>':'');}
-function completeBtnHTML(sel){var selToday=sel===todayISO();if(state.nightBusy)return '<div class="wl-hint" style="margin-top:12px;text-align:center">⏳ Completing… generating your recap.</div>';var ns=state.nightlySummary;var hasRecap=ns&&ns.date===sel&&ns.text;if(hasRecap)return '';/* regenerate moved into the recap card header (wl-recaplink) */return '<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="night:gen">Complete '+(selToday?"today":"this day")+'</button>';}
+/* The recap for a given day, wherever it lives: the per-day log first, then the
+   "latest recap" slot. A day having a recap is what makes it Completed. */
+function dayRecap(iso){var l=(state.nightlyLog||{})[iso];if(l&&l.text)return l;var ns=state.nightlySummary;return (ns&&ns.date===iso&&ns.text)?ns:null;}
+/* Reopen a completed day: drop its recap from both stores so the day reverts to
+   not-completed (Complete today + Health import return). Destructive by design. */
+function reopenDay(iso){var lg=state.nightlyLog||{};if(lg[iso])delete lg[iso];state.nightlyLog=lg;
+  var ns=state.nightlySummary;if(ns&&ns.date===iso)state.nightlySummary=null;
+  if(state.settings&&state.settings.seenNightly===iso)state.settings.seenNightly=null;
+  state.reopenAsk=null;save();render();toast("Day reopened");}
+function completeBtnHTML(sel){var selToday=sel===todayISO();if(state.nightBusy)return '<div class="wl-hint" style="margin-top:12px;text-align:center">⏳ Completing… generating your recap.</div>';var hasRecap=!!dayRecap(sel);if(hasRecap)return '';/* regenerate moved into the recap card header (wl-recaplink) */return '<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="night:gen">Complete '+(selToday?"today":"this day")+'</button>';}
 function hkButtonHTML(sel){
   if(!isOwner())return "";
   if(state.hkDone&&state.hkDone.date===sel){var _hd=new Date(state.hkDone.ts);var _hh=_hd.getHours()%12;if(_hh===0)_hh=12;var _hm=(_hd.getMinutes()<10?"0":"")+_hd.getMinutes();
@@ -1868,7 +1883,7 @@ function todayChecklistHTML(sel){
   var steps=num(state.steps[sel]),sleep=num(state.sleep[sel]);
   var hasCal=num(f.calories)!=null||num(f.protein)!=null||num(f.carbs)!=null||num(f.fat)!=null;
   var modeType=dayStatus(sel);
-  var _completed=!!(state.nightlySummary&&state.nightlySummary.date===sel&&state.nightlySummary.text); /* day is Completed (recap generated via "Complete today") -> lock it, hide Health import */
+  var _completed=!!dayRecap(sel); /* day is Completed (a recap exists for it) -> lock it, hide Health import */
   if(modeType){var mh='<div class="wl-card wl-check"><div class="wl-ck-head"><span class="wl-ck-title">'+(sel===todayISO()?"Today":"This day")+'\u2019s Check-in</span><span class="wl-ck-cnt">'+(modeType==="sick"?"Resting up":"Resting easy")+'</span></div>';
     mh+=(wt!=null)?ckRow(true,"Weight",r1(wt)+" "+u,"weight",false):ckRowSkip("Weight","Optional","weight");
     mh+=(steps!=null)?ckRow(true,"Steps",Math.round(steps).toLocaleString(),"steps",false):ckRowSkip("Steps","Optional","steps");
@@ -1877,14 +1892,22 @@ function todayChecklistHTML(sel){
     mh+=ckNotes(sel);if(!_completed)mh+=hkButtonHTML(sel);return mh+'</div>';}
   var wSkip=isSkip(sel,"weight"),stSkip=isSkip(sel,"steps"),slSkip=isSkip(sel,"sleep"),calSkip=isSkip(sel,"calories");
   var done=((wt!=null||wSkip)?1:0)+((steps!=null||stSkip)?1:0)+((hasCal||calSkip)?1:0)+((sleep!=null||slSkip)?1:0);
-  var _allDone=(_completed&&sel===todayISO()); /* completion state = day Completed via "Complete today" (recap generated), not merely 4/4 filled */
+  var _allDone=_completed; /* completion state = day Completed via "Complete today" (a recap exists), not merely 4/4 filled */
   var h='<div class="wl-card wl-check'+(_allDone?' wl-check-done':'')+'"><div class="wl-ck-head"><span class="wl-ck-title">'+(sel===todayISO()?"Today":"This day")+'\u2019s Check-in</span><span class="wl-ck-cnt'+(_allDone?' allgood':'')+'">'+(_allDone?'All done':done+' of 4 done')+'</span></div>';
   h+=(sleep!=null)?ckRow(true,"Sleep",minToHM(sleep),"sleep",false):(slSkip?ckRowSkip("Sleep","Skipped","sleep"):ckRow(false,"Sleep","Add","sleep",false));
   h+=(wt!=null)?ckRow(true,"Weight",r1(wt)+" "+u,"weight",false):(wSkip?ckRowSkip("Weight","Skipped","weight"):ckRow(false,"Weight","Add","weight",false));
   h+=(hasCal||!calSkip)?ckCalories(sel):ckRowSkip("Calories","Skipped","calories");
   h+=(steps!=null)?ckRow(true,"Steps",Math.round(steps).toLocaleString(),"steps",false):(stSkip?ckRowSkip("Steps","Skipped","steps"):ckRow(false,"Steps","Add","steps",false));
   h+=ckNotes(sel);if(!_completed)h+=hkButtonHTML(sel); /* hide Health import only once the day is Completed (recap generated), not merely when 4/4 are filled */
-  if(_allDone)h+='<div class="wl-ck-done-banner"><span class="wl-ck-done-check">✓</span><span class="wl-ck-done-txt">You’re logged for today — nice work.</span></div>';
+  if(_allDone){
+    if(state.reopenAsk===sel){
+      h+='<div class="wl-ck-done-banner ask"><div class="wl-ck-reopen-q">Reopen this day? Its coach recap will be cleared.</div>'+
+         '<div class="wl-ck-reopen-btns"><button class="wl-btn wl-btn-ghost" data-act="day:reopencancel">Cancel</button><button class="wl-btn wl-btn-primary" data-act="day:reopendo" data-date="'+sel+'">Reopen</button></div></div>';
+    }else{
+      h+='<div class="wl-ck-done-banner"><span class="wl-ck-done-check">✓</span><span class="wl-ck-done-txt">'+(sel===todayISO()?"You’re logged for today — nice work.":"This day is complete.")+'</span>'+
+         '<button class="wl-ck-reopen" data-act="day:reopenask" data-date="'+sel+'">Reopen</button></div>';
+    }
+  }
   return h+'</div>';
 }
 function activitySummaryHTML(sel){
@@ -2342,6 +2365,8 @@ function quickEntryHTML(){
     [["protein","Protein","g"],["fat","Fat","g"],["carbs","Carbs","g"]].forEach(function(f){var val=e[f[0]]!=null?e[f[0]]:"";body+='<label class="wl-field"><span>'+f[1]+' <em>'+f[2]+'</em></span><input class="wl-food-input wl-num" data-food="'+f[0]+'" type="text" inputmode="decimal" placeholder="0" value="'+val+'">';if(hasT&&t[f[0]]!=null)body+='<div class="wl-tbar" id="bar-'+f[0]+'">'+barInner(num(val),t[f[0]])+'</div>';body+='</label>';});
     var _cv=e.calories!=null?e.calories:"";
     body+='</div><label class="wl-field wl-field-full" style="margin-top:14px"><span>Total Calories <em>cal</em></span><input class="wl-food-input wl-num" data-food="calories" type="text" inputmode="decimal" placeholder="0" value="'+_cv+'">';if(hasT&&t.calories!=null)body+='<div class="wl-tbar" id="bar-calories">'+barInner(num(_cv),t.calories)+'</div>';body+='</label>';
+    var _fv=e.fiber!=null?e.fiber:"";
+    body+='<label class="wl-field wl-field-full" style="margin-top:14px"><span>Fiber <em>g · optional</em></span><input class="wl-food-input wl-num" data-food="fiber" type="text" inputmode="decimal" placeholder="0" value="'+_fv+'"></label>';
     body+='<div id="wl-calnotice">'+calNoticeHTML(sel)+'</div>';var _clk=isSkip(sel,"calories");body+=skipBtn("calories",_clk,"food");
     }
   else if(sec==="notes")body='<textarea class="wl-note-input" placeholder="Any notes for the AI summary (feeling sick, feeling good, on vacation…)" style="width:100%;min-height:96px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:14px;padding:11px 12px;box-sizing:border-box;outline:none;resize:vertical">'+esc(state.notes[sel]||"")+'</textarea>';
@@ -2356,7 +2381,28 @@ function weekStartFor(offset){var ws=parseInt(state.settings.weekStart,10)||0;va
 function weekDays(offset){var s=weekStartFor(offset),arr=[];for(var i=0;i<7;i++){var dd=new Date(s);dd.setDate(s.getDate()+i);arr.push(dd);}return arr;}
 function dayRow(d){var iso=toISO(d);var w=null;for(var i=0;i<state.weights.length;i++){if(state.weights[i].date===iso){w=state.weights[i].weight;break;}}
   var f=state.food[iso]||{};return {date:iso,dow:d.toLocaleDateString(undefined,{weekday:"long"}),d:d,weight:w,steps:num(state.steps[iso]),sleep:num(state.sleep[iso]),
-    calories:num(f.calories),protein:num(f.protein),fat:num(f.fat),carbs:num(f.carbs),activities:normActs(iso).map(actLabel),note:state.notes[iso]||""};}
+    calories:num(f.calories),fiber:num(f.fiber),protein:num(f.protein),fat:num(f.fat),carbs:num(f.carbs),activities:normActs(iso).map(actLabel),
+    cardioSess:(((state.training||{}).sessions||{})[iso]||[]).filter(function(s){return s.kind==="cardio";}),
+    liftSess:(((state.training||{}).liftSessions||{})[iso]||[]),
+    note:state.notes[iso]||""};}
+/* ---- CSV export cells for training ----
+   One line per session: "Name, Duration: N mins, Zone: N, Avg HR: N, estimated cals burned: N".
+   Parts with no logged value are omitted rather than left blank. Multiple sessions in a
+   day are joined with " | ". Cardio is filtered to ZONE 2+ to match the app's weekly
+   cardio-goal rule (weekTrainingStats), where an unset zone also counts. */
+function csvIsZ2(s){var z=num(s.zone);return z==null||z>=2;}
+function csvSessLine(name,s){var p=[name];
+  var m=num(s.mins);if(m!=null)p.push("Duration: "+Math.round(m)+" mins");
+  var z=num(s.zone);if(z!=null)p.push("Zone: "+z);
+  var hr=num(s.hr);if(hr!=null)p.push("Avg HR: "+Math.round(hr));
+  var c=num(s.cal);if(c!=null)p.push("estimated cals burned: "+Math.round(c));
+  return p.join(", ");}
+function csvCardioCell(r){return (r.cardioSess||[]).filter(csvIsZ2).map(function(s){return csvSessLine(s.type||"Cardio",s);}).join(" | ");}
+function csvLiftCell(r){return (r.liftSess||[]).map(function(s){return csvSessLine(s.name||"Weight training",s);}).join(" | ");}
+function csvActNotesCell(r){var out=[];
+  (r.cardioSess||[]).filter(csvIsZ2).forEach(function(s){var n=(s.notes||"").trim();if(n)out.push((s.type||"Cardio")+" Notes: "+n);});
+  (r.liftSess||[]).forEach(function(s){var n=(s.notes||"").trim();if(n)out.push((s.name||"Weight training")+" Notes: "+n);});
+  return out.join(" | ");}
 function fnum(v){return v==null?"—":(Math.abs(v)>=1000?Math.round(v).toLocaleString():(v%1===0?String(v):String(r1(v))));}
 function avgStatF(label,disp,sub,color){return '<div class="wl-stat"><div class="wl-stat-label">'+label+'</div><div class="wl-stat-val'+(color?" "+color:"")+'">'+disp+'</div><div class="wl-stat-sub">'+(sub||"&nbsp;")+'</div></div>';}
 function actStat(label,n,cat){var col={cardio:"#3b82f6",lifting:"#22c55e",rest:"#6b7280",supp:"#a855f7"}[cat]||"var(--text)";return '<div class="wl-stat"><div class="wl-stat-label">'+label+'</div><div class="wl-stat-val" style="color:'+col+'">'+n+'</div></div>';}
@@ -2399,6 +2445,22 @@ function view_summary(){
   h+='<div class="wl-card"><div class="wl-card-head"><span>Weekly Totals</span></div><div class="wl-statrow" style="grid-template-columns:repeat(3,1fr)">'+
     sumStat("Calories",tot.calories||null,"")+sumStat("Steps",tot.steps||null,"")+sumStat("Weigh-ins",wv.length,"")+
     sumStat("Cardio min",ts.cardioZ2Mins||null,"")+sumStat("Lifting min",ts.liftMins||null,"")+sumStat("Cardio sessions",ts.cardioZ2Sessions||null,"")+'</div></div>';
+  /* Weekly Macros — totals consumed vs a goal PRO-RATED to the days elapsed in the
+     DISPLAYED week: all 7 for a finished week, through today for the current one, so
+     a mid-week bar reads as true adherence rather than always looking behind. A macro
+     with no goal set still shows its total, just without a bar. */
+  var _elapsedDays=days.filter(function(r){return r.date<=_tI;});
+  var _elapsed=_elapsedDays.length;
+  /* Total over the SAME window the goal is pro-rated to, so numerator and denominator
+     always cover the same days (a full week reads identically to before). */
+  function _macTot(k){var t=0;_elapsedDays.forEach(function(r){if(r[k]!=null)t+=r[k];});return t;}
+  var _macH="";
+  [["Calories",_macTot("calories"),tCal,""],["Protein",_macTot("protein"),tProt,"g"],["Carbs",_macTot("carbs"),tCarb,"g"],["Fat",_macTot("fat"),tFat,"g"]].forEach(function(m){
+    var v=Math.round(m[1]||0),daily=m[2],unit=m[3];
+    if(daily!=null&&_elapsed>0){_macH+=goalBarHTML(m[0],v,Math.round(daily*_elapsed),unit,false);}
+    else{_macH+='<div class="wl-goalrow"><div class="wl-goalrow-top"><span>'+m[0]+'</span><span class="wl-goalrow-val">'+v.toLocaleString()+(unit?' '+unit:'')+'</span></div></div>';}
+  });
+  h+='<div class="wl-card"><div class="wl-card-head"><span>Weekly Macros'+((_elapsed>0&&_elapsed<7)?' <em>'+_elapsed+' of 7 days so far</em>':'')+'</span></div>'+_macH+'</div>';
   var avgCal=avg("calories"),avgStep=avg("steps"),avgProt=avg("protein"),avgFat=avg("fat"),avgCarb=avg("carbs");
   var calOverGoal=(tCal!=null&&avgCal!=null&&avgCal>tCal);
   function acol(has,red){return has?(red?"bad":"good"):"";}
@@ -2431,14 +2493,41 @@ function view_summary(){
   return h+'</div>';}
 function csvCell(v){v=(v==null?"":String(v));return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
 function mdyy(iso){var d=parseISO(iso);return (d.getMonth()+1)+"/"+d.getDate()+"/"+String(d.getFullYear()).slice(-2);}
-function csvFor(days){var rows=[["Day","Date","Weight","Steps","Sleep","Calories","Protein","Fat","Carbs","Activities","Notes"]];
-  days.forEach(function(r){rows.push([r.dow,mdyy(r.date),r.weight!=null?r1(r.weight):"",r.steps!=null?Math.round(r.steps):"",r.sleep!=null?minToHM(r.sleep):"",r.calories!=null?Math.round(r.calories):"",r.protein!=null?r.protein:"",r.fat!=null?r.fat:"",r.carbs!=null?r.carbs:"",r.activities.join(", "),r.note||""]);});
+/* A second block a few lines below the daily rows: macro totals vs goals over the SAME
+   window the rows cover (days up to today), so the figures reconcile with the app's
+   Weekly Macros card — goals are pro-rated to the days elapsed, not a flat x7.
+   `label` is "Weekly" for the single-week export, "Period" for the full-history one. */
+function csvSummaryBlock(days,label){
+  var _tI=todayISO();var el=days.filter(function(r){return r.date<=_tI;});var n=el.length;var s=state.settings;
+  function tot(k){var t=0;el.forEach(function(r){if(r[k]!=null)t+=r[k];});return Math.round(t);}
+  function goal(v){var d=num(v);return (d!=null&&n>0)?Math.round(d*n):"";}
+  function dgoal(v){var d=num(v);return d!=null?d:"";}
+  /* Daily average is over DAYS IN THE PERIOD (n), not just the days that had a value —
+     so the block reconciles: avg x n = total, and daily goal x n = period goal. */
+  function davg(k){return n>0?r1(tot(k)/n):"";}
+  function row(name,k,g){return [name,tot(k),goal(g),dgoal(g),davg(k)];}
+  return [[],[],[],[],["Name",label+" Totals",label+" Goals","Daily Goal","Daily Average"],
+    row("Calories","calories",s.targetCalories),
+    row("Protein","protein",s.targetProtein),
+    row("Fat","fat",s.targetFat),
+    row("Carbs","carbs",s.targetCarbs)];
+}
+function csvFor(days,sumLabel){var rows=[["Day","Date","Weight","Steps","Sleep","Calories","Fiber","Protein","Fat","Carbs","Check in notes","Cardio","Weight Training","Activity Notes"]];
+  days.forEach(function(r){rows.push([r.dow,mdyy(r.date),r.weight!=null?r1(r.weight):"",r.steps!=null?Math.round(r.steps):"",r.sleep!=null?minToHM(r.sleep):"",r.calories!=null?Math.round(r.calories):"",r.fiber!=null?r.fiber:"",r.protein!=null?r.protein:"",r.fat!=null?r.fat:"",r.carbs!=null?r.carbs:"",r.note||"",csvCardioCell(r),csvLiftCell(r),csvActNotesCell(r)]);});
+  if(sumLabel)csvSummaryBlock(days,sumLabel).forEach(function(r){rows.push(r);});
   return rows.map(function(row){return row.map(csvCell).join(",");}).join("\r\n");}
-function exportWeekCSV(){var days=weekDays(state.weekOffset).map(dayRow);shareOrDownload("weight-summary-"+toISO(weekStartFor(state.weekOffset))+".csv","text/csv",csvFor(days));}
+function exportWeekCSV(){var days=weekDays(state.weekOffset).map(dayRow);shareOrDownload("weight-summary-"+toISO(weekStartFor(state.weekOffset))+".csv","text/csv",csvFor(days,"Weekly"));}
 function exportAllCSV(){var set={};state.weights.forEach(function(x){set[x.date]=1;});Object.keys(state.food).forEach(function(k){set[k]=1;});Object.keys(state.steps).forEach(function(k){set[k]=1;});Object.keys(state.sleep).forEach(function(k){set[k]=1;});Object.keys(state.workouts).forEach(function(k){set[k]=1;});
+  /* training-only days must appear too, now that cardio/lifting are exported */
+  Object.keys(((state.training||{}).sessions)||{}).forEach(function(k){set[k]=1;});Object.keys(((state.training||{}).liftSessions)||{}).forEach(function(k){set[k]=1;});
   var days=Object.keys(set).sort().map(function(iso){return dayRow(parseISO(iso));});
-  if(!days.length){toast("No data to export");return;}shareOrDownload("weight-history-"+todayISO()+".csv","text/csv",csvFor(days));}
+  if(!days.length){toast("No data to export");return;}shareOrDownload("weight-history-"+todayISO()+".csv","text/csv",csvFor(days,"Period"));}
 function shareOrDownload(name,mime,text){
+  /* Excel opens a BOM-less CSV as Windows-1252, so UTF-8 curly apostrophes (iOS
+     autocorrects the typed quote to U+2019) come out garbled. A UTF-8 BOM makes
+     Excel/Numbers detect the encoding correctly. CSV only - a BOM would break
+     JSON parsers and ICS readers. */
+  if(/^text\/csv/.test(mime||"")){text="\uFEFF"+text;mime="text/csv;charset=utf-8";}
   try{var file=new File([text],name,{type:mime});if(navigator.canShare&&navigator.canShare({files:[file]})){navigator.share({files:[file],title:name}).catch(function(){});return;}}catch(e){}
   var blob=new Blob([text],{type:mime});var url=URL.createObjectURL(blob);var a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(function(){URL.revokeObjectURL(url);},1000);toast("Exported");}
 function pad2(n){return ("0"+n).slice(-2);}
@@ -3993,6 +4082,9 @@ document.addEventListener("click",function(e){
     if(cf.id){for(var i=0;i<list.length;i++){if(list[i].id===cf.id){list[i]=sess;break;}}}else list.push(sess);
     state.training.sessions[d]=list;syncCardioTags(d);saveTraining();save();state.cardioForm=null;state.view="train";toast("Cardio logged");render();return;}
   if(a==="cardio:del"){var did=el.getAttribute("data-id");var dd2=state.selDate;var sList=(state.training.sessions[dd2])||[];var victim=sList.filter(function(s){return s.id===did;})[0];askConfirm("Delete this "+((victim&&victim.type)||"cardio")+" session"+(victim&&victim.mins?" ("+victim.mins+" min)":"")+"? This can\u2019t be undone.",function(){var l2=((state.training.sessions[dd2])||[]).filter(function(s){return s.id!==did;});if(l2.length)state.training.sessions[dd2]=l2;else delete state.training.sessions[dd2];syncCardioTags(dd2);saveTraining();save();if(state.cardioForm&&state.cardioForm.id===did)state.cardioForm=null;});return;}
+  if(a==="day:reopenask"){state.reopenAsk=el.getAttribute("data-date")||state.selDate;render();return;}
+  if(a==="day:reopencancel"){state.reopenAsk=null;render();return;}
+  if(a==="day:reopendo"){reopenDay(el.getAttribute("data-date")||state.selDate);return;}
   if(a==="night:gen"){genNightly();return;}
   if(a==="tdee:apply"){var _ta=tdeeAnalysis();var _tp=_ta&&_ta.prop;if(!_tp){toast("Nothing to apply");render();return;}var _s=state.settings;_s.targetCalories=String(_tp.cal);_s.calTargetAuto=false;if(_tp.carbs!=null){_s.targetCarbs=String(_tp.carbs);_s.targetFat=String(_tp.fat);_s.macroAuto=false;}if(_tp.steps!=null)_s.stepsGoal=String(_tp.steps);if(_tp.cardio!=null)_s.cardioMinGoal=String(_tp.cardio);_s.tdeeApplied=todayISO();delete _s.tdeeSnooze;save();toast("Plan updated \u2014 targets adjusted");render();return;}
   if(a==="tdee:later"){state.settings.tdeeSnooze=todayISO();save();render();return;}
@@ -4143,7 +4235,7 @@ addEventListener("input",function(e){
         var tc=num(state.settings.targetCalories);var cbar=document.getElementById("bar-calories");if(cbar&&tc!=null)cbar.innerHTML=barInner(num(entry.calories),tc);
       }
     }
-    var anyv=["calories","protein","carbs","fat"].some(function(k){return num(entry[k])!=null;});
+    var anyv=["calories","protein","carbs","fat","fiber"].some(function(k){return num(entry[k])!=null;});
     if(anyv){state.food[d]=entry;setSkip(d,"calories",false);}else delete state.food[d];save();
     var t=num(state.settings["target"+key.charAt(0).toUpperCase()+key.slice(1)]);
     var bar=document.getElementById("bar-"+key);if(bar&&t!=null)bar.innerHTML=barInner(num(el.value),t);
@@ -4548,14 +4640,14 @@ function pushDataPromise(){
    food macros + steps + sleep; weight/body-fat/waist come in a later pass. */
 function hkNum(v){if(v==null)return null;var s=String(v).replace(/[^0-9.\-]/g,"");if(!s||s==="."||s==="-")return null;var n=parseFloat(s);return isFinite(n)?n:null;}
 function hkDayLines(text){var out={};if(text==null)return out;var lines=String(text).split(/[\r\n]+/);for(var i=0;i<lines.length;i++){var line=lines[i].trim();if(!line)continue;var c=line.indexOf(",");if(c<0)continue;var day=line.slice(0,c).trim();if(!/^\d{4}-\d{2}-\d{2}$/.test(day))continue;var v=hkNum(line.slice(c+1));if(v==null||v<=0)continue;out[day]=(out[day]||0)+v;}return out;}
-function hkLabelToField(name){var n=String(name).toLowerCase().replace(/[^a-z]/g,"");if(n.indexOf("bodyfat")>=0)return "bodyfat";if(n.indexOf("protein")>=0)return "protein";if(n.indexOf("carb")>=0)return "carbs";if(n.indexOf("fat")>=0)return "fat";if(n.indexOf("calor")>=0||n.indexOf("energy")>=0)return "calories";if(n.indexOf("step")>=0)return "steps";if(n.indexOf("weight")>=0)return "weight";if(n.indexOf("waist")>=0)return "waist";if(n.indexOf("sleep")>=0||n.indexOf("asleep")>=0)return "sleep";return null;}
+function hkLabelToField(name){var n=String(name).toLowerCase().replace(/[^a-z]/g,"");if(n.indexOf("bodyfat")>=0)return "bodyfat";if(n.indexOf("protein")>=0)return "protein";if(n.indexOf("fiber")>=0||n.indexOf("fibre")>=0)return "fiber";if(n.indexOf("carb")>=0)return "carbs";if(n.indexOf("fat")>=0)return "fat";if(n.indexOf("calor")>=0||n.indexOf("energy")>=0)return "calories";if(n.indexOf("step")>=0)return "steps";if(n.indexOf("weight")>=0)return "weight";if(n.indexOf("waist")>=0)return "waist";if(n.indexOf("sleep")>=0||n.indexOf("asleep")>=0)return "sleep";return null;}
 function hkParseLabeled(text){var out={};var re=/([^\r\n,:]+?)\s*:\s*(-?[0-9][0-9.,]*)/g;var m;while((m=re.exec(String(text)))!==null){var field=hkLabelToField(m[1]);if(field&&out[field]===undefined)out[field]=m[2];}return out;}
 function hkMetricDays(value,forDay){var byDay=hkDayLines(value);var has=false;for(var k in byDay){has=true;break;}if(has)return byDay;if(forDay){var v=hkNum(value);if(v!=null&&v>0){var o={};o[forDay]=v;return o;}}return {};}
 function hkPlan(payload,fallbackFor){var out={food:{},steps:{},sleep:{},weight:{},bodyfat:{},waist:{},count:0};var hkR1=function(v){return Math.round(v*10)/10;};if(typeof payload==="string"){try{payload=JSON.parse(payload);}catch(e){payload=hkParseLabeled(payload);}}if(!payload||typeof payload!=="object")return out;var forDay=(payload["for"]!=null?String(payload["for"]).trim():"")||(fallbackFor||"");if(!/^\d{4}-\d{2}-\d{2}$/.test(forDay))forDay="";
-  var macros=["carbs","protein","fat","calories"],perDay={};
+  var macros=["carbs","protein","fat","fiber","calories"],perDay={};/* fiber stored alongside macros; never part of the 4/4/9 calorie math */
   macros.forEach(function(k){var byDay=hkMetricDays(payload[k],forDay);for(var day in byDay){if(!perDay[day])perDay[day]={};perDay[day][k]=byDay[day];}});
   for(var d in perDay){var vals=perDay[d],entry={},touched=false;
-    ["carbs","protein","fat"].forEach(function(k){if(vals[k]!=null){entry[k]=String(Math.round(vals[k]));touched=true;out.count++;}});
+    ["carbs","protein","fat","fiber"].forEach(function(k){if(vals[k]!=null){entry[k]=String(Math.round(vals[k]));touched=true;out.count++;}});
     if(vals.calories!=null){entry.calories=String(Math.round(vals.calories));entry.calAuto=false;touched=true;out.count++;}
     if(touched)out.food[d]=entry;}
   var st=hkMetricDays(payload.steps,forDay);for(var sd in st){out.steps[sd]=Math.round(st[sd]);out.count++;}
