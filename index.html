@@ -8802,6 +8802,189 @@ scheduleTrainingPush=function(){
   revBump("training");
   if(syncOn()){cfSetPending("push");cfCasSchedule("training");}};
 
+/* ---- conflict workflow and status model ---------------------------------
+   Architect specification §1 and §3. The athlete never sees "core",
+   "training", "revision", "CAS" or a record id — they see which part of their
+   data is affected and what will happen to it.
+
+   Every destructive choice is recovery-first and context-checked: the copy that
+   is about to be replaced is stored and VERIFIED before anything is replaced,
+   and the operation aborts if the account, session, subsystem revision,
+   conflict or recovery artifact moved while that was happening. */
+var CF_CAS_LABEL={core:"Health & progress",training:"Training & workouts"};
+
+function cfCasConflictSubs(){
+  var out=[];
+  if(cfCasConflictId("core"))out.push("core");
+  if(cfCasConflictId("training"))out.push("training");
+  return out;}
+
+/* ---- status (spec §3.1) ------------------------------------------------
+   Priority order lives in cfCasStatus; this maps a subsystem's runtime state
+   onto one of the seven names. Revisions never reach the athlete UI. */
+function cfCasStatusFor(sub){
+  if(CF_CAS_BLOCK[sub]==="update")return "update";
+  /* A recovery-blocked subsystem may still hold a conflict id, but its stored
+     copy could not be verified — so neither destructive choice may be offered.
+     Reporting "Sync needs your choice" would invite the athlete into a screen
+     whose options are all unavailable, and would imply the online copy is
+     safely preserved when that is exactly what failed (spec C5). */
+  if(CF_CAS_BLOCK[sub]==="recovery")return "failed";
+  if(cfCasConflictId(sub))return "conflict";
+  if(CF_CAS_BLOCK[sub]==="auth")return "auth";
+  if(CF_CAS_BLOCK[sub]==="failed"||CF_CAS_BLOCK[sub]==="oversize"||
+     CF_CAS_BLOCK[sub]==="invariant"||CF_CAS_BLOCK[sub]==="recovery")return "failed";
+  if(CF_CAS_OP[sub])return "syncing";
+  if(revIsDirty(sub))return "pending";
+  return "synced";}
+function cfCasCompactStatus(){return cfCasStatus(cfCasStatusFor("core"),cfCasStatusFor("training"));}
+var CF_CAS_STATUS_TEXT={
+  update:"Update required — reload the app",
+  conflict:"Sync needs your choice",
+  auth:"Sign in to sync",
+  failed:"Couldn’t sync — changes are safe here",
+  pending:"Saved on this device",
+  syncing:"Syncing…",
+  synced:"Synced"};
+function cfCasStatusText(state){return CF_CAS_STATUS_TEXT[state]||CF_CAS_STATUS_TEXT.synced;}
+
+/* ---- the resolution context (review §3, subsystem-specific) ------------- */
+function cfCasResolveCtx(sub){
+  return cfCasCtx(sub,pbUid(),CF_SESSION_GEN,revLocal(sub),
+                  cfCasConflictId(sub),cfCasServerRev(sub),cfCasConflictId(sub));}
+
+/* Read the referenced recovery artifact and prove it before offering or acting
+   on any choice. A conflict whose artifact does not verify is not actionable —
+   the subsystem falls back to the recovery-blocked state (spec C5). */
+function cfCasConflictArtifact(sub,cb){
+  var id=cfCasConflictId(sub);
+  if(!id){cb(null,"no-conflict");return;}
+  cfCasRecRead(id,{account:pbUid(),sub:sub,serverRev:cfCasServerRev(sub),rec:id},function(payload,why){
+    if(payload===null){cb(null,why||"unverified");return;}
+    cb(payload,null);});}
+
+/* ---- choice 1: Keep this device's changes (default) --------------------
+   Nothing is sent, nothing is replaced, the conflict stays unresolved and the
+   subsystem stays pending. The online copy is already stored and verified — it
+   was written before the card existed — so this choice has nothing to preserve
+   and nothing to destroy. */
+function cfCasKeepLocal(sub,cb){
+  cfCasConflictArtifact(sub,function(payload,why){   /* nothing destructive: no ctx needed */
+    if(payload===null){cfCasSetBlock(sub,"recovery",null);cb(false,why);return;}
+    cb(true,null);});}                          /* stays pending, stays conflicted */
+
+/* ---- choice 2: Use this device everywhere -----------------------------
+   Submit the LATEST local payload against the captured server revision. A
+   second 409 does not loop and does not silently win: the newer online copy is
+   preserved, the conflict is replaced, and the athlete is told the online copy
+   changed again and asked to choose afresh. */
+var CF_CAS_RECHOOSE={core:false,training:false};
+function cfCasUseThisDevice(sub,cb){
+  /* Captured BEFORE the artifact read. Reading the artifact is asynchronous, so
+     capturing afterwards meant an edit made during the read was already folded
+     into the "before" picture and could never register as drift. */
+  var ctx=cfCasResolveCtx(sub);
+  cfCasConflictArtifact(sub,function(payload,why){
+    if(payload===null){cfCasSetBlock(sub,"recovery",null);cb(false,why);return;}
+    if(cfCasCtxDrifted(ctx,cfCasResolveCtx(sub))){cb(false,"drift");return;}
+    var canon=cfCanon(cfCasPayloadFor(sub));
+    var frozen=null;try{frozen=JSON.parse(canon);}catch(e){frozen=null;}
+    if(frozen===null){cb(false,"invalid");return;}
+    cfCasSha256Hex(cfCasIdentity(sub,cfCasServerRev(sub),canon),function(hex){
+      var key=cfCasHashValid(hex)?cfCasKeyFrom(hex):null;   /* new key: expectedRev moved */
+      if(!key){cb(false,"invariant");return;}
+      if(cfCasCtxDrifted(ctx,cfCasResolveCtx(sub))){cb(false,"drift");return;}
+      var op={sub:sub,expectedRev:cfCasServerRev(sub),key:key,canon:canon,payload:frozen,
+              localRev:revLocal(sub),build:APP_BUILD,device:cfCasDeviceId()};
+      cfCasSend(op,function(status,body){
+        body=body||{};
+        var d=cfCasDisposition(status,body,sub);
+        if(d==="ok"){
+          revCommit(sub,op.localRev);
+          cfCasSetServerRev(sub,body.newRev);
+          cfCasSetBaseline(sub,canon);
+          cfCasResolved(sub);
+          cb(true,null);return;}
+        if(d==="conflict"){
+          /* the online copy moved again — preserve the NEWER copy and re-ask */
+          cfCasReplaceConflict(sub,body,function(ok){
+            CF_CAS_RECHOOSE[sub]=true;
+            cb(false,ok?"changed-again":"recovery");});
+          return;}
+        cfCasSetBlock(sub,(d==="contract")?"invariant":d,null);
+        cb(false,d);});});});}
+
+/* ---- choice 3: Use the online copy here --------------------------------
+   The device's CURRENT version is stored and verified first, then the server is
+   re-read: a captured payload is never adopted merely because it was valid once
+   (review ruling A). Adoption aborts if anything moved meanwhile (K1). */
+function cfCasUseOnlineCopy(sub,cb){
+  /* Captured BEFORE anything asynchronous begins. K1 is precisely an edit made
+     while the safety copy is in flight, and the copy starts with this read. */
+  var ctx=cfCasResolveCtx(sub);
+  cfCasConflictArtifact(sub,function(serverPayload,why){
+    if(serverPayload===null){cfCasSetBlock(sub,"recovery",null);cb(false,why);return;}
+    if(cfCasCtxDrifted(ctx,cfCasResolveCtx(sub))){cb(false,"drift");return;}
+    /* 1. preserve THIS DEVICE's version before replacing it */
+    var localId=cfCasRecNewId(sub);
+    if(!localId){cfCasSetBlock(sub,"recovery",null);cb(false,"entropy");return;}
+    cfCasRecWrite(localId,sub,cfCasServerRev(sub),cfCanon(cfCasPayloadFor(sub)),function(ok){
+      if(!ok){cfCasSetBlock(sub,"recovery",null);cb(false,"recovery");return;}
+      if(cfCasCtxDrifted(ctx,cfCasResolveCtx(sub))){cb(false,"drift");return;}
+      /* 2. is the online copy still what the athlete is choosing against? */
+      cfCasRefreshServerRev(sub,function(rev,err){
+        if(err){cb(false,err);return;}
+        if(cfCasCtxDrifted(ctx,cfCasResolveCtx(sub))){cb(false,"drift");return;}
+        if(rev!==cfCasServerRev(sub)){
+          CF_CAS_RECHOOSE[sub]=true;
+          cb(false,"changed-again");return;}
+        /* 3. adopt */
+        var parsed=null;try{parsed=JSON.parse(serverPayload);}catch(e){parsed=null;}
+        if(parsed===null){cb(false,"unverified");return;}
+        cfCasAdopt(sub,parsed);
+        revClean(sub);
+        cfCasSetBaseline(sub,cfCanon(parsed));
+        cfCasResolved(sub);
+        cb(true,null);});});});}
+
+/* Read-only: the current server revision for this subsystem. */
+function cfCasRefreshServerRev(sub,cb){
+  try{
+    pbGetRecord(function(rec,err){
+      if(err){cb(null,"offline");return;}
+      if(!rec){cb(0,null);return;}
+      var f=(sub==="core")?"coreRev":"trainingRev";
+      cb(typeof rec[f]==="number"?rec[f]:0,null);});
+  }catch(e){cb(null,"offline");}}
+
+function cfCasAdopt(sub,parsed){
+  if(sub==="training"){state.training=parsed;saveTrainingLocal();return;}
+  applyCloudRaw(parsed);saveLocal();}
+
+/* A resolved conflict releases the subsystem and lets normal syncing resume. */
+function cfCasResolved(sub){
+  var id=cfCasConflictId(sub);
+  cfCasSetConflictId(sub,null);
+  CF_CAS_RECHOOSE[sub]=false;
+  CF_CAS_SEQ[sub].retried=false;
+  cfCasSetBlock(sub,null,null);
+  if(id)cfCasRecPurge(id,function(){});          /* the copy has served its purpose */
+  cfCasSchedule(sub,0);}
+
+/* Replace a conflict with a newer one, preserving the newer online copy first. */
+function cfCasReplaceConflict(sub,body,cb){
+  var serverRev=(body.serverRev===null)?0:body.serverRev;
+  var old=cfCasConflictId(sub);
+  var id=cfCasRecNewId(sub);
+  if(!id){cfCasSetBlock(sub,"recovery",null);cb(false);return;}
+  cfCasRecWrite(id,sub,serverRev,JSON.stringify(body.payload===undefined?null:body.payload),
+    function(ok){
+      if(!ok){cfCasSetBlock(sub,"recovery",null);cb(false);return;}
+      cfCasSetServerRev(sub,serverRev);
+      cfCasSetConflictId(sub,id);
+      if(old)cfCasRecPurge(old,function(){});
+      cb(true);});}
+
 </script>
 </body>
 </html>
