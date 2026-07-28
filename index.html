@@ -8361,16 +8361,45 @@ var cfCasRecStore=(function(){
     if(!scope){cb(false,"unauthenticated");return;}
     var lock="cf-cas-recovery:"+scope+":"+id;
     withLock(lock,function(release){
-      var K=keysFor(scope,id),removed=false;
+      var K=keysFor(scope,id),had=false,gone=false;
       try{
-        removed=localStorage.getItem(K.manifest)!==null||localStorage.getItem(K.payload)!==null||
-                localStorage.getItem(K.claim)!==null;
+        had=localStorage.getItem(K.manifest)!==null||localStorage.getItem(K.payload)!==null||
+            localStorage.getItem(K.claim)!==null;
         localStorage.removeItem(K.manifest);
         localStorage.removeItem(K.payload);
         localStorage.removeItem(K.claim);
+        /* Report what is GONE, not what was there. Deriving "removed" from what
+           existed before the call meant a storage layer that silently ignored
+           removeItem — quota state, a wrapper, an extension — was reported as a
+           successful deletion, and the pending-cleanup ledger then had nothing
+           to retry. Found by the C10-P13 ledger test. */
+        gone=localStorage.getItem(K.manifest)===null&&localStorage.getItem(K.payload)===null&&
+             localStorage.getItem(K.claim)===null;
       }catch(e){release();cb(false,"storage");return;}
-      release();cb(removed,removed?null:"absent");
+      release();
+      if(!gone){cb(false,"not-removed");return;}
+      cb(had,had?null:"absent");
     },function(){cb(false,"no-lock");});}
+
+  /* Pending-cleanup ledger (review C10-P13-01). A purge that fails must not be
+     silently forgotten: reporting "replaced" while an old verified copy of the
+     athlete's data survives is exactly the kind of quiet accumulation this
+     project keeps finding. Failed deletions are recorded per account and
+     retried; the ledger holds artifact IDs only, never payloads. */
+  function pendingKey(scope){return PREFIX+scope+":pending-cleanup";}
+  function pendingList(scope){
+    try{var raw=localStorage.getItem(pendingKey(scope));var a=raw?JSON.parse(raw):[];
+        return Array.isArray(a)?a:[];}catch(e){return [];}}
+  function pendingSave(scope,list){
+    try{
+      if(!list.length){localStorage.removeItem(pendingKey(scope));return;}
+      localStorage.setItem(pendingKey(scope),JSON.stringify(list.slice(0,200)));
+    }catch(e){}}
+  function pendingAdd(scope,id){
+    var l=pendingList(scope);
+    if(l.indexOf(id)<0){l.push(id);pendingSave(scope,l);}}
+  function pendingDrop(scope,id){
+    pendingSave(scope,pendingList(scope).filter(function(x){return x!==id;}));}
 
   function withLock(name,body,unavailable){
     try{
@@ -8513,19 +8542,50 @@ var cfCasRecStore=(function(){
           var hadMan=localStorage.getItem(K.manifest)!==null;
           var hadPay=localStorage.getItem(K.payload)!==null;
           var hadClaim=localStorage.getItem(K.claim)!==null;
+          /* same honesty rule as purgeScoped: verify absence after removing */
           /* Manifest FIRST: the artifact stops being actionable the instant it
              goes, so a crash mid-purge leaves something inert, not something
              half-usable. */
           localStorage.removeItem(K.manifest);
           localStorage.removeItem(K.payload);
           localStorage.removeItem(K.claim);
+          var stillThere=localStorage.getItem(K.manifest)!==null||
+                         localStorage.getItem(K.payload)!==null||
+                         localStorage.getItem(K.claim)!==null;
+          if(stillThere){release();cb(false,"not-removed");return;}
           removed=hadMan||hadPay||hadClaim;
         }catch(e){release();cb(false,"storage");return;}
         release();cb(removed,removed?null:"absent");
       },function(){cb(false,"no-lock");});},
 
     scope:scopeNow,
-    sha256:sha256Hex
+    sha256:sha256Hex,
+
+    /* Delete an artifact for a CAPTURED scope and report honestly. A failure is
+       recorded for retry rather than swallowed. */
+    purgeTracked:function(scope,id,cb){
+      cb=cb||function(){};
+      if(!scope){cb(false,"unauthenticated");return;}
+      purgeScoped(scope,id,function(removed,why){
+        if(removed){pendingDrop(scope,id);cb(true,null);return;}
+        if(why==="absent"){pendingDrop(scope,id);cb(true,"absent");return;}
+        pendingAdd(scope,id);                       /* try again later */
+        cb(false,why||"failed");});},
+
+    /* Retry every deletion this account still owes. Never touches another
+       account's ledger, because the scope comes from the live session. */
+    cleanupSweep:function(cb){
+      cb=cb||function(){};
+      var scope=scopeNow();
+      if(!scope){cb(0);return;}
+      var ids=pendingList(scope),done=0,left=ids.length;
+      if(!left){cb(0);return;}
+      ids.forEach(function(id){
+        purgeScoped(scope,id,function(removed,why){
+          if(removed||why==="absent"){pendingDrop(scope,id);done++;}
+          if(--left===0)cb(done);});});},
+
+    pending:function(){return pendingList(scopeNow());}
   };
 })();
 
@@ -8536,6 +8596,9 @@ function cfCasRecRead(id,expected,cb){return cfCasRecStore.read(id,expected,cb);
 function cfCasRecList(){return cfCasRecStore.list();}
 function cfCasRecPurge(id,cb){return cfCasRecStore.purge(id,cb);}
 function cfCasRecScope(){return cfCasRecStore.scope();}
+function cfCasRecPurgeTracked(scope,id,cb){return cfCasRecStore.purgeTracked(scope,id,cb);}
+function cfCasRecCleanupSweep(cb){return cfCasRecStore.cleanupSweep(cb);}
+function cfCasRecPendingCleanup(){return cfCasRecStore.pending();}
 /* The adapter needs the same digest the store uses; it lives in the closure so
    there is one implementation, not two. */
 function cfCasSha256Hex(str,cb){return cfCasRecStore.sha256(str,cb);}
@@ -9047,8 +9110,14 @@ function cfCasReplaceConflict(sub,op,body,cb){
         cb(false);return;}                                            /* original intact */
       cfCasSetServerRev(sub,serverRev);
       cfCasSetConflictId(sub,id);                                     /* swap AFTER verify */
-      if(old&&old!==id)cfCasRecPurge(old,function(){});                /* now safe to purge */
-      cb(true);});}
+      if(!old||old===id){cb(true);return;}
+      /* The new reference is committed and stays committed. Deleting the old
+         copy is a separate obligation whose OUTCOME is observed: a failure is
+         recorded for retry rather than reported as done, so repeated
+         replacements cannot quietly accumulate verified copies of the
+         athlete's data (review C10-P13-01). Never roll the swap back for it. */
+      var scope=cfCasRecScope();
+      cfCasRecPurgeTracked(scope,old,function(){cb(true);});});}
 
 </script>
 </body>

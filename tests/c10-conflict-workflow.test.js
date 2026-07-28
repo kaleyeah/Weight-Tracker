@@ -476,5 +476,225 @@ defer((async function scenarios() {
     test('C10-P12-18 the conflict remains unresolved', () => ok(env.S.cfCasConflictId('core')));
   });
 
+
+  /* ===== the ten C10-P12 IDs the review found missing from the evidence ==
+     These were not label omissions: several of these races had no test at all.
+     Reported rather than quietly back-filled, because a claim of coverage that
+     the package does not support is worse than an admitted gap. */
+
+  await group('C10-P12-05 — a late old-resolution callback cannot touch a newer conflict', async () => {
+    const env = await conflicted();
+    const stale = env.S.cfCasResBegin('core', 'use-device');   /* operation A */
+    env.S.cfCasResEnd('core', stale);                          /* A is over */
+    const fresh = env.S.cfCasResBegin('core', 'use-online');   /* operation B owns it now */
+    const conflictNow = env.S.cfCasConflictId('core');
+    env.S.cfCasResolved('core', stale);                        /* A's late callback fires */
+    test('C10-P12-05 the newer conflict is not resolved by the stale operation', () =>
+      eq(env.S.cfCasConflictId('core'), conflictNow));
+    test('the owning operation still can resolve it', () => {
+      env.S.cfCasResolved('core', fresh);
+      eq(env.S.cfCasConflictId('core'), null);
+    });
+  });
+
+  await group('C10-P12-07 — logout mid-overwrite: a late 409 creates no conflict', async () => {
+    let release;
+    const hold = { env: null };
+    const env = await conflicted();
+    hold.env = env;
+    const realFetch = env.S.fetch;
+    env.S.fetch = (url, init) => {
+      if (/cf\/appdata\/commit/.test(String(url))) {
+        env.fetchLog.push({ url: String(url), method: 'POST', body: init && init.body });
+        return new Promise((r) => { release = () => r({ ok: false, status: 409, json: () => Promise.resolve({ conflict: true, subsystem: 'core', serverRev: 9, payload: { weights: [{ d: 'z', kg: 1 }] } }), text: () => Promise.resolve('') }); });
+      }
+      return realFetch(url, init);
+    };
+    const before = env.S.cfCasConflictId('core');
+    const artifactsBefore = [...env.S.localStorage._map.keys()].filter((k) => /cf:casrec:.*:manifest$/.test(k)).length;
+    const p = call(env, 'cfCasUseThisDevice', 'core');
+    await settle();
+    env.S.CF_SESSION_GEN = env.S.CF_SESSION_GEN + 1;      /* logout */
+    release();
+    const r = await p;
+    await settle();
+    test('C10-P12-07 the resolution reports drift', () => { notOk(r.ok); eq(r.why, 'drift'); });
+    test('C10-P12-07 no NEW conflict was created', () => eq(env.S.cfCasConflictId('core'), before));
+    test('C10-P12-07 no new artifact was published', () => {
+      const after = [...env.S.localStorage._map.keys()].filter((k) => /cf:casrec:.*:manifest$/.test(k)).length;
+      eq(after, artifactsBefore);
+    });
+  });
+
+  await group('C10-P12-08/09 — which edits invalidate a resolution', async () => {
+    const env = await conflicted();
+    const op = env.S.cfCasResBegin('core', 'use-device');
+    test('C10-P12-09 an UNRELATED subsystem edit does not invalidate it', () => {
+      env.S.state.training = { sessions: [7] };
+      env.S.saveTraining();
+      notOk(env.S.cfCasResDrifted('core', op));
+    });
+    test('C10-P12-08 an AFFECTED subsystem edit does invalidate it', () => {
+      env.S.state.weights.push({ d: '2026-07-25', kg: 70 });
+      env.S.save();
+      ok(env.S.cfCasResDrifted('core', op));
+    });
+  });
+
+  await group('C10-P12-13/23 — drift during replacement preserves the original', async () => {
+    const env = await conflicted();
+    const original = env.S.cfCasConflictId('core');
+    const op = env.S.cfCasResBegin('core', 'use-device');
+    /* drift before the replacement write completes */
+    env.S.CF_SESSION_GEN = env.S.CF_SESSION_GEN + 1;
+    const done = await new Promise((res) =>
+      env.S.cfCasReplaceConflict('core', op, { conflict: true, subsystem: 'core', serverRev: 8, payload: { weights: [{ d: 'newer', kg: 91 }] } }, res));
+    await settle();
+    test('C10-P12-13 the replacement does not publish', () => notOk(done));
+    test('C10-P12-23 the ORIGINAL conflict reference is preserved', () =>
+      eq(env.S.cfCasConflictId('core'), original));
+    test('C10-P12-23 the candidate artifact was purged', () => {
+      const keys = [...env.S.localStorage._map.keys()].filter((k) => /cf:casrec:.*:manifest$/.test(k));
+      eq(keys.length, 1);
+      ok(keys[0].includes(original));
+    });
+  });
+
+  await group('C10-P12-14/15 — superseded artifacts go, current ones stay', async () => {
+    let calls = 0;
+    const env = await conflicted({
+      fetchResponses: (e) => {
+        if (!/cf\/appdata\/commit/.test(e.url)) return null;
+        calls++;
+        return { ok: false, status: 409, json: () => Promise.resolve({ conflict: true, subsystem: 'core', serverRev: 4 + calls, payload: { weights: [{ d: 'newer' + calls, kg: 90 + calls }] } }), text: () => Promise.resolve('') };
+      },
+    });
+    await call(env, 'cfCasUseThisDevice', 'core');
+    await settle();
+    const current = env.S.cfCasConflictId('core');
+    test('C10-P12-14 exactly one artifact remains, and it is the current one', () => {
+      const keys = [...env.S.localStorage._map.keys()].filter((k) => /cf:casrec:.*:manifest$/.test(k));
+      eq(keys.length, 1);
+      ok(keys[0].includes(current));
+    });
+    test('C10-P12-15 no payload content appears in any storage key', () => {
+      const keys = [...env.S.localStorage._map.keys()].join(' ');
+      notOk(/kg|weights|\b9[0-9]\b/.test(keys.replace(/wl_|cf:/g, '')));
+    });
+    test('C10-P12-15 the cleanup ledger holds ids only, never data', () => {
+      const pend = env.S.cfCasRecPendingCleanup();
+      ok(Array.isArray(pend));
+      pend.forEach((id) => notOk(/kg|weights/.test(id)));
+    });
+  });
+
+  await group('C10-P12-17/19 — replacement during refresh, and scoped resolution', async () => {
+    const hold = { env: null, armed: false };
+    const env = await conflicted({
+      fetchResponses: (e) => {
+        if (/cf\/appdata\/commit/.test(e.url)) {
+          return { ok: false, status: 409, json: () => Promise.resolve({ conflict: true, subsystem: 'core', serverRev: 5, payload: SERVER_CORE }), text: () => Promise.resolve('') };
+        }
+        if (/collections\/appdata\/records/.test(e.url)) {
+          if (hold.armed && hold.env) {
+            /* the conflict is replaced while the refresh is in flight */
+            hold.env.S.cfCasSetConflictId('core', 'a-newer-conflict-id');
+          }
+          return { ok: true, status: 200, json: () => Promise.resolve({ items: [{ id: 'r1', coreRev: 5, trainingRev: 0 }] }), text: () => Promise.resolve('') };
+        }
+        return null;
+      },
+    });
+    hold.env = env; hold.armed = true;
+    const r = await call(env, 'cfCasUseOnlineCopy', 'core');
+    test('C10-P12-17 adoption is prevented when the conflict changed under it', () => {
+      notOk(r.ok);
+      eq(r.why, 'drift');
+    });
+    test('C10-P12-17 local data was not replaced', () =>
+      ok(JSON.stringify(env.S.state.weights).includes('81.5')));
+    test('C10-P12-19 resolution clears only the conflict its operation owns', () => {
+      const other = env.S.cfCasResBegin('training', 'use-device');
+      env.S.cfCasSetConflictId('training', 'training-conflict');
+      env.S.cfCasResolved('training', other);
+      eq(env.S.cfCasConflictId('training'), null);
+      eq(env.S.cfCasConflictId('core'), 'a-newer-conflict-id');   /* untouched */
+    });
+  });
+
+  /* ===== C10-P13: cleanup is observable and retryable ================== */
+
+  await group('C10-P13-01..05 — old-artifact deletion is observed, not assumed', async () => {
+    let calls = 0;
+    const env = await conflicted({
+      fetchResponses: (e) => {
+        if (!/cf\/appdata\/commit/.test(e.url)) return null;
+        calls++;
+        return { ok: false, status: 409, json: () => Promise.resolve({ conflict: true, subsystem: 'core', serverRev: 4 + calls, payload: { weights: [{ d: 'n' + calls, kg: 90 }] } }), text: () => Promise.resolve('') };
+      },
+    });
+    const original = env.S.cfCasConflictId('core');
+    /* make the OLD artifact's deletion fail */
+    const realRemove = env.S.localStorage.removeItem;
+    env.S.localStorage.removeItem = function (k) {
+      if (String(k).includes(original)) return;      /* silently refuse to delete */
+      return realRemove.call(this, k);
+    };
+    const r = await call(env, 'cfCasUseThisDevice', 'core');
+    await settle();
+    env.S.localStorage.removeItem = realRemove;
+
+    test('the athlete is still told the online copy changed again', () => eq(r.why, 'changed-again'));
+    test('C10-P13-02 the NEW conflict reference is valid despite the failed purge', () => {
+      const now = env.S.cfCasConflictId('core');
+      ok(now); notOk(now === original);
+    });
+    test('C10-P13-01/03 the failed deletion is RECORDED, not reported as done', () => {
+      const pend = env.S.cfCasRecPendingCleanup();
+      ok(pend.indexOf(original) >= 0);
+    });
+    test('C10-P13-03 the ledger carries ids only', () =>
+      env.S.cfCasRecPendingCleanup().forEach((id) => notOk(/kg|weights|90/.test(id))));
+    test('C10-P13-04 a later sweep removes the retained artifact', async () => {
+      const removed = await new Promise((res) => env.S.cfCasRecCleanupSweep(res));
+      ok(removed >= 1);
+      eq(env.S.cfCasRecPendingCleanup().length, 0);
+      const keys = [...env.S.localStorage._map.keys()].filter((k) => k.includes(original));
+      eq(keys, []);
+    });
+    test('C10-P13-05 repeated replacements do not accumulate artifacts', () => {
+      /* One CONFLICT artifact at a time: the current reference. Any other
+         artifact must be owed in the cleanup ledger, never untracked — that is
+         the property "no unbounded orphans" actually means. */
+      const keys = [...env.S.localStorage._map.keys()].filter((k) => /cf:casrec:.*:manifest$/.test(k));
+      const current = env.S.cfCasConflictId('core');
+      const owed = env.S.cfCasRecPendingCleanup();
+      const untracked = keys.filter((k) => !k.includes(current) && !owed.some((id) => k.includes(id)));
+      eq(untracked, []);
+    });
+  });
+
+  await group('C10-P13-06 — one account\'s cleanup never runs against another', async () => {
+    const env = await conflicted();
+    const id = env.S.cfCasConflictId('core');
+    /* record a pending cleanup for userA, then switch accounts */
+    const realRemove = env.S.localStorage.removeItem;
+    env.S.localStorage.removeItem = function (k) { if (String(k).includes(id)) return; return realRemove.call(this, k); };
+    await new Promise((res) => env.S.cfCasRecPurgeTracked('userA', id, res));
+    env.S.localStorage.removeItem = realRemove;
+    test('userA owes a cleanup', () => ok(env.S.cfCasRecPendingCleanup().indexOf(id) >= 0));
+
+    env.S.localStorage.setItem('wl_pb', JSON.stringify({ ...PB, uid: 'userB' }));
+    test('C10-P13-06 userB sees no pending cleanup', () => eq(env.S.cfCasRecPendingCleanup().length, 0));
+    const swept = await new Promise((res) => env.S.cfCasRecCleanupSweep(res));
+    test('C10-P13-06 userB\'s sweep removes nothing of A\'s', () => {
+      eq(swept, 0);
+      ok([...env.S.localStorage._map.keys()].some((k) => k.includes(id)));
+    });
+    env.S.localStorage.setItem('wl_pb', JSON.stringify(PB));
+    test('and A\'s obligation is still recorded when A returns', () =>
+      ok(env.S.cfCasRecPendingCleanup().indexOf(id) >= 0));
+  });
+
   report();
 })());
