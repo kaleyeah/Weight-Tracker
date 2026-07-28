@@ -192,8 +192,30 @@ group('The preserving and recovery-blocked states', () => {
     notOk(blocked.includes('Use this device’s copy online'));
     notOk(blocked.includes('Use the online copy on this device'));
   });
-  test('blocked reassures that the data is safe locally', () =>
-    ok(blocked.includes('Your data is safe on this device')));
+  test('C10-UX-25 blocked reassures locally and never claims an online copy was saved', () => {
+    ok(blocked.includes('Your data is safe on this device'));
+    notOk(/online (copy|version) (has been|was|is) saved/i.test(blocked));
+  });
+  test('C10-UX-21 Try again is the primary blocked-state action', () => {
+    const seg = blocked.slice(0, blocked.indexOf('cf:retry-recovery'));
+    ok(seg.lastIndexOf('wl-btn-primary') > seg.lastIndexOf('wl-btn-ghost'));
+  });
+  test('C10-UX-22 Export a copy remains secondary', () => {
+    const seg = blocked.slice(0, blocked.indexOf('cf:export'));
+    ok(seg.lastIndexOf('wl-btn-ghost') > seg.lastIndexOf('wl-btn-primary'));
+  });
+  test('C10-UX-23 the two controls have distinct boundaries, not one joined block', () => {
+    /* each is its own button element, and the secondary carries the spacing
+       class that separates it at both widths */
+    ok(blocked.includes('cf-action-secondary'));
+    eq((blocked.match(/<button/g) || []).length, 2);
+  });
+  test('C10-UX-24 a retry that fails again still exposes no destructive choice', () => {
+    const again = env([withConflict('core'), withBlock('core', 'recovery')]).S.cfCasConflictCenterHTML();
+    notOk(again.includes('Use this device’s copy online'));
+    notOk(again.includes('Use the online copy on this device'));
+    ok(again.includes('Try again'));
+  });
 });
 
 group('The changed-again state asks for a fresh decision', () => {
@@ -265,10 +287,48 @@ group('Hostile content cannot break out of the markup', () => {
 group('C10-UX-17..20 — the preserving state is delayed, not flashed', () => {
   const e = env([withBlock('core', 'preserving')]);
   e.S.cfCasPreserveBegin('core');
-  test('C10-UX-17 a brief preservation shows nothing at all', () => {
+  test('C10-UX-17 / C10-UX-V2-01 a sole brief preservation renders NO centre at all', () => {
+    /* Not the empty state — nothing. "Nothing needs your attention right now"
+       during an active preservation is false, and my previous caption claimed
+       this rendered nothing while the code rendered that sentence. */
     const h = e.S.cfCasConflictCenterHTML();
-    notOk(h.includes('Saving a copy of the online version'));
-    ok(h.includes('Nothing needs your attention right now.'));
+    eq(h, '');
+  });
+  test('C10-UX-V2-01 it shows no empty-state copy and no heading', () => {
+    const h = e.S.cfCasConflictCenterHTML();
+    notOk(h.includes('Nothing needs your attention'));
+    notOk(h.includes('Changes were made on another device'));
+  });
+  test('C10-UX-V2-02 a hidden preservation alongside a visible conflict shows only the visible card', () => {
+    const e2 = env([withConflict('training'), withBlock('core', 'preserving')]);
+    e2.S.cfCasPreserveBegin('core');
+    const h = e2.S.cfCasConflictCenterHTML();
+    ok(h.includes('Training &amp; workouts'));
+    notOk(h.includes('Health &amp; progress'));
+    notOk(h.includes('Nothing needs your attention'));
+  });
+  test('C10-UX-V2-03 the empty-state sentence appears only with nothing pending at all', () => {
+    ok(env().S.cfCasConflictCenterHTML().includes('Nothing needs your attention right now.'));
+  });
+  test('C10-UX-V2-04 a preservation crossing the threshold appears without stealing focus', () => {
+    const e3 = env([withBlock('core', 'preserving')]);
+    e3.S.CF_CAS_PRESERVE_AT.core = Date.now() - 500;
+    let touched = false;
+    e3.S.document.getElementById = () => ({ focus() { touched = true; } });
+    const h = e3.S.cfCasConflictCenterHTML();
+    ok(h.includes('Saving a copy of the online version…'));
+    notOk(touched);
+    notOk(h.includes('autofocus'));
+  });
+  test('C10-UX-V2-05 a fast preservation goes straight to choices, with no false empty state', () => {
+    const e4 = env([withBlock('core', 'preserving')]);
+    e4.S.cfCasPreserveBegin('core');
+    eq(e4.S.cfCasConflictCenterHTML(), '');            /* nothing while hidden */
+    e4.S.cfCasSetBlock('core', null, null);
+    e4.S.cfCasSetConflictId('core', 'casrec-core-' + 'a'.repeat(32));
+    const after = e4.S.cfCasConflictCenterHTML();      /* preservation finished */
+    ok(after.includes('Keep this device’s changes'));
+    notOk(after.includes('Nothing needs your attention'));
   });
   test('C10-UX-18 past the threshold it explains itself', () => {
     e.S.CF_CAS_PRESERVE_AT.core = Date.now() - 500;

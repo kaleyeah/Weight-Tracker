@@ -9299,12 +9299,26 @@ function cfCasCardState(sub,now){
   return "choose";}
 
 function cfCasConflictCenterHTML(){
-  var subs=[],now=Date.now();
+  var subs=[],hidden=false,now=Date.now();
   ["core","training"].forEach(function(sub){
-    if(CF_CAS_BLOCK[sub]==="preserving"&&!cfCasPreserveVisible(sub,now))return;  /* too brief to show */
-    if(cfCasConflictId(sub)||CF_CAS_BLOCK[sub]==="recovery"||CF_CAS_BLOCK[sub]==="preserving")subs.push(sub);});
+    var busy=cfCasConflictId(sub)||CF_CAS_BLOCK[sub]==="recovery"||CF_CAS_BLOCK[sub]==="preserving";
+    if(!busy)return;
+    if(CF_CAS_BLOCK[sub]==="preserving"&&!cfCasPreserveVisible(sub,now)){hidden=true;return;}
+    subs.push(sub);});
+
+  /* If the ONLY thing happening is a preservation too brief to show, render
+     NOTHING — not the empty state. Saying "Nothing needs your attention right
+     now" while a conflict is actively being preserved is false, and it is the
+     kind of false that matters: it tells the athlete their data is settled at
+     the exact moment it is not. My previous caption claimed this state rendered
+     nothing; the code rendered the heading and that sentence. The Architect
+     read the code rather than the caption. */
+  if(!subs.length&&hidden)return "";
+
   var h='<div class="cf-conflict-center" role="region" aria-labelledby="cf-conflict-heading">';
   h+='<h2 id="cf-conflict-heading" tabindex="-1">'+cfCasEsc(CF_CAS_COPY.heading)+'</h2>';
+  /* The empty state is only true when no conflict, no recovery block and no
+     preservation exists at all. */
   if(!subs.length)return h+'<p class="cf-conflict-body">'+cfCasEsc(CF_CAS_COPY.none)+'</p></div>';
   subs.forEach(function(sub,i){h+=cfCasCardHTML(sub,cfCasCardState(sub,now),i===0);});
   return h+'</div>';}
