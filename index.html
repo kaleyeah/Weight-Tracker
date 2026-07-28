@@ -8912,7 +8912,7 @@ function cfCasOnConflict(sub,op,body){
   /* A genuine conflict. Block the subsystem IMMEDIATELY — before the async
      recovery write — so an edit arriving during preservation cannot schedule
      another commit into a conflict that is still being made actionable. */
-  cfCasSetBlock(sub,"preserving",op.token);
+  cfCasSetBlock(sub,"preserving",op.token);cfCasPreserveBegin(sub);
   cfCasFinishOp(sub);
   var id=cfCasRecNewId(sub);
   if(!id){cfCasSetBlock(sub,"recovery",op.token);return;}
@@ -9223,10 +9223,10 @@ var CF_CAS_COPY={
     return "Your changes are safe on this device. Choose what should happen to "+label+".";},
   keep:{label:"Keep this device’s changes",
         help:"Keep working here. Sync for this section stays paused until you choose whether to update the online copy."},
-  device:{label:"Use this device everywhere",
+  device:{label:"Use this device’s copy online",
           help:"Replace the online copy with this device’s version. The current online copy will be saved first.",
           confirm:"Replace the online copy with this device’s version?"},
-  online:{label:"Use the online copy here",
+  online:{label:"Use the online copy on this device",
           help:"Replace this device’s version. This device’s current version will be saved first.",
           confirm:"Replace this device’s version with the online copy?"},
   changedAgain:"The online copy changed again. Review your choice.",
@@ -9249,8 +9249,10 @@ function cfCasCardHTML(sub,state,isFirst){
   if(state==="blocked"){
     h+='<p class="cf-conflict-body" role="status">'+cfCasEsc(CF_CAS_COPY.blocked)+'</p>';
     h+='<p class="cf-conflict-help">'+cfCasEsc(CF_CAS_COPY.blockedActions)+'</p>';
-    h+='<button class="wl-btn wl-btn-ghost wl-full" data-act="cf:export">Export a copy</button>';
-    h+='<button class="wl-btn wl-btn-ghost wl-full" data-act="cf:retry-recovery" data-sub="'+sub+'">Try again</button>';
+    /* Retry is the action that restores the intended workflow, so it leads.
+       Export is the fallback and must not compete with it (C10-UX ruling 5). */
+    h+='<button class="wl-btn wl-btn-primary wl-full cf-action" data-act="cf:retry-recovery" data-sub="'+sub+'">Try again</button>';
+    h+='<button class="wl-btn wl-btn-ghost wl-full cf-action cf-action-secondary" data-act="cf:export">Export a copy</button>';
     return h+'</section>';}
 
   if(state==="preserving"){
@@ -9262,37 +9264,49 @@ function cfCasCardHTML(sub,state,isFirst){
 
   h+='<p class="cf-conflict-body">'+cfCasEsc(CF_CAS_COPY.body(label))+'</p>';
   /* Focus order is the safety order: the non-destructive default first. */
-  /* Exactly ONE autofocus on the page. Two cards previously emitted two, which
-     is invalid HTML and left it to the browser which section received focus —
-     a screen-reader user would have been dropped into an arbitrary half of
-     their data. Only the first card claims it; the second is reached by normal
-     tab order. */
-  h+='<button class="wl-btn wl-btn-primary wl-full" data-act="cf:keep" data-sub="'+sub+'"'+
-     ' aria-describedby="'+id+'-keep-help"'+(isFirst?' autofocus':'')+'>'+
-     cfCasEsc(CF_CAS_COPY.keep.label)+'</button>';
+  /* NO autofocus. Focusing an action puts the athlete on a choice before they
+     have heard what happened, and an immediate Enter would confirm it. The
+     centre focuses its HEADING instead when the athlete opens it explicitly,
+     and background discovery never moves focus at all (C10-UX-11..14). */
+  h+='<button class="wl-btn wl-btn-primary wl-full cf-action" data-act="cf:keep" data-sub="'+sub+'"'+
+     ' aria-describedby="'+id+'-keep-help">'+cfCasEsc(CF_CAS_COPY.keep.label)+'</button>';
   h+='<p id="'+id+'-keep-help" class="cf-conflict-help">'+cfCasEsc(CF_CAS_COPY.keep.help)+'</p>';
-  h+='<button class="wl-btn wl-btn-ghost wl-full" data-act="cf:use-device" data-sub="'+sub+'"'+
+  h+='<button class="wl-btn wl-btn-ghost wl-full cf-action" data-act="cf:use-device" data-sub="'+sub+'"'+
      ' aria-describedby="'+id+'-device-help">'+cfCasEsc(CF_CAS_COPY.device.label)+'</button>';
   h+='<p id="'+id+'-device-help" class="cf-conflict-help">'+cfCasEsc(CF_CAS_COPY.device.help)+'</p>';
-  h+='<button class="wl-btn wl-btn-ghost wl-full" data-act="cf:use-online" data-sub="'+sub+'"'+
+  h+='<button class="wl-btn wl-btn-ghost wl-full cf-action" data-act="cf:use-online" data-sub="'+sub+'"'+
      ' aria-describedby="'+id+'-online-help">'+cfCasEsc(CF_CAS_COPY.online.label)+'</button>';
   h+='<p id="'+id+'-online-help" class="cf-conflict-help">'+cfCasEsc(CF_CAS_COPY.online.help)+'</p>';
   return h+'</section>';}
 
-function cfCasCardState(sub){
+/* Preservation usually finishes in a few milliseconds. Showing a card for one
+   frame is visual noise, so the state is truthful but DELAYED: nothing is shown
+   for the first 400 ms, and if it is still running after that the athlete is
+   told what is happening (C10-UX-17/18). */
+var CF_CAS_PRESERVE_MS=400;
+var CF_CAS_PRESERVE_AT={core:0,training:0};
+function cfCasPreserveBegin(sub){CF_CAS_PRESERVE_AT[sub]=Date.now();}
+function cfCasPreserveVisible(sub,now){
+  if(CF_CAS_BLOCK[sub]!=="preserving")return false;
+  var at=CF_CAS_PRESERVE_AT[sub]||0;
+  return ((now===undefined?Date.now():now)-at)>=CF_CAS_PRESERVE_MS;}
+
+function cfCasCardState(sub,now){
   if(CF_CAS_BLOCK[sub]==="recovery")return "blocked";
-  if(CF_CAS_BLOCK[sub]==="preserving")return "preserving";
+  if(CF_CAS_BLOCK[sub]==="preserving")
+    return cfCasPreserveVisible(sub,now)?"preserving":"hidden";
   if(CF_CAS_RECHOOSE[sub])return "changed-again";
   return "choose";}
 
 function cfCasConflictCenterHTML(){
-  var subs=[];
+  var subs=[],now=Date.now();
   ["core","training"].forEach(function(sub){
+    if(CF_CAS_BLOCK[sub]==="preserving"&&!cfCasPreserveVisible(sub,now))return;  /* too brief to show */
     if(cfCasConflictId(sub)||CF_CAS_BLOCK[sub]==="recovery"||CF_CAS_BLOCK[sub]==="preserving")subs.push(sub);});
   var h='<div class="cf-conflict-center" role="region" aria-labelledby="cf-conflict-heading">';
-  h+='<h2 id="cf-conflict-heading">'+cfCasEsc(CF_CAS_COPY.heading)+'</h2>';
+  h+='<h2 id="cf-conflict-heading" tabindex="-1">'+cfCasEsc(CF_CAS_COPY.heading)+'</h2>';
   if(!subs.length)return h+'<p class="cf-conflict-body">'+cfCasEsc(CF_CAS_COPY.none)+'</p></div>';
-  subs.forEach(function(sub,i){h+=cfCasCardHTML(sub,cfCasCardState(sub),i===0);});
+  subs.forEach(function(sub,i){h+=cfCasCardHTML(sub,cfCasCardState(sub,now),i===0);});
   return h+'</div>';}
 
 /* The compact indicator. Tapping it opens the centre; it is never a modal, so a
@@ -9315,6 +9329,21 @@ function cfCasStatusDetailHTML(){
 /* Interruption policy: a conflict found in the background never takes over the
    screen. During an active workout it is a quiet status change plus one
    notification, and the centre opens only when the athlete asks for it. */
+/* Explicit opening moves focus to the heading — the explanation — not to an
+   action. Closing returns focus to whatever opened the centre (C10-UX-12/15). */
+var CF_CAS_OPENER=null;
+function cfCasOpenConflictCenter(openerEl){
+  CF_CAS_OPENER=openerEl||null;
+  try{
+    var h=document.getElementById("cf-conflict-heading");
+    if(h&&h.focus)h.focus();
+  }catch(e){}
+  return true;}
+function cfCasCloseConflictCenter(){
+  try{if(CF_CAS_OPENER&&CF_CAS_OPENER.focus)CF_CAS_OPENER.focus();}catch(e){}
+  CF_CAS_OPENER=null;
+  return true;}
+
 function cfCasMayInterrupt(){
   try{return !(state&&state.workout);}catch(e){return true;}}
 

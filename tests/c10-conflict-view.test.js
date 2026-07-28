@@ -43,10 +43,10 @@ group('The three choices carry the specified labels and help text', () => {
   test('choice 1 label', () => ok(h.includes('Keep this device’s changes')));
   test('choice 1 help', () =>
     ok(h.includes('Keep working here. Sync for this section stays paused until you choose whether to update the online copy.')));
-  test('choice 2 label', () => ok(h.includes('Use this device everywhere')));
+  test('C10-UX-01 choice 2 label states its destination', () => ok(h.includes('Use this device’s copy online')));
   test('choice 2 help names what is replaced and what is saved first', () =>
     ok(h.includes('Replace the online copy with this device’s version. The current online copy will be saved first.')));
-  test('choice 3 label', () => ok(h.includes('Use the online copy here')));
+  test('C10-UX-01 choice 3 label states its destination', () => ok(h.includes('Use the online copy on this device')));
   test('choice 3 help names what is replaced and what is saved first', () =>
     ok(h.includes('Replace this device’s version. This device’s current version will be saved first.')));
   test('the confirmations name what is being replaced', () => {
@@ -63,11 +63,9 @@ group('Hierarchy and focus order put the safe choice first', () => {
     ok(order[0] >= 0);
     ok(order[0] < order[1] && order[1] < order[2]);
   });
-  test('keep-local is the focused default', () => {
-    const keepIdx = h.indexOf('data-act="cf:keep"');
-    const autofocusIdx = h.indexOf('autofocus');
-    ok(autofocusIdx > keepIdx && autofocusIdx < h.indexOf('data-act="cf:use-device"'));
-  });
+  test('C10-UX-11 NO action carries autofocus', () => notOk(h.includes('autofocus')));
+  test('C10-UX-12 the heading is the programmatic focus target', () =>
+    ok(h.includes('id="cf-conflict-heading" tabindex="-1"')));
   test('keep-local is the visually primary action', () =>
     ok(/wl-btn-primary[^>]*data-act="cf:keep"|data-act="cf:keep"[^>]*/.test(h) && h.includes('wl-btn-primary')));
   test('the destructive choices are not primary-styled', () => {
@@ -75,18 +73,16 @@ group('Hierarchy and focus order put the safe choice first', () => {
     notOk(device.includes('wl-btn-primary'));
   });
   test('there is NO bulk resolve action', () => notOk(/resolve-all|cf:resolve-all/i.test(h)));
-  test('exactly ONE autofocus exists, even with two cards', () => {
-    /* Two autofocus attributes are invalid HTML and leave it to the browser
-       which section a keyboard or screen-reader user lands in. Caught by
-       reading the rendered DOM's focus order rather than the markup. */
+  test('C10-UX-11 no autofocus survives anywhere, with either card count', () => {
     const both = env([withConflict('core'), withConflict('training')]).S.cfCasConflictCenterHTML();
-    eq((both.match(/autofocus/g) || []).length, 1);
+    eq((both.match(/autofocus/g) || []).length, 0);
   });
-  test('the autofocus belongs to the FIRST card\'s safe choice', () => {
+  test('C10-UX-16 tab order is card 1 safe→destructive, then card 2', () => {
     const both = env([withConflict('core'), withConflict('training')]).S.cfCasConflictCenterHTML();
-    const af = both.indexOf('autofocus');
-    ok(af > both.indexOf('cfcard-core-title'));
-    ok(af < both.indexOf('cfcard-training-title'));
+    const seq = [...both.matchAll(/data-act="cf:(keep|use-device|use-online)" data-sub="(core|training)"/g)]
+      .map((m) => m[2] + ':' + m[1]);
+    eq(seq, ['core:keep', 'core:use-device', 'core:use-online',
+             'training:keep', 'training:use-device', 'training:use-online']);
   });
 });
 
@@ -141,8 +137,8 @@ group('The preserving and recovery-blocked states', () => {
   test('preserving explains what is happening', () =>
     ok(preserving.includes('Saving a copy of the online version…')));
   test('preserving offers NO destructive choice', () => {
-    notOk(preserving.includes('Use this device everywhere'));
-    notOk(preserving.includes('Use the online copy here'));
+    notOk(preserving.includes('Use this device’s copy online'));
+    notOk(preserving.includes('Use the online copy on this device'));
   });
 
   const blocked = env([withConflict('core'), withBlock('core', 'recovery')]).S.cfCasConflictCenterHTML();
@@ -150,11 +146,17 @@ group('The preserving and recovery-blocked states', () => {
     ok(blocked.includes('We couldn’t save a copy of the online version, so these options aren’t available yet.'));
     notOk(/copy (has been|was) saved/i.test(blocked));
   });
+  test('blocked offers retry FIRST and as the primary action', () => {
+    const retry = blocked.indexOf('cf:retry-recovery');
+    const exp = blocked.indexOf('cf:export');
+    ok(retry >= 0 && exp >= 0 && retry < exp);
+    ok(blocked.slice(0, retry).lastIndexOf('wl-btn-primary') > blocked.slice(0, retry).lastIndexOf('wl-btn-ghost'));
+  });
   test('blocked offers export and retry, not a choice between versions', () => {
     ok(blocked.includes('Export a copy'));
     ok(blocked.includes('Try again'));
-    notOk(blocked.includes('Use this device everywhere'));
-    notOk(blocked.includes('Use the online copy here'));
+    notOk(blocked.includes('Use this device’s copy online'));
+    notOk(blocked.includes('Use the online copy on this device'));
   });
   test('blocked reassures that the data is safe locally', () =>
     ok(blocked.includes('Your data is safe on this device')));
@@ -168,8 +170,8 @@ group('The changed-again state asks for a fresh decision', () => {
     ok(h.indexOf('changed again') < h.indexOf('Keep this device’s changes')));
   test('all three choices are offered again', () => {
     ok(h.includes('Keep this device’s changes'));
-    ok(h.includes('Use this device everywhere'));
-    ok(h.includes('Use the online copy here'));
+    ok(h.includes('Use this device’s copy online'));
+    ok(h.includes('Use the online copy on this device'));
   });
   test('it is announced, not silently swapped', () => ok(h.includes('role="status"')));
 });
@@ -224,6 +226,64 @@ group('Hostile content cannot break out of the markup', () => {
     ok(h.includes('&lt;img src=x'));
   });
   e.S.CF_CAS_LABEL.core = 'Health & progress';
+});
+
+group('C10-UX-17..20 — the preserving state is delayed, not flashed', () => {
+  const e = env([withBlock('core', 'preserving')]);
+  e.S.cfCasPreserveBegin('core');
+  test('C10-UX-17 a brief preservation shows nothing at all', () => {
+    const h = e.S.cfCasConflictCenterHTML();
+    notOk(h.includes('Saving a copy of the online version'));
+    ok(h.includes('Nothing needs your attention right now.'));
+  });
+  test('C10-UX-18 past the threshold it explains itself', () => {
+    e.S.CF_CAS_PRESERVE_AT.core = Date.now() - 500;
+    const h = e.S.cfCasConflictCenterHTML();
+    ok(h.includes('Saving a copy of the online version…'));
+  });
+  test('C10-UX-19 no destructive choice is offered while preserving', () => {
+    e.S.CF_CAS_PRESERVE_AT.core = Date.now() - 500;
+    const h = e.S.cfCasConflictCenterHTML();
+    notOk(h.includes('Use this device’s copy online'));
+    notOk(h.includes('Use the online copy on this device'));
+  });
+  test('C10-UX-20 the preserving card never carries a focus target', () => {
+    e.S.CF_CAS_PRESERVE_AT.core = Date.now() - 500;
+    notOk(e.S.cfCasConflictCenterHTML().includes('autofocus'));
+  });
+  test('the threshold is the specified 400ms', () => eq(e.S.CF_CAS_PRESERVE_MS, 400));
+});
+
+group('C10-UX-06..10 / 12..15 — both cards stay, and focus is managed', () => {
+  const both = env([withConflict('core'), withConflict('training')]).S.cfCasConflictCenterHTML();
+  test('C10-UX-06 both sections are visible without resolving either', () => {
+    ok(both.includes('Health &amp; progress'));
+    ok(both.includes('Training &amp; workouts'));
+  });
+  test('C10-UX-09 no copy implies a required order', () =>
+    notOk(/first|then|next|step [0-9]/i.test(both.replace(/saved first/g, ''))));
+  test('C10-UX-10 there is still no bulk destructive action', () =>
+    notOk(/resolve.all/i.test(both)));
+  const e = env([withConflict('core')]);
+  test('C10-UX-12 opening focuses the heading', () => {
+    let focused = null;
+    e.S.document.getElementById = (id) => ({ focus() { focused = id; } });
+    e.S.cfCasOpenConflictCenter(null);
+    eq(focused, 'cf-conflict-heading');
+  });
+  test('C10-UX-15 closing returns focus to whatever opened it', () => {
+    let back = false;
+    e.S.cfCasOpenConflictCenter({ focus() { back = true; } });
+    e.S.cfCasCloseConflictCenter();
+    ok(back);
+  });
+  test('C10-UX-14 background discovery moves no focus', () => {
+    /* rendering alone must never focus anything */
+    let touched = false;
+    e.S.document.getElementById = (id) => ({ focus() { touched = true; } });
+    e.S.cfCasConflictCenterHTML();
+    notOk(touched);
+  });
 });
 
 report();
