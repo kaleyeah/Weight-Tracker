@@ -329,8 +329,12 @@ async function scenarios() {
     const id = 'purge-safety';
     await write(t1, id, PAY);                                   /* winner completes */
     const before = t1.S.localStorage.getItem(`cf:casrec:userA:${id}:payload`);
-    const purgedByStranger = t2.S.cfCasRecPurge(id, 'some-other-writers-token');
-    test('a purge carrying another token is refused', () => notOk(purgedByStranger));
+    /* Public purge is current-account scoped and owns no token; the
+       losing-writer path is exercised properly in the C10-P4 overlap group. */
+    const strangerAccount = signIn(t2, 'userB');
+    const purgedByStranger = strangerAccount.S.cfCasRecPurge(id);
+    signIn(t2, 'userA');
+    test('another account purging removes nothing', () => notOk(purgedByStranger));
     test('the winning payload survives', () =>
       eq(t1.S.localStorage.getItem(`cf:casrec:userA:${id}:payload`), before));
     test('the winning manifest survives', () =>
@@ -352,6 +356,164 @@ async function scenarios() {
     const dup = await write(env, id, PAY);
     test('a failure reason is a bare diagnostic token', () => ok(dup.out.length < 24));
     test('and contains no payload content', () => notOk(String(dup.out).includes('81.5')));
+  });
+
+
+  /* ============ C10-P4: TRUE overlap, not sequential contention ==========
+     The previous round's "concurrent" group awaited writer 1 before starting
+     writer 2. That is sequential contention wearing a concurrency label, and
+     it proved nothing about the boundary it claimed to prove. These start both
+     writers before either callback runs, and control the interleaving
+     deliberately by pausing the digest. */
+
+  /* Start a write without awaiting it; returns a promise plus a live flag. */
+  function begin(env, id, payload, o) {
+    o = o || {};
+    const state = { done: false, ok: null, out: null };
+    const p = new Promise((res) => {
+      env.S.cfCasRecWrite(id, o.sub || 'core', o.serverRev === undefined ? 11 : o.serverRev,
+        payload, (okFlag, out) => { state.done = true; state.ok = okFlag; state.out = out; res(state); });
+    });
+    return { p, state };
+  }
+  /* Replace digest with one we can hold open, so a writer can be parked at a
+     chosen point while another runs. */
+  function pausableDigest(env) {
+    /* Shadow ONLY digest, on the real SubtleCrypto instance. An earlier version
+       rebuilt the crypto object with Object.assign, which copies own properties
+       and therefore silently dropped getRandomValues and randomUUID — they live
+       on the prototype. The writer then failed with "entropy", which is
+       precisely what it should do without a secure source, so the harness bug
+       masqueraded as a production one. */
+    const subtle = env.S.crypto.subtle;
+    const real = subtle.digest.bind(subtle);
+    let gate = null;
+    subtle.digest = (alg, data) => (gate ? gate.then(() => real(alg, data)) : real(alg, data));
+    return {
+      hold() { let open; gate = new Promise((r) => { open = r; }); return () => { const g = open; gate = null; g(); }; },
+      restore() { subtle.digest = real; },
+    };
+  }
+
+  await group('C10-P4-01/02/05 — two writers genuinely overlap; one publication', async () => {
+    const t1 = authed('userA'); const t2 = authed('userA');
+    t2.S.localStorage = t1.S.localStorage;
+    t2.S.navigator = t1.S.navigator;                       /* same origin, same lock registry */
+    const id = 'overlap-1';
+    const P1 = '{"writer":1,"kg":81.5}'; const P2 = '{"writer":2,"kg":99.9}';
+
+    const a = begin(t1, id, P1);
+    const b = begin(t2, id, P2);                            /* started before a completes */
+    test('C10-P4-01 both writes are in flight before either callback runs', () => {
+      notOk(a.state.done); notOk(b.state.done);
+    });
+    const [ra, rb] = await Promise.all([a.p, b.p]);
+    test('C10-P4-02 exactly one publication succeeds', () =>
+      eq([ra.ok, rb.ok].filter(Boolean).length, 1));
+    const winner = ra.ok ? P1 : P2; const loser = ra.ok ? rb : ra;
+    test('the loser is refused with a bare reason', () =>
+      ok(['exists', 'claimed', 'no-lock', 'drift'].includes(loser.out)));
+    const man = JSON.parse(t1.S.localStorage.getItem(`cf:casrec:userA:${id}:manifest`));
+    const pay = t1.S.localStorage.getItem(`cf:casrec:userA:${id}:payload`);
+    test('C10-P4-05 the stored artifact is internally consistent', () => {
+      eq(pay, winner);
+      eq(man.hash, sha(pay));
+      eq(man.sizes.payload, Buffer.byteLength(pay, 'utf8'));
+    });
+    test('C10-P4-05 it is not a mixture of the two writers', () =>
+      notOk(pay === (winner === P1 ? P2 : P1)));
+  });
+
+  await group('C10-P4-03/04 — a writer parked mid-digest cannot clobber a completed one', async () => {
+    const t1 = authed('userA'); const t2 = authed('userA');
+    t2.S.localStorage = t1.S.localStorage; t2.S.navigator = t1.S.navigator;
+    const id = 'overlap-parked';
+    const gate = pausableDigest(t1);
+    const release = gate.hold();                            /* t1 will stall inside the digest */
+    const a = begin(t1, id, '{"writer":1}');
+    await new Promise((r) => setTimeout(r, 5));
+    test('C10-P4-03 the first writer is parked, not finished', () => notOk(a.state.done));
+    const b = begin(t2, id, '{"writer":2}');
+    await new Promise((r) => setTimeout(r, 5));
+    release();
+    const [ra, rb] = await Promise.all([a.p, b.p]);
+    test('C10-P4-03 still exactly one publication', () => eq([ra.ok, rb.ok].filter(Boolean).length, 1));
+    const pay = t1.S.localStorage.getItem(`cf:casrec:userA:${id}:payload`);
+    const man = t1.S.localStorage.getItem(`cf:casrec:userA:${id}:manifest`);
+    test('C10-P4-04 the winner\'s payload survives the loser\'s cleanup', () => ok(pay !== null));
+    test('C10-P4-04 the winner\'s manifest survives', () => ok(man !== null));
+    test('C10-P4-04 payload and manifest come from the SAME writer', () =>
+      eq(JSON.parse(man).hash, sha(pay)));
+  });
+
+  await group('C10-P4-06 — no Web Locks means a safe refusal, not a fallback', async () => {
+    const env = signIn(createEnv({ locks: false }), 'userA');
+    const id = env.S.cfCasRecNewId('core');
+    const r = await write(env, id, PAY);
+    test('the write is refused', () => notOk(r.ok));
+    test('the reason names the missing primitive', () => eq(r.out, 'no-lock'));
+    test('nothing was written — not even a claim', () => {
+      const keys = [...store(env).keys()].filter((k) => k.indexOf('cf:casrec') === 0);
+      eq(keys.length, 0);
+    });
+    test('and so no artifact is actionable', async () => {
+      eq(env.S.cfCasRecList().length, 0);
+    });
+  });
+
+  await group('C10-P4-07/08/09 — an account switch during the digest publishes nothing', async () => {
+    const env = authed('userA');
+    const id = 'drift-case';
+    const gate = pausableDigest(env);
+    const release = gate.hold();
+    const a = begin(env, id, PAY);
+    await new Promise((r) => setTimeout(r, 5));
+    signIn(env, 'userB');                                   /* account switches mid-flight */
+    release();
+    const r = await a.p;
+    test('C10-P4-07 the write does not publish', () => notOk(r.ok));
+    test('C10-P4-07 it reports drift rather than a false success', () => eq(r.out, 'drift'));
+    test('C10-P4-07 no manifest exists in A\'s namespace', () =>
+      notOk(store(env).has(`cf:casrec:userA:${id}:manifest`)));
+    test('C10-P4-08 A\'s partial write was cleaned up', () => {
+      notOk(store(env).has(`cf:casrec:userA:${id}:payload`));
+      notOk(store(env).has(`cf:casrec:userA:${id}:claim`));
+    });
+    test('C10-P4-09 B\'s namespace was never touched', () => {
+      const bKeys = [...store(env).keys()].filter((k) => k.indexOf('cf:casrec:userB:') === 0);
+      eq(bKeys.length, 0);
+    });
+    test('C10-P4-09 B sees no inventory', () => eq(env.S.cfCasRecList().length, 0));
+  });
+
+  await group('C10-P4-08 — a drifted cleanup never deletes the OTHER account\'s artifact', async () => {
+    const env = authed('userB');
+    const bId = env.S.cfCasRecNewId('core');
+    await write(env, bId, '{"b":"real"}');                  /* B has a genuine artifact */
+    const bPay = store(env).get(`cf:casrec:userB:${bId}:payload`);
+
+    signIn(env, 'userA');
+    const gate = pausableDigest(env);
+    const release = gate.hold();
+    const a = begin(env, bId, PAY);                          /* A writes the SAME id */
+    await new Promise((r) => setTimeout(r, 5));
+    signIn(env, 'userB');                                    /* switch back mid-digest */
+    release();
+    const r = await a.p;
+    test('A\'s write drifts and does not publish', () => { notOk(r.ok); eq(r.out, 'drift'); });
+    test('B\'s artifact is untouched', () => eq(store(env).get(`cf:casrec:userB:${bId}:payload`), bPay));
+    const rd = await read(env, bId, { account: 'userB', sub: 'core', serverRev: 11, rec: bId });
+    test('and still verifies', () => eq(rd.payload, '{"b":"real"}'));
+  });
+
+  await group('C10-P4-10 — callers cannot select an account namespace', async () => {
+    const env = authed('userA');
+    test('no global key builder is exposed', () => eq(typeof env.S.cfCasRecKeys, 'undefined'));
+    test('write takes an id and no scope', () => eq(env.S.cfCasRecWrite.length, 5));
+    test('read takes an id and no scope', () => eq(env.S.cfCasRecRead.length, 3));
+    test('purge takes an id and no scope', () => eq(env.S.cfCasRecPurge.length, 1));
+    test('list takes nothing', () => eq(env.S.cfCasRecList.length, 0));
+    test('scope is reported, never accepted', () => eq(env.S.cfCasRecScope(), 'userA'));
   });
 
 }

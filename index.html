@@ -8244,149 +8244,191 @@ function cfCasDisposition(status,body){
    certifies what a future reader will actually find. Quota truncation, a
    storage shim that mangles unicode, or a partial write are all invisible to
    the first and caught by the second. */
-var CF_CASREC_PREFIX="cf:casrec:";
+/* ---- CAS recovery artifact: storage integration -------------------------
+   Rebuilt for the progress-4 review. Three things changed and each closes a
+   defect the previous version only appeared to handle:
 
-/* ACCOUNT SCOPE IS PART OF THE NAMESPACE, not just a manifest field.
-   Correction C10-P3-01. localStorage is shared across every account that signs
-   in on this origin, so an artifact keyed only by id is enumerable and
-   readable by the next account — a manifest saying account:A stops a correct
-   caller accepting it, but does nothing to stop account B reading the health
-   payload out of storage directly. This is the same defect class M1 fixed for
-   photos, reintroduced here for recovery artifacts and caught in review.
+   1. PUBLICATION IS SERIALISED BY A REAL EXCLUSIVE LOCK. The previous version
+      used a localStorage claim written and re-read. localStorage has no atomic
+      compare-and-set, so two tabs can both see an empty claim, both write, and
+      both believe they own it at different instants — and my "concurrent" test
+      never demonstrated otherwise, because it awaited the first writer before
+      starting the second. That is sequential contention wearing a concurrency
+      label. Web Locks now provide the exclusion; the claim token remains only
+      as an ownership marker for cleanup.
+      With no Web Locks available the write FAILS CLOSED. It does not quietly
+      fall back to the claim as though that were equivalent.
 
-   The scope comes from the trusted authenticated session, never from an
-   argument, so no caller can address another account's namespace by asking. */
-function cfCasRecScope(){var u=pbUid();return u?String(u):"";}
-function cfCasRecKeys(id,scope){
-  var sc=(scope===undefined)?cfCasRecScope():scope;
-  var base=CF_CASREC_PREFIX+sc+":"+id;
-  return {claim:base+":claim",payload:base+":payload",manifest:base+":manifest",prefix:base};}
+   2. THE OPERATION CONTEXT IS CAPTURED AND RE-VERIFIED. crypto.subtle.digest
+      is asynchronous, and an account can switch while it is pending. Cleanup
+      previously resolved keys from the LIVE session, so a failure after a
+      switch could address the new account's namespace and leave the old one
+      littered. Every attempt now captures owner, session generation, keys,
+      lock name and token up front, and every continuation checks for drift
+      before publishing.
 
-/* Every artifact id visible to the CURRENT account. Another account's entries
-   are not merely filtered out of the result — their keys are not addressable
-   through this API at all. */
-function cfCasRecList(){
-  var sc=cfCasRecScope(),out=[];
-  if(!sc)return out;
-  var pre=CF_CASREC_PREFIX+sc+":";
-  try{
-    for(var i=0;i<localStorage.length;i++){
-      var k=localStorage.key(i)||"";
-      if(k.indexOf(pre)!==0)continue;
-      var rest=k.slice(pre.length),cut=rest.lastIndexOf(":");
-      if(cut>0&&rest.slice(cut+1)==="manifest")out.push(rest.slice(0,cut));}
-  }catch(e){}
-  return out;}
+   3. THE NAMESPACE IS NOT CALLER-SELECTABLE. Key construction is private to
+      this module; callers pass an artifact id and nothing else, so no ordinary
+      caller can address another account's namespace by asking for it.
+      (Application-level isolation — not a claim that same-origin script or
+      devtools are cryptographically fenced out.) */
+var cfCasRecStore=(function(){
+  var PREFIX="cf:casrec:";
 
-function cfCasRecExists(id){
-  var K=cfCasRecKeys(id);
-  try{return localStorage.getItem(K.manifest)!==null||localStorage.getItem(K.payload)!==null||
-             localStorage.getItem(K.claim)!==null;}
-  catch(e){return true;}}                                   /* unreadable storage: assume taken */
+  function scopeNow(){var u=pbUid();return u?String(u):"";}
+  function genNow(){return (typeof CF_SESSION_GEN==="undefined")?0:CF_SESSION_GEN;}
+  function keysFor(scope,id){
+    var base=PREFIX+scope+":"+id;
+    return {claim:base+":claim",payload:base+":payload",manifest:base+":manifest"};}
 
-/* CROSS-CONTEXT UNIQUE IDS. Correction C10-P3-02: the previous id was
-   subsystem + caller timestamp + a process-local counter, so two tabs at the
-   same millisecond with the same counter produced the same candidate, and
-   "check it is absent, then write" reserves nothing across contexts.
-   Now the entropy is cryptographic and independent per runtime. */
-function cfCasRandomHex(bytes){
-  try{
-    if(typeof crypto!=="undefined"&&crypto.getRandomValues){
-      var v=new Uint8Array(bytes||16);crypto.getRandomValues(v);
-      var h="";for(var i=0;i<v.length;i++){var x=v[i].toString(16);h+=(x.length===1?"0":"")+x;}
-      return h;}
-  }catch(e){}
-  return null;}                                             /* no entropy: refuse, never fake it */
-function cfCasRecNewId(sub){
-  var r=null;
-  try{if(typeof crypto!=="undefined"&&crypto.randomUUID)r=String(crypto.randomUUID()).replace(/-/g,"");}catch(e){}
-  if(!r)r=cfCasRandomHex(16);
-  if(!r)return null;                                        /* without entropy there is no safe id */
-  return "casrec-"+sub+"-"+r;}
+  function randomHex(bytes){
+    try{
+      if(typeof crypto!=="undefined"&&crypto.getRandomValues){
+        var v=new Uint8Array(bytes||16);crypto.getRandomValues(v);
+        var h="";for(var i=0;i<v.length;i++){var x=v[i].toString(16);h+=(x.length===1?"0":"")+x;}
+        return h;}
+    }catch(e){}
+    return null;}                                        /* no entropy: refuse, never fake it */
 
-function cfCasSha256Hex(str,cb){
-  try{
-    if(typeof crypto==="undefined"||!crypto.subtle){cb(null);return;}
-    var bytes=new TextEncoder().encode(String(str));
-    crypto.subtle.digest("SHA-256",bytes).then(function(buf){
-      var v=new Uint8Array(buf),h="";
-      for(var i=0;i<v.length;i++){var x=v[i].toString(16);h+=(x.length===1?"0":"")+x;}
-      cb(h);},function(){cb(null);});
-  }catch(e){cb(null);}}
+  function newId(sub){
+    var r=null;
+    try{if(typeof crypto!=="undefined"&&crypto.randomUUID)r=String(crypto.randomUUID()).replace(/-/g,"");}catch(e){}
+    if(!r)r=randomHex(16);
+    if(!r)return null;
+    return "casrec-"+sub+"-"+r;}
 
-/* OWNERSHIP-SAFE CLEANUP. A failed writer must never delete bytes another
-   writer committed after it started (review §4), so purge compares the claim
-   token before deleting anything. A loser cleans up only its own mess. */
-function cfCasRecPurge(id,token){
-  var K=cfCasRecKeys(id);
-  try{
-    if(token&&localStorage.getItem(K.claim)!==token)return false;   /* not ours: leave it alone */
-    /* Report whether anything was ACTUALLY removed. Returning true after
-       deleting nothing would tell a caller in another account's session that
-       an artifact is gone when it was never reachable — the caller would then
-       believe the copy no longer exists. */
-    var had=localStorage.getItem(K.manifest)!==null||localStorage.getItem(K.payload)!==null||
-            localStorage.getItem(K.claim)!==null;
-    localStorage.removeItem(K.manifest);
-    localStorage.removeItem(K.payload);
-    localStorage.removeItem(K.claim);
-    return had;
-  }catch(e){return false;}}
+  /* Immutable per-attempt context. Nothing downstream reads the live session. */
+  function capture(id){
+    var scope=scopeNow();
+    return {owner:scope,gen:genNow(),id:id,keys:scope?keysFor(scope,id):null,
+            lock:"cf-cas-recovery:"+scope+":"+id,token:randomHex(8)};}
+  function drifted(ctx){return ctx.owner!==scopeNow()||ctx.gen!==genNow();}
 
-/* cb(ok, manifestOrReason). The account is taken from the trusted session, not
-   from the caller. Order: claim, payload, read back, manifest LAST. */
-function cfCasRecWrite(id,sub,serverRev,payloadStr,cb){
-  var scope=cfCasRecScope();
-  if(!scope){cb(false,"unauthenticated");return;}
-  var K=cfCasRecKeys(id,scope),man0=null,pay0=null,claim0=null;
-  try{man0=localStorage.getItem(K.manifest);pay0=localStorage.getItem(K.payload);
-      claim0=localStorage.getItem(K.claim);}
-  catch(e){cb(false,"storage");return;}
-  if(!cfCasRecMayWrite(man0)){cb(false,"exists");return;}            /* 2, 7 */
-  if(pay0!==null){cb(false,"exists");return;}                        /* a partial from before */
-  var token=cfCasRandomHex(8);
-  if(!token){cb(false,"entropy");return;}
-  if(claim0!==null&&claim0!==token){cb(false,"claimed");return;}      /* someone else is writing */
-  try{localStorage.setItem(K.claim,token);}catch(e){cb(false,"storage");return;}
-  /* Re-read the claim: if another context wrote its own token between our
-     check and our write, it now owns the id and we must stand down without
-     touching anything. Exactly one writer survives this. */
-  var claimNow=null;
-  try{claimNow=localStorage.getItem(K.claim);}catch(e){claimNow=null;}
-  if(claimNow!==token){cb(false,"claimed");return;}
-  var want=String(payloadStr);
-  try{localStorage.setItem(K.payload,want);}catch(e){cfCasRecPurge(id,token);cb(false,"storage");return;}  /* 3 */
-  var back=null;
-  try{back=localStorage.getItem(K.payload);}catch(e){back=null;}     /* 4 */
-  if(back===null||back!==want){cfCasRecPurge(id,token);cb(false,"readback");return;}
-  cfCasSha256Hex(back,function(hex){                                 /* hash of what STORAGE returned */
-    if(!cfCasHashValid(hex)){cfCasRecPurge(id,token);cb(false,"digest");return;}
-    /* Still ours? A concurrent writer that took the claim must not have its
-       artifact completed by us. */
-    var stillMine=null;
-    try{stillMine=localStorage.getItem(K.claim);}catch(e){stillMine=null;}
-    if(stillMine!==token){cb(false,"claimed");return;}                /* touch nothing */
-    var man={kind:"cas-conflict",id:String(id),sub:sub,serverRev:serverRev,account:scope,
-             keys:["payload"],sizes:{payload:cfCasUtf8Bytes(back)},hash:hex};
-    if(!cfCasRecValid(man,id,{payload:back})){cfCasRecPurge(id,token);cb(false,"invalid");return;}
-    try{localStorage.setItem(K.manifest,JSON.stringify(man));}       /* 5: manifest LAST */
-    catch(e){cfCasRecPurge(id,token);cb(false,"storage");return;}
-    cb(true,man);});}
+  function sha256Hex(str,cb){
+    try{
+      if(typeof crypto==="undefined"||!crypto.subtle){cb(null);return;}
+      var bytes=new TextEncoder().encode(String(str));
+      crypto.subtle.digest("SHA-256",bytes).then(function(buf){
+        var v=new Uint8Array(buf),h="";
+        for(var i=0;i<v.length;i++){var x=v[i].toString(16);h+=(x.length===1?"0":"")+x;}
+        cb(h);},function(){cb(null);});
+    }catch(e){cb(null);}}
 
-/* cb(payloadOrNull, reason). Addresses only the current account's namespace, so
-   another account's artifact is not merely rejected — it is unreachable. */
-function cfCasRecRead(id,expected,cb){
-  var scope=cfCasRecScope();
-  if(!scope){cb(null,"unauthenticated");return;}
-  var K=cfCasRecKeys(id,scope),raw=null,pay=null;
-  try{raw=localStorage.getItem(K.manifest);pay=localStorage.getItem(K.payload);}
-  catch(e){cb(null,"storage");return;}
-  if(raw===null){cb(null,"absent");return;}                          /* 6: no manifest, not actionable */
-  if(pay===null){cb(null,"missing-payload");return;}
-  var man=null;try{man=JSON.parse(raw);}catch(e){cb(null,"unparseable");return;}
-  cfCasSha256Hex(pay,function(hex){
-    if(!cfCasRecVerified(man,id,{payload:pay},expected,hex)){cb(null,"unverified");return;}
-    cb(pay,null);});}
+  /* Cleanup against the CAPTURED keys, never the live session's, and only when
+     the claim still carries our token. A loser removes its own mess and
+     nothing else. */
+  function purgeCaptured(ctx){
+    if(!ctx||!ctx.keys)return false;
+    try{
+      if(localStorage.getItem(ctx.keys.claim)!==ctx.token)return false;
+      var had=localStorage.getItem(ctx.keys.manifest)!==null||
+              localStorage.getItem(ctx.keys.payload)!==null||
+              localStorage.getItem(ctx.keys.claim)!==null;
+      localStorage.removeItem(ctx.keys.manifest);
+      localStorage.removeItem(ctx.keys.payload);
+      localStorage.removeItem(ctx.keys.claim);
+      return had;
+    }catch(e){return false;}}
+
+  function withLock(name,body,unavailable){
+    try{
+      if(typeof navigator==="undefined"||!navigator.locks||!navigator.locks.request){unavailable();return;}
+      navigator.locks.request(name,{mode:"exclusive"},function(){
+        return new Promise(function(release){body(release);});
+      }).catch(function(){unavailable();});
+    }catch(e){unavailable();}}
+
+  /* Everything inside here runs holding the exclusive lock for this artifact. */
+  function writeLocked(ctx,sub,serverRev,payloadStr,done){
+    var K=ctx.keys,man0=null,pay0=null;
+    try{man0=localStorage.getItem(K.manifest);pay0=localStorage.getItem(K.payload);}
+    catch(e){done(false,"storage");return;}
+    if(!cfCasRecMayWrite(man0)){done(false,"exists");return;}
+    if(pay0!==null){done(false,"exists");return;}
+    try{localStorage.setItem(K.claim,ctx.token);}catch(e){done(false,"storage");return;}
+    var want=String(payloadStr);
+    try{localStorage.setItem(K.payload,want);}catch(e){purgeCaptured(ctx);done(false,"storage");return;}
+    var back=null;
+    try{back=localStorage.getItem(K.payload);}catch(e){back=null;}
+    if(back===null||back!==want){purgeCaptured(ctx);done(false,"readback");return;}
+    sha256Hex(back,function(hex){
+      /* The digest was asynchronous: the account may have changed underneath. */
+      if(drifted(ctx)){purgeCaptured(ctx);done(false,"drift");return;}
+      if(!cfCasHashValid(hex)){purgeCaptured(ctx);done(false,"digest");return;}
+      var man={kind:"cas-conflict",id:String(ctx.id),sub:sub,serverRev:serverRev,account:ctx.owner,
+               keys:["payload"],sizes:{payload:cfCasUtf8Bytes(back)},hash:hex};
+      if(!cfCasRecValid(man,ctx.id,{payload:back})){purgeCaptured(ctx);done(false,"invalid");return;}
+      try{localStorage.setItem(K.manifest,JSON.stringify(man));}      /* manifest LAST */
+      catch(e){purgeCaptured(ctx);done(false,"storage");return;}
+      done(true,man);});}
+
+  return {
+    newId:newId,
+    /* cb(ok, manifestOrReason). No account argument: the namespace comes from
+       the authenticated session at capture time. */
+    write:function(id,sub,serverRev,payloadStr,cb){
+      var ctx=capture(id);
+      if(!ctx.owner){cb(false,"unauthenticated");return;}
+      if(!ctx.token){cb(false,"entropy");return;}
+      withLock(ctx.lock,function(release){
+        writeLocked(ctx,sub,serverRev,payloadStr,function(ok,out){release();cb(ok,out);});
+      },function(){cb(false,"no-lock");});},        /* fail closed, never claim-only */
+
+    read:function(id,expected,cb){
+      var ctx=capture(id);
+      if(!ctx.owner){cb(null,"unauthenticated");return;}
+      var K=ctx.keys,raw=null,pay=null;
+      try{raw=localStorage.getItem(K.manifest);pay=localStorage.getItem(K.payload);}
+      catch(e){cb(null,"storage");return;}
+      if(raw===null){cb(null,"absent");return;}
+      if(pay===null){cb(null,"missing-payload");return;}
+      var man=null;try{man=JSON.parse(raw);}catch(e){cb(null,"unparseable");return;}
+      sha256Hex(pay,function(hex){
+        if(drifted(ctx)){cb(null,"drift");return;}
+        if(!cfCasRecVerified(man,ctx.id,{payload:pay},expected,hex)){cb(null,"unverified");return;}
+        cb(pay,null);});},
+
+    /* Only the current account's artifacts are addressable or listable. */
+    list:function(){
+      var sc=scopeNow(),out=[];
+      if(!sc)return out;
+      var pre=PREFIX+sc+":";
+      try{
+        for(var i=0;i<localStorage.length;i++){
+          var k=localStorage.key(i)||"";
+          if(k.indexOf(pre)!==0)continue;
+          var rest=k.slice(pre.length),cut=rest.lastIndexOf(":");
+          if(cut>0&&rest.slice(cut+1)==="manifest")out.push(rest.slice(0,cut));}
+      }catch(e){}
+      return out;},
+
+    /* Public purge: current account only, and it reports what it actually did.
+       "we deleted your recovery copy" and "we could not see it" must not share
+       a return value. */
+    purge:function(id){
+      var sc=scopeNow();
+      if(!sc)return false;
+      var K=keysFor(sc,id);
+      try{
+        var had=localStorage.getItem(K.manifest)!==null||localStorage.getItem(K.payload)!==null||
+                localStorage.getItem(K.claim)!==null;
+        localStorage.removeItem(K.manifest);
+        localStorage.removeItem(K.payload);
+        localStorage.removeItem(K.claim);
+        return had;
+      }catch(e){return false;}},
+
+    scope:scopeNow
+  };
+})();
+
+/* Thin named wrappers — the call surface the rest of Commit 10 uses. */
+function cfCasRecNewId(sub){return cfCasRecStore.newId(sub);}
+function cfCasRecWrite(id,sub,serverRev,payloadStr,cb){return cfCasRecStore.write(id,sub,serverRev,payloadStr,cb);}
+function cfCasRecRead(id,expected,cb){return cfCasRecStore.read(id,expected,cb);}
+function cfCasRecList(){return cfCasRecStore.list();}
+function cfCasRecPurge(id){return cfCasRecStore.purge(id);}
+function cfCasRecScope(){return cfCasRecStore.scope();}
 
 </script>
 </body>

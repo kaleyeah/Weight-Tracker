@@ -33,6 +33,23 @@ function makeEl(tag) {
   return el;
 }
 
+/* One registry for the whole process: locks are an ORIGIN-wide primitive, and
+   every env created here models a tab on the same origin. */
+const LOCK_QUEUES = new Map();
+function makeLocks() {
+  return {
+    request(name, optionsOrFn, maybeFn) {
+      const fn = typeof optionsOrFn === 'function' ? optionsOrFn : maybeFn;
+      const prev = LOCK_QUEUES.get(name) || Promise.resolve();
+      let releaseHeld;
+      const held = new Promise((r) => { releaseHeld = r; });
+      const run = prev.then(() => Promise.resolve(fn({ name, mode: 'exclusive' })));
+      LOCK_QUEUES.set(name, run.then(() => held, () => held).then(() => {}, () => {}));
+      return run.finally(() => releaseHeld());
+    },
+  };
+}
+
 function createEnv(opts) {
   opts = opts || {};
   const fetchLog = [];
@@ -75,6 +92,13 @@ function createEnv(opts) {
        same crypto.subtle call it will use in the browser. */
     crypto: require('crypto').webcrypto,
     TextEncoder,
+    /* Web Locks. Browsers serialise exclusive locks by NAME across every
+       context on the origin, so the stub keeps its queues on a module-level
+       registry shared by every sandbox created here — otherwise each "tab"
+       would get its own private lock and the concurrency tests would prove
+       nothing, which is precisely the failure the Architect caught in the
+       previous round. opts.locks:false models a browser without the API. */
+    navigator: undefined,   /* replaced below, after locks are wired */
     atob: (s) => Buffer.from(s, 'base64').toString('binary'),
     btoa: (s) => Buffer.from(s, 'binary').toString('base64'),
     alert(){}, confirm(){ return true; }, matchMedia: () => ({ matches: false, addListener(){}, addEventListener(){} }),
@@ -85,6 +109,11 @@ function createEnv(opts) {
   sandbox.getComputedStyle = () => ({ getPropertyValue: () => '' });
   sandbox.scrollY = 0; sandbox.innerWidth = 390; sandbox.innerHeight = 844;
   sandbox.window = sandbox; sandbox.self = sandbox; sandbox.globalThis = sandbox;
+  sandbox.navigator = {
+    userAgent: 'test', storage: { persist: () => Promise.resolve(true) },
+    canShare: undefined, share: undefined,
+    locks: opts.locks === false ? undefined : makeLocks(),
+  };
   vm.createContext(sandbox);
   const html = fs.readFileSync(SRC, 'utf8');
   const script = html.match(/<script>([^]*)<\/script>/)[1];
