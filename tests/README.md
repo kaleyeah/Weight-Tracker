@@ -44,3 +44,23 @@ nothing about the session that has to read it back, which is exactly when an
 athlete needs it.
 
 Requires Playwright at `~/staging-cas/node_modules`. Not part of `run-all.js`.
+
+### Route-contract tests (real PocketBase)
+
+    node tests/browser/route-contract.browser.test.js      # 23 assertions
+
+Spawns a **disposable, empty PocketBase** in a temp directory running
+`server/pb_hooks` and `server/pb_migrations` unmodified, on 127.0.0.1, and
+destroys it afterwards. It holds no real health data and the only accounts it
+creates are `cf_test_*`. Production is never involved.
+
+It exists because every other browser suite stubs `cfCasSend`, so it can only
+prove the client agrees with what I *believed* the server does. Two of those
+stubs were already wrong. This suite found a live production defect on its
+first stable run: the route hashed `JSON.stringify` over a Go map for its
+idempotency check, and Go randomises map iteration order, so byte-identical
+retries hashed differently and were refused. Ten of twelve identical retries
+failed. See `RC-02b`.
+
+Requires the PocketBase binary at `~/staging-cas/bin/pocketbase`; skips cleanly
+if it is absent. Not part of `run-all.js`.

@@ -73,6 +73,36 @@ function validateClientBuild(build) {
   return null;
 }
 
+/* ---- canonical serialization for the idempotency hash -------------------
+   `e.requestInfo().body` hands the handler a Go map, and Go randomises map
+   iteration order by design. JSON.stringify over it therefore emits object
+   keys in a DIFFERENT order on every request, so hashing that output gave a
+   different requestHash for byte-identical requests — and the idempotency
+   layer refused the legitimate retry it exists to serve, with
+   "idempotency key reused with a different request".
+
+   Measured on a disposable instance running this kit: twelve byte-identical
+   retries of one request, ten refused. The client correctly routes that 409
+   to its safe failure state, so no data is lost or overwritten — but a retry
+   after a dropped response is exactly the case idempotency is for, and an
+   athlete on a poor connection would be dead-ended with no way to understand
+   why.
+
+   Keys are therefore sorted recursively before hashing. Arrays keep their
+   order, because array order is meaningful data. This is used ONLY to derive
+   the hash — what gets stored is still the parsed payload, untouched. */
+function canonicalJson(v) {
+  if (v === null || typeof v !== "object") return JSON.stringify(v === undefined ? null : v);
+  if (Array.isArray(v)) return "[" + v.map(canonicalJson).join(",") + "]";
+  const keys = Object.keys(v).sort();
+  const parts = [];
+  for (let i = 0; i < keys.length; i++) {
+    if (v[keys[i]] === undefined) continue;               /* JSON.stringify drops these */
+    parts.push(JSON.stringify(keys[i]) + ":" + canonicalJson(v[keys[i]]));
+  }
+  return "{" + parts.join(",") + "}";
+}
+
 /* ---- stable response shapes ------------------------------------------- */
 
 function okCommit(subsystem, newRev)          { return { ok: true,  subsystem: subsystem, newRev: newRev }; }
@@ -85,7 +115,7 @@ function commitFailed(){ return { ok: false, error: "commit failed" }; }
 
 module.exports = {
   MAX_PAYLOAD_BYTES, REQUEST_LIMIT_BYTES, MIN_CLIENT_BUILD, MAX_KEY_LENGTH, SUBSYSTEMS,
-  utf8Bytes,
+  utf8Bytes, canonicalJson,
   validateSubsystem, validateExpectedRev, validateKey, validatePayload,
   validatePayloadSize, validateClientBuild,
   okCommit, okReplay, conflict, keyReused, commitFailed,

@@ -27,7 +27,7 @@ async function boot(opts) {
       localStorage.setItem('wl_v1', JSON.stringify(seed));
     } catch (e) { /* first-run storage refusal is the app's problem, not ours */ }
   }, {
-    acct: ACCOUNT,
+    acct: Object.assign({}, ACCOUNT, opts.account || {}),
     seed: {
       settings: { onboarded: true, name: 'Test', theme: 'dark', startingWeight: 84, goalWeight: 78 },
       /* {date, weight} — the shape sortedWeights() actually sorts on. A
@@ -40,8 +40,10 @@ async function boot(opts) {
 
   /* Block the network before the first navigation, not after: the app's boot
      tries to reach its PocketBase base URL immediately, and a route installed
-     after goto() would let those requests out. */
-  await context.route('**://pb.test/**', (route) => route.abort());
+     after goto() would let those requests out.
+     When a real PocketBase base is supplied, requests must reach it — that is
+     the entire point of the route-contract suite. */
+  if (!opts.allowNetwork) await context.route('**://pb.test/**', (route) => route.abort());
 
   const page = await context.newPage();
   const pageErrors = [];

@@ -43,7 +43,13 @@ routerAdd("POST", "/api/cf/appdata/commit", (e) => {
 
   /* deviceId is diagnostics only — stored as a short hash, never raw (addendum #9) */
   const deviceHash = body.deviceId ? $security.sha256(String(body.deviceId)).slice(0, 16) : "";
-  const requestHash = $security.sha256(body.subsystem + "|" + expectedRev + "|" + payloadStr);
+  /* Hash a CANONICAL serialization, not payloadStr. payloadStr comes from
+     JSON.stringify over a Go map, whose key order Go randomises per request,
+     so identical requests hashed differently and legitimate retries were
+     refused as "key reused with a different request". payloadStr is still the
+     right thing to size-check above — only the hash needs stability. */
+  const requestHash = $security.sha256(
+    body.subsystem + "|" + expectedRev + "|" + cf.canonicalJson(body.payload));
 
   let out = null;
   const run = (allowCreate) => {
