@@ -49,6 +49,7 @@ Requires Playwright at `~/staging-cas/node_modules`. Not part of `run-all.js`.
 
     node tests/browser/route-contract.browser.test.js      # 23 assertions
     node tests/browser/manifest-recovery.browser.test.js   # 14 assertions
+    node tests/browser/cas-status-matrix.browser.test.js   # 29 assertions (CAS-01..20, STATUS-01..08)
 
 Spawns a **disposable, empty PocketBase** in a temp directory running
 `server/pb_hooks` and `server/pb_migrations` unmodified, on 127.0.0.1, and
