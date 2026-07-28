@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-28.340 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-28.341 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -851,7 +851,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-28.340-pb";
+var APP_BUILD="2026-07-28.341-pb";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -2422,7 +2422,10 @@ function view_summary(){
   var ts=weekTrainingStats(s);var _tI=todayISO();
   var tCal=num(state.settings.targetCalories),tStep=num(state.settings.stepsGoal),tProt=num(state.settings.targetProtein),tFat=num(state.settings.targetFat),tCarb=num(state.settings.targetCarbs),tSleep=sleepGoalMin();
   var h='<div class="wl-stack">';
-  var _prevWv=weekDays(state.weekOffset+1).map(dayRow).filter(function(r){return r.weight!=null;}).map(function(r){return r.weight;});
+  /* PREVIOUS week is weekOffset-1: weekStartFor ADDS offset*7 and sum:prev decrements,
+     so past weeks are NEGATIVE offsets. Using +1 pointed at the week AFTER the one shown,
+     which never has data on the current week and inverted the sign on past weeks. */
+  var _prevWv=weekDays(state.weekOffset-1).map(dayRow).filter(function(r){return r.weight!=null;}).map(function(r){return r.weight;});
   var _thisAvg=wv.length?wv.reduce(function(a,b){return a+b;},0)/wv.length:null;
   var _lastAvg=_prevWv.length?_prevWv.reduce(function(a,b){return a+b;},0)/_prevWv.length:null;
   var _wChg=(_thisAvg!=null&&_lastAvg!=null)?_thisAvg-_lastAvg:null;
@@ -2676,7 +2679,7 @@ function repModel(days,opts){
   m.chg=null;m.prevAvg=null;m.chgBasis=null;
   if(m.mode==="week"&&opts.weekOffset!=null){
     /* week over week, measured the same way the Summary screen measures it */
-    var pv=weekDays(opts.weekOffset+1).map(dayRow).filter(function(r){return r.weight!=null;}).map(function(r){return r.weight;});
+    var pv=weekDays(opts.weekOffset-1).map(dayRow).filter(function(r){return r.weight!=null;}).map(function(r){return r.weight;});/* previous week = offset-1 (past weeks are negative) */
     if(pv.length&&m.wAvg!=null){m.prevAvg=pv.reduce(function(a,b){return a+b;},0)/pv.length;m.chg=m.wAvg-m.prevAvg;m.chgBasis="week";}}
   /* No previous week to compare against (a first week, or one with no weigh-ins
      before it) still has a story: fall back to first reading vs last WITHIN the
