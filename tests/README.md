@@ -48,6 +48,7 @@ Requires Playwright at `~/staging-cas/node_modules`. Not part of `run-all.js`.
 ### Route-contract tests (real PocketBase)
 
     node tests/browser/route-contract.browser.test.js      # 23 assertions
+    node tests/browser/manifest-recovery.browser.test.js   # 14 assertions
 
 Spawns a **disposable, empty PocketBase** in a temp directory running
 `server/pb_hooks` and `server/pb_migrations` unmodified, on 127.0.0.1, and
@@ -64,3 +65,20 @@ failed. See `RC-02b`.
 
 Requires the PocketBase binary at `~/staging-cas/bin/pocketbase`; skips cleanly
 if it is absent. Not part of `run-all.js`.
+
+### Independent recovery reader
+
+`tests/independent/cas-recovery-reader.js` answers one question from a raw
+storage dump: *is the copy that was taken of the online version still here,
+intact, and readable by something that is not the app?*
+
+It requires **nothing** — not the app, not the project, not Node's crypto. Its
+SHA-256 is its own (verified against Node's on multibyte vectors), so
+verification does not share a code path with the thing being verified. Someone
+holding a JSON dump of their browser storage and that one file can check their
+data. Proving recoverability with the app's own reader would only prove the app
+agrees with itself.
+
+`manifest-recovery.browser.test.js` runs the whole chain: a real PocketBase 409
+-> the server's own payload -> the app's recovery writer -> real localStorage ->
+a raw dump -> the independent reader -> the athlete's data, byte for byte.
