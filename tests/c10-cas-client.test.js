@@ -252,25 +252,45 @@ group('CAS-20 / spec §4 — bounded retry and per-status disposition', () => {
   ['409', '413', '426', '401', '400'].forEach((s) =>
     test(`${s} never enters the retry loop`, () => eq(C.cfCasRetryDelay(Number(s), 0), null)));
   test('a 200 carrying the success contract is ok', () =>
-    eq(C.cfCasDisposition(200, { ok: true, subsystem: 'core', newRev: 4 }), 'ok'));
+    eq(C.cfCasDisposition(200, { ok: true, subsystem: 'core', newRev: 4 }, 'core'), 'ok'));
   test('a bare 200 is NOT success — status alone is never proof', () =>
-    eq(C.cfCasDisposition(200, {}), 'contract'));
+    eq(C.cfCasDisposition(200, {}, 'core'), 'contract'));
   test('a 200 without newRev is not success', () =>
-    eq(C.cfCasDisposition(200, { ok: true, subsystem: 'core' }), 'contract'));
+    eq(C.cfCasDisposition(200, { ok: true, subsystem: 'core' }, 'core'), 'contract'));
   test('a 200 with ok:false is not success', () =>
-    eq(C.cfCasDisposition(200, { ok: false, newRev: 4 }), 'contract'));
+    eq(C.cfCasDisposition(200, { ok: false, newRev: 4 }, 'core'), 'contract'));
   test('a 200 with no body at all is not success', () =>
-    eq(C.cfCasDisposition(200, null), 'contract'));
+    eq(C.cfCasDisposition(200, null, 'core'), 'contract'));
+  test('C10-P8-11 a 200 without subsystem is rejected', () =>
+    eq(C.cfCasDisposition(200, { ok: true, newRev: 1 }, 'core'), 'contract'));
+  test('a 200 about the OTHER subsystem is rejected', () =>
+    eq(C.cfCasDisposition(200, { ok: true, subsystem: 'training', newRev: 1 }, 'core'), 'contract'));
+  test('C10-P8-12 a fractional newRev is rejected', () =>
+    eq(C.cfCasDisposition(200, { ok: true, subsystem: 'core', newRev: 1.5 }, 'core'), 'contract'));
+  test('C10-P8-12 a negative newRev is rejected', () =>
+    eq(C.cfCasDisposition(200, { ok: true, subsystem: 'core', newRev: -1 }, 'core'), 'contract'));
+  test('C10-P8-12 a non-numeric newRev is rejected', () =>
+    eq(C.cfCasDisposition(200, { ok: true, subsystem: 'core', newRev: '3' }, 'core'), 'contract'));
+  test('C10-P8-13 a 409 with no serverRev is a contract failure, not a conflict', () =>
+    eq(C.cfCasDisposition(409, { conflict: true, payload: {} }, 'core'), 'contract'));
+  test('C10-P8-13 a 409 with a non-object payload is a contract failure', () =>
+    eq(C.cfCasDisposition(409, { conflict: true, serverRev: 2, payload: 'nope' }, 'core'), 'contract'));
+  test('C10-P8-13 a 409 with an array payload is a contract failure', () =>
+    eq(C.cfCasDisposition(409, { conflict: true, serverRev: 2, payload: [] }, 'core'), 'contract'));
+  test('the documented no-row 409 IS a valid conflict', () =>
+    eq(C.cfCasDisposition(409, { conflict: true, serverRev: null, payload: null }, 'core'), 'conflict'));
+  test('a no-row 409 with a payload is malformed', () =>
+    eq(C.cfCasDisposition(409, { conflict: true, serverRev: null, payload: {} }, 'core'), 'contract'));
   test('409 with conflict:true is a conflict', () =>
-    eq(C.cfCasDisposition(409, { conflict: true }), 'conflict'));
+    eq(C.cfCasDisposition(409, { conflict: true, serverRev: 3, payload: {} }, 'core'), 'conflict'));
   test('409 reused-key is an INVARIANT, never a conflict card', () =>
-    eq(C.cfCasDisposition(409, { ok: false, error: 'idempotency key reused with a different request' }), 'invariant'));
-  test('413 is oversize', () => eq(C.cfCasDisposition(413, {}), 'oversize'));
-  test('426 is update-required', () => eq(C.cfCasDisposition(426, {}), 'update'));
-  test('401 is auth', () => eq(C.cfCasDisposition(401, {}), 'auth'));
-  test('400 is a contract failure, not a retry', () => eq(C.cfCasDisposition(400, {}), 'contract'));
+    eq(C.cfCasDisposition(409, { ok: false, error: 'idempotency key reused with a different request' }, 'core'), 'invariant'));
+  test('413 is oversize', () => eq(C.cfCasDisposition(413, {}, 'core'), 'oversize'));
+  test('426 is update-required', () => eq(C.cfCasDisposition(426, {}, 'core'), 'update'));
+  test('401 is auth', () => eq(C.cfCasDisposition(401, {}, 'core'), 'auth'));
+  test('400 is a contract failure, not a retry', () => eq(C.cfCasDisposition(400, {}, 'core'), 'contract'));
   test('an unexpected status fails closed as a contract failure', () =>
-    eq(C.cfCasDisposition(418, {}), 'contract'));
+    eq(C.cfCasDisposition(418, {}, 'core'), 'contract'));
 });
 
 report();

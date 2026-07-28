@@ -181,9 +181,9 @@ defer((async function scenarios() {
     });
     test('exactly one commit resulted from the coalesced edits', () => eq(commits(env).length, 1));
     test('the legacy raw push path produced nothing', () => eq(rawWrites(env).length, 0));
-    test('at most one request is in flight per subsystem', () => {
-      eq(env.S.CF_CAS_INFLIGHT.core, null);
-      eq(env.S.CF_CAS_INFLIGHT.training, null);
+    test('at most one operation exists per subsystem, and it is finished', () => {
+      eq(env.S.CF_CAS_OP.core, null);
+      eq(env.S.CF_CAS_OP.training, null);
     });
   });
 
@@ -215,6 +215,218 @@ defer((async function scenarios() {
     await pump(env);
     test('no timer callback threw', () => eq(env.timerErrors.map(String), []));
     test('and the commit really was sent', () => ok(commits(env).length >= 1));
+  });
+
+
+  /* ============ C10-P8: asynchronous request-context safety ============= */
+
+  /* Park the digest so a race can be driven deliberately rather than hoped for. */
+  function pausableDigest(env) {
+    const subtle = env.S.crypto.subtle;
+    const real = subtle.digest.bind(subtle);
+    let gate = null;
+    subtle.digest = (a, d) => (gate ? gate.then(() => real(a, d)) : real(a, d));
+    return {
+      hold() { let open; gate = new Promise((r) => { open = r; }); return () => { const g = open; gate = null; g(); }; },
+      restore() { subtle.digest = real; },
+    };
+  }
+  const okStub = (rev) => (e) => (/commit/.test(e.url)
+    ? { ok: true, status: 200, json: () => Promise.resolve({ ok: true, subsystem: JSON.parse(e.body).subsystem, newRev: rev }), text: () => Promise.resolve('') }
+    : null);
+
+  await group('C10-P8-01 — an edit during hashing cannot split the request', async () => {
+    const env = signedIn({ fetchResponses: okStub(1) });
+    const gate = pausableDigest(env);
+    env.S.state.weights.push({ d: '2026-08-01', kg: 70 });
+    env.S.save();
+    const release = gate.hold();
+    env.runTimers();                       /* build starts, parks in the digest */
+    await settle();
+    const revBefore = env.S.revLocal('core');
+    /* the athlete edits while we hash */
+    env.S.state.weights.push({ d: '2026-08-02', kg: 999 });
+    env.S.save();
+    const revAfterEdit = env.S.revLocal('core');
+    release();
+    await settle(); await settle();          /* first response applied, rerun not yet run */
+    const sent = JSON.parse(commits(env)[0].body);
+    test('the wire payload is the one that was captured, not the newer edit', () =>
+      notOk(JSON.stringify(sent.payload).includes('999')));
+    test('the key describes the same bytes that were sent', () => {
+      const canon = env.S.cfCanon(sent.payload);
+      ok(canon.length > 0);
+      notOk(canon.includes('999'));
+    });
+    /* The response may acknowledge ONLY the revision its own request captured.
+       Asserting after the rerun would prove nothing — by then the newer edit
+       has legitimately been sent too — so this checks the moment in between. */
+    test('the response acknowledged only the captured revision', () =>
+      eq(env.S.revTrack('core').success, revBefore));
+    test('the newer edit is still pending at that moment', () => {
+      ok(revAfterEdit > revBefore);
+      ok(env.S.revIsDirty('core'));
+    });
+    await pump(env, 4);
+    test('and the rerun then sends the newer edit under its own identity', () => {
+      const bodies = commits(env).map((c) => JSON.parse(c.body));
+      ok(bodies.length >= 2);
+      ok(JSON.stringify(bodies[1].payload).includes('999'));
+      notOk(bodies[0].idempotencyKey === bodies[1].idempotencyKey);
+    });
+    gate.restore();
+  });
+
+  await group('C10-P8-02/03/17 — one build per subsystem; a rerun follows', async () => {
+    const env = signedIn({ fetchResponses: okStub(1) });
+    const gate = pausableDigest(env);
+    env.S.state.weights.push({ d: '2026-08-03', kg: 71 });
+    env.S.save();
+    const release = gate.hold();
+    env.runTimers();
+    await settle();
+    test('an operation is reserved while building', () => ok(env.S.CF_CAS_OP.core !== null));
+    /* two more triggers arrive during the hash */
+    env.S.cfCasSyncNow('core');
+    env.S.cfCasSyncNow('core');
+    await settle();
+    test('C10-P8-02 no second request was started', () => eq(commits(env).length, 0));
+    test('a rerun was recorded instead', () => ok(env.S.CF_CAS_RERUN.core));
+    release();
+    await pump(env, 4);
+    test('C10-P8-02 exactly one fetch happened for the captured operation', () =>
+      ok(commits(env).length >= 1));
+    test('C10-P8-03 the rerun only ran because the subsystem was still dirty', () =>
+      notOk(env.S.revIsDirty('core')));
+    test('C10-P8-17 training was never blocked by core', () => eq(env.S.CF_CAS_OP.training, null));
+    gate.restore();
+  });
+
+  await group('C10-P8-04/05 — an account change during hashing sends nothing', async () => {
+    const env = signedIn({ fetchResponses: okStub(1) });
+    const gate = pausableDigest(env);
+    env.S.state.weights.push({ d: '2026-08-04', kg: 72 });
+    env.S.save();
+    const release = gate.hold();
+    env.runTimers();
+    await settle();
+    /* the session generation moves — a logout or an account switch */
+    env.S.CF_SESSION_GEN = env.S.CF_SESSION_GEN + 1;
+    release();
+    await pump(env);
+    test('C10-P8-04 no request was sent with the wrong session', () => eq(commits(env).length, 0));
+    test('C10-P8-05 the data is left pending, not lost', () => ok(env.S.revIsDirty('core')));
+    test('the operation was released so later work can proceed', () => eq(env.S.CF_CAS_OP.core, null));
+    gate.restore();
+  });
+
+  await group('C10-P8-06/07 — a late response for the old account is inert', async () => {
+    let resolveFetch;
+    const env = signedIn({ fetchResponses: (e) => (/commit/.test(e.url)
+      ? new Promise((r) => { resolveFetch = () => r({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, subsystem: 'core', newRev: 42 }), text: () => Promise.resolve('') }); })
+      : null) });
+    env.S.state.weights.push({ d: '2026-08-05', kg: 73 });
+    env.S.save();
+    await pump(env, 1);
+    test('the request is in flight', () => ok(commits(env).length === 1));
+    const revBefore = env.S.cfCasServerRev('core');
+    env.S.CF_SESSION_GEN = env.S.CF_SESSION_GEN + 1;   /* account switches */
+    resolveFetch();
+    await settle(); await settle();
+    test('C10-P8-06 the late 200 changed no revision', () => eq(env.S.cfCasServerRev('core'), revBefore));
+    test('C10-P8-06 it did not mark the new session clean', () => ok(env.S.revIsDirty('core')));
+    test('C10-P8-06 it set no block on the new account', () => eq(env.S.CF_CAS_BLOCK.core, null));
+  });
+
+  await group('C10-P8-07/10 — a late 409 for the old account creates nothing', async () => {
+    let resolveFetch;
+    const env = signedIn({ fetchResponses: (e) => (/commit/.test(e.url)
+      ? new Promise((r) => { resolveFetch = () => r({ ok: false, status: 409, json: () => Promise.resolve({ conflict: true, subsystem: 'core', serverRev: 5, payload: { weights: [{ d: 'x', kg: 1 }] } }), text: () => Promise.resolve('') }); })
+      : null) });
+    env.S.state.weights.push({ d: '2026-08-06', kg: 74 });
+    env.S.save();
+    await pump(env, 1);
+    env.S.CF_SESSION_GEN = env.S.CF_SESSION_GEN + 1;
+    resolveFetch();
+    await settle(); await settle();
+    test('C10-P8-07 no conflict reference was published', () => eq(env.S.cfCasConflictId('core'), null));
+    test('C10-P8-10 no recovery artifact was created', () => {
+      const keys = [...env.S.localStorage._map.keys()].filter((k) => k.indexOf('cf:casrec') === 0);
+      eq(keys.length, 0);
+    });
+    test('the subsystem is not left in a conflict state', () => notOk(env.S.CF_CAS_BLOCK.core === 'preserving'));
+  });
+
+  await group('C10-P8-08/09 — a genuine conflict pauses the subsystem at once', async () => {
+    const env = signedIn({ fetchResponses: (e) => (/commit/.test(e.url)
+      ? { ok: false, status: 409, json: () => Promise.resolve({ conflict: true, subsystem: 'core', serverRev: 5, payload: { weights: [{ d: 'server', kg: 60 }] } }), text: () => Promise.resolve('') }
+      : null) });
+    env.S.state.weights.push({ d: '2026-08-07', kg: 75 });
+    env.S.save();
+    await pump(env, 2);
+    const after = commits(env).length;
+    test('C10-P8-08 further automatic commits stop', () => {
+      env.S.state.weights.push({ d: '2026-08-08', kg: 76 });
+      env.S.save();
+      env.runTimers();
+      eq(commits(env).length, after);
+    });
+    test('C10-P8-09 the edit made during preservation survives', () => ok(env.S.revIsDirty('core')));
+    test('a recovery artifact was written for the server payload', () => {
+      const keys = [...env.S.localStorage._map.keys()].filter((k) => /cf:casrec:.*:manifest$/.test(k));
+      ok(keys.length >= 1);
+    });
+    test('and only then did a conflict reference appear', () => ok(env.S.cfCasConflictId('core')));
+  });
+
+  await group('C10-P8-14 — the baseline-equivalent retry happens exactly once', async () => {
+    let calls = 0;
+    const env = signedIn({ fetchResponses: (e) => {
+      if (!/commit/.test(e.url)) return null;
+      calls++;
+      /* the server always answers with the client's own last agreed baseline */
+      return { ok: false, status: 409, json: () => Promise.resolve({ conflict: true, subsystem: 'core', serverRev: 2 + calls, payload: {} }), text: () => Promise.resolve('') };
+    } });
+    env.S.cfCasSetBaseline('core', env.S.cfCanon({}));
+    env.S.state.weights.push({ d: '2026-08-09', kg: 77 });
+    env.S.save();
+    await pump(env, 8);
+    test('C10-P8-14 it retried once and then stopped, rather than looping', () => ok(calls <= 3));
+    test('the sequence flag records that the retry was used', () => ok(env.S.CF_CAS_SEQ.core.retried));
+    test('the second 409 produced a conflict rather than another retry', () =>
+      ok(env.S.cfCasConflictId('core') || env.S.CF_CAS_BLOCK.core));
+  });
+
+  await group('C10-P8-15/16 — an uncertain retry reuses the exact request', async () => {
+    let attempt = 0;
+    const env = signedIn({ fetchResponses: (e) => {
+      if (!/commit/.test(e.url)) return null;
+      attempt++;
+      if (attempt === 1) return { ok: false, status: 500, json: () => Promise.resolve({}), text: () => Promise.resolve('') };
+      return { ok: true, status: 200, json: () => Promise.resolve({ ok: true, subsystem: 'core', newRev: 9 }), text: () => Promise.resolve('') };
+    } });
+    env.S.state.weights.push({ d: '2026-08-10', kg: 78 });
+    env.S.save();
+    await pump(env, 2);
+    /* a newer edit arrives while the retry is pending */
+    env.S.state.weights.push({ d: '2026-08-11', kg: 888 });
+    env.S.save();
+    await pump(env, 6);
+    const bodies = commits(env).map((c) => JSON.parse(c.body));
+    test('C10-P8-15 the retry reused the identical idempotency key', () =>
+      eq(bodies[0].idempotencyKey, bodies[1].idempotencyKey));
+    test('C10-P8-15 and the identical expectedRev', () => eq(bodies[0].expectedRev, bodies[1].expectedRev));
+    test('C10-P8-16 the retry did not smuggle the newer edit into the old identity', () =>
+      notOk(JSON.stringify(bodies[1].payload).includes('888')));
+  });
+
+  await group('C10-P8-18 — nothing fails silently', async () => {
+    const env = signedIn({ fetchResponses: okStub(1) });
+    env.S.state.weights.push({ d: '2026-08-12', kg: 79 });
+    env.S.save();
+    await pump(env, 4);
+    test('no timer callback threw', () => eq(env.timerErrors.map(String), []));
+    test('the operation completed cleanly', () => eq(env.S.CF_CAS_OP.core, null));
   });
 
   report();

@@ -8209,11 +8209,27 @@ function cfCasRetryDelay(status,attempt){
   if(attempt===1)return 30000;
   return null;}                                 /* stop; wait for an explicit trigger */
 
+/* ---- response contracts (review C10-P8-05) ------------------------------
+   A status is never proof. These say what a valid success and a valid conflict
+   actually look like, so a malformed body cannot be canonicalized into a fake
+   conflict or a fake recovery artifact. */
+function cfCasNonNegInt(v){return typeof v==="number"&&isFinite(v)&&v>=0&&Math.floor(v)===v;}
+function cfCasOkBody(body,sub){
+  if(!body||body.ok!==true)return false;
+  if(body.subsystem!==sub)return false;          /* absent is not valid either */
+  return cfCasNonNegInt(body.newRev);}
+function cfCasConflictBody(body,sub){
+  if(!body||body.conflict!==true)return false;
+  if(body.subsystem!==undefined&&body.subsystem!==sub)return false;
+  if(body.serverRev===null)return body.payload===null;      /* documented no-row case */
+  if(!cfCasNonNegInt(body.serverRev))return false;
+  return !!body.payload&&typeof body.payload==="object"&&!Array.isArray(body.payload);}
+
 /* ---- per-status disposition (spec §4) ----------------------------------
    The single table that decides what a response means. "invariant" is the
    reused-key case: a client bug the athlete cannot act on, so it must reach
    the safe failure state and never the conflict center. */
-function cfCasDisposition(status,body){
+function cfCasDisposition(status,body,sub){
   /* A 200 is not success on its own. The route's success contract is
      {ok:true, subsystem, newRev}; anything else answering 200 — a proxy page, a
      misrouted request, a framework body — must never be read as "committed",
@@ -8221,11 +8237,9 @@ function cfCasDisposition(status,body){
      This is the Round 2 rule applied to the client: never assert on a status
      alone. Caught by the c1d/c1h suites, which expect an edit to stay pending
      and saw it go clean against a generic 200 stub. */
-  if(status===200){
-    if(body&&body.ok===true&&typeof body.newRev==="number")return "ok";
-    return "contract";}
+  if(status===200)return cfCasOkBody(body,sub)?"ok":"contract";
   if(status===409){
-    if(body&&body.conflict===true)return "conflict";
+    if(body&&body.conflict===true)return cfCasConflictBody(body,sub)?"conflict":"contract";
     return "invariant";}                        /* key reused with a different request */
   if(status===401||status===403)return "auth";
   if(status===426)return "update";
@@ -8506,7 +8520,9 @@ function cfCasSha256Hex(str,cb){return cfCasRecStore.sha256(str,cb);}
    C10-PLAN-12 asserts that no legacy scheduler survives alongside this one. */
 var CF_CAS_DEBOUNCE_MS=3000;                       /* spec §2.1 */
 var CF_CAS_TIMER={core:null,training:null};
-var CF_CAS_INFLIGHT={core:null,training:null};     /* at most one per subsystem */
+var CF_CAS_OP={core:null,training:null};           /* the ONE active operation */
+var CF_CAS_RERUN={core:false,training:false};      /* a trigger arrived mid-flight */
+var CF_CAS_SEQ={core:{retried:false},training:{retried:false}};  /* conflict sequence */
 var CF_CAS_ATTEMPT={core:0,training:0};
 var CF_CAS_BLOCK={core:null,training:null};
 
@@ -8545,22 +8561,35 @@ function cfCasRandomIdFallback(){
   try{if(typeof crypto!=="undefined"&&crypto.randomUUID)return String(crypto.randomUUID()).replace(/-/g,"");}catch(e){}
   return String(Date.now());}
 
-/* ---- one request ------------------------------------------------------- */
-function cfCasBuildRequest(sub,cb){
-  var canon=cfCanon(cfCasPayloadFor(sub));
-  var expectedRev=cfCasServerRev(sub);
-  var identity=cfCasIdentity(sub,expectedRev,canon);
-  cfCasSha256Hex(identity,function(hex){
-    if(!cfCasHashValid(hex)){cb(null);return;}
-    var key=cfCasKeyFrom(hex);
-    if(!key){cb(null);return;}                      /* refuse rather than truncate */
-    cb({sub:sub,expectedRev:expectedRev,key:key,canon:canon,
-        localRev:revLocal(sub),payload:cfCasPayloadFor(sub)});});}
+/* ---- one captured operation --------------------------------------------
+   Review C10-P8-01/02/03. Everything a request needs is captured ONCE, before
+   any asynchronous work begins, and nothing rereads mutable application state
+   afterwards. The previous version canonicalised the payload, hashed it, then
+   re-read the payload and the local revision — so an edit landing during the
+   hash produced a request whose idempotency key described payload A while its
+   body carried payload B, and whose acknowledged revision belonged to neither.
 
-function cfCasSend(req,cb){
+   The payload sent on the wire is parsed back out of the canonical bytes the
+   key was derived from, so the two cannot disagree by construction. */
+function cfCasCapture(sub){
+  var canon=cfCanon(cfCasPayloadFor(sub));
+  var frozen=null;
+  try{frozen=JSON.parse(canon);}catch(e){frozen=null;}
+  return {sub:sub,localRev:revLocal(sub),expectedRev:cfCasServerRev(sub),
+          canon:canon,payload:frozen,key:null,
+          owner:pbUid(),gen:CF_SESSION_GEN,tok:String(pbTok()||"").slice(-16),
+          build:APP_BUILD,device:cfCasDeviceId()};}
+
+/* Has the ground moved under this operation? Checked before sending AND before
+   applying any response, so a late answer for a signed-out account is inert. */
+function cfCasOpDrifted(op){
+  return !op||op.owner!==pbUid()||op.gen!==CF_SESSION_GEN||
+         op.tok!==String(pbTok()||"").slice(-16);}
+
+function cfCasSend(op,cb){
   var url=pbBase()+"/api/cf/appdata/commit";
-  var body={subsystem:req.sub,expectedRev:req.expectedRev,idempotencyKey:req.key,
-            payload:req.payload,clientBuild:APP_BUILD,deviceId:cfCasDeviceId()};
+  var body={subsystem:op.sub,expectedRev:op.expectedRev,idempotencyKey:op.key,
+            payload:op.payload,clientBuild:op.build,deviceId:op.device};
   try{
     fetch(url,{method:"POST",headers:pbHeaders(true),body:JSON.stringify(body)})
       .then(function(r){
@@ -8584,74 +8613,115 @@ function cfCasSyncNow(sub){
   if(sub){cfCasClearTimer(sub);cfCasRun(sub);return;}
   cfCasSyncNow("core");cfCasSyncNow("training");}
 
+/* The subsystem is reserved BEFORE the asynchronous build, not after it, so a
+   second trigger during hashing cannot start a second hash or fetch. It records
+   that another run is wanted and takes its turn when this one finishes. */
+function cfCasFinishOp(sub){
+  CF_CAS_OP[sub]=null;
+  if(CF_CAS_RERUN[sub]){
+    CF_CAS_RERUN[sub]=false;
+    if(cfCasCanCommit(cfCasState(sub)))cfCasSchedule(sub,0);}}
+
 function cfCasRun(sub){
-  if(CF_CAS_INFLIGHT[sub])return;                   /* at most one in flight */
+  if(CF_CAS_OP[sub]){CF_CAS_RERUN[sub]=true;return;}   /* building OR sending */
   if(!syncOn())return;
-  if(!cfCasCanCommit(cfCasState(sub)))return;       /* the single precondition list */
-  if(cfAccountBlocked&&cfAccountBlocked())return;   /* ownership gates stay preconditions */
-  cfCasBuildRequest(sub,function(req){
-    if(!req){CF_CAS_BLOCK[sub]="invariant";return;}
-    CF_CAS_INFLIGHT[sub]=req;
-    revAttempt(sub);
-    cfCasSend(req,function(status,bodyJson){
-      CF_CAS_INFLIGHT[sub]=null;
-      cfCasHandle(sub,req,status,bodyJson||{});});});}
+  if(!cfCasCanCommit(cfCasState(sub)))return;
+  if(cfAccountBlocked&&cfAccountBlocked())return;      /* ownership gates stay preconditions */
+  var op=cfCasCapture(sub);
+  if(!op.owner||op.payload===null){return;}
+  CF_CAS_OP[sub]={phase:"building",op:op};
+  cfCasStartOp(sub,op);}
+
+function cfCasStartOp(sub,op){
+  cfCasSha256Hex(cfCasIdentity(op.sub,op.expectedRev,op.canon),function(hex){
+    if(!cfCasHashValid(hex)){CF_CAS_BLOCK[sub]="invariant";cfCasFinishOp(sub);return;}
+    var key=cfCasKeyFrom(hex);
+    if(!key){CF_CAS_BLOCK[sub]="invariant";cfCasFinishOp(sub);return;}  /* never truncate */
+    op.key=key;
+    if(cfCasOpDrifted(op)){cfCasFinishOp(sub);return;}   /* cancel without sending */
+    cfCasDispatch(sub,op);});}
+
+/* Sending a CAPTURED operation. A retry re-sends this same object, so the
+   expected revision, payload bytes and idempotency key are identical (review §7);
+   a newer local edit waits its turn behind it rather than silently taking over
+   an uncertain request's identity. */
+function cfCasDispatch(sub,op){
+  if(!CF_CAS_OP[sub])CF_CAS_OP[sub]={phase:"sending",op:op};
+  else CF_CAS_OP[sub].phase="sending";
+  revAttempt(sub);
+  cfCasSend(op,function(status,body){
+    if(cfCasOpDrifted(op)){cfCasFinishOp(sub);return;}   /* late, wrong account: inert */
+    cfCasHandle(sub,op,status,body||{});});}
 
 /* ---- response disposition ---------------------------------------------- */
-function cfCasHandle(sub,req,status,body){
-  var d=cfCasDisposition(status,body);
+function cfCasHandle(sub,op,status,body){
+  var d=cfCasDisposition(status,body,sub);
+
   if(d==="ok"){
-    if(body.subsystem!==undefined&&body.subsystem!==sub){   /* answered about another subsystem */
-      CF_CAS_BLOCK[sub]="invariant";return;}
-    CF_CAS_ATTEMPT[sub]=0;CF_CAS_BLOCK[sub]=null;
-    var acked=cfCasAck(revTrack(sub),req.localRev,
-                       (typeof body.newRev==="number")?body.newRev:null);
-    revCommit(sub,req.localRev);                    /* acknowledges ONLY what was sent */
-    if(typeof body.newRev==="number")cfCasSetServerRev(sub,body.newRev);
-    cfCasSetBaseline(sub,req.canon);                /* this is now the agreed content */
-    if(acked.stillPending)cfCasSchedule(sub,0);     /* an edit landed mid-flight */
+    CF_CAS_ATTEMPT[sub]=0;CF_CAS_BLOCK[sub]=null;CF_CAS_SEQ[sub].retried=false;
+    var acked=cfCasAck(revTrack(sub),op.localRev,body.newRev);
+    revCommit(sub,op.localRev);                  /* acknowledges ONLY what was sent */
+    cfCasSetServerRev(sub,body.newRev);
+    cfCasSetBaseline(sub,op.canon);              /* this is now the agreed content */
+    cfCasFinishOp(sub);
+    if(acked.stillPending)cfCasSchedule(sub,0);  /* an edit landed mid-flight */
     return;}
 
-  if(d==="conflict"){
-    CF_CAS_ATTEMPT[sub]=0;
-    cfCasOnConflict(sub,req,body);
-    return;}
+  if(d==="conflict"){cfCasOnConflict(sub,op,body);return;}   /* owns its own finish */
 
   if(d==="retry"){
     var wait=cfCasRetryDelay(status,CF_CAS_ATTEMPT[sub]);
     CF_CAS_ATTEMPT[sub]=CF_CAS_ATTEMPT[sub]+1;
-    if(wait===null){CF_CAS_BLOCK[sub]="failed";return;}   /* stop; await an explicit trigger */
-    cfCasSchedule(sub,wait);
+    if(wait===null){CF_CAS_BLOCK[sub]="failed";cfCasFinishOp(sub);return;}
+    /* Re-send the CAPTURED operation: same key, same bytes, same expectedRev. */
+    CF_CAS_OP[sub].phase="waiting-retry";
+    setTimeout(function(){
+      if(cfCasOpDrifted(op)){cfCasFinishOp(sub);return;}
+      cfCasDispatch(sub,op);},wait);
     return;}
 
   /* auth | update | oversize | contract | invariant: no automatic retry. Local
      data stays exactly where it is and stays exportable. */
-  CF_CAS_BLOCK[sub]=(d==="contract")?"invariant":d;}
+  CF_CAS_BLOCK[sub]=(d==="contract")?"invariant":d;
+  cfCasFinishOp(sub);}
 
 /* ---- 409 --------------------------------------------------------------- */
-function cfCasOnConflict(sub,req,body){
-  var serverRev=(typeof body.serverRev==="number")?body.serverRev:null;
+function cfCasOnConflict(sub,op,body){
+  var serverRev=(body.serverRev===null)?null:body.serverRev;
   if(serverRev!==null)cfCasSetServerRev(sub,serverRev);
   var serverCanon=cfCanon(body.payload===undefined?null:body.payload);
-  var verdict=cfCasAutoResolve(serverCanon,req.canon,cfCasBaseline(sub),
-                               CF_CAS_ATTEMPT[sub]>0);
+  var verdict=cfCasAutoResolve(serverCanon,op.canon,cfCasBaseline(sub),
+                               CF_CAS_SEQ[sub].retried);
+
   if(verdict==="agree"){
-    revCommit(sub,req.localRev);
+    CF_CAS_ATTEMPT[sub]=0;CF_CAS_SEQ[sub].retried=false;
+    revCommit(sub,op.localRev);
     cfCasSetBaseline(sub,serverCanon);
+    cfCasFinishOp(sub);
     return;}
+
   if(verdict==="retry-once"){
-    CF_CAS_ATTEMPT[sub]=1;
+    /* The sequence flag lives outside the network-retry counter, which is reset
+       on every response — reading that counter meant "already retried" was
+       always false and the baseline path could retry after every 409. */
+    CF_CAS_SEQ[sub].retried=true;
+    cfCasFinishOp(sub);
     cfCasSchedule(sub,0);
     return;}
-  /* A genuine conflict. The server payload becomes a verified recovery artifact
-     BEFORE any conflict card exists; if that write fails the subsystem enters
-     the recovery-blocked state and no destructive choice is offered. */
+
+  /* A genuine conflict. Block the subsystem IMMEDIATELY — before the async
+     recovery write — so an edit arriving during preservation cannot schedule
+     another commit into a conflict that is still being made actionable. */
+  CF_CAS_BLOCK[sub]="preserving";
+  cfCasFinishOp(sub);
   var id=cfCasRecNewId(sub);
   if(!id){CF_CAS_BLOCK[sub]="recovery";return;}
   cfCasRecWrite(id,sub,serverRev===null?0:serverRev,
     JSON.stringify(body.payload===undefined?null:body.payload),function(ok){
+      if(cfCasOpDrifted(op)){return;}            /* drifted: publish nothing */
       if(!ok){CF_CAS_BLOCK[sub]="recovery";return;}
-      cfCasSetConflictId(sub,id);                    /* only now is it actionable */
+      cfCasSetConflictId(sub,id);                /* only now is it actionable */
+      CF_CAS_BLOCK[sub]=null;                    /* conflictId is the block now */
     });}
 
 /* ---- re-point the frozen entry points ---------------------------------- */
