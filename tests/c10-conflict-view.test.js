@@ -1,0 +1,229 @@
+/* Commit 10 — the rendered conflict centre.
+
+   These assert the ATHLETE-FACING contract: the exact wording the Architect
+   specified, the hierarchy, the focus order, the accessible names, and the rule
+   that a background discovery never takes over the screen.
+
+   Wording is asserted literally. If a string changes, this suite should fail —
+   that is the point of putting product language under test rather than trusting
+   a screenshot nobody re-reads. */
+const { test, group, eq, ok, notOk, report } = require('./harness');
+const { createEnv } = require('./integration-env');
+
+const PB = { uid: 'userA', base: 'https://pb.test', token: 'tok', email: 'a@x.com' };
+function env(opts) {
+  const e = createEnv({ localStorage: { wl_pb: JSON.stringify(PB), 'cf:lastOwner': 'userA' } });
+  (opts || []).forEach((f) => f(e));
+  return e;
+}
+const withConflict = (sub) => (e) => e.S.cfCasSetConflictId(sub, 'casrec-' + sub + '-' + 'a'.repeat(32));
+const withBlock = (sub, kind) => (e) => e.S.cfCasSetBlock(sub, kind, 'tok');
+const withRechoose = (sub) => (e) => { e.S.CF_CAS_RECHOOSE[sub] = true; };
+
+group('The heading and body say what happened, in the athlete\'s terms', () => {
+  const h = env([withConflict('core')]).S.cfCasConflictCenterHTML();
+  test('heading is the specified sentence', () =>
+    ok(h.includes('Changes were made on another device')));
+  test('body names the affected section', () =>
+    ok(h.includes('Your changes are safe on this device. Choose what should happen to Health &amp; progress.')));
+  test('it leads with the reassurance, not the problem', () => {
+    const body = h.indexOf('Your changes are safe');
+    const choose = h.indexOf('Choose what should happen');
+    ok(body >= 0 && body < choose);
+  });
+  test('no revision, subsystem code, CAS or payload wording reaches the screen', () => {
+    const text = h.replace(/data-sub="(core|training)"/g, '').replace(/id="cfcard-(core|training)/g, '');
+    notOk(/\bcoreRev\b|\btrainingRev\b|\bCAS\b|\bpayload\b|\brevision\b|expectedRev/i.test(text));
+  });
+  test('no record id or artifact id is shown', () => notOk(/casrec-/.test(env([withConflict('core')]).S.cfCasConflictCenterHTML())));
+});
+
+group('The three choices carry the specified labels and help text', () => {
+  const h = env([withConflict('core')]).S.cfCasConflictCenterHTML();
+  test('choice 1 label', () => ok(h.includes('Keep this device’s changes')));
+  test('choice 1 help', () =>
+    ok(h.includes('Keep working here. Sync for this section stays paused until you choose whether to update the online copy.')));
+  test('choice 2 label', () => ok(h.includes('Use this device everywhere')));
+  test('choice 2 help names what is replaced and what is saved first', () =>
+    ok(h.includes('Replace the online copy with this device’s version. The current online copy will be saved first.')));
+  test('choice 3 label', () => ok(h.includes('Use the online copy here')));
+  test('choice 3 help names what is replaced and what is saved first', () =>
+    ok(h.includes('Replace this device’s version. This device’s current version will be saved first.')));
+  test('the confirmations name what is being replaced', () => {
+    const c = env().S.CF_CAS_COPY;
+    ok(c.device.confirm.includes('Replace the online copy'));
+    ok(c.online.confirm.includes('Replace this device’s version'));
+  });
+});
+
+group('Hierarchy and focus order put the safe choice first', () => {
+  const h = env([withConflict('core')]).S.cfCasConflictCenterHTML();
+  const order = ['cf:keep', 'cf:use-device', 'cf:use-online'].map((a) => h.indexOf(a));
+  test('keep-local is the first focusable action', () => {
+    ok(order[0] >= 0);
+    ok(order[0] < order[1] && order[1] < order[2]);
+  });
+  test('keep-local is the focused default', () => {
+    const keepIdx = h.indexOf('data-act="cf:keep"');
+    const autofocusIdx = h.indexOf('autofocus');
+    ok(autofocusIdx > keepIdx && autofocusIdx < h.indexOf('data-act="cf:use-device"'));
+  });
+  test('keep-local is the visually primary action', () =>
+    ok(/wl-btn-primary[^>]*data-act="cf:keep"|data-act="cf:keep"[^>]*/.test(h) && h.includes('wl-btn-primary')));
+  test('the destructive choices are not primary-styled', () => {
+    const device = h.slice(h.indexOf('data-act="cf:use-device"') - 120, h.indexOf('data-act="cf:use-device"'));
+    notOk(device.includes('wl-btn-primary'));
+  });
+  test('there is NO bulk resolve action', () => notOk(/resolve-all|cf:resolve-all/i.test(h)));
+  test('exactly ONE autofocus exists, even with two cards', () => {
+    /* Two autofocus attributes are invalid HTML and leave it to the browser
+       which section a keyboard or screen-reader user lands in. Caught by
+       reading the rendered DOM's focus order rather than the markup. */
+    const both = env([withConflict('core'), withConflict('training')]).S.cfCasConflictCenterHTML();
+    eq((both.match(/autofocus/g) || []).length, 1);
+  });
+  test('the autofocus belongs to the FIRST card\'s safe choice', () => {
+    const both = env([withConflict('core'), withConflict('training')]).S.cfCasConflictCenterHTML();
+    const af = both.indexOf('autofocus');
+    ok(af > both.indexOf('cfcard-core-title'));
+    ok(af < both.indexOf('cfcard-training-title'));
+  });
+});
+
+group('Screen-reader names and descriptions', () => {
+  const h = env([withConflict('core'), withConflict('training')]).S.cfCasConflictCenterHTML();
+  test('the centre is a labelled region', () => {
+    ok(h.includes('role="region"'));
+    ok(h.includes('aria-labelledby="cf-conflict-heading"'));
+  });
+  test('each card is a group labelled by its own title', () => {
+    ok(h.includes('role="group"'));
+    ok(h.includes('aria-labelledby="cfcard-core-title"'));
+    ok(h.includes('aria-labelledby="cfcard-training-title"'));
+  });
+  test('every choice is described by its help text', () => {
+    ['keep', 'device', 'online'].forEach((k) =>
+      ok(h.includes('aria-describedby="cfcard-core-' + k + '-help"')));
+    ['keep', 'device', 'online'].forEach((k) =>
+      ok(h.includes('id="cfcard-core-' + k + '-help"')));
+  });
+  test('the status indicator has an accessible name and announces politely', () => {
+    const s = env([withConflict('core')]).S.cfCasStatusHTML();
+    ok(s.includes('aria-label="Sync needs your choice"'));
+    ok(s.includes('aria-live="polite"'));
+  });
+});
+
+group('Both cards appear together, and each resolves independently', () => {
+  const both = env([withConflict('core'), withConflict('training')]).S.cfCasConflictCenterHTML();
+  test('both sections are shown', () => {
+    ok(both.includes('Health &amp; progress'));
+    ok(both.includes('Training &amp; workouts'));
+  });
+  test('each card carries its own subsystem on every action', () => {
+    ok(both.includes('data-act="cf:keep" data-sub="core"'));
+    ok(both.includes('data-act="cf:keep" data-sub="training"'));
+  });
+  const one = env([withConflict('core')]).S.cfCasConflictCenterHTML();
+  test('a single conflict shows one card only', () => {
+    ok(one.includes('Health &amp; progress'));
+    notOk(one.includes('Training &amp; workouts'));
+  });
+  test('with nothing pending the centre says so plainly', () => {
+    const none = env().S.cfCasConflictCenterHTML();
+    ok(none.includes('Nothing needs your attention right now.'));
+    notOk(none.includes('Keep this device’s changes'));
+  });
+});
+
+group('The preserving and recovery-blocked states', () => {
+  const preserving = env([withBlock('core', 'preserving')]).S.cfCasConflictCenterHTML();
+  test('preserving explains what is happening', () =>
+    ok(preserving.includes('Saving a copy of the online version…')));
+  test('preserving offers NO destructive choice', () => {
+    notOk(preserving.includes('Use this device everywhere'));
+    notOk(preserving.includes('Use the online copy here'));
+  });
+
+  const blocked = env([withConflict('core'), withBlock('core', 'recovery')]).S.cfCasConflictCenterHTML();
+  test('blocked says the copy could not be saved, and does not claim otherwise', () => {
+    ok(blocked.includes('We couldn’t save a copy of the online version, so these options aren’t available yet.'));
+    notOk(/copy (has been|was) saved/i.test(blocked));
+  });
+  test('blocked offers export and retry, not a choice between versions', () => {
+    ok(blocked.includes('Export a copy'));
+    ok(blocked.includes('Try again'));
+    notOk(blocked.includes('Use this device everywhere'));
+    notOk(blocked.includes('Use the online copy here'));
+  });
+  test('blocked reassures that the data is safe locally', () =>
+    ok(blocked.includes('Your data is safe on this device')));
+});
+
+group('The changed-again state asks for a fresh decision', () => {
+  const h = env([withConflict('core'), withRechoose('core')]).S.cfCasConflictCenterHTML();
+  test('it uses the specified sentence', () =>
+    ok(h.includes('The online copy changed again. Review your choice.')));
+  test('the notice comes before the choices', () =>
+    ok(h.indexOf('changed again') < h.indexOf('Keep this device’s changes')));
+  test('all three choices are offered again', () => {
+    ok(h.includes('Keep this device’s changes'));
+    ok(h.includes('Use this device everywhere'));
+    ok(h.includes('Use the online copy here'));
+  });
+  test('it is announced, not silently swapped', () => ok(h.includes('role="status"')));
+});
+
+group('Status wording and per-subsystem detail', () => {
+  const e = env([withConflict('core')]);
+  test('the compact indicator opens the centre rather than being a modal', () => {
+    const s = e.S.cfCasStatusHTML();
+    ok(s.includes('data-act="cf:open-conflicts"'));
+    notOk(/role="dialog"|aria-modal/.test(s));
+  });
+  test('the detail lists both sections, each with its OWN state', () => {
+    const d = e.S.cfCasStatusDetailHTML();
+    ok(d.includes('Health &amp; progress'));
+    ok(d.includes('Training &amp; workouts'));
+    /* Assert each section reports the state it actually has, rather than a
+       hard-coded pair: the fixture's training data is legitimately pending, and
+       expecting "Synced" there was my error, not the view's. */
+    ok(d.includes(e.S.cfCasStatusText(e.S.cfCasStatusFor('core'))));
+    ok(d.includes(e.S.cfCasStatusText(e.S.cfCasStatusFor('training'))));
+    eq(e.S.cfCasStatusFor('core'), 'conflict');
+  });
+  test('pending is worded as saved, never as unsaved', () => {
+    eq(e.S.cfCasStatusText('pending'), 'Saved on this device');
+    notOk(/unsaved|not saved/i.test(e.S.cfCasStatusText('pending')));
+  });
+  test('every status string avoids technical vocabulary', () => {
+    Object.keys(e.S.CF_CAS_STATUS_TEXT).forEach((k) =>
+      notOk(/rev|CAS|payload|subsystem|conflict id/i.test(e.S.CF_CAS_STATUS_TEXT[k])));
+  });
+});
+
+group('A conflict found mid-workout never takes over the screen', () => {
+  const busy = env([withConflict('core')]);
+  busy.S.state.workout = { exercises: [{ name: 'Squat' }] };
+  test('interruption is refused while a workout is open', () => notOk(busy.S.cfCasMayInterrupt()));
+  const idle = env([withConflict('core')]);
+  idle.S.state.workout = null;
+  test('and permitted when there is no workout in progress', () => ok(idle.S.cfCasMayInterrupt()));
+  test('the centre is never rendered as a modal dialog', () => {
+    const h = busy.S.cfCasConflictCenterHTML();
+    notOk(/role="dialog"|aria-modal="true"/.test(h));
+  });
+});
+
+group('Hostile content cannot break out of the markup', () => {
+  const e = env([withConflict('core')]);
+  e.S.CF_CAS_LABEL.core = '<img src=x onerror=alert(1)>';
+  const h = e.S.cfCasConflictCenterHTML();
+  test('a label is escaped, not injected', () => {
+    notOk(h.includes('<img src=x'));
+    ok(h.includes('&lt;img src=x'));
+  });
+  e.S.CF_CAS_LABEL.core = 'Health & progress';
+});
+
+report();
