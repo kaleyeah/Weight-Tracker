@@ -835,6 +835,10 @@ const CARD = { core: 'Health & progress', training: 'Training & workouts' };
   await test('BROWSER-STATE-06 an active workout gets the notification but never the centre', async () => {
     await page.reload({ waitUntil: 'load' });
     await page.waitForFunction(() => document.documentElement.style.visibility !== 'hidden');
+    /* BROWSER-STATE-05 left a durable preservation obligation behind, and after
+       a reload cfCasRestoreWorkflow() correctly reinstates it as a blocked
+       subsystem. Clear it so this test starts from nothing owed. */
+    await setState(page, {});
     const res = await page.evaluate(async () => {
       state.workout = { entries: [], start: Date.now() };
       const mayInterrupt = cfCasMayInterrupt();

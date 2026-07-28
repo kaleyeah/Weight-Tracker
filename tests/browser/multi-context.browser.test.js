@@ -138,6 +138,118 @@ const SUB = 'core';
     eq(settled.payload, null, 'and once purged it stays purged in both tabs');
   });
 
+  /* ---- Architect-required: C10-MC-01..05 ------------------------------
+     My MC-06 was vacuous and they caught it. It generated six ids and purged
+     them immediately — but never wrote artifacts, so every purge hit a
+     nonexistent record, returned the valid "absent" result, and created no
+     deletion obligation at all. `tracked || !present` was then trivially true
+     for six ids that were never present. The test described concurrent ledger
+     contention and exercised none of it.
+
+     This version creates six REAL verified artifacts and then forces the
+     deletion itself to fail, which is the only thing that produces a ledger
+     obligation. */
+  section('C10-MC-01..05 — the cleanup ledger under real concurrent failure');
+
+  /* Make removeItem silently ignore recovery keys, in one tab. purgeScoped
+     re-reads after removing and reports what is GONE, so a storage layer that
+     quietly drops the removal is detected as "not-removed" — the real-world
+     case (quota state, a wrapper, an extension) this ledger exists for. */
+  const breakDeletion = (page) => page.evaluate(() => {
+    if (window.__origRemove) return;
+    window.__origRemove = Storage.prototype.removeItem;
+    Storage.prototype.removeItem = function (k) {
+      if (/^cf:casrec:/.test(String(k))) return;      /* silently ignored */
+      return window.__origRemove.call(this, k);
+    };
+  });
+  const fixDeletion = (page) => page.evaluate(() => {
+    if (!window.__origRemove) return;
+    Storage.prototype.removeItem = window.__origRemove;
+    window.__origRemove = null;
+  });
+
+  let sixIds = [];
+  let sixScope = null;
+
+  await test('C10-MC-01 six REAL verified artifacts exist before any purge', async () => {
+    sixIds = [];
+    for (let i = 0; i < 6; i++) {
+      const id = await newId(A);
+      const w = await write(A, id, 40 + i, { n: i, weights: [{ date: '2026-01-0' + (i + 1), weight: 70 + i }] });
+      ok(w.ok, 'artifact ' + i + ' failed to write: ' + w.man);
+      sixIds.push(id);
+    }
+    sixScope = await A.evaluate(() => cfCasRecScope());
+    const listed = await A.evaluate(() => cfCasRecList());
+    sixIds.forEach((id, i) => ok(listed.indexOf(id) >= 0, 'artifact ' + i + ' is not listed'));
+    /* and each genuinely verifies — "written" is not "verified" */
+    for (let i = 0; i < 6; i++) {
+      const got = await read(A, sixIds[i], 40 + i);
+      ok(got.payload !== null, 'artifact ' + i + ' does not verify: ' + got.why);
+    }
+  });
+
+  await test('C10-MC-02 forced deletion failure creates six real ledger obligations', async () => {
+    await A.evaluate(() => cfCasRecStore.pendingClearForTest && cfCasRecStore.pendingClearForTest());
+    await Promise.all([breakDeletion(A), breakDeletion(B)]);
+    const results = await Promise.all([
+      A.evaluate((s) => Promise.all(s.ids.slice(0, 3).map((id) => new Promise((res) => {
+        cfCasRecPurgeTracked(s.scope, id, (okP, why) => res({ okP, why: why || null }));
+      }))), { ids: sixIds, scope: sixScope }),
+      B.evaluate((s) => Promise.all(s.ids.slice(3).map((id) => new Promise((res) => {
+        cfCasRecPurgeTracked(s.scope, id, (okP, why) => res({ okP, why: why || null }));
+      }))), { ids: sixIds, scope: sixScope }),
+    ]);
+    const flat = results.flat();
+    eq(flat.length, 6);
+    flat.forEach((r, i) => notOk(r.okP, 'purge ' + i + ' unexpectedly succeeded'));
+    /* self-check: if deletion did not actually fail, everything below is vacuous
+       again — which is exactly how the previous version passed */
+    const stillThere = await A.evaluate(() => cfCasRecList());
+    sixIds.forEach((id, i) =>
+      ok(stillThere.indexOf(id) >= 0, 'artifact ' + i + ' was removed — the failure was not forced'));
+  });
+
+  await test('C10-MC-03 concurrent additions from both tabs preserve all six, exactly once', async () => {
+    const pending = await A.evaluate(() => cfCasRecPendingCleanup());
+    sixIds.forEach((id, i) => {
+      const hits = pending.filter((p) => p === id).length;
+      eq(hits, 1, 'obligation ' + i + ' appears ' + hits + ' times, expected exactly once');
+    });
+    pending.forEach((id) =>
+      ok(/^casrec-(core|training)-[0-9a-f]{32}$/.test(id), 'malformed ledger entry: ' + id));
+    const fromB = await B.evaluate(() => cfCasRecPendingCleanup());
+    eq(fromB.slice().sort().join(','), pending.slice().sort().join(','),
+      'both tabs must see the same ledger');
+  });
+
+  await test('C10-MC-04 a later sweep removes every artifact and every obligation', async () => {
+    await Promise.all([fixDeletion(A), fixDeletion(B)]);
+    await A.evaluate(() => new Promise((res) => cfCasRecCleanupSweep(res)));
+    const listed = await A.evaluate(() => cfCasRecList());
+    sixIds.forEach((id, i) => eq(listed.indexOf(id), -1, 'artifact ' + i + ' survived the sweep'));
+    const pending = await A.evaluate(() => cfCasRecPendingCleanup());
+    sixIds.forEach((id, i) =>
+      eq(pending.indexOf(id), -1, 'obligation ' + i + ' survived the sweep'));
+  });
+
+  await test('C10-MC-05 both tabs observe the same empty ledger and absent artifacts', async () => {
+    const inB = await B.evaluate(() => ({
+      pending: cfCasRecPendingCleanup(),
+      listed: cfCasRecList(),
+    }));
+    sixIds.forEach((id, i) => {
+      eq(inB.pending.indexOf(id), -1, 'tab B still holds obligation ' + i);
+      eq(inB.listed.indexOf(id), -1, 'tab B still lists artifact ' + i);
+    });
+    /* absence proven by reading, not only by the list */
+    for (let i = 0; i < 6; i++) {
+      const got = await read(B, sixIds[i], 40 + i);
+      eq(got.payload, null, 'artifact ' + i + ' is still readable in tab B');
+    }
+  });
+
   await test('MC-06 concurrent ledger updates from both tabs lose nothing', async () => {
     const ids = await A.evaluate(() => {
       const out = [];
@@ -187,6 +299,221 @@ const SUB = 'core';
     eq(inB.severity, 'warn');
     const verified = await read(B, id, 21);
     ok(verified.payload !== null, 'and the artifact behind it verifies in tab B too');
+  });
+
+  /* ---- Architect-required: C10-MC-06..17 -------------------------------
+     Promise.all is not an interleaving. The writer can finish before the purge
+     begins meaningful work, so a green result proves nothing about ordering.
+     These tests PAUSE the writer inside its locked publication window and hold
+     it there while the other tab acts.
+
+     The pause is a test-only patch of the real crypto.subtle.digest, applied
+     from the page. No production code changes for testability: sha256Hex calls
+     crypto.subtle.digest at call time, so patching it stops the writer exactly
+     where the async publication window is — after the claim and payload are
+     staged, before the canonical manifest is written. */
+  section('C10-MC-06..09 — purge waits behind an active writer\'s real Web Lock');
+
+  const armPause = (page) => page.evaluate(() => {
+    window.__pause = { entered: false, release: null, gate: null };
+    window.__pause.gate = new Promise((r) => { window.__pause.release = r; });
+    if (!window.__origDigest) window.__origDigest = crypto.subtle.digest.bind(crypto.subtle);
+    crypto.subtle.digest = function (alg, data) {
+      window.__pause.entered = true;
+      return window.__pause.gate.then(() => window.__origDigest(alg, data));
+    };
+  });
+  const releasePause = (page) => page.evaluate(async () => {
+    window.__pause.release();
+    crypto.subtle.digest = window.__origDigest;
+    await new Promise((r) => setTimeout(r, 150));
+  });
+
+  let raceId = null;
+
+  await test('C10-MC-06 a purge cannot complete while the writer holds the artifact lock', async () => {
+    raceId = await newId(A);
+    await armPause(A);
+    /* Writer A starts and parks inside the locked operation. */
+    await A.evaluate((id) => {
+      window.__w = { done: false, ok: null, why: null };
+      cfCasRecWrite(id, 'core', 55, JSON.stringify({ writer: 'A', weights: [1] }),
+        (okW, man) => { window.__w = { done: true, ok: okW, why: okW ? null : man }; });
+    }, raceId);
+    await A.waitForFunction(() => window.__pause && window.__pause.entered, null, { timeout: 5000 });
+    const parked = await A.evaluate(() => ({ entered: window.__pause.entered, done: window.__w.done }));
+    ok(parked.entered, 'the writer must have reached the digest');
+    notOk(parked.done, 'and must not have finished');
+
+    /* Tab B now tries to purge the same id. It must block on the same real
+       cross-tab Web Lock. */
+    await B.evaluate((id) => {
+      window.__p = { done: false, ok: null, why: null };
+      cfCasRecPurge(id, (okP, why) => { window.__p = { done: true, ok: okP, why: why || null }; });
+    }, raceId);
+    await B.waitForTimeout(300);
+    const held = await B.evaluate(() => window.__p.done);
+    notOk(held, 'the purge completed while the writer still held the lock');
+  });
+
+  await test('C10-MC-07 releasing the writer yields one honest terminal ordering', async () => {
+    await releasePause(A);
+    await B.waitForFunction(() => window.__p.done, null, { timeout: 5000 });
+    const w = await A.evaluate(() => window.__w);
+    const p = await B.evaluate(() => window.__p);
+    ok(w.done && p.done, 'both operations must terminate');
+    /* Either the writer published and the purge then removed a complete
+       artifact, or the writer failed safely and the purge found nothing. */
+    if (w.ok) {
+      ok(p.ok === true || p.why === 'absent',
+        'writer succeeded, so purge must have removed it or found it already gone: ' + JSON.stringify(p));
+    } else {
+      ok(p.ok === false, 'writer failed, so there was nothing to remove: ' + JSON.stringify(p));
+    }
+  });
+
+  await test('C10-MC-08 the final state is complete-or-absent, never torn', async () => {
+    const keys = await A.evaluate((id) => Object.keys(localStorage)
+      .filter((k) => k.indexOf(id) >= 0), raceId);
+    const got = await read(A, raceId, 55);
+    if (got.payload !== null) {
+      const parsed = JSON.parse(got.payload);
+      eq(parsed.writer, 'A', 'a verified artifact must be the writer\'s own bytes');
+    } else {
+      /* Absent is fine. A manifest with no payload is not. */
+      const manifests = keys.filter((k) => /:manifest$/.test(k));
+      const payloads = keys.filter((k) => /:payload$/.test(k));
+      eq(manifests.length, 0,
+        'a canonical manifest survived without a verifiable artifact: ' + keys.join(', '));
+      eq(payloads.length, 0, 'orphaned payload left behind: ' + keys.join(', '));
+    }
+  });
+
+  await test('C10-MC-09 both tabs agree on that final state', async () => {
+    const inA = await read(A, raceId, 55);
+    const inB = await read(B, raceId, 55);
+    eq(inA.payload === null, inB.payload === null, 'tabs disagree on whether the artifact exists');
+    if (inA.payload !== null) eq(inA.payload, inB.payload, 'and on its contents');
+    const listA = await A.evaluate(() => cfCasRecList());
+    const listB = await B.evaluate(() => cfCasRecList());
+    eq(listA.indexOf(raceId) >= 0, listB.indexOf(raceId) >= 0, 'tabs disagree on the listing');
+  });
+
+  section('C10-MC-10..13 — nothing is publicly discoverable before publication');
+
+  let pubId = null;
+
+  await test('C10-MC-10 a public read is non-actionable before canonical publication', async () => {
+    pubId = await newId(A);
+    await armPause(A);
+    await A.evaluate((id) => {
+      window.__w2 = { done: false, ok: null };
+      cfCasRecWrite(id, 'core', 66, JSON.stringify({ secret: 'not yet public' }),
+        (okW) => { window.__w2 = { done: true, ok: okW }; });
+    }, pubId);
+    await A.waitForFunction(() => window.__pause && window.__pause.entered, null, { timeout: 5000 });
+    const got = await read(B, pubId, 66);
+    eq(got.payload, null, 'an unpublished candidate must not be readable');
+    ok(got.why, 'and the refusal must be explicit: ' + got.why);
+  });
+
+  await test('C10-MC-11 a public list excludes the candidate before publication', async () => {
+    const listB = await B.evaluate(() => cfCasRecList());
+    eq(listB.indexOf(pubId), -1, 'the candidate appeared in the public list before publication');
+    /* and no conflict reference could be built from storage discovery */
+    const refs = await B.evaluate(() => [cfCasConflictId('core'), cfCasConflictId('training')]);
+    notOk(refs.indexOf(pubId) >= 0, 'a conflict reference was constructed from an unpublished candidate');
+  });
+
+  await test('C10-MC-12 after release it verifies and is listed exactly once', async () => {
+    await releasePause(A);
+    await A.waitForFunction(() => window.__w2.done, null, { timeout: 5000 });
+    ok(await A.evaluate(() => window.__w2.ok), 'the write should have succeeded once released');
+    const got = await read(B, pubId, 66);
+    ok(got.payload !== null, 'now it must verify in the other tab: ' + got.why);
+    eq(JSON.parse(got.payload).secret, 'not yet public');
+    const listB = await B.evaluate(() => cfCasRecList());
+    eq(listB.filter((x) => x === pubId).length, 1, 'listed exactly once');
+  });
+
+  await test('C10-MC-13 a publication that fails never becomes publicly visible', async () => {
+    const failId = await newId(A);
+    const res = await A.evaluate((id) => new Promise((resolve) => {
+      /* Break the canonical manifest write only. Everything up to publication
+         succeeds, so this is the publication step failing, not an early exit. */
+      const origSet = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (k, v) {
+        if (/^cf:casrec:.*:manifest$/.test(String(k))) throw new Error('forced publication failure');
+        return origSet.call(this, k, v);
+      };
+      cfCasRecWrite(id, 'core', 77, JSON.stringify({ never: true }), (okW, why) => {
+        Storage.prototype.setItem = origSet;
+        resolve({ ok: okW, why: okW ? null : why });
+      });
+    }), failId);
+    notOk(res.ok, 'the write must fail when publication fails');
+    const listA = await A.evaluate(() => cfCasRecList());
+    const listB = await B.evaluate(() => cfCasRecList());
+    eq(listA.indexOf(failId), -1, 'a failed publication appeared in tab A\'s list');
+    eq(listB.indexOf(failId), -1, 'a failed publication appeared in tab B\'s list');
+    const got = await read(B, failId, 77);
+    eq(got.payload, null, 'and it must not be readable');
+    const leftovers = await A.evaluate((id) => Object.keys(localStorage).filter((k) => k.indexOf(id) >= 0), failId);
+    eq(leftovers.length, 0, 'partial state was left behind: ' + leftovers.join(', '));
+  });
+
+  section('C10-MC-14..17 — account drift during the real Web Crypto window');
+
+  await test('C10-MC-14 drift during the real digest prevents publication', async () => {
+    const driftId = await newId(A);
+    await armPause(A);
+    const scopeA = await A.evaluate(() => cfCasRecScope());
+    await A.evaluate((id) => {
+      window.__w3 = { done: false, ok: null, why: null };
+      cfCasRecWrite(id, 'core', 88, JSON.stringify({ owner: 'A', weights: [{ date: '2026-05-05', weight: 77 }] }),
+        (okW, why) => { window.__w3 = { done: true, ok: okW, why: okW ? null : why }; });
+    }, driftId);
+    await A.waitForFunction(() => window.__pause && window.__pause.entered, null, { timeout: 5000 });
+    /* The account changes mid-flight, exactly as a session rotation would. */
+    await switchAccount(A, 'userC');
+    await releasePause(A);
+    await A.waitForFunction(() => window.__w3.done, null, { timeout: 5000 });
+    const w = await A.evaluate(() => window.__w3);
+    notOk(w.ok, 'a drifted continuation must not report success');
+    /* nothing canonical under the ORIGINAL account */
+    const leftA = await A.evaluate((s) => Object.keys(localStorage)
+      .filter((k) => k.indexOf(s.scope) >= 0 && k.indexOf(s.id) >= 0), { scope: scopeA, id: driftId });
+    eq(leftA.length, 0, 'account A state survived the drifted write: ' + leftA.join(', '));
+    A.__driftId = driftId;
+  });
+
+  await test('C10-MC-15 captured-owner cleanup removed the partial state', async () => {
+    /* Proven from the original account's own session, not from the drifted one. */
+    await switchAccount(A, 'userA', 'a@x.com');
+    const got = await read(A, A.__driftId, 88);
+    eq(got.payload, null, 'a drifted write left a readable artifact behind: ' + got.why);
+    const listed = await A.evaluate(() => cfCasRecList());
+    eq(listed.indexOf(A.__driftId), -1, 'and it must not be listed');
+  });
+
+  await test('C10-MC-16 the account written INTO is untouched', async () => {
+    await switchAccount(A, 'userC');
+    const got = await read(A, A.__driftId, 88);
+    eq(got.payload, null, 'account C must not have received account A\'s data');
+    const keys = await A.evaluate((id) => Object.keys(localStorage)
+      .filter((k) => /^cf:casrec:userC:/.test(k) && k.indexOf(id) >= 0), A.__driftId);
+    eq(keys.length, 0, 'account C namespace was written into: ' + keys.join(', '));
+    const listed = await A.evaluate(() => cfCasRecList());
+    eq(listed.indexOf(A.__driftId), -1);
+  });
+
+  await test('C10-MC-17 no drifted conflict reference becomes actionable', async () => {
+    const res = await A.evaluate((id) => {
+      const refs = { core: cfCasConflictId('core'), training: cfCasConflictId('training') };
+      return { refs, points: refs.core === id || refs.training === id };
+    }, A.__driftId);
+    notOk(res.points, 'a drifted artifact id was published as a conflict reference');
+    await switchAccount(A, 'userA', 'a@x.com');
   });
 
   await B.close();
@@ -257,6 +584,112 @@ const SUB = 'core';
   await test('MC-13 the artifact remains verifiable across two reloads', async () => {
     const got = await read(A, reloadId, 31);
     ok(got.payload !== null, 'second reload lost verification: ' + got.why);
+  });
+
+  /* ---- Architect-required: C10-MC-18..20 -------------------------------
+     Their qualified approval of MC-12 named a real gap. Clearing a stale
+     session error on reload is right ONLY when a verified artifact exists.
+     Where preservation FAILED and no artifact was ever published, the in-memory
+     block was the only record that a copy of the online version was still owed,
+     and reload erased it — the subsystem came back looking merely pending.
+
+     Commit 10b now carries a durable, account-scoped preservation obligation
+     (cf:casneed:<account>) for exactly that case. */
+  section('C10-MC-18..20 — reload cannot lose a failed preservation');
+
+  const reloadPage = async () => {
+    await A.reload({ waitUntil: 'load' });
+    await A.waitForFunction(() => document.documentElement.style.visibility !== 'hidden');
+    /* cfCasRestoreWorkflow verifies the artifact before deciding, so wait for
+       that async reconstruction rather than sampling mid-flight. */
+    await A.waitForFunction(() => window.__restored === true
+      || (typeof cfCasCentreHasWorkflow === 'function'), null, { timeout: 5000 });
+    await A.waitForTimeout(250);
+  };
+
+  const centreState = () => A.evaluate(() => {
+    cfCasOpenConflictCenter(document.querySelector('[data-act="syncdot"]') || document.body);
+    const host = document.getElementById('cf-conflict-host');
+    const txt = host.textContent;
+    const out = {
+      block: CF_CAS_BLOCK.core,
+      conflictId: cfCasConflictId('core'),
+      need: cfCasPreserveNeed('core'),
+      severity: cfCasCentreSeverity(),
+      hasWorkflow: cfCasCentreHasWorkflow(),
+      destructive: /Use this device’s copy online|Use the online copy on this device/.test(txt),
+      retry: /Try again/.test(txt),
+      exportable: /Export a copy/.test(txt),
+      keep: /Keep this device’s changes/.test(txt),
+      text: txt.slice(0, 200),
+    };
+    cfCasCloseConflictCenter();
+    return out;
+  });
+
+  await test('C10-MC-18 a verified conflict plus a stale recovery error reloads as an ordinary conflict', async () => {
+    const id = await newId(A);
+    ok((await write(A, id, 91, { weights: [{ date: '2026-04-04', weight: 76 }] })).ok);
+    await A.evaluate((i) => {
+      cfCasSetServerRev('core', 91);
+      cfCasSetConflictId('core', i);
+      cfCasSetBlock('core', 'recovery', 'tok');     /* a session error, on top of durable truth */
+    }, id);
+    await reloadPage();
+    const s = await centreState();
+    eq(s.block, null, 'the stale session error must not be resurrected');
+    eq(s.conflictId, id, 'the durable conflict is what survives');
+    eq(s.need, null, 'and nothing is owed, because the copy is safe');
+    eq(s.severity, 'warn', 'a decision, not a phantom error');
+    ok(s.keep && s.destructive, 'the three choices are available: ' + s.text);
+    notOk(s.retry, 'and it is not showing the blocked card');
+  });
+
+  await test('C10-MC-19 a failed initial preservation stays blocked and retryable across reload', async () => {
+    /* No artifact was ever published — the only record is the obligation. */
+    await A.evaluate(() => {
+      cfCasSetConflictId('core', null);
+      cfCasSetServerRev('core', 92);
+      cfCasSetBlock('core', 'recovery', 'tok');
+    });
+    const before = await A.evaluate(() => cfCasPreserveNeed('core'));
+    eq(before, 92, 'the failure must be recorded durably at the revision it failed on');
+    await reloadPage();
+    const s = await centreState();
+    eq(s.conflictId, null, 'there is still no verified artifact');
+    eq(s.need, 92, 'so the obligation survives the restart');
+    eq(s.block, 'recovery', 'and the subsystem comes back blocked, not merely pending');
+    ok(s.hasWorkflow, 'the athlete must still have a visible workflow');
+    eq(s.severity, 'bad');
+    ok(s.retry && s.exportable, 'with Try again and Export a copy: ' + s.text);
+  });
+
+  await test('C10-MC-20 no destructive choice appears until a verified artifact exists', async () => {
+    const blocked = await centreState();
+    notOk(blocked.destructive, 'destructive choices offered with nothing preserved: ' + blocked.text);
+    notOk(blocked.keep, 'nor the ordinary conflict card');
+
+    /* A reference whose artifact does NOT verify is the subtler case: the
+       conflict id alone would render three choices against a copy that is not
+       there. Restoration proves the artifact before offering anything. */
+    await A.evaluate(() => {
+      cfCasSetConflictId('core', 'casrec-core-' + 'b'.repeat(32));   /* nothing behind it */
+      cfCasSetBlock('core', null, null);
+    });
+    await reloadPage();
+    const phantom = await centreState();
+    notOk(phantom.destructive,
+      'a conflict reference with no verifiable artifact offered destructive choices: ' + phantom.text);
+    eq(phantom.block, 'recovery', 'it must fall back to the blocked state');
+    ok(phantom.need !== null, 'and record that a preservation is still owed');
+    ok(phantom.retry, 'offering Try again: ' + phantom.text);
+
+    /* clean slate for the account-switch section */
+    await A.evaluate(() => {
+      ['core', 'training'].forEach((s) => {
+        cfCasSetConflictId(s, null); cfCasSetBlock(s, null, null); cfCasClearPreserveNeed(s);
+      });
+    });
   });
 
   /* ------------------------------------------------ account switch */

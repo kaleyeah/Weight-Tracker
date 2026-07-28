@@ -459,4 +459,66 @@ group('C10-UX-06..10 / 12..15 — both cards stay, and focus is managed', () => 
   });
 });
 
+
+/* ---- the durable preservation obligation (Architect Case B) -------------
+   A recovery block is session state; a FAILED preservation is a debt. These
+   guard the fast suite against the distinction collapsing again — the full
+   reload proof is C10-MC-18..20 in the browser suite, which is the only place
+   a restart can actually be exercised. */
+group('A failed preservation is owed, and owed per account', () => {
+  const withAccount = (uid) => (en) => {
+    const cfg = JSON.parse(en.S.localStorage.getItem('wl_pb') || '{}');
+    cfg.uid = uid; cfg.token = 'tok-' + uid;
+    en.S.localStorage.setItem('wl_pb', JSON.stringify(cfg));
+  };
+
+  test('a recovery block with no verified artifact records an obligation', () => {
+    const en = env();
+    en.S.cfCasSetServerRev('core', 42);
+    en.S.cfCasSetBlock('core', 'recovery', 'tok');
+    eq(en.S.cfCasPreserveNeed('core'), 42, 'the revision it failed on is what is owed');
+  });
+
+  test('a recovery block on top of an EXISTING conflict records nothing', () => {
+    const en = env([withConflict('core')]);
+    en.S.cfCasSetBlock('core', 'recovery', 'tok');
+    eq(en.S.cfCasPreserveNeed('core'), null,
+      'the copy already exists — this is a session error, not a debt');
+  });
+
+  test('publishing a verified reference pays the obligation off', () => {
+    const en = env();
+    en.S.cfCasSetServerRev('core', 7);
+    en.S.cfCasSetBlock('core', 'recovery', 'tok');
+    ok(en.S.cfCasPreserveNeed('core') !== null);
+    en.S.cfCasSetConflictId('core', 'casrec-core-' + 'a'.repeat(32));
+    eq(en.S.cfCasPreserveNeed('core'), null);
+  });
+
+  test('the two subsystems owe independently', () => {
+    const en = env();
+    en.S.cfCasSetServerRev('training', 3);
+    en.S.cfCasSetBlock('training', 'recovery', 'tok');
+    eq(en.S.cfCasPreserveNeed('training'), 3);
+    eq(en.S.cfCasPreserveNeed('core'), null, 'one section failing must not implicate the other');
+  });
+
+  test('an obligation belongs to ONE account and is invisible to another', () => {
+    const en = env();
+    en.S.cfCasSetServerRev('core', 12);
+    en.S.cfCasSetBlock('core', 'recovery', 'tok');
+    eq(en.S.cfCasPreserveNeed('core'), 12);
+    withAccount('someone-else')(en);
+    eq(en.S.cfCasPreserveNeed('core'), null,
+      'a debt owed to one athlete must never surface in another\'s session');
+  });
+
+  test('a recovery-blocked subsystem is bad, not warn', () => {
+    const en = env();
+    en.S.cfCasSetBlock('core', 'recovery', 'tok');
+    eq(en.S.cfCasCentreSeverity(), 'bad');
+    ok(en.S.cfCasCentreHasWorkflow(), 'and it must still be reachable');
+  });
+});
+
 report();

@@ -67,6 +67,11 @@ async function setState(page, spec) {
     ['core', 'training'].forEach((sub) => {
       cfCasSetConflictId(sub, null);
       cfCasSetBlock(sub, null, null);
+      /* The preservation obligation is DURABLE and account-scoped, so unlike
+         the in-memory block it survives into the next test and the next
+         reload — which is the whole point of it. Resetting to a known state
+         therefore has to clear it explicitly. */
+      cfCasClearPreserveNeed(sub);
       CF_CAS_RECHOOSE[sub] = false;
       CF_CAS_RES[sub] = null;
     });

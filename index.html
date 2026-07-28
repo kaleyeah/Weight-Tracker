@@ -9820,6 +9820,11 @@ var _c10SetBlock=cfCasSetBlock;
 cfCasSetBlock=function(sub,kind,opToken){
   var r=_c10SetBlock.apply(this,arguments);
   if(kind==="preserving")cfCasPreserveBegin(sub);
+  /* A recovery block with no verified artifact behind it is an obligation, not
+     just a session state: it survives the reload so the athlete is still told
+     their online copy was never preserved. */
+  if(kind==="recovery"&&!cfCasConflictId(sub))
+    cfCasSetPreserveNeed(sub,cfCasServerRev(sub));
   cfCasPaint();
   return r;};
 
@@ -9843,6 +9848,9 @@ var CF_CAS_NOTIFIED={core:false,training:false};
 var _c10SetConflictId=cfCasSetConflictId;
 cfCasSetConflictId=function(sub,id){
   var r=_c10SetConflictId.apply(this,arguments);
+  /* Publishing a reference means a VERIFIED artifact now exists, so the
+     preservation we owed has been paid. */
+  if(id)cfCasClearPreserveNeed(sub);
   if(!id){CF_CAS_NOTIFIED[sub]=false;}
   else if(!CF_CAS_NOTIFIED[sub]&&!CF_CAS_OPEN){
     CF_CAS_NOTIFIED[sub]=true;
@@ -9921,6 +9929,70 @@ function cfCasRetryRecovery(sub,cb){
   cfCasSetBlock(sub,null,null);
   try{cfCasSchedule(sub,0);}catch(e){cfCasSetBlock(sub,"recovery",null);cb(false,"recovery");return;}
   cb(true,null);}
+
+/* ---- the durable preservation obligation (Architect Case B) -------------
+   A recovery block lives in memory. That is right for the case where a
+   verified conflict artifact already exists — the block is a stale session
+   error and reload should reconstruct the ordinary unresolved conflict from
+   durable state rather than resurrect it (MC-12).
+
+   But it is wrong for the case where preservation FAILED and no artifact was
+   ever published. There the block was the only record that we still owe the
+   athlete a copy of the online version, and a reload erased it. The subsystem
+   came back looking merely pending, and if the next attempt also failed the
+   athlete had no standing indication that their online copy had never been
+   preserved. Reload must not turn "we could not preserve the online copy" into
+   either a false ordinary conflict with destructive choices, or into nothing.
+
+   So the obligation is durable, and account-scoped — deliberately NOT in the
+   revision map, which is a single unscoped key the app wipes on logout. A
+   preservation owed by one athlete must never appear in another's session. */
+var CF_CAS_NEED_PREFIX="cf:casneed:";
+function cfCasNeedKey(){
+  var u="";try{u=String(pbUid()||"");}catch(e){u="";}
+  return u?(CF_CAS_NEED_PREFIX+u):null;}
+function cfCasNeedAll(){
+  var k=cfCasNeedKey();if(!k)return {};
+  try{return JSON.parse(localStorage.getItem(k))||{};}catch(e){return {};}}
+function cfCasNeedSave(o){
+  var k=cfCasNeedKey();if(!k)return;
+  try{
+    var empty=true;for(var p in o)if(o[p]!==undefined&&o[p]!==null)empty=false;
+    if(empty)localStorage.removeItem(k);else localStorage.setItem(k,JSON.stringify(o));
+  }catch(e){}}
+function cfCasPreserveNeed(sub){
+  var v=cfCasNeedAll()[sub];
+  return (typeof v==="number")?v:null;}
+function cfCasSetPreserveNeed(sub,serverRev){
+  var o=cfCasNeedAll();o[sub]=(typeof serverRev==="number")?serverRev:0;cfCasNeedSave(o);}
+function cfCasClearPreserveNeed(sub){
+  var o=cfCasNeedAll();if(o[sub]===undefined)return;delete o[sub];cfCasNeedSave(o);}
+
+/* Rebuild the workflow from what is actually STORED, not from what the last
+   session happened to be holding. Run once, after load.
+
+   The reference alone is not enough to offer the three choices: a conflict id
+   whose artifact does not verify would show "use the online copy" against a
+   copy that is not there. So the artifact is proved first, and a reference that
+   fails verification falls back to the blocked state with Try again and Export
+   a copy — no destructive choice until a verified artifact exists. */
+function cfCasRestoreWorkflow(cb){
+  var pending=2;
+  function done(){if(--pending===0){cfCasPaint();if(cb)cb();}}
+  ["core","training"].forEach(function(sub){
+    var id=cfCasConflictId(sub);
+    if(!id){
+      /* No reference. If a preservation is still owed, say so. */
+      if(cfCasPreserveNeed(sub)!==null)cfCasSetBlock(sub,"recovery",null);
+      done();return;}
+    cfCasConflictArtifact(sub,function(payload){
+      if(payload===null){
+        cfCasSetPreserveNeed(sub,cfCasServerRev(sub));
+        cfCasSetBlock(sub,"recovery",null);
+      }else{
+        cfCasClearPreserveNeed(sub);                 /* the copy is safe */
+      }
+      done();});});}
 
 /* ---- the way in --------------------------------------------------------
    Everything above was unreachable. cfCasStatusHTML() renders a control that
@@ -10042,6 +10114,9 @@ try{
 }catch(e){}
 
 try{cfCasPaint();}catch(e){}
+/* Reconstruct the workflow from what is STORED, once, after load. This is what
+   makes a failed preservation survive a restart and a stale session error not. */
+try{cfCasRestoreWorkflow();}catch(e){}
 
 </script>
 </body>
