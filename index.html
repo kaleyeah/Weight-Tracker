@@ -7493,6 +7493,32 @@ function cfQuarWhen(createdAt){
   try{return d.toLocaleDateString();}catch(e){}
   return "";}
 
+/* Descriptors for a whole set-aside list, disambiguated.
+   Date and time to the minute is enough for almost every pair of copies, but
+   two set-asides made within the same minute produce identical labels AND
+   identical accessible names — leaving the athlete unable to tell which copy
+   they are about to delete. The internal stamp differs, and must stay internal.
+
+   So a "Copy N" suffix is added ONLY to rows whose formatted label collides,
+   numbered oldest-first within that group. Not seconds: two operations can
+   share a second too, and seconds are noise on every ordinary row.
+
+   Returns one descriptor per input record, in the caller's order, so numbering
+   recomputes naturally on rerender after a deletion. */
+function cfQuarLabels(list){
+  list=list||[];
+  var when=list.map(function(m){return cfQuarWhen(m&&m.createdAt)||"earlier";});
+  var counts={};
+  when.forEach(function(w){counts[w]=(counts[w]||0)+1;});
+  var seen={},nums=new Array(list.length);
+  list.map(function(m,i){return {i:i,at:Number(m&&m.createdAt)||0};})
+      /* oldest first; index breaks ties so the order is total and stable */
+      .sort(function(a,b){return (a.at-b.at)||(a.i-b.i);})
+      .forEach(function(r){
+        var w=when[r.i];
+        if(counts[w]>1){seen[w]=(seen[w]||0)+1;nums[r.i]=seen[w];}});
+  return when.map(function(w,i){return nums[i]?(w+" — Copy "+nums[i]):w;});}
+
 /* ---- signed-out quarantine recovery: inventory + export + delete ---- */
 function cfQuarList(){
   var out=[];try{
@@ -7527,23 +7553,25 @@ pbLoginHTML=function(){
   if(!q.length)return h;                       /* nothing set aside: login is untouched */
   var extra='<section class="wl-setaside" aria-labelledby="wl-setaside-title">'+
     '<h2 id="wl-setaside-title" class="wl-setaside-title">Data set aside on this device</h2>';
-  q.forEach(function(m){
-    /* Date AND TIME. A date alone cannot tell two copies made on the same day
-       apart, and the only thing distinguishing them was the internal stamp
-       inside the button attributes — an implementation distinction, not one the
-       athlete can see. Deleting the wrong copy of your own health history is
-       not a recoverable mistake (Architect SETASIDE-MULTI). */
-    var when=cfQuarWhen(m.createdAt);
+  /* Date AND TIME, plus a Copy number where two labels would otherwise read
+     alike. A date alone cannot separate two copies made the same day; a minute
+     cannot separate two made the same minute. The only thing that distinguished
+     them was the internal stamp inside a button attribute — an implementation
+     detail the athlete cannot see. Deleting the wrong copy of your own health
+     history is not a recoverable mistake (Architect SETASIDE-MULTI / -V2). */
+  var labels=cfQuarLabels(q);
+  q.forEach(function(m,i){
+    var desc=labels[i];
     extra+='<div class="wl-setaside-row">'+
-      '<span class="wl-setaside-date">'+esc(when?("Saved "+when):"Saved earlier")+'</span>'+
-      /* The visible label stays short; the ACCESSIBLE name carries which copy,
-         so a screen-reader user is not offered several identical "Save a copy"
-         buttons. No stamp, account id or build code reaches athlete-facing
-         text. */
+      '<span class="wl-setaside-date">'+esc("Saved "+desc)+'</span>'+
+      /* Visible text stays short; the ACCESSIBLE name carries the SAME final
+         descriptor, so a screen-reader user is never offered several identical
+         "Save a copy" buttons. No stamp, millisecond, account id or build code
+         reaches athlete-facing text or an accessible name. */
       '<button class="wl-btn wl-btn-primary wl-setaside-save" data-act="cf:qexport:'+esc(m.stamp)+'"'+
-        ' aria-label="'+esc(when?("Save a copy — "+when):"Save a copy")+'">Save a copy</button>'+
+        ' aria-label="'+esc("Save a copy — "+desc)+'">Save a copy</button>'+
       '<button class="wl-btn wl-btn-ghost wl-setaside-del" data-act="cf:qdelete:'+esc(m.stamp)+'"'+
-        ' aria-label="'+esc(when?("Delete set-aside copy — "+when):"Delete set-aside copy")+'">Delete</button></div>';});
+        ' aria-label="'+esc("Delete set-aside copy — "+desc)+'">Delete</button></div>';});
   extra+='</section>';
 
   /* ABOVE the login form, not after it (Architect FINDING-003, Option 1).

@@ -55,6 +55,19 @@ localStorage.setItem('cf:quarantine:${r.stamp}:workout', ${JSON.stringify(WORKOU
 localStorage.setItem('cf:quarantine:${r.stamp}:manifest', JSON.stringify({
   stamp:'${r.stamp}', createdAt: ${r.at}, appBuild:'ux-test',
   keys:['core','training','workout'], sizes:${JSON.stringify(SIZES)}}));`;
+/* Two copies inside the SAME displayed minute, plus one unique — the case a
+   minute-precision label cannot separate (Architect SETASIDE-MULTI-V2). */
+const SAME_MIN = [
+  { stamp: '1700000000011', at: Date.UTC(2026, 0, 28, 15, 42, 5) },
+  { stamp: '1700000000012', at: Date.UTC(2026, 0, 28, 15, 42, 47) },  /* same minute */
+  { stamp: '1700000000013', at: Date.UTC(2026, 1, 2, 20, 11) },
+];
+const SEED_SAMEMIN = `<!doctype html><meta charset="utf-8"><body><script>
+localStorage.clear();
+${SAME_MIN.map(seedOne).join('')}
+location.replace('/index.html');
+</script>`;
+
 const SEED_MULTI = `<!doctype html><meta charset="utf-8"><body><script>
 localStorage.clear();
 ${RECORDS.map(seedOne).join('')}
@@ -81,6 +94,7 @@ location.replace('/index.html');
     if (url === '/with') { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(SEED(true)); return; }
     if (url === '/without') { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(SEED(false)); return; }
     if (url === '/multi') { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(SEED_MULTI); return; }
+    if (url === '/sameminute') { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(SEED_SAMEMIN); return; }
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
     res.end(html);
   });
@@ -95,7 +109,9 @@ location.replace('/index.html');
       deviceScaleFactor: 2, isMobile: true, acceptDownloads: true,
     });
     const page = await ctx.newPage();
-    const route = withData === 'multi' ? '/multi' : (withData ? '/with' : '/without');
+    const route = withData === 'multi' ? '/multi'
+      : withData === 'sameminute' ? '/sameminute'
+        : (withData ? '/with' : '/without');
     await page.goto(base + route, { waitUntil: 'load' });
     await page.waitForFunction(() => document.documentElement.style.visibility !== 'hidden',
       null, { timeout: 10000 });
@@ -105,7 +121,7 @@ location.replace('/index.html');
       const el = document.getElementById(id); if (el && el.remove) el.remove();
     }));
     /* Fail as a broken FIXTURE rather than as a mysterious missing dialog. */
-    if (withData && withData !== 'multi') {
+    if (withData && withData !== 'multi' && withData !== 'sameminute') {
       const valid = await page.evaluate((st) => cfQuarComplete(st), STAMP);
       if (!valid) throw new Error('seeded set-aside record is not valid per cfManifestValid — fix the fixture, not the app');
     }
@@ -449,6 +465,149 @@ location.replace('/index.html');
         return rows_.every((r) => !/Invalid Date|NaN/.test(r.textContent));
       });
       ok(fallback, 'a row rendered Invalid Date or NaN');
+    });
+    await ctx.close();
+  }
+
+  section('SETASIDE-MULTI-V2-01..08 — copies made within the same minute');
+
+  {
+    const { ctx, page } = await open(DEVICES[1], 'sameminute');
+    const rows = () => page.evaluate(() => [...document.querySelectorAll('.wl-setaside-row')].map((r) => ({
+      text: r.querySelector('.wl-setaside-date').textContent.trim(),
+      save: r.querySelector('[data-act^="cf:qexport"]').getAttribute('aria-label'),
+      del: r.querySelector('[data-act^="cf:qdelete"]').getAttribute('aria-label'),
+      stamp: r.querySelector('[data-act^="cf:qexport"]').getAttribute('data-act').split(':').pop(),
+    })));
+
+    await test('SETASIDE-MULTI-V2-01 same-minute copies get distinct visible Copy numbers', async () => {
+      const r = await rows();
+      eq(r.length, 3, 'expected three rows, saw ' + r.length);
+      const collide = r.filter((x) => /3:42/.test(x.text));
+      eq(collide.length, 2, 'the fixture must produce two same-minute rows');
+      notOk(collide[0].text === collide[1].text,
+        'both rows read "' + collide[0].text + '" — still indistinguishable');
+      collide.forEach((x) => ok(/— Copy [12]$/.test(x.text), 'no Copy suffix on "' + x.text + '"'));
+      eq(new Set(collide.map((x) => x.text)).size, 2, 'the two Copy numbers must differ');
+    });
+
+    await test('SETASIDE-MULTI-V2-02 the accessible names carry the same descriptors', async () => {
+      const r = await rows();
+      eq(new Set(r.map((x) => x.save)).size, 3, 'duplicate Save names: ' + JSON.stringify(r.map((x) => x.save)));
+      eq(new Set(r.map((x) => x.del)).size, 3, 'duplicate Delete names');
+      r.forEach((x) => {
+        const desc = x.text.replace(/^Saved /, '');
+        eq(x.save, 'Save a copy — ' + desc, 'Save name does not match the visible descriptor');
+        eq(x.del, 'Delete set-aside copy — ' + desc, 'Delete name does not match');
+      });
+    });
+
+    await test('SETASIDE-MULTI-V2-03 numbering is deterministic — oldest is Copy 1', async () => {
+      const r = await rows();
+      const byStamp = {};
+      r.forEach((x) => { byStamp[x.stamp] = x.text; });
+      /* 1700000000011 is 15:42:05, 1700000000012 is 15:42:47 */
+      ok(/Copy 1$/.test(byStamp['1700000000011']),
+        'the older copy must be Copy 1, got "' + byStamp['1700000000011'] + '"');
+      ok(/Copy 2$/.test(byStamp['1700000000012']),
+        'the newer copy must be Copy 2, got "' + byStamp['1700000000012'] + '"');
+      /* and it is stable across a rerender */
+      await page.evaluate(() => render());
+      await page.waitForTimeout(200);
+      const again = await rows();
+      const byStamp2 = {};
+      again.forEach((x) => { byStamp2[x.stamp] = x.text; });
+      eq(byStamp2['1700000000011'], byStamp['1700000000011'], 'numbering changed on rerender');
+      eq(byStamp2['1700000000012'], byStamp['1700000000012'], 'numbering changed on rerender');
+    });
+
+    await test('SETASIDE-MULTI-V2-04 a row with a unique time gets NO Copy suffix', async () => {
+      const r = await rows();
+      const unique = r.find((x) => x.stamp === '1700000000013');
+      ok(unique, 'the unique row is missing');
+      notOk(/Copy \d/.test(unique.text), 'unexpected suffix on a unique row: ' + unique.text);
+      notOk(/Copy \d/.test(unique.save), 'unexpected suffix in its accessible name: ' + unique.save);
+    });
+
+    await test('SETASIDE-MULTI-V2-07 no stamp or millisecond value is exposed', async () => {
+      const seen = await page.evaluate(() => {
+        const s_ = document.querySelector('.wl-setaside');
+        return { text: s_.textContent,
+          labels: [...s_.querySelectorAll('[aria-label]')].map((e) => e.getAttribute('aria-label')).join(' | ') };
+      });
+      SAME_MIN.forEach((rec) => {
+        notOk(seen.text.indexOf(rec.stamp) >= 0, 'stamp visible: ' + rec.stamp);
+        notOk(seen.labels.indexOf(rec.stamp) >= 0, 'stamp in accessible name: ' + rec.stamp);
+        notOk(seen.text.indexOf(String(rec.at)) >= 0, 'raw epoch visible: ' + rec.at);
+      });
+      notOk(/\b\d{2}:\d{2}:\d{2}\b/.test(seen.text), 'seconds leaked into the label: ' + seen.text);
+      notOk(/\.\d{3}\b/.test(seen.text), 'a millisecond value is visible');
+    });
+
+    await test('SETASIDE-MULTI-V2-05 export acts on the intended same-minute copy', async () => {
+      const target = (await rows()).find((x) => /Copy 2$/.test(x.text));
+      ok(target, 'no Copy 2 row found');
+      const got = await page.evaluate(async (stamp) => {
+        window.__exported = null;
+        const real = window.cfQuarExport;
+        window.cfQuarExport = function (s_) { window.__exported = s_; };
+        document.querySelector('[data-act="cf:qexport:' + stamp + '"]').click();
+        await new Promise((r) => setTimeout(r, 200));
+        window.cfQuarExport = real;
+        return window.__exported;
+      }, target.stamp);
+      eq(got, target.stamp, 'export acted on the wrong same-minute copy');
+      eq(got, '1700000000012', 'Copy 2 must be the newer record');
+    });
+
+    await test('SETASIDE-MULTI-V2-06 delete removes only the intended same-minute copy', async () => {
+      const before = await rows();
+      const victim = before.find((x) => /Copy 1$/.test(x.text));
+      ok(victim, 'no Copy 1 row found');
+      eq(victim.stamp, '1700000000011', 'Copy 1 must be the older record');
+      await page.click('[data-act="cf:qdelete:' + victim.stamp + '"]');
+      await page.waitForSelector('.wl-confirm-msg', { timeout: 5000 });
+      await page.click('[data-act="confirm:yes"]');
+      await page.waitForTimeout(600);
+      const after = await rows();
+      eq(after.length, 2, 'expected two rows to remain');
+      notOk(after.some((x) => x.stamp === victim.stamp), 'the wrong copy survived');
+      ok(after.some((x) => x.stamp === '1700000000012'), 'the sibling copy was destroyed');
+      const keys = await page.evaluate((st) => Object.keys(localStorage).filter((k) => k.indexOf(st) >= 0).length, victim.stamp);
+      eq(keys, 0, 'the deleted copy left keys behind');
+      /* and with the collision resolved, the survivor drops its suffix */
+      const survivor = after.find((x) => x.stamp === '1700000000012');
+      notOk(/Copy \d/.test(survivor.text),
+        'the label must recompute once it no longer collides: ' + survivor.text);
+    });
+
+    await ctx.close();
+  }
+
+  {
+    const { ctx, page } = await open(DEVICES[0], 'sameminute');
+    await test('SETASIDE-MULTI-V2-08 same-minute rows stay readable on iPhone SE', async () => {
+      const m = await page.evaluate(() => {
+        const rows_ = [...document.querySelectorAll('.wl-setaside-row')];
+        const labels = rows_.map((r) => r.querySelector('.wl-setaside-date'));
+        const btns = rows_.flatMap((r) => [...r.querySelectorAll('button')]);
+        const clipped = (el) => el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1;
+        const title = document.getElementById('wl-setaside-title').getBoundingClientRect();
+        return {
+          rows: rows_.length,
+          titleVisible: title.top >= 0 && title.bottom <= innerHeight,
+          clippedLabels: labels.filter(clipped).map((l) => l.textContent.trim()),
+          clippedBtns: btns.filter(clipped).map((b) => b.textContent.trim()),
+          minH: Math.min(...btns.map((b) => b.getBoundingClientRect().height)),
+          sideways: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+        };
+      });
+      eq(m.rows, 3);
+      ok(m.titleVisible, 'the heading must remain in view');
+      eq(m.clippedLabels.length, 0, 'the longer "— Copy N" labels are clipped: ' + JSON.stringify(m.clippedLabels));
+      eq(m.clippedBtns.length, 0, 'clipped controls: ' + JSON.stringify(m.clippedBtns));
+      ok(m.minH >= 44, 'smallest control was ' + m.minH + 'px');
+      notOk(m.sideways, 'the page must not scroll sideways');
     });
     await ctx.close();
   }
