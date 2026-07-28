@@ -39,14 +39,16 @@ defer((async function scenarios() {
     await pump(env);
     test('CAS-01 no POST/PATCH to appdata records', () => eq(rawWrites(env).length, 0));
     test('the commit route was used instead', () => ok(commits(env).length >= 1));
-    test('CAS-02 training likewise', async () => {
+    await (async () => {
       const e2 = signedIn();
       e2.S.state.training = { sessions: [1] };
       e2.S.saveTraining();
       await pump(e2);
       eq(rawWrites(e2).length, 0);
       ok(commits(e2).length >= 1);
-    });
+    })().then(
+      () => test('CAS-02 training likewise', () => ok(true)),
+      (e) => test('CAS-02 training likewise', () => { throw e; }));
   });
 
   await group('CAS-03 — the request is exactly the route contract', async () => {
@@ -133,7 +135,7 @@ defer((async function scenarios() {
     test('the subsystem goes clean', () => notOk(env.S.revIsDirty('core')));
     test('the server revision is remembered for the next request', () => eq(env.S.cfCasServerRev('core'), 7));
     test('a baseline is recorded for the auto-resolve rule', () => ok(env.S.cfCasBaseline('core').length > 0));
-    test('CAS-07 a replayed 200 is treated as success', async () => {
+    await (async () => {
       const e2 = signedIn({ fetchResponses: (x) => (/commit/.test(x.url)
         ? { ok: true, status: 200, json: () => Promise.resolve({ ok: true, replay: true, subsystem: 'core', newRev: 3 }), text: () => Promise.resolve('') } : null) });
       e2.S.state.weights.push({ d: '2026-07-07', kg: 87 });
@@ -141,7 +143,9 @@ defer((async function scenarios() {
       await pump(e2);
       notOk(e2.S.revIsDirty('core'));
       eq(e2.S.cfCasServerRev('core'), 3);
-    });
+    })().then(
+      () => test('CAS-07 a replayed 200 is treated as success', () => ok(true)),
+      (e) => test('CAS-07 a replayed 200 is treated as success', () => { throw e; }));
   });
 
   await group('CAS-20 — retries are bounded and then stop', async () => {
@@ -641,12 +645,14 @@ defer((async function scenarios() {
     test('the write succeeded', () => ok(got.ok));
     test('C10-P10-01 a capability came back through the real wrapper', () =>
       ok(got.cap && typeof got.cap.purge === 'function'));
-    test('C10-P10-07 the capability purges through the locked API', async () => {
+    await (async () => {
       const removed = await new Promise((res) => got.cap.purge((r) => res(r)));
       ok(removed);
       eq(env.S.cfCasRecList().length, 0);
-    });
-    test('a failed write returns no capability', async () => {
+    })().then(
+      () => test('C10-P10-07 the capability purges through the locked API', () => ok(true)),
+      (e) => test('C10-P10-07 the capability purges through the locked API', () => { throw e; }));
+    await (async () => {
       const again = await new Promise((res) =>
         env.S.cfCasRecWrite(id, 'core', 3, '{"a":1}', (ok, out, cap) => res({ ok, out, cap })));
       /* the id is free again after purge, so use an occupied one instead */
@@ -657,7 +663,9 @@ defer((async function scenarios() {
         env.S.cfCasRecWrite(id2, 'core', 3, '{"b":1}', (ok, out, cap) => res({ ok, out, cap })));
       notOk(dup.ok);
       eq(dup.cap, undefined);
-    });
+    })().then(
+      () => test('a failed write returns no capability', () => ok(true)),
+      (e) => test('a failed write returns no capability', () => { throw e; }));
   });
 
   await group('C10-P10-09/10 — a late callback cannot clear a NEWER block', async () => {

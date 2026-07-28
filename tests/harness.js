@@ -49,7 +49,18 @@ let current = '(none)';
 function test(name, fn) {
   current = name;
   try {
-    fn();
+    const result = fn();
+    /* An async callback's assertions run AFTER this returns, so a failure
+       inside one never reaches the catch below: the test prints a tick and the
+       rejection surfaces later — as a crash under the runner, or not at all
+       standalone. That is how a wrong assertion passed review-visible runs.
+       Async setup belongs OUTSIDE test(); await it, then assert synchronously. */
+    if (result && typeof result.then === 'function') {
+      result.catch(() => {});
+      throw new Error(
+        'test() callback returned a promise. Await the async work before test(), ' +
+        'then assert synchronously — otherwise failures are invisible here.');
+    }
     passed++;
     console.log('  ✓ ' + name);
   } catch (err) {

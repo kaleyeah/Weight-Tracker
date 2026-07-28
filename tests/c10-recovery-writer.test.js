@@ -470,9 +470,11 @@ async function scenarios() {
       const keys = [...store(env).keys()].filter((k) => k.indexOf('cf:casrec') === 0);
       eq(keys.length, 0);
     });
-    test('and so no artifact is actionable', async () => {
+    await (async () => {
       eq(env.S.cfCasRecList().length, 0);
-    });
+    })().then(
+      () => test('and so no artifact is actionable', () => ok(true)),
+      (e) => test('and so no artifact is actionable', () => { throw e; }));
   });
 
   await group('C10-P4-07/08/09 — an account switch during the digest publishes nothing', async () => {
@@ -654,11 +656,13 @@ async function scenarios() {
     test('C10-P5-09 purging an absent artifact says absent, not removed', () => {
       notOk(again.removed); eq(again.reason, 'absent');
     });
-    test('C10-P5-09 an unauthenticated purge addresses nothing', async () => {
+    await (async () => {
       env.S.localStorage.removeItem('wl_pb');
       const r2 = await purge(env, id);
       notOk(r2.removed); eq(r2.reason, 'unauthenticated');
-    });
+    })().then(
+      () => test('C10-P5-09 an unauthenticated purge addresses nothing', () => ok(true)),
+      (e) => test('C10-P5-09 an unauthenticated purge addresses nothing', () => { throw e; }));
   });
 
 
@@ -686,12 +690,14 @@ async function scenarios() {
 
     release();
     const r = await w.p;
-    test('C10-P6-09 it becomes visible exactly once, after verification', async () => {
+    await (async () => {
       ok(r.ok);
       eq(t2.S.cfCasRecList().length, 1);
       const after = await read(t2, id, { account: 'userA', sub: 'core', serverRev: 11, rec: id });
       eq(after.payload, PAY);
-    });
+    })().then(
+      () => test('C10-P6-09 it becomes visible exactly once, after verification', () => ok(true)),
+      (e) => test('C10-P6-09 it becomes visible exactly once, after verification', () => { throw e; }));
     gate.restore();
   });
 

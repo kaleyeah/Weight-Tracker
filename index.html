@@ -8615,6 +8615,10 @@ var cfCasRecStore=(function(){
     purgeTracked:function(scope,id,cb){
       cb=cb||function(){};
       if(!scope){cb(false,"unauthenticated");return;}
+      /* An unusable id is not an untracked OBLIGATION — there is nothing to
+         delete and nothing to owe. Reporting "untracked:" here would describe
+         a cleanup debt that does not exist. */
+      if(!validId(id)){cb(false,"invalid-id");return;}
       purgeScoped(scope,id,function(removed,why){
         if(removed||why==="absent"){
           pendingDrop(scope,id,function(){cb(true,removed?null:"absent");});

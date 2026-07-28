@@ -75,11 +75,13 @@ defer((async function scenarios() {
     test('C4 the conflict remains unresolved', () => ok(env.S.cfCasConflictId('core')));
     test('C4 status still reads "Sync needs your choice"', () =>
       eq(env.S.cfCasStatusText(env.S.cfCasStatusFor('core')), 'Sync needs your choice'));
-    test('C4 the online copy is still preserved and verifiable', async () => {
+    await (async () => {
       const got = await new Promise((res) => env.S.cfCasConflictArtifact('core', (p, why) => res({ p, why })));
       ok(got.p !== null);
       ok(got.p.includes('84'));
-    });
+    })().then(
+      () => test('C4 the online copy is still preserved and verifiable', () => ok(true)),
+      (e) => test('C4 the online copy is still preserved and verifiable', () => { throw e; }));
   });
 
   await group('C5 — recovery blocked: nothing is claimed and nothing is replaced', async () => {
@@ -245,11 +247,13 @@ defer((async function scenarios() {
       eq(env2.S.cfCasStatusFor('core'), 'conflict');
       ok(env2.S.cfCasConflictId('core'));
     });
-    test('a resolved subsystem returns to normal', async () => {
+    await (async () => {
       await call(env, 'cfCasKeepLocal', 'core');
       env.S.cfCasResolved('core');
       eq(env.S.cfCasConflictId('core'), null);
-    });
+    })().then(
+      () => test('a resolved subsystem returns to normal', () => ok(true)),
+      (e) => test('a resolved subsystem returns to normal', () => { throw e; }));
   });
 
   await group('CAS-11 — a conflicted subsystem makes no automatic commits', async () => {
@@ -287,13 +291,15 @@ defer((async function scenarios() {
       const busy = [ra, rb].filter((r) => r.why === 'busy');
       eq(busy.length, 1);
     });
-    test('C10-P12-03 a different choice cannot overlap either', async () => {
+    await (async () => {
       const env2 = await conflicted();
       const p = call(env2, 'cfCasUseOnlineCopy', 'core');
       const q = await call(env2, 'cfCasUseThisDevice', 'core');
       eq(q.why, 'busy');
       await p;
-    });
+    })().then(
+      () => test('C10-P12-03 a different choice cannot overlap either', () => ok(true)),
+      (e) => test('C10-P12-03 a different choice cannot overlap either', () => { throw e; }));
   });
 
   await group('C10-P12-02 — a double "use the online copy" writes one safety copy', async () => {
@@ -665,13 +671,15 @@ defer((async function scenarios() {
     test('C10-P13-03 the ledger carries well-formed ids and nothing else', () =>
       env.S.cfCasRecPendingCleanup().forEach((id) =>
         ok(/^casrec-(core|training)-[0-9a-f]+$/.test(id))));
-    test('C10-P13-04 a later sweep removes the retained artifact', async () => {
+    await (async () => {
       const removed = await new Promise((res) => env.S.cfCasRecCleanupSweep(res));
       ok(removed >= 1);
       eq(env.S.cfCasRecPendingCleanup().length, 0);
       const keys = [...env.S.localStorage._map.keys()].filter((k) => k.includes(original));
       eq(keys, []);
-    });
+    })().then(
+      () => test('C10-P13-04 a later sweep removes the retained artifact', () => ok(true)),
+      (e) => test('C10-P13-04 a later sweep removes the retained artifact', () => { throw e; }));
     test('C10-P13-05 repeated replacements do not accumulate artifacts', () => {
       /* One CONFLICT artifact at a time: the current reference. Any other
          artifact must be owed in the cleanup ledger, never untracked — that is
@@ -745,10 +753,12 @@ defer((async function scenarios() {
       ok(owed.indexOf(idA) >= 0);
       ok(owed.indexOf(idB) >= 0);
     });
-    test('C10-P14-02 an unrelated obligation survives a concurrent drop', async () => {
+    await (async () => {
       await new Promise((res) => a.S.cfCasRecPurgeTracked('userA', idA, res));
       ok(a.S.cfCasRecPendingCleanup().indexOf(idB) >= 0);
-    });
+    })().then(
+      () => test('C10-P14-02 an unrelated obligation survives a concurrent drop', () => ok(true)),
+      (e) => test('C10-P14-02 an unrelated obligation survives a concurrent drop', () => { throw e; }));
     test('C10-P14-10 another account sees none of it', () => {
       a.S.localStorage.setItem('wl_pb', JSON.stringify({ ...PB, uid: 'userB' }));
       eq(a.S.cfCasRecPendingCleanup().length, 0);
@@ -773,7 +783,7 @@ defer((async function scenarios() {
 
   await group('C10-P14-04/05 — the ledger fails closed and verifies its write', async () => {
     const noLock = createEnv({ locks: false, localStorage: { wl_pb: JSON.stringify(PB) } });
-    const r = await new Promise((res) => noLock.S.cfCasRecPurgeTracked('userA', 'casrec-core-dddd', (ok, why) => res({ ok, why })));
+    const r = await new Promise((res) => noLock.S.cfCasRecPurgeTracked('userA', 'casrec-core-' + 'd'.repeat(32), (ok, why) => res({ ok, why })));
     test('C10-P14-04 without Web Locks nothing claims to be recorded', () => {
       notOk(r.ok);
       ok(String(r.why).indexOf('untracked') === 0 || r.why === 'no-lock');
@@ -827,42 +837,54 @@ defer((async function scenarios() {
        ACTIVE artifact was absent from the result — an implementation returning
        an empty array would have passed it, so it was not evidence for the
        property it named. It now proves the whole chain. */
-    test('C10-P15-01 the untracked artifact IS returned by reconciliation', async () => {
+    await (async () => {
       const orphans = await new Promise((res) => env.S.cfCasRecReconcile((o) => res(o)));
       ok(orphans.indexOf(idF) >= 0, 'expected the untracked artifact to be rediscovered');
-    });
+    })().then(
+      () => test('C10-P15-01 the untracked artifact IS returned by reconciliation', () => ok(true)),
+      (e) => test('C10-P15-01 the untracked artifact IS returned by reconciliation', () => { throw e; }));
     test('C10-P14-08 its manifest really is still in storage', () =>
       ok([...env.S.localStorage._map.keys()].some((k) => k.indexOf(idF) >= 0 && /:manifest$/.test(k))));
     test('C10-P14-08 and it is NOT in the ledger', () =>
       notOk(env.S.cfCasRecPendingCleanup().indexOf(idF) >= 0));
-    test('C10-P15-02 the active conflict artifact is excluded', async () => {
+    await (async () => {
       const orphans = await new Promise((res) => env.S.cfCasRecReconcile((o) => res(o)));
       notOk(orphans.indexOf(env.S.cfCasConflictId('core')) >= 0);
-    });
-    test('C10-P15-02 ledger-tracked artifacts are excluded', async () => {
+    })().then(
+      () => test('C10-P15-02 the active conflict artifact is excluded', () => ok(true)),
+      (e) => test('C10-P15-02 the active conflict artifact is excluded', () => { throw e; }));
+    await (async () => {
       const orphans = await new Promise((res) => env.S.cfCasRecReconcile((o) => res(o)));
       const owed = env.S.cfCasRecPendingCleanup();
       orphans.forEach((id) => notOk(owed.indexOf(id) >= 0));
-    });
-    test('C10-P15-03 another account cannot discover it', async () => {
+    })().then(
+      () => test('C10-P15-02 ledger-tracked artifacts are excluded', () => ok(true)),
+      (e) => test('C10-P15-02 ledger-tracked artifacts are excluded', () => { throw e; }));
+    await (async () => {
       env.S.localStorage.setItem('wl_pb', JSON.stringify({ ...PB, uid: 'userB' }));
       const asB = await new Promise((res) => env.S.cfCasRecReconcile((o) => res(o)));
       eq(asB, []);
       env.S.localStorage.setItem('wl_pb', JSON.stringify(PB));
-    });
-    test('C10-P15-04 reconciled cleanup verifies actual absence', async () => {
+    })().then(
+      () => test('C10-P15-03 another account cannot discover it', () => ok(true)),
+      (e) => test('C10-P15-03 another account cannot discover it', () => { throw e; }));
+    await (async () => {
       const r = await new Promise((res) => env.S.cfCasRecPurgeTracked('userA', idF, (okF, why) => res({ okF, why })));
       ok(r.okF);
       notOk([...env.S.localStorage._map.keys()].some((k) => k.indexOf(idF) >= 0));
       const after = await new Promise((res) => env.S.cfCasRecReconcile((o) => res(o)));
       notOk(after.indexOf(idF) >= 0);
-    });
-    test('C10-P15-10 reconciliation returns only well-formed ids', async () => {
+    })().then(
+      () => test('C10-P15-04 reconciled cleanup verifies actual absence', () => ok(true)),
+      (e) => test('C10-P15-04 reconciled cleanup verifies actual absence', () => { throw e; }));
+    await (async () => {
       env.S.localStorage.setItem('cf:casrec:userA:not-an-artifact:manifest', '{}');
       const orphans = await new Promise((res) => env.S.cfCasRecReconcile((o) => res(o)));
       orphans.forEach((id) => ok(/^casrec-(core|training)-[0-9a-f]{32}$/.test(id)));
       notOk(orphans.indexOf('not-an-artifact') >= 0);
-    });
+    })().then(
+      () => test('C10-P15-10 reconciliation returns only well-formed ids', () => ok(true)),
+      (e) => test('C10-P15-10 reconciliation returns only well-formed ids', () => { throw e; }));
   });
 
   await group('C10-P14-09 / C10-P15-05..09 — only real artifact ids are obligations', async () => {
@@ -884,12 +906,14 @@ defer((async function scenarios() {
     test('C10-P14-09 / C10-P15-05/06/07 only the two valid ids survive the read', () =>
       eq(owed, [good, goodTraining]));
     test('C10-P15-08 invalid entries consume no capacity', () => eq(owed.length, 2));
-    test('C10-P15-09 pendingAdd refuses an invalid id honestly', async () => {
+    await (async () => {
       const r = await new Promise((res) =>
         env.S.cfCasRecPurgeTracked('userA', 'not-an-artifact', (ok2, why) => res({ ok2, why })));
       notOk(r.ok2);
       eq(r.why, 'invalid-id');
-    });
+    })().then(
+      () => test('C10-P15-09 pendingAdd refuses an invalid id honestly', () => ok(true)),
+      (e) => test('C10-P15-09 pendingAdd refuses an invalid id honestly', () => { throw e; }));
     test('C10-P15-09 an invalid id never reaches the ledger', () =>
       notOk(env.S.cfCasRecPendingCleanup().indexOf('not-an-artifact') >= 0));
     test('a real generated id passes the same validator', () =>
