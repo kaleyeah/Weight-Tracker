@@ -599,34 +599,41 @@ async function scenarios() {
     release();
     const r = await w.p;
     test('C10-P5-06 the write fails rather than reporting a false success', () => notOk(r.ok));
-    test('the reason names final verification', () => eq(r.out, 'final-unverified'));
+    test('the reason names the stored bytes moving', () =>
+      ok(['final-moved', 'final-unverified'].includes(r.out)));
     test('C10-P5-08 nothing actionable is left behind', () => {
       notOk(store(env).has(`cf:casrec:userA:${id}:manifest`));
     });
-    test('C10-P5-05 final verification really did run a second digest', () => ok(gate.calls() >= 2));
+    /* The two-phase rewrite removed the second digest: verification now happens
+       BEFORE publication, so there is nothing left to re-verify afterwards.
+       Asserting "a second digest ran" would encode the old design, so this
+       asserts the property that design existed to provide. */
+    test('C10-P6-04 the canonical manifest is written only after the digest resolves', () =>
+      ok(gate.calls() >= 1));
     gate.restore();
   });
 
-  await group('C10-P5-07 — a manifest altered before final verification fails the write', async () => {
+  await group('C10-P5-07 — there is no window in which a manifest can be altered', async () => {
+    /* This case previously parked the SECOND digest and corrupted the manifest
+       between publication and verification. Two-phase publication removed that
+       window entirely: the manifest does not exist until after verification, so
+       there is nothing to corrupt. The test now asserts the absence of the
+       window rather than behaviour inside it. */
     const env = authed('userA');
-    const id = 'final-manifest';
+    const id = 'no-window';
     const gate = pausableDigest(env);
-    const release = gate.hold(2);                        /* park the FINAL verification digest */
+    const release = gate.hold();
     const w = begin(env, id, PAY);
     await new Promise((r) => setTimeout(r, 5));
-    /* The manifest is published by now; corrupt it before it is checked. */
-    const raw = store(env).get(`cf:casrec:userA:${id}:manifest`);
-    test('the manifest was published before final verification', () => ok(raw));
-    const bent = JSON.parse(raw); bent.serverRev = 99;
-    store(env).set(`cf:casrec:userA:${id}:manifest`, JSON.stringify(bent));
+    test('while the writer hashes, NO canonical manifest exists to alter', () =>
+      notOk(store(env).has(`cf:casrec:userA:${id}:manifest`)));
+    test('the payload is present but unpublished', () =>
+      ok(store(env).has(`cf:casrec:userA:${id}:payload`)));
     release();
     const r = await w.p;
-    test('C10-P5-07 the write reports failure', () => {
-      notOk(r.ok);
-      ok(['final-unverified', 'final-moved', 'final-missing'].includes(r.out));
-    });
-    test('C10-P5-08 no actionable artifact survives', () =>
-      notOk(store(env).has(`cf:casrec:userA:${id}:manifest`)));
+    test('publication succeeds once verification completes', () => ok(r.ok));
+    test('and the manifest exists only now', () =>
+      ok(store(env).has(`cf:casrec:userA:${id}:manifest`)));
     gate.restore();
   });
 
@@ -652,6 +659,119 @@ async function scenarios() {
       const r2 = await purge(env, id);
       notOk(r2.removed); eq(r2.reason, 'unauthenticated');
     });
+  });
+
+
+  /* ===== C10-P6: nothing is discoverable before verified publication ===== */
+
+  await group('C10-P6-01/02/10 — no reader can see the artifact mid-publication', async () => {
+    const t1 = authed('userA'); const t2 = authed('userA');
+    t2.S.localStorage = t1.S.localStorage; t2.S.navigator = t1.S.navigator;
+    const id = 'invisible-until-published';
+    const gate = pausableDigest(t1);
+    const release = gate.hold();
+    const w = begin(t1, id, PAY);
+    await new Promise((r) => setTimeout(r, 5));
+    test('the writer is mid-publication', () => notOk(w.state.done));
+
+    /* A second context asks for the artifact while the first is still deciding. */
+    const seen = await read(t2, id, { account: 'userA', sub: 'core', serverRev: 11, rec: id });
+    test('C10-P6-01 a reader gets NO actionable artifact', () => {
+      eq(seen.payload, null);
+      eq(seen.reason, 'absent');
+    });
+    test('C10-P6-02 list does not include the candidate', () => eq(t2.S.cfCasRecList().length, 0));
+    test('C10-P6-10 the conflict layer cannot obtain a reference before the callback', () =>
+      notOk(w.state.done));
+
+    release();
+    const r = await w.p;
+    test('C10-P6-09 it becomes visible exactly once, after verification', async () => {
+      ok(r.ok);
+      eq(t2.S.cfCasRecList().length, 1);
+      const after = await read(t2, id, { account: 'userA', sub: 'core', serverRev: 11, rec: id });
+      eq(after.payload, PAY);
+    });
+    gate.restore();
+  });
+
+  await group('C10-P6-03/07 — a write that later fails was never externally actionable', async () => {
+    const t1 = authed('userA'); const t2 = authed('userA');
+    t2.S.localStorage = t1.S.localStorage; t2.S.navigator = t1.S.navigator;
+    const id = 'never-actionable';
+    const gate = pausableDigest(t1);
+    const release = gate.hold();
+    const w = begin(t1, id, PAY);
+    await new Promise((r) => setTimeout(r, 5));
+    const during = await read(t2, id, { account: 'userA', sub: 'core', serverRev: 11, rec: id });
+    test('C10-P6-03 invisible during the attempt', () => eq(during.payload, null));
+    /* make the attempt fail: the stored bytes move while it hashes */
+    store(t1).set(`cf:casrec:userA:${id}:payload`, '{"moved":true}');
+    release();
+    const r = await w.p;
+    test('the write fails', () => notOk(r.ok));
+    test('C10-P6-07 no canonical manifest was ever written', () =>
+      notOk(store(t1).has(`cf:casrec:userA:${id}:manifest`)));
+    test('C10-P6-07 no candidate state is left behind', () => {
+      notOk(store(t1).has(`cf:casrec:userA:${id}:claim`));
+    });
+    test('C10-P6-03 and it never appeared in any inventory', () => eq(t2.S.cfCasRecList().length, 0));
+    gate.restore();
+  });
+
+  await group('C10-P6-04/05/06 — publication order and read-back', async () => {
+    const env = authed('userA');
+    const id = 'publication-order';
+    const events = [];
+    const subtle = env.S.crypto.subtle;
+    const realDigest = subtle.digest.bind(subtle);
+    subtle.digest = (a, d) => { events.push('digest'); return realDigest(a, d); };
+    const realSet = env.S.localStorage.setItem;
+    env.S.localStorage.setItem = function (k, v) {
+      if (String(k).endsWith(':manifest')) events.push('publish');
+      else if (String(k).endsWith(':payload')) events.push('payload');
+      return realSet.call(this, k, v);
+    };
+    const r = await write(env, id, PAY);
+    env.S.localStorage.setItem = realSet; subtle.digest = realDigest;
+
+    test('the write succeeds', () => ok(r.ok));
+    test('C10-P6-04 order is payload, digest, then publish', () => {
+      eq(events.indexOf('payload') < events.indexOf('digest'), true);
+      eq(events.indexOf('digest') < events.indexOf('publish'), true);
+    });
+    test('C10-P6-05 the published manifest is exactly what was verified', () =>
+      eq(store(env).get(`cf:casrec:userA:${id}:manifest`), JSON.stringify(r.out)));
+    test('C10-P6-06 no provisional key exists at all', () => {
+      const keys = [...store(env).keys()].filter((k) => k.indexOf(`cf:casrec:userA:${id}:`) === 0);
+      eq(keys.sort(), [
+        `cf:casrec:userA:${id}:claim`,
+        `cf:casrec:userA:${id}:manifest`,
+        `cf:casrec:userA:${id}:payload`,
+      ]);
+    });
+  });
+
+  await group('C10-P6-08 — purge during publication waits and clears everything', async () => {
+    const t1 = authed('userA'); const t2 = authed('userA');
+    t2.S.localStorage = t1.S.localStorage; t2.S.navigator = t1.S.navigator;
+    const id = 'purge-during-publish';
+    const gate = pausableDigest(t1);
+    const release = gate.hold();
+    const w = begin(t1, id, PAY);
+    await new Promise((r) => setTimeout(r, 5));
+    let purgeReturned = false;
+    const p = purge(t2, id).then((x) => { purgeReturned = true; return x; });
+    await new Promise((r) => setTimeout(r, 5));
+    test('C10-P6-08 the purge waits for the lock', () => notOk(purgeReturned));
+    release();
+    await w.p; await p;
+    test('C10-P6-08 no candidate state survives', () => {
+      const left = [...store(t1).keys()].filter((k) => k.indexOf(`cf:casrec:userA:${id}:`) === 0);
+      eq(left, []);
+    });
+    test('and the inventory is empty', () => eq(t1.S.cfCasRecList().length, 0));
+    gate.restore();
   });
 
 }

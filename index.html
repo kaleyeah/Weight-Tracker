@@ -8357,42 +8357,43 @@ var cfCasRecStore=(function(){
       /* The digest was asynchronous: the account may have changed underneath. */
       if(drifted(ctx)){purgeCapturedLocked(ctx);done(false,"drift");return;}
       if(!cfCasHashValid(hex)){purgeCapturedLocked(ctx);done(false,"digest");return;}
-      var man={kind:"cas-conflict",id:String(ctx.id),sub:sub,serverRev:serverRev,account:ctx.owner,
-               keys:["payload"],sizes:{payload:cfCasUtf8Bytes(back)},hash:hex};
-      if(!cfCasRecValid(man,ctx.id,{payload:back})){purgeCapturedLocked(ctx);done(false,"invalid");return;}
-      try{localStorage.setItem(K.manifest,JSON.stringify(man));}      /* manifest LAST */
-      catch(e){purgeCapturedLocked(ctx);done(false,"storage");return;}
 
-      /* FINAL WHOLE-ARTIFACT VERIFICATION (review C10-P5-02). Success must mean
-         "a future reader will find a verifiable artifact", not "we constructed
-         a manifest". Between the first read-back and now, same-origin script,
-         a storage anomaly or a later maintenance error could have moved the
-         bytes underneath us — so read the pair back and verify them as a unit
-         before telling anyone this recovery copy exists. The conflict layer
-         must never infer a verified recovery from manifest construction. */
-      var payFinal=null;
-      try{payFinal=localStorage.getItem(K.payload);}
+      /* TWO-PHASE PUBLICATION (review C10-P6-01). The canonical manifest is the
+         publication boundary, so it must not exist until the artifact is
+         verified. Writing it earlier — as the previous version did, before the
+         final digest — left a window in which another context could read the
+         manifest and payload, verify them, and treat the artifact as actionable
+         while this writer was still deciding whether it had succeeded. If that
+         writer then drifted or failed, it purged an artifact a conflict layer
+         had already been handed.
+
+         The candidate therefore stays IN MEMORY and is verified against the
+         stored payload first. No provisional key is written at all, so there is
+         no provisional state for a public reader to trip over. */
+      var candidate={kind:"cas-conflict",id:String(ctx.id),sub:sub,serverRev:serverRev,account:ctx.owner,
+                     keys:["payload"],sizes:{payload:cfCasUtf8Bytes(back)},hash:hex};
+      if(!cfCasRecValid(candidate,ctx.id,{payload:back})){purgeCapturedLocked(ctx);done(false,"invalid");return;}
+      /* Re-read the payload after hashing and confirm it has not moved, so the
+         bytes we verified are the bytes on disk. */
+      var payAgain=null;
+      try{payAgain=localStorage.getItem(K.payload);}catch(e){payAgain=null;}
+      if(payAgain===null){purgeCapturedLocked(ctx);done(false,"final-missing");return;}
+      if(payAgain!==back){purgeCapturedLocked(ctx);done(false,"final-moved");return;}
+      var expect={account:ctx.owner,sub:sub,serverRev:serverRev,rec:ctx.id};
+      if(!cfCasRecVerified(candidate,ctx.id,{payload:payAgain},expect,hex)){
+        purgeCapturedLocked(ctx);done(false,"final-unverified");return;}
+
+      /* Verified. NOW publish — the canonical manifest is written last and is
+         the only thing public read/list recognise. */
+      var serialized=JSON.stringify(candidate);
+      try{localStorage.setItem(K.manifest,serialized);}
       catch(e){purgeCapturedLocked(ctx);done(false,"storage");return;}
-      if(payFinal===null){purgeCapturedLocked(ctx);done(false,"final-missing");return;}
-      sha256Hex(payFinal,function(finalHex){
-        if(drifted(ctx)){purgeCapturedLocked(ctx);done(false,"drift");return;}
-        /* Re-read BOTH after hashing, not before. An earlier version read the
-           manifest first and verified against that copy, which left the whole
-           hashing window open: a manifest altered while the digest ran was
-           checked in its pre-alteration form. Reading both afterwards, and
-           confirming the payload has not moved since it was hashed, closes the
-           window from both sides. Found by test C10-P5-07 failing. */
-        var manRaw=null,payAgain=null;
-        try{manRaw=localStorage.getItem(K.manifest);payAgain=localStorage.getItem(K.payload);}
-        catch(e){purgeCapturedLocked(ctx);done(false,"storage");return;}
-        if(manRaw===null||payAgain===null){purgeCapturedLocked(ctx);done(false,"final-missing");return;}
-        if(payAgain!==payFinal){purgeCapturedLocked(ctx);done(false,"final-moved");return;}
-        var manFinal=null;try{manFinal=JSON.parse(manRaw);}catch(e){manFinal=null;}
-        if(!manFinal){purgeCapturedLocked(ctx);done(false,"final-unparseable");return;}
-        var expect={account:ctx.owner,sub:sub,serverRev:serverRev,rec:ctx.id};
-        if(!cfCasRecVerified(manFinal,ctx.id,{payload:payFinal},expect,finalHex)){
-          purgeCapturedLocked(ctx);done(false,"final-unverified");return;}
-        done(true,manFinal);});});}
+      /* localStorage writes are synchronous and we still hold the lock, so a
+         read-back here is sufficient to confirm what was actually published. */
+      var stored=null;
+      try{stored=localStorage.getItem(K.manifest);}catch(e){stored=null;}
+      if(stored!==serialized){purgeCapturedLocked(ctx);done(false,"publish-mismatch");return;}
+      done(true,candidate);});}
 
   return {
     newId:newId,
