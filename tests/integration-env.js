@@ -120,7 +120,17 @@ function createEnv(opts) {
   vm.runInContext(script, sandbox, { filename: 'index.html#full' });
   return {
     S: sandbox, fetchLog,
-    runTimers() { let guard = 0; while (timers.length && guard++ < 200) { const t = timers.shift(); try { t.fn(); } catch (e) {} } },
+    /* Timer callbacks used to fail silently here, which hid a ReferenceError
+       thrown inside a scheduled CAS commit — the suite simply saw "no request
+       was sent". Errors are now recorded so a test can assert on them. */
+    timerErrors: [],
+    runTimers() {
+      let guard = 0;
+      while (timers.length && guard++ < 200) {
+        const t = timers.shift();
+        try { t.fn(); } catch (e) { this.timerErrors.push(e); }
+      }
+    },
     appdataWrites() { return fetchLog.filter(e => /\/api\/collections\/appdata\/records/.test(e.url) && (e.method === 'POST' || e.method === 'PATCH')); },
   };
 }

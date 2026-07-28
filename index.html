@@ -8214,7 +8214,16 @@ function cfCasRetryDelay(status,attempt){
    reused-key case: a client bug the athlete cannot act on, so it must reach
    the safe failure state and never the conflict center. */
 function cfCasDisposition(status,body){
-  if(status===200)return "ok";
+  /* A 200 is not success on its own. The route's success contract is
+     {ok:true, subsystem, newRev}; anything else answering 200 — a proxy page, a
+     misrouted request, a framework body — must never be read as "committed",
+     because the client would mark the athlete's data clean and stop syncing it.
+     This is the Round 2 rule applied to the client: never assert on a status
+     alone. Caught by the c1d/c1h suites, which expect an edit to stay pending
+     and saw it go clean against a generic 200 stub. */
+  if(status===200){
+    if(body&&body.ok===true&&typeof body.newRev==="number")return "ok";
+    return "contract";}
   if(status===409){
     if(body&&body.conflict===true)return "conflict";
     return "invariant";}                        /* key reused with a different request */
@@ -8473,7 +8482,8 @@ var cfCasRecStore=(function(){
         release();cb(removed,removed?null:"absent");
       },function(){cb(false,"no-lock");});},
 
-    scope:scopeNow
+    scope:scopeNow,
+    sha256:sha256Hex
   };
 })();
 
@@ -8484,6 +8494,181 @@ function cfCasRecRead(id,expected,cb){return cfCasRecStore.read(id,expected,cb);
 function cfCasRecList(){return cfCasRecStore.list();}
 function cfCasRecPurge(id,cb){return cfCasRecStore.purge(id,cb);}
 function cfCasRecScope(){return cfCasRecStore.scope();}
+/* The adapter needs the same digest the store uses; it lives in the closure so
+   there is one implementation, not two. */
+function cfCasSha256Hex(str,cb){return cfCasRecStore.sha256(str,cb);}
+
+/* ---- CAS scheduler and route adapter ------------------------------------
+   This is where the rules above become network behaviour. Commit 1b froze the
+   raw snapshot write path and left scheduleCloudPush/scheduleTrainingPush
+   bumping a revision and nothing more. Commit 10 re-points those same entry
+   points at the commit route — it does not reopen the frozen path, and
+   C10-PLAN-12 asserts that no legacy scheduler survives alongside this one. */
+var CF_CAS_DEBOUNCE_MS=3000;                       /* spec §2.1 */
+var CF_CAS_TIMER={core:null,training:null};
+var CF_CAS_INFLIGHT={core:null,training:null};     /* at most one per subsystem */
+var CF_CAS_ATTEMPT={core:0,training:0};
+var CF_CAS_BLOCK={core:null,training:null};
+
+/* Persisted alongside the existing revision track so a reload does not lose
+   what the server last told us. */
+function cfCasMapGet(name,sub){try{var a=revAll();var m=a[name]||{};return m[sub];}catch(e){return undefined;}}
+function cfCasMapSet(name,sub,v){try{var a=revAll();a[name]=a[name]||{};a[name][sub]=v;revSaveAll(a);}catch(e){}}
+function cfCasServerRev(sub){var v=cfCasMapGet("casServerRev",sub);return typeof v==="number"?v:0;}
+function cfCasSetServerRev(sub,n){cfCasMapSet("casServerRev",sub,n);}
+function cfCasBaseline(sub){return cfCasMapGet("casBaseline",sub)||"";}
+function cfCasSetBaseline(sub,c){cfCasMapSet("casBaseline",sub,c||"");}
+function cfCasConflictId(sub){return cfCasMapGet("casConflict",sub)||null;}
+function cfCasSetConflictId(sub,id){cfCasMapSet("casConflict",sub,id||null);}
+
+/* The snapshot each subsystem owns. Deliberately the same two fields the
+   legacy path sent, so nothing new becomes syncable by accident. */
+function cfCasPayloadFor(sub){
+  if(sub==="core")return payload();
+  return (state&&state.training)?state.training:{};}
+
+function cfCasState(sub){
+  var t=revTrack(sub);
+  return {local:t.local,attempted:t.attempted,success:t.success,
+          serverRev:cfCasServerRev(sub),blocked:CF_CAS_BLOCK[sub],
+          conflictId:cfCasConflictId(sub)};}
+
+/* A stable per-device diagnostic id. Stored as an opaque random value; the
+   server hashes it again before storing, and it never contains health data. */
+function cfCasDeviceId(){
+  try{
+    var k="cf:casdevice",v=localStorage.getItem(k);
+    if(!v){v="dev-"+(cfCasRandomIdFallback());localStorage.setItem(k,v);}
+    return v;
+  }catch(e){return "dev-unknown";}}
+function cfCasRandomIdFallback(){
+  try{if(typeof crypto!=="undefined"&&crypto.randomUUID)return String(crypto.randomUUID()).replace(/-/g,"");}catch(e){}
+  return String(Date.now());}
+
+/* ---- one request ------------------------------------------------------- */
+function cfCasBuildRequest(sub,cb){
+  var canon=cfCanon(cfCasPayloadFor(sub));
+  var expectedRev=cfCasServerRev(sub);
+  var identity=cfCasIdentity(sub,expectedRev,canon);
+  cfCasSha256Hex(identity,function(hex){
+    if(!cfCasHashValid(hex)){cb(null);return;}
+    var key=cfCasKeyFrom(hex);
+    if(!key){cb(null);return;}                      /* refuse rather than truncate */
+    cb({sub:sub,expectedRev:expectedRev,key:key,canon:canon,
+        localRev:revLocal(sub),payload:cfCasPayloadFor(sub)});});}
+
+function cfCasSend(req,cb){
+  var url=pbBase()+"/api/cf/appdata/commit";
+  var body={subsystem:req.sub,expectedRev:req.expectedRev,idempotencyKey:req.key,
+            payload:req.payload,clientBuild:APP_BUILD,deviceId:cfCasDeviceId()};
+  try{
+    fetch(url,{method:"POST",headers:pbHeaders(true),body:JSON.stringify(body)})
+      .then(function(r){
+        return r.json().then(function(j){cb(r.status,j);},function(){cb(r.status,null);});
+      },function(){cb(0,null);});
+  }catch(e){cb(0,null);}}
+
+/* ---- scheduling -------------------------------------------------------- */
+function cfCasClearTimer(sub){
+  if(CF_CAS_TIMER[sub]){clearTimeout(CF_CAS_TIMER[sub]);CF_CAS_TIMER[sub]=null;}}
+
+/* Coalesce: every edit inside the window becomes ONE snapshot. */
+function cfCasSchedule(sub,ms){
+  if(!syncOn())return;
+  cfCasClearTimer(sub);
+  CF_CAS_TIMER[sub]=setTimeout(function(){
+    CF_CAS_TIMER[sub]=null;cfCasRun(sub);},(ms===undefined)?CF_CAS_DEBOUNCE_MS:ms);}
+
+/* High-intent points sync without waiting for the debounce, and never block. */
+function cfCasSyncNow(sub){
+  if(sub){cfCasClearTimer(sub);cfCasRun(sub);return;}
+  cfCasSyncNow("core");cfCasSyncNow("training");}
+
+function cfCasRun(sub){
+  if(CF_CAS_INFLIGHT[sub])return;                   /* at most one in flight */
+  if(!syncOn())return;
+  if(!cfCasCanCommit(cfCasState(sub)))return;       /* the single precondition list */
+  if(cfAccountBlocked&&cfAccountBlocked())return;   /* ownership gates stay preconditions */
+  cfCasBuildRequest(sub,function(req){
+    if(!req){CF_CAS_BLOCK[sub]="invariant";return;}
+    CF_CAS_INFLIGHT[sub]=req;
+    revAttempt(sub);
+    cfCasSend(req,function(status,bodyJson){
+      CF_CAS_INFLIGHT[sub]=null;
+      cfCasHandle(sub,req,status,bodyJson||{});});});}
+
+/* ---- response disposition ---------------------------------------------- */
+function cfCasHandle(sub,req,status,body){
+  var d=cfCasDisposition(status,body);
+  if(d==="ok"){
+    if(body.subsystem!==undefined&&body.subsystem!==sub){   /* answered about another subsystem */
+      CF_CAS_BLOCK[sub]="invariant";return;}
+    CF_CAS_ATTEMPT[sub]=0;CF_CAS_BLOCK[sub]=null;
+    var acked=cfCasAck(revTrack(sub),req.localRev,
+                       (typeof body.newRev==="number")?body.newRev:null);
+    revCommit(sub,req.localRev);                    /* acknowledges ONLY what was sent */
+    if(typeof body.newRev==="number")cfCasSetServerRev(sub,body.newRev);
+    cfCasSetBaseline(sub,req.canon);                /* this is now the agreed content */
+    if(acked.stillPending)cfCasSchedule(sub,0);     /* an edit landed mid-flight */
+    return;}
+
+  if(d==="conflict"){
+    CF_CAS_ATTEMPT[sub]=0;
+    cfCasOnConflict(sub,req,body);
+    return;}
+
+  if(d==="retry"){
+    var wait=cfCasRetryDelay(status,CF_CAS_ATTEMPT[sub]);
+    CF_CAS_ATTEMPT[sub]=CF_CAS_ATTEMPT[sub]+1;
+    if(wait===null){CF_CAS_BLOCK[sub]="failed";return;}   /* stop; await an explicit trigger */
+    cfCasSchedule(sub,wait);
+    return;}
+
+  /* auth | update | oversize | contract | invariant: no automatic retry. Local
+     data stays exactly where it is and stays exportable. */
+  CF_CAS_BLOCK[sub]=(d==="contract")?"invariant":d;}
+
+/* ---- 409 --------------------------------------------------------------- */
+function cfCasOnConflict(sub,req,body){
+  var serverRev=(typeof body.serverRev==="number")?body.serverRev:null;
+  if(serverRev!==null)cfCasSetServerRev(sub,serverRev);
+  var serverCanon=cfCanon(body.payload===undefined?null:body.payload);
+  var verdict=cfCasAutoResolve(serverCanon,req.canon,cfCasBaseline(sub),
+                               CF_CAS_ATTEMPT[sub]>0);
+  if(verdict==="agree"){
+    revCommit(sub,req.localRev);
+    cfCasSetBaseline(sub,serverCanon);
+    return;}
+  if(verdict==="retry-once"){
+    CF_CAS_ATTEMPT[sub]=1;
+    cfCasSchedule(sub,0);
+    return;}
+  /* A genuine conflict. The server payload becomes a verified recovery artifact
+     BEFORE any conflict card exists; if that write fails the subsystem enters
+     the recovery-blocked state and no destructive choice is offered. */
+  var id=cfCasRecNewId(sub);
+  if(!id){CF_CAS_BLOCK[sub]="recovery";return;}
+  cfCasRecWrite(id,sub,serverRev===null?0:serverRev,
+    JSON.stringify(body.payload===undefined?null:body.payload),function(ok){
+      if(!ok){CF_CAS_BLOCK[sub]="recovery";return;}
+      cfCasSetConflictId(sub,id);                    /* only now is it actionable */
+    });}
+
+/* ---- re-point the frozen entry points ---------------------------------- */
+/* The revision bump is UNCONDITIONAL. Commit 1c fixed exactly this: an edit
+   made while signed out must still advance the local revision, or a later
+   session sees a device that looks clean and adopts stale server data over
+   newer local work. My first version of this override reinstated the
+   `if(!syncOn())return` guard and silently undid that fix — caught by the
+   existing c1c suite, which is the argument for never deleting an old test
+   just because a new commit owns the code path. Only the pending marker and
+   the network schedule are gated on being signed in. */
+scheduleCloudPush=function(){
+  revBump("core");
+  if(syncOn()){cfSetPending("push");cfCasSchedule("core");}};
+scheduleTrainingPush=function(){
+  revBump("training");
+  if(syncOn()){cfSetPending("push");cfCasSchedule("training");}};
 
 </script>
 </body>

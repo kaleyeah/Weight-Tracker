@@ -251,6 +251,16 @@ group('CAS-20 / spec §4 — bounded retry and per-status disposition', () => {
   test('500 uses the same bounded ladder', () => eq(C.cfCasRetryDelay(500, 0), 5000));
   ['409', '413', '426', '401', '400'].forEach((s) =>
     test(`${s} never enters the retry loop`, () => eq(C.cfCasRetryDelay(Number(s), 0), null)));
+  test('a 200 carrying the success contract is ok', () =>
+    eq(C.cfCasDisposition(200, { ok: true, subsystem: 'core', newRev: 4 }), 'ok'));
+  test('a bare 200 is NOT success — status alone is never proof', () =>
+    eq(C.cfCasDisposition(200, {}), 'contract'));
+  test('a 200 without newRev is not success', () =>
+    eq(C.cfCasDisposition(200, { ok: true, subsystem: 'core' }), 'contract'));
+  test('a 200 with ok:false is not success', () =>
+    eq(C.cfCasDisposition(200, { ok: false, newRev: 4 }), 'contract'));
+  test('a 200 with no body at all is not success', () =>
+    eq(C.cfCasDisposition(200, null), 'contract'));
   test('409 with conflict:true is a conflict', () =>
     eq(C.cfCasDisposition(409, { conflict: true }), 'conflict'));
   test('409 reused-key is an INVARIANT, never a conflict card', () =>
