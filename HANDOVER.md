@@ -5,6 +5,26 @@ here is checked against the repo, not recalled.
 
 ---
 
+## 0. READ FIRST — there are TWO client lineages
+
+This was not known when the rest of this document was written, and it changes
+several statements below. See `RECONCILIATION.md` for the full analysis.
+
+- **Lineage A** = `origin/main`, build `2026-07-28.343-pb`. **This is what the
+  two real athletes run today**, served via GitHub Pages. It syncs by writing
+  PocketBase records **directly** and **never calls the CAS commit route**.
+- **Lineage B** = `claude/compound-fitness-roles-workflow-aala7o`, everything
+  else in this document. **Never deployed to anyone.**
+
+Both are branches of this same repo. They forked at `66108ea` (build `.339`), so
+**B already contains A's features through .339**; A is only four commits ahead.
+
+Consequence that corrects §4 below: **HOTFIX-001 is latent, not live-costing.**
+The deployed client never touches the route the defect is in. It remains a hard
+prerequisite for shipping B, but it is not hurting anyone today.
+
+---
+
 ## 1. What this is
 
 **Compound** — a weight/nutrition/training tracker for a very small number of
@@ -123,8 +143,9 @@ cleanly if that binary is absent.
 
 ### Outstanding
 
-1. **HOTFIX-001** — the only item with an ongoing live cost. Needs the
-   Architect's approval, then the PO's authorisation.
+1. **HOTFIX-001** — a prerequisite for shipping Lineage B, **not** a live
+   athlete-facing cost (see §0). Needs the Architect's approval, then the PO's
+   authorisation.
 2. Architect rulings on `C10-MC-01..20` and `MV-01..13` (sent, never ruled on —
    one review came back as a duplicate of the previous one).
 3. Final consolidated Commit 10 package and release ruling.
@@ -133,7 +154,9 @@ cleanly if that binary is absent.
 
 ## 4. HOTFIX-001 — read this before touching the server
 
-**A defect is live in production right now.**
+**A defect is present in production, but latent** — the deployed client
+(Lineage A) never calls this route, so no athlete is currently affected. It
+becomes live the moment Lineage B ships.
 
 The commit route derives its idempotency `requestHash` from
 `JSON.stringify(body.payload)` over a Go map, so **byte-identical requests hash
