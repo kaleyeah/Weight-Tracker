@@ -8245,19 +8245,64 @@ function cfCasDisposition(status,body){
    storage shim that mangles unicode, or a partial write are all invisible to
    the first and caught by the second. */
 var CF_CASREC_PREFIX="cf:casrec:";
-var CF_CASREC_SEQ=0;
-function cfCasRecKeys(id){return {payload:CF_CASREC_PREFIX+id+":payload",manifest:CF_CASREC_PREFIX+id+":manifest"};}
+
+/* ACCOUNT SCOPE IS PART OF THE NAMESPACE, not just a manifest field.
+   Correction C10-P3-01. localStorage is shared across every account that signs
+   in on this origin, so an artifact keyed only by id is enumerable and
+   readable by the next account — a manifest saying account:A stops a correct
+   caller accepting it, but does nothing to stop account B reading the health
+   payload out of storage directly. This is the same defect class M1 fixed for
+   photos, reintroduced here for recovery artifacts and caught in review.
+
+   The scope comes from the trusted authenticated session, never from an
+   argument, so no caller can address another account's namespace by asking. */
+function cfCasRecScope(){var u=pbUid();return u?String(u):"";}
+function cfCasRecKeys(id,scope){
+  var sc=(scope===undefined)?cfCasRecScope():scope;
+  var base=CF_CASREC_PREFIX+sc+":"+id;
+  return {claim:base+":claim",payload:base+":payload",manifest:base+":manifest",prefix:base};}
+
+/* Every artifact id visible to the CURRENT account. Another account's entries
+   are not merely filtered out of the result — their keys are not addressable
+   through this API at all. */
+function cfCasRecList(){
+  var sc=cfCasRecScope(),out=[];
+  if(!sc)return out;
+  var pre=CF_CASREC_PREFIX+sc+":";
+  try{
+    for(var i=0;i<localStorage.length;i++){
+      var k=localStorage.key(i)||"";
+      if(k.indexOf(pre)!==0)continue;
+      var rest=k.slice(pre.length),cut=rest.lastIndexOf(":");
+      if(cut>0&&rest.slice(cut+1)==="manifest")out.push(rest.slice(0,cut));}
+  }catch(e){}
+  return out;}
+
 function cfCasRecExists(id){
   var K=cfCasRecKeys(id);
-  try{return localStorage.getItem(K.manifest)!==null||localStorage.getItem(K.payload)!==null;}
+  try{return localStorage.getItem(K.manifest)!==null||localStorage.getItem(K.payload)!==null||
+             localStorage.getItem(K.claim)!==null;}
   catch(e){return true;}}                                   /* unreadable storage: assume taken */
 
-/* A fresh id, verified free. Never reuses an id that has any trace on disk. */
-function cfCasRecNewId(sub,now){
-  for(var i=0;i<50;i++){
-    var id="casrec-"+sub+"-"+now+"-"+(++CF_CASREC_SEQ);
-    if(!cfCasRecExists(id))return id;}
-  return null;}
+/* CROSS-CONTEXT UNIQUE IDS. Correction C10-P3-02: the previous id was
+   subsystem + caller timestamp + a process-local counter, so two tabs at the
+   same millisecond with the same counter produced the same candidate, and
+   "check it is absent, then write" reserves nothing across contexts.
+   Now the entropy is cryptographic and independent per runtime. */
+function cfCasRandomHex(bytes){
+  try{
+    if(typeof crypto!=="undefined"&&crypto.getRandomValues){
+      var v=new Uint8Array(bytes||16);crypto.getRandomValues(v);
+      var h="";for(var i=0;i<v.length;i++){var x=v[i].toString(16);h+=(x.length===1?"0":"")+x;}
+      return h;}
+  }catch(e){}
+  return null;}                                             /* no entropy: refuse, never fake it */
+function cfCasRecNewId(sub){
+  var r=null;
+  try{if(typeof crypto!=="undefined"&&crypto.randomUUID)r=String(crypto.randomUUID()).replace(/-/g,"");}catch(e){}
+  if(!r)r=cfCasRandomHex(16);
+  if(!r)return null;                                        /* without entropy there is no safe id */
+  return "casrec-"+sub+"-"+r;}
 
 function cfCasSha256Hex(str,cb){
   try{
@@ -8269,37 +8314,65 @@ function cfCasSha256Hex(str,cb){
       cb(h);},function(){cb(null);});
   }catch(e){cb(null);}}
 
-function cfCasRecPurge(id){
+/* OWNERSHIP-SAFE CLEANUP. A failed writer must never delete bytes another
+   writer committed after it started (review §4), so purge compares the claim
+   token before deleting anything. A loser cleans up only its own mess. */
+function cfCasRecPurge(id,token){
   var K=cfCasRecKeys(id);
-  try{localStorage.removeItem(K.manifest);localStorage.removeItem(K.payload);}catch(e){}}
+  try{
+    if(token&&localStorage.getItem(K.claim)!==token)return false;   /* not ours: leave it alone */
+    localStorage.removeItem(K.manifest);
+    localStorage.removeItem(K.payload);
+    localStorage.removeItem(K.claim);
+    return true;
+  }catch(e){return false;}}
 
-/* cb(ok, manifestOrReason). Reasons are diagnostic strings, never payloads. */
-function cfCasRecWrite(id,sub,serverRev,account,payloadStr,cb){
-  var K=cfCasRecKeys(id),man0=null,pay0=null;
-  try{man0=localStorage.getItem(K.manifest);pay0=localStorage.getItem(K.payload);}
+/* cb(ok, manifestOrReason). The account is taken from the trusted session, not
+   from the caller. Order: claim, payload, read back, manifest LAST. */
+function cfCasRecWrite(id,sub,serverRev,payloadStr,cb){
+  var scope=cfCasRecScope();
+  if(!scope){cb(false,"unauthenticated");return;}
+  var K=cfCasRecKeys(id,scope),man0=null,pay0=null,claim0=null;
+  try{man0=localStorage.getItem(K.manifest);pay0=localStorage.getItem(K.payload);
+      claim0=localStorage.getItem(K.claim);}
   catch(e){cb(false,"storage");return;}
   if(!cfCasRecMayWrite(man0)){cb(false,"exists");return;}            /* 2, 7 */
   if(pay0!==null){cb(false,"exists");return;}                        /* a partial from before */
+  var token=cfCasRandomHex(8);
+  if(!token){cb(false,"entropy");return;}
+  if(claim0!==null&&claim0!==token){cb(false,"claimed");return;}      /* someone else is writing */
+  try{localStorage.setItem(K.claim,token);}catch(e){cb(false,"storage");return;}
+  /* Re-read the claim: if another context wrote its own token between our
+     check and our write, it now owns the id and we must stand down without
+     touching anything. Exactly one writer survives this. */
+  var claimNow=null;
+  try{claimNow=localStorage.getItem(K.claim);}catch(e){claimNow=null;}
+  if(claimNow!==token){cb(false,"claimed");return;}
   var want=String(payloadStr);
-  try{localStorage.setItem(K.payload,want);}catch(e){cfCasRecPurge(id);cb(false,"storage");return;}  /* 3 */
+  try{localStorage.setItem(K.payload,want);}catch(e){cfCasRecPurge(id,token);cb(false,"storage");return;}  /* 3 */
   var back=null;
   try{back=localStorage.getItem(K.payload);}catch(e){back=null;}     /* 4 */
-  if(back===null||back!==want){cfCasRecPurge(id);cb(false,"readback");return;}
+  if(back===null||back!==want){cfCasRecPurge(id,token);cb(false,"readback");return;}
   cfCasSha256Hex(back,function(hex){                                 /* hash of what STORAGE returned */
-    if(!cfCasHashValid(hex)){cfCasRecPurge(id);cb(false,"digest");return;}
-    var man={kind:"cas-conflict",id:String(id),sub:sub,serverRev:serverRev,account:account,
+    if(!cfCasHashValid(hex)){cfCasRecPurge(id,token);cb(false,"digest");return;}
+    /* Still ours? A concurrent writer that took the claim must not have its
+       artifact completed by us. */
+    var stillMine=null;
+    try{stillMine=localStorage.getItem(K.claim);}catch(e){stillMine=null;}
+    if(stillMine!==token){cb(false,"claimed");return;}                /* touch nothing */
+    var man={kind:"cas-conflict",id:String(id),sub:sub,serverRev:serverRev,account:scope,
              keys:["payload"],sizes:{payload:cfCasUtf8Bytes(back)},hash:hex};
-    if(!cfCasRecValid(man,id,{payload:back})){cfCasRecPurge(id);cb(false,"invalid");return;}
+    if(!cfCasRecValid(man,id,{payload:back})){cfCasRecPurge(id,token);cb(false,"invalid");return;}
     try{localStorage.setItem(K.manifest,JSON.stringify(man));}       /* 5: manifest LAST */
-    catch(e){cfCasRecPurge(id);cb(false,"storage");return;}
+    catch(e){cfCasRecPurge(id,token);cb(false,"storage");return;}
     cb(true,man);});}
 
-/* cb(payloadOrNull, reason). The digest is recomputed from the bytes read back
-   out of storage — a caller-supplied digest is never trusted (progress-2
-   review). Returns the payload only when cfCasRecVerified passes, so a conflict
-   card cannot become actionable on an unverified artifact. */
+/* cb(payloadOrNull, reason). Addresses only the current account's namespace, so
+   another account's artifact is not merely rejected — it is unreachable. */
 function cfCasRecRead(id,expected,cb){
-  var K=cfCasRecKeys(id),raw=null,pay=null;
+  var scope=cfCasRecScope();
+  if(!scope){cb(null,"unauthenticated");return;}
+  var K=cfCasRecKeys(id,scope),raw=null,pay=null;
   try{raw=localStorage.getItem(K.manifest);pay=localStorage.getItem(K.payload);}
   catch(e){cb(null,"storage");return;}
   if(raw===null){cb(null,"absent");return;}                          /* 6: no manifest, not actionable */
