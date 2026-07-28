@@ -8025,6 +8025,161 @@ genNightly=function(){
     render();
   }).catch(function(e){state.nightBusy=false;render();toast(e.message||"Couldn’t generate");});};
 
+/* ============================================================
+   HARDENING — COMMIT 10: CAS CLIENT (decision core)
+
+   Product Architect specification `features/commit10/spec/`, as amended by
+   the pre-coding review. This block holds the PURE decisions; the wiring
+   (scheduler, route adapter, conflict center, status surface) sits below it
+   and calls into these.
+
+   Why pure functions first: every guarantee this commit makes is a rule
+   about WHEN something may happen — when a response may mark data clean,
+   when a destructive choice may proceed, when a conflict may be resolved
+   without asking. Rules that live inside network callbacks cannot be tested;
+   these can, against the shipping source.
+   ============================================================ */
+/* @testable-start C10 */
+
+/* ---- request identity and idempotency (spec §2.5, review §2) -------------
+   The key is DERIVED, never stored: an identical retry after an unknown
+   network outcome reproduces it, and any change to subsystem, expected
+   revision or payload bytes produces a different one (CAS-08, CAS-09).
+   The review requires a full collision-resistant digest — no truncation and
+   no ad-hoc hash — so cfCasIdentity() builds the exact string to be hashed
+   and cfCasKeyFrom() assembles the key from the full hex digest.
+   Newline separators cannot occur inside a canonical JSON number or a
+   subsystem name, so no two distinct identities can collide by framing. */
+function cfCasIdentity(sub,expectedRev,canonPayload){
+  return String(sub)+"\n"+String(expectedRev)+"\n"+String(canonPayload);}
+function cfCasKeyFrom(hex){
+  var k="c10-"+String(hex||"");
+  return k.length<=96?k:null;}            /* null = refuse to send, never truncate */
+
+/* ---- what a 200 may acknowledge (CAS-05, CAS-06) -------------------------
+   A response may only clean the revision ITS OWN request captured. If the
+   athlete edited while it was in flight, the newer state stays pending and
+   is scheduled as the next coalesced commit. This is the defect Commit 1c
+   fixed for the legacy path; the CAS path inherits the rule, not the code
+   path. Returns the settled track plus whether work remains. */
+function cfCasAck(track,sentRev,newServerRev){
+  var success=Math.max(track.success||0,sentRev||0);
+  var local=track.local||0;
+  return {local:local,attempted:track.attempted||0,success:success,
+          serverRev:(newServerRev===undefined||newServerRev===null)?track.serverRev:newServerRev,
+          stillPending:local>success};}
+
+/* ---- may this subsystem commit automatically? (CAS-11, spec §2.7) --------
+   One list, consulted by the scheduler and by nothing else, so a new caller
+   cannot accidentally bypass it. Ownership/auth gates from Commits 1c/1e are
+   PRECONDITIONS here, not replacements. */
+function cfCasCanCommit(st){
+  if(!st)return false;
+  if(st.conflictId)return false;                 /* unresolved conflict */
+  if(st.blocked)return false;                    /* auth|update|oversize|invariant|recovery|ownership */
+  return (st.local||0)>(st.success||0);}         /* something to send */
+
+/* ---- automatic conflict resolution: exactly two cases (spec §1.4) --------
+   A genuine content conflict is NEVER resolved automatically. The only
+   silence permitted is when there is nothing to decide:
+     "agree"      the server already holds what we tried to send
+     "retry-once" the server moved but still matches our last agreed
+                  baseline, so our payload is still the only new content
+     "conflict"   everything else — ask the athlete
+   Never newest-timestamp, never largest-payload, never prefer-server,
+   never prefer-device, never merge, never retry until one side wins. */
+function cfCasAutoResolve(serverCanon,sentCanon,baselineCanon,retriedAlready){
+  if(serverCanon===sentCanon)return "agree";
+  if(!retriedAlready&&baselineCanon&&serverCanon===baselineCanon)return "retry-once";
+  return "conflict";}
+
+/* ---- the destructive-resolution context (review §3) ---------------------
+   Commit 1f's cfCtxDrifted predicate is proven and reused, but its whole-app
+   context is deliberately NOT: under it, editing Training would abort an
+   in-progress Health & progress adoption. A CAS resolution is about ONE
+   subsystem, so the context names that subsystem and carries only what makes
+   THIS decision stale. C10-PLAN-05/06 are the pair that prove it: same
+   interruption, opposite outcomes, decided solely by which subsystem moved. */
+function cfCasCtx(sub,owner,gen,subLocalRev,conflictId,capturedServerRev,recRef){
+  return {sub:sub,owner:owner,gen:gen,rev:subLocalRev,
+          conflictId:conflictId,serverRev:capturedServerRev,rec:recRef};}
+function cfCasCtxDrifted(a,b){
+  if(!a||!b)return true;
+  return a.sub!==b.sub||a.owner!==b.owner||a.gen!==b.gen||a.rev!==b.rev||
+         a.conflictId!==b.conflictId||a.serverRev!==b.serverRev||a.rec!==b.rec;}
+
+/* ---- the cas-conflict recovery artifact (review §1) ---------------------
+   The existing recovery format stores a whole-snapshot {core,training,workout}
+   set. A CAS conflict concerns ONE subsystem, so reusing that format would
+   pair a genuine server `core` payload with a local `training` payload the
+   server never held — the "misleading hybrid snapshot" the review forbids.
+   Hence a second artifact kind with its own exact-set rule. cfManifestValid
+   (Commit 1g) keeps governing set-aside artifacts, untouched.
+   The artifact must be self-contained enough to restore its subsystem: kind,
+   subsystem, server revision, canonical hash, byte length, account. */
+function cfCasRecValid(man,id,comps){
+  if(!man||typeof man!=="object")return false;
+  if(man.kind!=="cas-conflict")return false;
+  if(String(man.id)!==String(id))return false;
+  if(man.sub!=="core"&&man.sub!=="training")return false;
+  if(typeof man.serverRev!=="number"||man.serverRev<0||Math.floor(man.serverRev)!==man.serverRev)return false;
+  if(!man.account)return false;
+  if(!Array.isArray(man.keys)||man.keys.length!==1||man.keys[0]!=="payload")return false;
+  if(!comps||typeof comps.payload!=="string")return false;
+  if(!man.sizes||typeof man.sizes.payload!=="number")return false;
+  if(man.sizes.payload!==comps.payload.length)return false;
+  if(Object.keys(comps).length!==1)return false;              /* no extra components */
+  if(typeof man.hash!=="string"||!man.hash)return false;
+  return true;}
+
+/* An artifact is immutable once a conflict references it: a fresh capture
+   writes a NEW id. Anything else would let the copy the athlete is deciding
+   against change under them. */
+function cfCasRecMayWrite(existingManifest){return !existingManifest;}
+
+/* ---- first-row creation needs positive proof (review §4C) ---------------
+   Absent local revision metadata is NOT evidence that the account has no row.
+   All four must be positively established by an authenticated bootstrap. */
+function cfCasFirstRowAllowed(proof){
+  return !!proof&&proof.authenticated===true&&proof.serverRowAbsent===true&&
+         proof.ownershipResolved===true&&proof.everAcknowledgedRow===false&&
+         proof.localDataBelongsToAccount===true;}
+
+/* ---- compact status priority (spec §3.1) --------------------------------
+   One indicator across both subsystems, highest-priority state wins. */
+var CF_CAS_STATUS_ORDER=["update","conflict","auth","failed","pending","syncing","synced"];
+function cfCasStatus(a,b){
+  for(var i=0;i<CF_CAS_STATUS_ORDER.length;i++){
+    var s=CF_CAS_STATUS_ORDER[i];
+    if(a===s||b===s)return s;}
+  return "synced";}
+
+/* ---- bounded retry (spec §2.6, CAS-20) ---------------------------------
+   500/network only. Everything else is handled by its own status rule and
+   must never enter this loop. Returns the delay in ms, or null to stop. */
+function cfCasRetryDelay(status,attempt){
+  if(!(status===0||status>=500))return null;   /* 0 = network failure */
+  if(attempt===0)return 5000;
+  if(attempt===1)return 30000;
+  return null;}                                 /* stop; wait for an explicit trigger */
+
+/* ---- per-status disposition (spec §4) ----------------------------------
+   The single table that decides what a response means. "invariant" is the
+   reused-key case: a client bug the athlete cannot act on, so it must reach
+   the safe failure state and never the conflict center. */
+function cfCasDisposition(status,body){
+  if(status===200)return "ok";
+  if(status===409){
+    if(body&&body.conflict===true)return "conflict";
+    return "invariant";}                        /* key reused with a different request */
+  if(status===401||status===403)return "auth";
+  if(status===426)return "update";
+  if(status===413)return "oversize";
+  if(status===400)return "contract";
+  if(status===0||status>=500)return "retry";
+  return "contract";}
+/* @testable-end C10 */
+
 </script>
 </body>
 </html>
