@@ -38,6 +38,13 @@ migrate((app) => {
         cascadeDelete: true, maxSelect: 1 },
       { name: "data", type: "json", maxSize: 2000000 },
       { name: "training", type: "json", maxSize: 2000000 },
+      /* Operational, record-level fields. Not snapshot subsystems and
+         deliberately outside the CAS tracks — the app writes them with a direct
+         PATCH under cfWritePolicy, which is exactly what CAS-18 has to be able
+         to exercise. Without them the operational write path cannot be driven
+         here at all, and CAS-18 would have to substitute something else. */
+      { name: "health", type: "json", maxSize: 200000 },
+      { name: "coachreq", type: "json", maxSize: 200000 },
     ],
     listRule: "user = @request.auth.id", viewRule: "user = @request.auth.id",
     createRule: "user = @request.auth.id", updateRule: "user = @request.auth.id",

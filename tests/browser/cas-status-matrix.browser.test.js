@@ -35,10 +35,17 @@ const PORT = 8100;
     if (url.indexOf(server.base) !== 0) return;
     let body = null;
     try { body = req.postData(); } catch (e) { body = null; }
-    wire.push({ method: req.method(), url: url.slice(server.base.length), body });
+    let headers = {};
+    try { headers = req.headers(); } catch (e) { headers = {}; }
+    wire.push({ method: req.method(), url: url.slice(server.base.length), body, headers });
   });
   const clearWire = () => { wire.length = 0; };
   const commits = () => wire.filter((r) => r.url.indexOf('/api/cf/appdata/commit') === 0);
+  /* Requests the CLIENT made, excluding any copy the test harness itself
+     issued through route.fetch(). Without this exclusion an intercepted
+     request is counted twice and a "retry" can be proven that never happened —
+     which is exactly what my first CAS-08 did. */
+  const clientCommits = () => commits().filter((r) => !r.headers['x-cf-harness-copy']);
   /* A raw snapshot write is any direct mutation of the appdata collection. */
   const rawWrites = () => wire.filter((r) =>
     /^\/api\/collections\/appdata\/records/.test(r.url) && r.method !== 'GET');
@@ -130,27 +137,89 @@ const PORT = 8100;
     eq(await rowRev('coreRev'), coreRev, 'and core must be untouched');
   });
 
-  await test('CAS-05 a 200 acknowledges only the captured local revision', async () => {
-    const res = await page.evaluate(async () => {
-      state.weights = [{ date: '2026-09-03', weight: 79.9 }];
+  await test('CAS-05 / CAS-MX-01..03 a 200 acknowledges EXACTLY its captured revision', async () => {
+    /* The first version asserted only `success <= local`, which is satisfied by
+       success never advancing at all. It proved the client did not acknowledge
+       a FUTURE revision; it did not prove it acknowledged the RIGHT one.
+
+       So the first response is now held open while a newer edit lands, and the
+       exact acknowledged revision is measured at three points. */
+    let release = null;
+    const held = new Promise((r) => { release = r; });
+    let heldOnce = false;
+    await page.route(server.base + '/api/cf/appdata/commit', async (route) => {
+      if (!heldOnce) { heldOnce = true; await held; }
+      await route.continue();
+    });
+
+    await page.evaluate(() => {
+      ['core', 'training'].forEach((x) => {
+        cfCasSetConflictId(x, null); cfCasSetBlock(x, null, null); cfCasClearPreserveNeed(x);
+        const t = revTrack(x); revSet(x, { local: t.local, attempted: t.local, success: t.local });
+      });
+      /* Record every acknowledgement in order. Sampling success after the fact
+         is a race: the queued follow-up can land before the assertion reads it,
+         which is exactly what made the first version of this test report the
+         newer revision and look like a client defect. An ordered log cannot
+         race. */
+      window.__acks = [];
+      if (!window.__realCommit) window.__realCommit = revCommit;
+      window.revCommit = function (sub, n) {
+        if (sub === 'core') window.__acks.push(n);
+        return window.__realCommit.apply(this, arguments);
+      };
+      state.weights = [{ date: '2026-10-01', weight: 78.1 }];
       scheduleCloudPush();
-      /* an edit lands WHILE the request is in flight */
-      await new Promise((r) => setTimeout(r, 3100));
-      const during = revTrack('core').local;
-      state.weights = [{ date: '2026-09-04', weight: 79.8 }];
+    });
+    /* wait for the request to be in flight and held */
+    await page.waitForFunction(() => !!CF_CAS_OP.core, null, { timeout: 15000 });
+    const capturedRev = await page.evaluate(() => CF_CAS_OP.core.op.localRev);
+
+    /* a NEWER edit lands while the first response is still held */
+    const newer = await page.evaluate(() => {
+      state.weights = [{ date: '2026-10-02', weight: 78.0 }];
       scheduleCloudPush();
-      const after = revTrack('core').local;
+      return { local: revTrack('core').local, success: revTrack('core').success };
+    });
+    ok(newer.local > capturedRev, 'the newer edit must have advanced local past the captured revision');
+    eq(newer.success, capturedRev - 1 >= 0 ? newer.success : newer.success,
+      'sanity: success is read below');
+    const beforeResponse = await page.evaluate(() => revTrack('core').success);
+    notOk(beforeResponse >= capturedRev, 'nothing may be acknowledged while the response is held');
+
+    release();
+    await page.waitForFunction(() => window.__acks.length >= 1, null, { timeout: 15000 });
+
+    /* CAS-MX-01 — the FIRST acknowledgement is exactly the captured revision */
+    const firstAck = await page.evaluate(() => window.__acks[0]);
+    eq(firstAck, capturedRev,
+      'the first 200 acknowledged ' + firstAck + ', expected the captured revision ' + capturedRev);
+    /* CAS-MX-02 — and it was not the newer edit */
+    notOk(firstAck >= newer.local,
+      'it acknowledged the newer edit that arrived mid-flight');
+
+    /* CAS-MX-03 — the follow-up separately acknowledges the newer revision */
+    await page.unroute(server.base + '/api/cf/appdata/commit');
+    await page.evaluate(async () => {
+      const want = revTrack('core').local;
+      cfCasSchedule('core', 0);
       const start = Date.now();
       while (Date.now() - start < 15000) {
         await new Promise((r) => setTimeout(r, 150));
-        if (!CF_CAS_OP.core) break;
+        if (revTrack('core').success >= want && !CF_CAS_OP.core) break;
       }
-      const t = revTrack('core');
-      return { during, after, success: t.success, local: t.local };
     });
-    ok(res.after > res.during, 'the second edit must have advanced the local revision');
-    ok(res.success <= res.local,
-      'an acknowledgement must never claim a revision newer than what was sent');
+    const acks = await page.evaluate(() => {
+      const out = window.__acks.slice();
+      window.revCommit = window.__realCommit;
+      return out;
+    });
+    const settled = await page.evaluate(() => revTrack('core'));
+    ok(acks.length >= 2, 'expected a second acknowledgement, saw ' + JSON.stringify(acks));
+    eq(acks[0], capturedRev, 'first acknowledgement');
+    eq(acks[acks.length - 1], newer.local,
+      'the follow-up must acknowledge the newer revision, saw ' + JSON.stringify(acks));
+    eq(settled.success, settled.local, 'and the subsystem ends up settled');
   });
 
   await test('CAS-06 an edit during a request remains pending, not silently lost', async () => {
@@ -197,27 +266,110 @@ const PORT = 8100;
     eq(sent.two.bd.newRev, sent.one.bd.newRev, 'and report the original revision');
   });
 
-  await test('CAS-08 an unknown network outcome retries with the SAME key', async () => {
-    const res = await page.evaluate(() => ({
-      first: cfCasRetryDelay(0, 0), second: cfCasRetryDelay(0, 1), third: cfCasRetryDelay(0, 2),
-      server5xx: cfCasRetryDelay(503, 0), notRetried: cfCasRetryDelay(409, 0),
-    }));
-    eq(res.first, 5000);
-    eq(res.second, 30000);
-    eq(res.third, null, 'the loop must stop rather than nag');
-    eq(res.server5xx, 5000, 'a 5xx is an unknown outcome too');
-    eq(res.notRetried, null, 'a conflict is a decision, never a retry');
-    /* and the retried request is the SAME captured operation, so the key is
-       identical — proven against the real route by resending one twice */
-    const same = await page.evaluate(async () => {
-      const rev = cfCasServerRev('core');
-      const canon = cfCanon({ retry: true });
-      const hex = await new Promise((r) => cfCasSha256Hex(cfCasIdentity('core', rev, canon), r));
-      const a = cfCasKeyFrom(hex);
-      const hex2 = await new Promise((r) => cfCasSha256Hex(cfCasIdentity('core', rev, canon), r));
-      return a === cfCasKeyFrom(hex2);
+  await test('CAS-08 / CAS-MX-04..05 an unknown outcome retries the SAME wire request', async () => {
+    /* The first version checked the retry-delay helper and that key derivation
+       is deterministic — the ingredients, not the behaviour. This drops the
+       response of a request the SERVER ACTUALLY PROCESSED, which is the real
+       dropped-response case, and then reads the retry off the wire.
+
+       NOTE FOR THE ARCHITECT: this passes here because this branch's
+       server/pb_hooks carries the HOTFIX-001 canonical-hash fix. Against the
+       DEPLOYED production hook the retry is refused with "idempotency key
+       reused with a different request", because the route hashes a Go map whose
+       key order is randomised. The acceptance criterion is not weakened to
+       accommodate that: this is exactly the athlete-facing behaviour the hotfix
+       restores, and it is why the hotfix matters. */
+    await page.evaluate(() => {
+      ['core', 'training'].forEach((x) => {
+        cfCasSetConflictId(x, null); cfCasSetBlock(x, null, null); cfCasClearPreserveNeed(x);
+        const t = revTrack(x); revSet(x, { local: t.local, attempted: t.local, success: t.local });
+      });
     });
-    ok(same, 'a resend of the same operation must derive the same key');
+    /* Earlier cases in this suite commit through raw requests, so the client's
+       captured server revision is behind the row. Starting from there, both the
+       attempt and its retry correctly conflict and nothing is applied — which
+       proves conflict handling, not retry identity. Sync the client's view up
+       first so this test is about what it says it is about. */
+    await page.evaluate(() => new Promise((res) => {
+      cfCasRefreshServerRev('core', (rev, err) => {
+        if (!err && typeof rev === 'number') cfCasSetServerRev('core', rev);
+        res(null);
+      });
+    }));
+    const revBefore = await rowRev('coreRev');
+    eq(await page.evaluate(() => cfCasServerRev('core')), revBefore,
+      'the client must agree with the server before the retry is exercised');
+
+    let dropped = 0;
+    await page.route(server.base + '/api/cf/appdata/commit', async (route) => {
+      if (dropped === 0) {
+        dropped++;
+        /* Let the server APPLY it, then throw the response away so the browser
+           sees an unknown outcome — a dropped response, not a failed request.
+           The copy is marked so it is not miscounted as a client retry. */
+        try {
+          await route.fetch({ headers: Object.assign({}, route.request().headers(),
+            { 'x-cf-harness-copy': '1' }) });
+        } catch (e) { /* the server still processed it */ }
+        await route.abort('connectionreset');
+        return;
+      }
+      await route.continue();
+    });
+
+    /* One edit, and nothing else moving. Waiting on `success >= local` was
+       wrong: the app's own scheduler keeps advancing `local`, so the predicate
+       chased a moving target and timed out even though the retry had already
+       succeeded. Wait for the thing this test is actually about — a second
+       request on the wire, and the operation released. */
+    clearWire();
+    await page.evaluate(() => {
+      cfCasClearTimer('core');
+      state.weights = [{ date: '2026-10-05', weight: 77.2 }];
+      scheduleCloudPush();
+    });
+    const deadline = Date.now() + 40000;
+    for (;;) {
+      const idle = await page.evaluate(() => !CF_CAS_OP.core);
+      if (clientCommits().length >= 2 && idle) break;
+      if (Date.now() > deadline) {
+        const diag = await page.evaluate(() => ({
+          track: revTrack('core'), op: !!CF_CAS_OP.core, block: CF_CAS_BLOCK.core,
+          conflict: cfCasConflictId('core'),
+        }));
+        throw new Error('the retry never happened: ' + JSON.stringify(diag)
+          + ' clientRequests=' + clientCommits().length + ' total=' + commits().length);
+      }
+      await page.waitForTimeout(250);
+    }
+    await page.unroute(server.base + '/api/cf/appdata/commit');
+
+    const sent = clientCommits().map((c) => JSON.parse(c.body));
+    ok(sent.length >= 2, 'expected an attempt and a client retry, saw ' + sent.length);
+    const a = sent[0], z = sent[sent.length - 1];
+    /* CAS-MX-04 — identical wire identity */
+    eq(z.subsystem, a.subsystem);
+    eq(z.expectedRev, a.expectedRev, 'the retry must reuse the captured expected revision');
+    eq(z.idempotencyKey, a.idempotencyKey, 'and the SAME idempotency key');
+    eq(JSON.stringify(z.payload), JSON.stringify(a.payload), 'and the same payload bytes');
+
+    /* CAS-MX-05 — the server applied it exactly once. The first attempt was
+       processed and its response thrown away, so the retry must have been
+       recognised as a replay rather than applied again. */
+    const applied = (await rowRev('coreRev')) - revBefore;
+    if (applied !== 1) {
+      throw new Error('applied ' + applied + ' times (revBefore=' + revBefore
+        + ', now=' + (await rowRev('coreRev')) + '); client requests='
+        + JSON.stringify(sent.map((x) => ({ rev: x.expectedRev, k: x.idempotencyKey.slice(0, 14) })))
+        + '; all wire=' + JSON.stringify(commits().map((c) => ({
+          k: JSON.parse(c.body).idempotencyKey.slice(0, 14),
+          copy: !!c.headers['x-cf-harness-copy'] }))));
+    }
+    const acked = await page.evaluate(() => revTrack('core').success);
+    ok(acked >= a.expectedRev + 1,
+      'the client must have taken the acknowledgement from the replay, got ' + acked);
+    notOk(await page.evaluate(() => !!cfCasConflictId('core')),
+      'a recognised replay must not raise a conflict');
   });
 
   await test('CAS-09 a changed payload or expected revision uses a NEW key', async () => {
@@ -402,20 +554,61 @@ const PORT = 8100;
     notOk(log.indexOf(marker) >= 0, 'the payload appeared in the PocketBase log');
   });
 
-  await test('CAS-18 health and coachreq operational writes stay outside the CAS tracks', async () => {
-    clearWire();
-    const before = await page.evaluate(() => ({
-      core: revTrack('core').local, training: revTrack('training').local,
-    }));
-    /* a non-CAS operational request the app makes on its own */
-    await page.evaluate(() => { try { pbGetRecord(function () {}); } catch (e) {} });
-    await settle(600);
-    const after = await page.evaluate(() => ({
-      core: revTrack('core').local, training: revTrack('training').local,
-    }));
-    eq(after.core, before.core, 'an operational read must not bump a CAS revision');
-    eq(after.training, before.training);
-    eq(commits().length, 0, 'and must not travel through the commit route');
+  await test('CAS-18 / CAS-MX-06..07 real operational WRITES stay outside the CAS tracks', async () => {
+    /* The first version called pbGetRecord — a READ — under a label claiming
+       write behaviour. It proved something true and something else entirely.
+       These drive the app's actual operational write path, pbSave(), for both
+       health and coachreq. */
+    const patchesOf = () => wire.filter((r) =>
+      /^\/api\/collections\/appdata\/records/.test(r.url) && r.method === 'PATCH');
+
+    for (const [id, fields] of [
+      ['CAS-MX-06 health', { health: { imported: 3, at: '2026-10-09' } }],
+      ['CAS-MX-07 coachreq', { coachreq: { day: '2026-10-09', ts: 1 } }],
+    ]) {
+      clearWire();
+      const before = await page.evaluate(() => ({
+        core: revTrack('core'), training: revTrack('training'),
+        coreServer: cfCasServerRev('core'), trainingServer: cfCasServerRev('training'),
+      }));
+      const wrote = await page.evaluate((f) => new Promise((res) => {
+        pbSave(f, (okW) => res(okW));
+      }), fields);
+      await settle(500);
+
+      ok(wrote, id + ': the operational write itself must succeed');
+      eq(commits().length, 0, id + ': it must not travel through the commit route');
+
+      const patches = patchesOf();
+      ok(patches.length >= 1, id + ': expected a direct operational PATCH, saw none');
+      patches.forEach((p) => {
+        const body = JSON.parse(p.body || '{}');
+        const keys = Object.keys(body);
+        notOk(keys.indexOf('data') >= 0, id + ': the operational write touched the core snapshot');
+        notOk(keys.indexOf('training') >= 0, id + ': it touched the training snapshot');
+        notOk(keys.indexOf('coreRev') >= 0 || keys.indexOf('trainingRev') >= 0,
+          id + ': it tried to set a server-managed revision');
+      });
+
+      const after = await page.evaluate(() => ({
+        core: revTrack('core'), training: revTrack('training'),
+        coreServer: cfCasServerRev('core'), trainingServer: cfCasServerRev('training'),
+      }));
+      eq(after.core.local, before.core.local, id + ': core local revision moved');
+      eq(after.core.success, before.core.success, id + ': core acknowledgement moved');
+      eq(after.training.local, before.training.local, id + ': training local revision moved');
+      eq(after.training.success, before.training.success, id + ': training acknowledgement moved');
+      eq(after.coreServer, before.coreServer, id + ': core server revision moved');
+      eq(after.trainingServer, before.trainingServer, id + ': training server revision moved');
+    }
+
+    /* and the record really carries them now */
+    const row = await server.api('GET',
+      '/api/collections/appdata/records?filter=' + encodeURIComponent(`user="${server.user.id}"`),
+      server.adminToken);
+    const rec = row.body.items[0];
+    eq(rec.health.imported, 3, 'the health write did not persist');
+    eq(rec.coachreq.day, '2026-10-09', 'the coach request did not persist');
   });
 
   await test('CAS-19 core success cannot clean training, nor training clean core', async () => {
@@ -435,15 +628,60 @@ const PORT = 8100;
     ok(res.after.training.local > res.after.training.success, 'training is still owed');
   });
 
-  await test('CAS-20 no request loop continues indefinitely', async () => {
-    const res = await page.evaluate(() => {
-      const seen = [];
-      let attempt = 0, d;
-      while ((d = cfCasRetryDelay(0, attempt)) !== null && attempt < 50) { seen.push(d); attempt++; }
-      return { seen, attempt };
+  await test('CAS-20 / CAS-MX-08..09 the SCHEDULER terminates, not just the delay helper', async () => {
+    /* The first version looped over cfCasRetryDelay() and proved the helper
+       returns two delays and then null. It said nothing about whether the
+       scheduler stops making requests, releases its operation, or settles
+       somewhere safe. This drives real 500s and counts what leaves. */
+    await page.evaluate(() => {
+      ['core', 'training'].forEach((x) => {
+        cfCasSetConflictId(x, null); cfCasSetBlock(x, null, null); cfCasClearPreserveNeed(x);
+        const t = revTrack(x); revSet(x, { local: t.local, attempted: t.local, success: t.local });
+      });
     });
-    ok(res.attempt < 50, 'the retry ladder must terminate');
-    eq(res.seen.length, 2, 'exactly two bounded retries, then stop: ' + res.seen.join(','));
+    const revBefore = await rowRev('coreRev');
+
+    let served = 0;
+    await page.route(server.base + '/api/cf/appdata/commit', async (route) => {
+      served++;
+      await route.fulfill({ status: 500, contentType: 'application/json',
+        body: JSON.stringify({ ok: false, error: 'forced server failure' }) });
+    });
+
+    clearWire();
+    await page.evaluate(() => {
+      state.weights = [{ date: '2026-10-11', weight: 76.9 }];
+      scheduleCloudPush();
+    });
+
+    /* the ladder is 5s then 30s, so watch well past the second retry */
+    await page.waitForTimeout(3500 + 5500);
+    const afterTwo = commits().length;
+    await page.waitForTimeout(32000);
+    const afterLadder = commits().length;
+    /* and a further window in which nothing new may appear */
+    await page.waitForTimeout(8000);
+    const finalCount = commits().length;
+    await page.unroute(server.base + '/api/cf/appdata/commit');
+
+    /* CAS-MX-08 */
+    eq(finalCount, afterLadder, 'the scheduler kept sending after the ladder was exhausted');
+    ok(finalCount <= 3, 'expected at most an attempt plus two retries, saw ' + finalCount);
+    ok(finalCount >= 2, 'expected the retries to actually happen, saw ' + finalCount);
+
+    /* CAS-MX-09 */
+    const settled = await page.evaluate(() => ({
+      op: !!CF_CAS_OP.core,
+      status: cfCasStatusFor('core'),
+      pending: revTrack('core').local > revTrack('core').success,
+      dataIntact: JSON.stringify(state.weights),
+    }));
+    notOk(settled.op, 'the operation must not be left falsely active');
+    ok(settled.pending, 'the athlete\'s edit must remain owed to the server');
+    ok(settled.status === 'failed' || settled.status === 'pending',
+      'it must settle into a safe state, got ' + settled.status);
+    eq(await rowRev('coreRev'), revBefore, 'and nothing may have been applied');
+    ok(settled.dataIntact.indexOf('76.9') >= 0, 'local data must be intact');
   });
 
   /* ========================== STATUS-01..08 =========================== */
@@ -487,21 +725,75 @@ const PORT = 8100;
     eq(s.settled, 'synced');
   });
 
-  await test('STATUS-04 a first persistent failure notifies once; retries do not nag', async () => {
+  await test('STATUS-04 / STATUS-MX-01..02 a persistent SYNC FAILURE notifies once', async () => {
+    /* The first version repeatedly called cfCasSetConflictId — that is conflict
+       DISCOVERY, not a persistent network failure. A conflict notice and a
+       failed-sync notice are different product states, and the label claimed
+       the second while the body exercised the first. STATUS-MX-03 below keeps
+       the conflict case, separately, where it belongs. */
+    await page.evaluate(() => {
+      ['core', 'training'].forEach((x) => {
+        cfCasSetConflictId(x, null); cfCasSetBlock(x, null, null); cfCasClearPreserveNeed(x);
+        const t = revTrack(x); revSet(x, { local: t.local, attempted: t.local, success: t.local });
+      });
+    });
+    await page.route(server.base + '/api/cf/appdata/commit', async (route) => {
+      await route.fulfill({ status: 500, contentType: 'application/json',
+        body: JSON.stringify({ ok: false, error: 'forced server failure' }) });
+    });
+
+    const res = await page.evaluate(async () => {
+      const toastEl = document.getElementById('wl-toast');
+      const seen = [];
+      const obs = new MutationObserver(() => { seen.push(toastEl.textContent); });
+      obs.observe(toastEl, { childList: true, characterData: true, subtree: true });
+      state.weights = [{ date: '2026-10-15', weight: 76.5 }];
+      scheduleCloudPush();
+      await new Promise((r) => setTimeout(r, 3500 + 6000));      /* attempt + first retry */
+      const afterFirstRetry = seen.slice();
+      /* STATUS-MX-02: keep poking it — resume triggers that stay unsuccessful */
+      for (let i = 0; i < 4; i++) {
+        cfCasSchedule('core', 0);
+        await new Promise((r) => setTimeout(r, 900));
+      }
+      obs.disconnect();
+      return {
+        afterFirstRetry, all: seen,
+        status: cfCasStatusFor('core'),
+        pending: revTrack('core').local > revTrack('core').success,
+        data: JSON.stringify(state.weights),
+      };
+    });
+    await page.unroute(server.base + '/api/cf/appdata/commit');
+
+    /* STATUS-MX-01 — at most one notice for one persistent failure */
+    ok(res.afterFirstRetry.length <= 1,
+      'a persistent failure notified ' + res.afterFirstRetry.length + ' times: '
+        + JSON.stringify(res.afterFirstRetry));
+    /* STATUS-MX-02 — repeated unsuccessful resume attempts add nothing */
+    eq(res.all.length, res.afterFirstRetry.length,
+      'repeated failed retries nagged: ' + JSON.stringify(res.all));
+    ok(res.pending, 'and local data stays owed');
+    ok(res.data.indexOf('76.5') >= 0, 'and intact');
+  });
+
+  await test('STATUS-MX-03 conflict discovery notifies once, separately from failure', async () => {
     const n = await page.evaluate(async () => {
+      ['core', 'training'].forEach((x) => {
+        cfCasSetConflictId(x, null); cfCasSetBlock(x, null, null); cfCasClearPreserveNeed(x);
+      });
       const toastEl = document.getElementById('wl-toast');
       let writes = 0;
       const obs = new MutationObserver(() => { writes++; });
       obs.observe(toastEl, { childList: true, characterData: true, subtree: true });
       const id = 'casrec-core-' + 'c'.repeat(32);
-      cfCasSetConflictId('core', null);
-      cfCasSetConflictId('core', id);                       /* discovery: one notice */
-      for (let i = 0; i < 5; i++) cfCasSetConflictId('core', id);   /* retries */
-      await new Promise((r) => setTimeout(r, 60));
+      cfCasSetConflictId('core', id);                        /* discovery: one notice */
+      for (let i = 0; i < 5; i++) cfCasSetConflictId('core', id);   /* rediscovery */
+      await new Promise((r) => setTimeout(r, 80));
       obs.disconnect();
       return writes;
     });
-    eq(n, 1, 'expected exactly one notification, saw ' + n);
+    eq(n, 1, 'conflict discovery must notify exactly once, saw ' + n);
   });
 
   await test('STATUS-05 conflict status persists across reload', async () => {
@@ -627,9 +919,18 @@ const PORT = 8100;
   section('Page health');
 
   await test('no uncaught error across the whole matrix', () => {
-    const real = b.pageErrors.filter((e) =>
-      !/ERR_(NAME_NOT_RESOLVED|FAILED|ABORTED|INTERNET_DISCONNECTED)|status of 4/.test(e));
+    /* CAS-08, CAS-20 and STATUS-04 deliberately inject dropped responses and
+       500s, so the console legitimately carries resource-load failures. Those
+       are the fault being tested, not a defect — but the filter names them
+       precisely rather than swallowing anything that looks noisy, and an
+       uncaught EXCEPTION (no "console:" prefix) is never excused. */
+    const injected = /^console: Failed to load resource: (net::ERR_CONNECTION_RESET|net::ERR_(NAME_NOT_RESOLVED|FAILED|ABORTED|INTERNET_DISCONNECTED)|the server responded with a status of (4\d\d|500))/;
+    const real = b.pageErrors.filter((e) => !injected.test(e));
     eq(real.length, 0, real.join(' | '));
+    /* and prove the exclusion is doing real work rather than hiding everything */
+    ok(b.pageErrors.length > 0, 'the injected faults should have produced console noise');
+    const thrown = b.pageErrors.filter((e) => e.indexOf('console:') !== 0);
+    eq(thrown.length, 0, 'uncaught exception: ' + thrown.join(' | '));
   });
 
   const failed = summary('cas-status-matrix.browser.test.js');
