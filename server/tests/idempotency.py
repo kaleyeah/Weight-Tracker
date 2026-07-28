@@ -70,6 +70,54 @@ r = L.commit(t1, "core", rev + 99, key, payload)
 s.error(r, 409, "idempotency key reused with a different request", "I3b differing expectedRev rejected")
 s.eq(rev + 1, current_rev("core"), "I3c a rejected reuse did not change the revision")
 
+# --- I8: replay stability with a MULTI-KEY payload ----------------------------
+# This is the regression for the canonical-hash hotfix, and it is also the
+# reason the defect shipped past a suite that already tested replay.
+#
+# I1 above uses payload {"v": "original"} — ONE key. A single-key object has
+# exactly one possible serialization, so it cannot detect an unstable one. The
+# route derived its requestHash from JSON.stringify over e.requestInfo().body,
+# which PocketBase hands over as a Go map, and Go randomises map iteration order
+# by design. With one key that is invisible. With several it is a coin toss per
+# request, and a legitimate retry gets refused as "key reused with a different
+# request" — the idempotency layer rejecting the exact case it exists for.
+#
+# Measured before the fix on a disposable instance: 10 of 12 identical retries
+# refused. A real athlete payload has dozens of keys.
+#
+# Twelve replays, not one: with a handful of keys a single replay passes by luck
+# often enough to look green.
+print("== I8: a multi-key payload replays every time ==")
+rev = current_rev("core")
+key = f"id-{N}-multikey"
+multi = {"weights": [{"date": "2026-02-02", "weight": 79, "note": "x", "steps": 1000}],
+         "settings": {"theme": "dark", "units": "kg", "startDate": "2026-01-01"},
+         "steps": {"2026-02-02": 8000}, "notes": {"2026-02-02": "felt good"}}
+first = L.commit(t1, "core", rev, key, multi)
+s.commit_ok(first, "core", rev + 1, "I8a first multi-key commit succeeded")
+
+refused = []
+for i in range(12):
+    r = L.commit(t1, "core", rev, key, multi)
+    if r.status != 200 or r.get("newRev") != rev + 1:
+        refused.append((i, r.status, r.get("error")))
+s.check(not refused,
+        "I8b twelve identical multi-key retries all replayed (%d refused)" % len(refused),
+        refused[:3] if refused else None)
+s.eq(rev + 1, current_rev("core"), "I8c no replay advanced the stored revision")
+
+# a differing payload must STILL be refused — the fix must not weaken I3
+r = L.commit(t1, "core", rev, key, dict(multi, extra="different"))
+s.error(r, 409, "idempotency key reused with a different request",
+        "I8d a genuinely different request is still rejected")
+
+# key order in the REQUEST must not matter either: the same content sent with
+# its top-level keys in a different order is the same request
+reordered = {k: multi[k] for k in reversed(list(multi.keys()))}
+r = L.commit(t1, "core", rev, key, reordered)
+s.check(r.status == 200 and r.get("newRev") == rev + 1,
+        "I8e the same content with reordered keys is treated as the same request", r)
+
 # --- I4: concurrent same-key race --------------------------------------------
 print("== I4: concurrent commits sharing one key ==")
 rev = current_rev("core")
