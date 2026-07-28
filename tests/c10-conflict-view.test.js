@@ -19,6 +19,16 @@ function env(opts) {
 const withConflict = (sub) => (e) => e.S.cfCasSetConflictId(sub, 'casrec-' + sub + '-' + 'a'.repeat(32));
 const withBlock = (sub, kind) => (e) => e.S.cfCasSetBlock(sub, kind, 'tok');
 const withRechoose = (sub) => (e) => { e.S.CF_CAS_RECHOOSE[sub] = true; };
+/* Push a preservation past the visibility threshold.
+   Browser wiring made cfCasSetBlock(sub,'preserving') stamp the start time
+   itself, so that a paint triggered by that very call cannot flash the
+   preserving card for one frame before the timestamp is written. The side
+   effect is that a freshly blocked subsystem is now legitimately HIDDEN, and
+   any fixture that wants the visible preserving state has to age it — which is
+   what the real 400ms wait does. */
+const aged = (sub) => (e) => {
+  e.S.CF_CAS_PRESERVE_AT[sub] = Date.now() - (e.S.CF_CAS_PRESERVE_MS + 100);
+};
 
 group('The heading and body say what happened, in the athlete\'s terms', () => {
   const h = env([withConflict('core')]).S.cfCasConflictCenterHTML();
@@ -137,10 +147,21 @@ group('Screen-reader names and descriptions', () => {
     ['keep', 'device', 'online'].forEach((k) =>
       ok(h.includes('id="cfcard-core-' + k + '-help"')));
   });
-  test('the status indicator has an accessible name and announces politely', () => {
+  test('the status indicator has an accessible name', () => {
     const s = env([withConflict('core')]).S.cfCasStatusHTML();
     ok(s.includes('aria-label="Sync needs your choice"'));
-    ok(s.includes('aria-live="polite"'));
+  });
+  /* This assertion is the inverse of what it used to be, and the change is the
+     point. It used to require aria-live="polite" ON the indicator. Putting the
+     view in a real browser showed why that is wrong: the indicator is emitted
+     by the app's own render, which re-mounts #app from 298 call sites, and a
+     live region inside re-mounted markup is announced again every time it is
+     recreated. The athlete would hear their sync state read out on unrelated
+     repaints. Announcement now belongs to one stable region written only when
+     the message changes. */
+  test('...and carries NO live region of its own, because it is re-mounted', () => {
+    const s = env([withConflict('core')]).S.cfCasStatusHTML();
+    notOk(/aria-live|role="status"/.test(s));
   });
 });
 
@@ -167,7 +188,7 @@ group('Both cards appear together, and each resolves independently', () => {
 });
 
 group('The preserving and recovery-blocked states', () => {
-  const preserving = env([withBlock('core', 'preserving')]).S.cfCasConflictCenterHTML();
+  const preserving = env([withBlock('core', 'preserving'), aged('core')]).S.cfCasConflictCenterHTML();
   test('preserving explains what is happening', () =>
     ok(preserving.includes('Saving a copy of the online version…')));
   test('preserving offers NO destructive choice', () => {
@@ -206,9 +227,14 @@ group('The preserving and recovery-blocked states', () => {
   });
   test('C10-UX-23 the two controls have distinct boundaries, not one joined block', () => {
     /* each is its own button element, and the secondary carries the spacing
-       class that separates it at both widths */
-    ok(blocked.includes('cf-action-secondary'));
-    eq((blocked.match(/<button/g) || []).length, 2);
+       class that separates it at both widths.
+       Counted within the CARD, not the centre: browser wiring added a Close
+       control to the centre header, so a centre-wide count would now be 3 and
+       would say nothing about whether the card's two actions are distinct —
+       which is the only thing this acceptance id is about. */
+    const card = blocked.slice(blocked.indexOf('<section'), blocked.indexOf('</section>'));
+    ok(card.includes('cf-action-secondary'));
+    eq((card.match(/<button/g) || []).length, 2);
   });
   test('C10-UX-24 a retry that fails again still exposes no destructive choice', () => {
     const again = env([withConflict('core'), withBlock('core', 'recovery')]).S.cfCasConflictCenterHTML();
@@ -229,7 +255,14 @@ group('The changed-again state asks for a fresh decision', () => {
     ok(h.includes('Use this device’s copy online'));
     ok(h.includes('Use the online copy on this device'));
   });
-  test('it is announced, not silently swapped', () => ok(h.includes('role="status"')));
+  /* Same correction as the indicator: the announcement is real, but it does not
+     live in this markup. The changed-again paragraph is focusable instead, so
+     the athlete is sent to the explanation rather than to a destructive button
+     they were already reaching for. */
+  test('it is announced through the stable region, not embedded in the card', () => {
+    notOk(/aria-live|role="status"/.test(h));
+    ok(h.includes('id="cfcard-core-note"') && h.includes('tabindex="-1"'));
+  });
 });
 
 group('Status wording and per-subsystem detail', () => {

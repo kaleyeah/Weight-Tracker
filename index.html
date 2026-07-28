@@ -839,6 +839,69 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 .wl-prow-name{flex:1;min-width:0;line-height:1.3}
 .wl-prow-bot{display:flex;align-items:center;gap:7px;min-width:0}
 .wl-prow-bot .wl-exrow-sub{min-width:0;overflow-wrap:anywhere}
+
+/* ---- Commit 10: the conflict centre ------------------------------------
+   Non-modal by design. It sits above the page but never traps focus and
+   never blocks an active workout: the athlete reaches it when they choose
+   to. Every rule here is sized in relative units so long labels wrap
+   instead of truncating — the copy explains what happens to someone's
+   data, and a clipped explanation is worse than none. */
+.cf-conflict-host{position:fixed;left:0;right:0;bottom:0;z-index:60;
+  max-height:min(86vh,720px);overflow-y:auto;-webkit-overflow-scrolling:touch;
+  background:var(--bg);border-top:1px solid var(--line);
+  box-shadow:0 -12px 40px rgba(0,0,0,.45);
+  padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));}
+.cf-conflict-host:empty{display:none;}
+.cf-conflict-center{max-width:640px;margin:0 auto;}
+/* inline-block so the focus ring hugs the words. As a full-width block the
+   heading's ring drew a box across the whole sheet, which reads as a selected
+   container rather than as "focus is here". */
+.cf-conflict-center h2{display:inline-block;font-size:18px;line-height:1.3;margin:0 0 12px;font-weight:800;}
+.cf-conflict-center h2:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:6px;}
+.cf-conflict-close{margin-top:6px;min-height:44px;}
+.cf-conflict-card{margin:14px 0;padding:15px;}
+.cf-conflict-title{font-size:14px;font-weight:800;margin:0 0 10px;letter-spacing:.01em;}
+.cf-conflict-title:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:6px;}
+.cf-conflict-body{margin:0 0 13px;font-size:14px;line-height:1.5;color:var(--text);}
+/* Help text belongs to the action above it, so it hugs that button and keeps
+   a clear gap before the next one — the boundary between two destructive
+   choices has to stay obvious at a glance. */
+.cf-conflict-help{margin:7px 2px 16px;font-size:12.5px;line-height:1.45;color:var(--muted);
+  overflow-wrap:anywhere;}
+.cf-conflict-note{margin:0 0 12px;padding:9px 11px;border-radius:10px;font-size:13px;line-height:1.45;
+  background:var(--accent-dim);border:1px solid rgba(245,181,68,.45);color:var(--text);}
+.cf-conflict-note:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+/* Full-width, left-aligned, generous target. Centre-aligned labels of very
+   different lengths read as unrelated; left alignment keeps the three
+   choices scannable as one list. */
+.cf-conflict-card .wl-btn{justify-content:flex-start;text-align:left;width:100%;
+  min-height:46px;padding:12px 14px;line-height:1.35;white-space:normal;overflow-wrap:anywhere;}
+.cf-conflict-card .wl-btn:disabled{opacity:.55;filter:grayscale(.3);}
+.cf-action-secondary{margin-top:14px;}
+.cf-conflict-busy{margin:0;font-size:13px;color:var(--muted);}
+/* The focus ring must survive every state, including disabled-adjacent and
+   ghost buttons on the card background. */
+.cf-conflict-host .wl-btn:focus-visible,.cf-conflict-close:focus-visible{
+  outline:2px solid var(--accent);outline-offset:2px;}
+.cf-status{display:inline-flex;align-items:center;gap:6px;width:auto;height:auto;
+  border-radius:999px;padding:6px 12px;font-size:12.5px;font-weight:700;
+  background:var(--bg2);color:var(--muted);border:1px solid var(--line);}
+.cf-status-conflict{color:var(--accent);border-color:rgba(245,181,68,.5);}
+.cf-status-detail{list-style:none;padding:0;margin:12px 0;}
+.cf-status-detail li{display:flex;justify-content:space-between;align-items:baseline;gap:16px;
+  padding:9px 0;border-bottom:1px solid var(--line);font-size:13px;}
+.cf-status-name{color:var(--text);font-weight:600;min-width:0;overflow-wrap:anywhere;}
+.cf-status-state{color:var(--muted);flex:none;}
+/* Screen-reader-only live region: announcements must reach assistive tech
+   without occupying the screen. */
+.cf-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;
+  clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0;}
+@media(max-width:520px){
+  .cf-conflict-host{max-height:92vh;padding:14px 12px calc(14px + env(safe-area-inset-bottom,0px));}
+  .cf-conflict-card{margin:16px 0;}
+  .cf-conflict-card .wl-btn{min-height:50px;font-size:14px;}
+  .cf-conflict-help{margin-bottom:18px;}
+}
 </style>
 </head>
 <body>
@@ -9233,6 +9296,8 @@ var CF_CAS_COPY={
   preserving:"Saving a copy of the online version…",
   blocked:"We couldn’t save a copy of the online version, so these options aren’t available yet.",
   blockedActions:"Your data is safe on this device. You can export it or try again.",
+  working:"Working on it…",
+  close:"Close",
   none:"Nothing needs your attention right now."};
 
 function cfCasEsc(t){
@@ -9243,24 +9308,46 @@ function cfCasEsc(t){
 /* One card. `state` is "choose" | "preserving" | "blocked" | "changed-again". */
 function cfCasCardHTML(sub,state,isFirst){
   var label=CF_CAS_LABEL[sub],id="cfcard-"+sub;
-  var h='<section class="wl-card cf-conflict-card" role="group" aria-labelledby="'+id+'-title">';
-  h+='<h3 id="'+id+'-title" class="cf-conflict-title">'+cfCasEsc(label)+'</h3>';
+  /* A resolution already owns this subsystem. cfCasResBegin refuses the second
+     one, but refusing it silently is not enough in a browser: a real athlete
+     taps twice, and the second tap must be impossible rather than ignored.
+     `disabled` makes it unclickable AND unfocusable; the state is also named,
+     because a control that stops responding without explanation reads as a bug
+     to the person using it. */
+  var busy=!!CF_CAS_RES[sub],dis=busy?' disabled':'';
+  var h='<section class="wl-card cf-conflict-card" role="group" aria-labelledby="'+id+'-title"'+
+        (busy?' aria-busy="true"':'')+'>';
+  /* Focusable so that focus has somewhere sensible to land inside the card
+     when the control that had it disappears (resolved, or gone busy). */
+  h+='<h3 id="'+id+'-title" class="cf-conflict-title" tabindex="-1">'+cfCasEsc(label)+'</h3>';
 
+  /* NO role="status" / aria-live anywhere in this markup. These strings are
+     produced by a function that is re-run and re-mounted whenever anything
+     changes; a live region inside replaced markup is destroyed and recreated,
+     and assistive tech announces the whole thing again every time. The result
+     is "Saving a copy of the online version…" repeated on every repaint.
+     Announcement is therefore the job of ONE stable region outside this markup,
+     written only when the message actually changes — see cfCasAnnouncement()
+     and cfCasAnnounce() in the browser-wiring block. */
   if(state==="blocked"){
-    h+='<p class="cf-conflict-body" role="status">'+cfCasEsc(CF_CAS_COPY.blocked)+'</p>';
+    h+='<p class="cf-conflict-body">'+cfCasEsc(CF_CAS_COPY.blocked)+'</p>';
     h+='<p class="cf-conflict-help">'+cfCasEsc(CF_CAS_COPY.blockedActions)+'</p>';
     /* Retry is the action that restores the intended workflow, so it leads.
        Export is the fallback and must not compete with it (C10-UX ruling 5). */
-    h+='<button class="wl-btn wl-btn-primary wl-full cf-action" data-act="cf:retry-recovery" data-sub="'+sub+'">Try again</button>';
+    h+='<button class="wl-btn wl-btn-primary wl-full cf-action" data-act="cf:retry-recovery" data-sub="'+sub+'"'+dis+'>Try again</button>';
     h+='<button class="wl-btn wl-btn-ghost wl-full cf-action cf-action-secondary" data-act="cf:export">Export a copy</button>';
+    if(busy)h+='<p class="cf-conflict-busy">'+cfCasEsc(CF_CAS_COPY.working)+'</p>';
     return h+'</section>';}
 
   if(state==="preserving"){
-    h+='<p class="cf-conflict-body" role="status">'+cfCasEsc(CF_CAS_COPY.preserving)+'</p>';
+    h+='<p class="cf-conflict-body">'+cfCasEsc(CF_CAS_COPY.preserving)+'</p>';
     return h+'</section>';}
 
+  /* Focusable (tabindex=-1) but not a live region: when the online copy changes
+     again the athlete is sent HERE — to the explanation — not to a destructive
+     button they were already reaching for (C10-UX-16). */
   if(state==="changed-again")
-    h+='<p class="cf-conflict-note" role="status">'+cfCasEsc(CF_CAS_COPY.changedAgain)+'</p>';
+    h+='<p id="'+id+'-note" class="cf-conflict-note" tabindex="-1">'+cfCasEsc(CF_CAS_COPY.changedAgain)+'</p>';
 
   h+='<p class="cf-conflict-body">'+cfCasEsc(CF_CAS_COPY.body(label))+'</p>';
   /* Focus order is the safety order: the non-destructive default first. */
@@ -9269,14 +9356,15 @@ function cfCasCardHTML(sub,state,isFirst){
      centre focuses its HEADING instead when the athlete opens it explicitly,
      and background discovery never moves focus at all (C10-UX-11..14). */
   h+='<button class="wl-btn wl-btn-primary wl-full cf-action" data-act="cf:keep" data-sub="'+sub+'"'+
-     ' aria-describedby="'+id+'-keep-help">'+cfCasEsc(CF_CAS_COPY.keep.label)+'</button>';
+     ' aria-describedby="'+id+'-keep-help"'+dis+'>'+cfCasEsc(CF_CAS_COPY.keep.label)+'</button>';
   h+='<p id="'+id+'-keep-help" class="cf-conflict-help">'+cfCasEsc(CF_CAS_COPY.keep.help)+'</p>';
   h+='<button class="wl-btn wl-btn-ghost wl-full cf-action" data-act="cf:use-device" data-sub="'+sub+'"'+
-     ' aria-describedby="'+id+'-device-help">'+cfCasEsc(CF_CAS_COPY.device.label)+'</button>';
+     ' aria-describedby="'+id+'-device-help"'+dis+'>'+cfCasEsc(CF_CAS_COPY.device.label)+'</button>';
   h+='<p id="'+id+'-device-help" class="cf-conflict-help">'+cfCasEsc(CF_CAS_COPY.device.help)+'</p>';
   h+='<button class="wl-btn wl-btn-ghost wl-full cf-action" data-act="cf:use-online" data-sub="'+sub+'"'+
-     ' aria-describedby="'+id+'-online-help">'+cfCasEsc(CF_CAS_COPY.online.label)+'</button>';
+     ' aria-describedby="'+id+'-online-help"'+dis+'>'+cfCasEsc(CF_CAS_COPY.online.label)+'</button>';
   h+='<p id="'+id+'-online-help" class="cf-conflict-help">'+cfCasEsc(CF_CAS_COPY.online.help)+'</p>';
+  if(busy)h+='<p class="cf-conflict-busy">'+cfCasEsc(CF_CAS_COPY.working)+'</p>';
   return h+'</section>';}
 
 /* Preservation usually finishes in a few milliseconds. Showing a card for one
@@ -9319,17 +9407,32 @@ function cfCasConflictCenterHTML(){
   h+='<h2 id="cf-conflict-heading" tabindex="-1">'+cfCasEsc(CF_CAS_COPY.heading)+'</h2>';
   /* The empty state is only true when no conflict, no recovery block and no
      preservation exists at all. */
-  if(!subs.length)return h+'<p class="cf-conflict-body">'+cfCasEsc(CF_CAS_COPY.none)+'</p></div>';
+  if(!subs.length)
+    return h+'<p class="cf-conflict-body">'+cfCasEsc(CF_CAS_COPY.none)+'</p>'+cfCasCloseHTML()+'</div>';
   subs.forEach(function(sub,i){h+=cfCasCardHTML(sub,cfCasCardState(sub,now),i===0);});
-  return h+'</div>';}
+  /* Close comes LAST, in the DOM and on the screen. It was briefly in the
+     header next to the heading, which reads well but put a control between the
+     explanation and the first choice: the athlete's first Tab landed on Close
+     rather than on "Keep this device's changes". Chromium's own tab order is
+     what caught it. Keeping DOM order equal to visual order means the tab order
+     is heading → safe default → the rest → close, with no tabindex tricks and
+     nothing for a screen reader to read out of sequence. */
+  return h+cfCasCloseHTML()+'</div>';}
+
+function cfCasCloseHTML(){
+  return '<button class="wl-btn wl-btn-ghost wl-full cf-conflict-close" '+
+         'data-act="cf:close-conflicts">'+cfCasEsc(CF_CAS_COPY.close)+'</button>';}
 
 /* The compact indicator. Tapping it opens the centre; it is never a modal, so a
    background discovery cannot interrupt an active workout (spec §1.6). */
 function cfCasStatusHTML(){
   var st=cfCasCompactStatus();
   var needs=(st==="conflict");
+  /* No aria-live here either. This button is re-mounted by the app's own render
+     — 298 call sites — so a live region on it would re-announce the sync state
+     on every unrelated repaint. cfCasAnnounce() owns announcement. */
   return '<button class="wl-sdot cf-status cf-status-'+st+'" data-act="cf:open-conflicts"'+
-         ' aria-live="polite" aria-label="'+cfCasEsc(cfCasStatusText(st))+'">'+
+         ' aria-label="'+cfCasEsc(cfCasStatusText(st))+'">'+
          cfCasEsc(cfCasStatusText(st))+(needs?' <span aria-hidden="true">›</span>':'')+'</button>';}
 
 /* Per-subsystem detail, shown when the athlete opens the indicator. */
@@ -9360,6 +9463,375 @@ function cfCasCloseConflictCenter(){
 
 function cfCasMayInterrupt(){
   try{return !(state&&state.workout);}catch(e){return true;}}
+
+
+/* ============================================================
+   HARDENING — COMMIT 10b: BROWSER WIRING
+   The conflict centre existed as functions returning strings. This block
+   connects those strings to a real browser: a stable host, a repaint that
+   does not destroy focus, one live region that announces a change once
+   rather than on every repaint, delegated activation with confirmations,
+   and the interruption policy.
+
+   Three things only become visible once the view is in a document, and all
+   three are corrected here rather than papered over:
+
+   (1) Live regions cannot live inside repainted markup. `role="status"` on a
+       paragraph that is re-mounted whenever anything changes re-announces
+       itself every time. Announcement now belongs to ONE stable node.
+   (2) A repaint that replaces innerHTML unconditionally destroys the element
+       the athlete is currently on. The centre therefore repaints only when
+       its own state actually changes, and restores focus deliberately.
+   (3) The app's render() rebuilds #app in 298 places. Anything mounted
+       inside it would be torn down constantly, so the centre is a sibling
+       of #app with its own lifecycle.
+   ============================================================ */
+
+/* @testable-start C10B */
+
+/* ---- what should be announced ------------------------------------------
+   Pure: the announcement for the CURRENT state. Announcing is a separate,
+   change-guarded step, so this can be called as often as we like. */
+function cfCasAnnouncement(){
+  var out=[],now=Date.now();
+  ["core","training"].forEach(function(sub){
+    var busy=cfCasConflictId(sub)||CF_CAS_BLOCK[sub]==="recovery"||CF_CAS_BLOCK[sub]==="preserving";
+    if(!busy)return;
+    var st=cfCasCardState(sub,now);
+    if(st==="hidden")return;                 /* a brief preservation is silent */
+    var label=CF_CAS_LABEL[sub];
+    if(st==="blocked")out.push(label+": "+CF_CAS_COPY.blocked);
+    else if(st==="preserving")out.push(label+": "+CF_CAS_COPY.preserving);
+    else if(st==="changed-again")out.push(label+": "+CF_CAS_COPY.changedAgain);
+    else out.push(label+": "+CF_CAS_COPY.heading);});
+  return out.join(" ");}
+
+/* Everything the rendered markup depends on. Equal signature → identical
+   markup → no DOM write, no lost focus, no repeated announcement. Card state
+   is included rather than derived, so the 400 ms preservation threshold
+   crossing counts as a change. */
+function cfCasViewSig(){
+  var now=Date.now();
+  return ["core","training"].map(function(sub){
+    return [sub,cfCasConflictId(sub)||"",CF_CAS_BLOCK[sub]||"",
+            CF_CAS_RECHOOSE[sub]?1:0,cfCasCardState(sub,now),
+            CF_CAS_RES[sub]?1:0].join("|");}).join("//")+
+         "//open="+(CF_CAS_OPEN?1:0);}
+/* @testable-end C10B */
+
+var CF_CAS_OPEN=false;
+var CF_CAS_SIG=null;
+var CF_CAS_SAID=null;
+var CF_CAS_PREV={core:null,training:null};
+var CF_CAS_PRESERVE_T=null;
+
+function cfCasHostEl(){
+  try{
+    var el=document.getElementById("cf-conflict-host");
+    if(el)return el;
+    el=document.createElement("div");
+    el.id="cf-conflict-host";
+    el.className="cf-conflict-host";
+    document.body.appendChild(el);
+    return el;
+  }catch(e){return null;}}
+
+/* The single stable live region. Created once, never replaced, written only
+   when the message changes — that is the whole point of it. */
+function cfCasLiveEl(){
+  try{
+    var el=document.getElementById("cf-cas-live");
+    if(el)return el;
+    el=document.createElement("div");
+    el.id="cf-cas-live";
+    el.className="cf-sr";
+    el.setAttribute("role","status");
+    el.setAttribute("aria-live","polite");
+    document.body.appendChild(el);
+    return el;
+  }catch(e){return null;}}
+
+function cfCasAnnounce(){
+  var say=cfCasAnnouncement();
+  if(say===CF_CAS_SAID)return false;        /* unchanged: stay silent */
+  CF_CAS_SAID=say;
+  try{var el=cfCasLiveEl();if(el)el.textContent=say;}catch(e){}
+  return true;}
+
+/* ---- focus across a repaint --------------------------------------------
+   A control is identified by what it DOES, not by object identity, because
+   the element itself is replaced. */
+function cfCasFocusKey(el){
+  if(!el||!el.getAttribute)return null;
+  var a=el.getAttribute("data-act");
+  if(a)return "act:"+a+"|"+(el.getAttribute("data-sub")||"");
+  if(el.id)return "id:"+el.id;
+  return null;}
+
+function cfCasFindByKey(host,key){
+  if(!host||!key||!host.querySelector)return null;
+  try{
+    if(key.indexOf("id:")===0)return document.getElementById(key.slice(3));
+    var rest=key.slice(4),bar=rest.lastIndexOf("|");
+    var act=rest.slice(0,bar),sub=rest.slice(bar+1);
+    var sel='[data-act="'+act+'"]'+(sub?'[data-sub="'+sub+'"]':"");
+    return host.querySelector(sel);
+  }catch(e){return null;}}
+
+function cfCasFocus(el){
+  try{if(el&&el.focus){el.focus();return true;}}catch(e){}
+  return false;}
+
+function cfCasInHost(host,el){
+  try{return !!(host&&el&&host.contains&&host.contains(el));}catch(e){return false;}}
+
+/* ---- the repaint --------------------------------------------------------
+   Called from anywhere; cheap and idempotent when nothing has changed. */
+function cfCasPaint(){
+  var host=cfCasHostEl();
+  cfCasAnnounce();
+  cfCasPreserveArm();
+  if(!host)return false;
+
+  var sig=cfCasViewSig();
+  if(sig===CF_CAS_SIG)return false;         /* nothing to redraw */
+  CF_CAS_SIG=sig;
+
+  /* Where was the athlete, and were they inside the centre at all? Focus is
+     NEVER moved when they were somewhere else: a conflict discovered in the
+     background must not pull them out of what they are doing (C10-UX-13). */
+  var active=null;try{active=document.activeElement;}catch(e){}
+  var had=cfCasInHost(host,active);
+  var key=had?cfCasFocusKey(active):null;
+  var sub0=(had&&active&&active.getAttribute)?(active.getAttribute("data-sub")||""):"";
+
+  var now=Date.now();
+  var entered=null;
+  ["core","training"].forEach(function(sub){
+    var st=cfCasCardState(sub,now);
+    if(st==="changed-again"&&CF_CAS_PREV[sub]!=="changed-again")entered=entered||sub;
+    CF_CAS_PREV[sub]=st;});
+
+  try{host.innerHTML=CF_CAS_OPEN?cfCasConflictCenterHTML():"";}catch(e){return false;}
+
+  if(!had)return true;                      /* background change: hands off */
+
+  /* The online copy changed again while they were deciding. Send them to the
+     explanation, never to a destructive button they were already reaching
+     for (C10-UX-16). */
+  if(entered&&cfCasFocus(document.getElementById("cfcard-"+entered+"-note")))return true;
+
+  if(cfCasFocus(cfCasFindByKey(host,key)))return true;
+  /* Their control is gone — resolved, or disabled while it works. Stay in the
+     same card if it still exists, otherwise fall back to the heading. */
+  if(sub0&&cfCasFocus(document.getElementById("cfcard-"+sub0+"-title")))return true;
+  cfCasFocus(document.getElementById("cf-conflict-heading"));
+  return true;}
+
+/* A preservation shorter than the threshold is never drawn. One timer, armed
+   only while a hidden preservation is outstanding, makes the card appear the
+   moment it stops being brief. */
+function cfCasPreserveArm(){
+  var pending=false,now=Date.now();
+  ["core","training"].forEach(function(sub){
+    if(CF_CAS_BLOCK[sub]==="preserving"&&!cfCasPreserveVisible(sub,now))pending=true;});
+  if(!pending){
+    if(CF_CAS_PRESERVE_T){try{clearTimeout(CF_CAS_PRESERVE_T);}catch(e){}CF_CAS_PRESERVE_T=null;}
+    return;}
+  if(CF_CAS_PRESERVE_T)return;
+  try{
+    CF_CAS_PRESERVE_T=setTimeout(function(){CF_CAS_PRESERVE_T=null;cfCasPaint();},
+                                 CF_CAS_PRESERVE_MS+20);
+  }catch(e){}}
+
+/* ---- open and close -----------------------------------------------------
+   Explicit opening focuses the HEADING — the explanation — so the first Tab
+   lands on the safe default choice rather than on a destructive one. */
+cfCasOpenConflictCenter=function(openerEl){
+  CF_CAS_OPENER=openerEl||null;
+  CF_CAS_OPEN=true;
+  cfCasPaint();
+  try{
+    var h=document.getElementById("cf-conflict-heading");
+    if(h&&h.focus)h.focus();
+  }catch(e){}
+  return true;};
+
+cfCasCloseConflictCenter=function(){
+  CF_CAS_OPEN=false;
+  var back=CF_CAS_OPENER;
+  cfCasPaint();
+  /* Focus returns to the EXACT element that opened the centre. Restoring it
+     after the repaint matters: the opener may have been re-mounted. */
+  try{if(back&&back.focus)back.focus();}catch(e){}
+  CF_CAS_OPENER=null;
+  return true;};
+
+/* ---- state changes drive the paint --------------------------------------
+   Every path that changes what the centre shows goes through one of these
+   two setters, so hooking them is enough — no polling, no render coupling. */
+var _c10SetBlock=cfCasSetBlock;
+cfCasSetBlock=function(sub,kind,opToken){
+  var r=_c10SetBlock.apply(this,arguments);
+  if(kind==="preserving")cfCasPreserveBegin(sub);
+  cfCasPaint();
+  return r;};
+
+/* Spec §1.6 and STATUS-04: a background discovery shows the persistent compact
+   state plus ONE non-repeating notification, and the centre opens only when the
+   athlete asks. Two corrections against my first wiring, both from re-reading
+   the spec rather than my paraphrase of it:
+
+   (1) The notification was gated on cfCasMayInterrupt(), so an athlete mid
+       workout got no notification at all. A toast is not a blocking modal —
+       what §1.6 forbids during a workout is the modal, not the notice. The
+       notice is exactly what STATUS-08 still permits, and suppressing it means
+       the one person most likely to keep editing is the one not told.
+   (2) It fired on every discovery. "Non-repeating" is per conflict, so the flag
+       is cleared only when the subsystem stops being conflicted.
+
+   The centre is never opened automatically here under ANY condition, which is
+   stricter than "not during a workout": cfCasMayInterrupt() remains the
+   predicate for a safe transition, and the wiring simply never takes one. */
+var CF_CAS_NOTIFIED={core:false,training:false};
+var _c10SetConflictId=cfCasSetConflictId;
+cfCasSetConflictId=function(sub,id){
+  var r=_c10SetConflictId.apply(this,arguments);
+  if(!id){CF_CAS_NOTIFIED[sub]=false;}
+  else if(!CF_CAS_NOTIFIED[sub]&&!CF_CAS_OPEN){
+    CF_CAS_NOTIFIED[sub]=true;
+    try{toast("Sync needs your choice");}catch(e){}}
+  cfCasPaint();
+  return r;};
+
+/* The app's own render replaces #app, which is where the compact status
+   indicator lives; repaint after it so the indicator and the centre agree. */
+var _c10Render=render;
+render=function(){
+  var r=_c10Render.apply(this,arguments);
+  try{cfCasPaint();}catch(e){}
+  return r;};
+
+/* ---- activation ---------------------------------------------------------
+   Delegated, capture-phase, and guarded twice: the buttons carry `disabled`
+   while a resolution owns the subsystem, AND every handler re-checks
+   CF_CAS_RES. A second tap is impossible, not merely ignored. */
+function cfCasBusy(sub){return !!CF_CAS_RES[sub];}
+
+function cfCasAfter(sub,ok,why){
+  cfCasPaint();
+  if(ok)return;
+  if(why==="busy"||why==="drift")return;          /* nothing useful to say */
+  if(why==="changed-again")return;                /* the card says it */
+  if(why==="recovery")return;                     /* the card says it */
+  if(why==="offline"){toast("You're offline. Nothing was changed.");return;}
+  toast("That didn't work. Nothing was changed.");}
+
+function cfCasActivate(act,sub){
+  if(act==="cf:open-conflicts"){cfCasOpenConflictCenter(this&&this.el);return;}
+  if(act==="cf:close-conflicts"){cfCasCloseConflictCenter();return;}
+  /* cf:export is deliberately NOT handled here. Commit 1's handler already
+     binds it to exportData(), which exports this device's data — exactly what
+     the recovery-blocked card offers ("your data is safe on this device").
+     Handling it again would export twice. */
+  if(!sub||cfCasBusy(sub))return;
+  if(act==="cf:keep"){
+    cfCasKeepLocal(sub,function(ok,why){cfCasAfter(sub,ok,why);});
+    cfCasPaint();return;}
+  if(act==="cf:retry-recovery"){
+    cfCasRetryRecovery(sub,function(ok,why){cfCasAfter(sub,ok,why);});
+    cfCasPaint();return;}
+  /* Both destructive choices confirm first, in the words of the thing that
+     is about to happen to the athlete's data — never "Delete". */
+  if(act==="cf:use-device"){
+    askConfirm(CF_CAS_COPY.device.confirm,function(){
+      if(cfCasBusy(sub))return;
+      cfCasUseThisDevice(sub,function(ok,why){cfCasAfter(sub,ok,why);});
+      cfCasPaint();},{label:"Replace online copy",danger:true});
+    return;}
+  if(act==="cf:use-online"){
+    askConfirm(CF_CAS_COPY.online.confirm,function(){
+      if(cfCasBusy(sub))return;
+      cfCasUseOnlineCopy(sub,function(ok,why){cfCasAfter(sub,ok,why);});
+      cfCasPaint();},{label:"Replace this device's copy",danger:true});
+    return;}}
+
+/* Recovery retry. The block means the copy of the ONLINE version could not be
+   written, so no conflict id was ever published and there is no artifact to
+   re-read. A retry that merely re-read one would always fail for the same
+   reason and would look like a broken button.
+
+   The honest retry is to redo the thing that failed: clear the block so the
+   scheduler is unpaused, and re-run the commit. It will conflict again, and
+   the conflict path will attempt the preservation write again. If that write
+   succeeds the subsystem becomes actionable; if it fails, cfCasOnConflict sets
+   the recovery block once more and the card stays blocked — a failed retry
+   never falls through to a destructive choice on an artifact that does not
+   exist. `cb(true)` here means "retry started", not "retry succeeded"; the
+   outcome arrives as a state change and repaints the card. */
+function cfCasRetryRecovery(sub,cb){
+  if(CF_CAS_RES[sub]){cb(false,"busy");return;}
+  if(CF_CAS_BLOCK[sub]!=="recovery"){cb(false,"not-blocked");return;}
+  cfCasSetBlock(sub,null,null);
+  try{cfCasSchedule(sub,0);}catch(e){cfCasSetBlock(sub,"recovery",null);cb(false,"recovery");return;}
+  cb(true,null);}
+
+/* ---- the way in --------------------------------------------------------
+   Everything above was unreachable. cfCasStatusHTML() renders a control that
+   opens the centre, but nothing in the app ever mounted it, and
+   cfCasOpenConflictCenter() had no caller — so an athlete with a conflict had
+   a fully built conflict centre and no way to get to it. Only the browser found
+   this: every string test calls the render function directly, and the wiring
+   tests did too, so all of them passed against a screen nobody could open.
+
+   Rather than add a second sync affordance, the header's existing sync dot
+   becomes the entry point when there is something to decide. That is what spec
+   §1.6 asks for — "open the conflict center when the athlete taps the status" —
+   and it keeps one status control rather than two. */
+try{
+  document.addEventListener("click",function(e){
+    var t=e.target&&e.target.closest&&e.target.closest("[data-act]");
+    if(!t)return;
+    if((t.getAttribute("data-act")||"")==="syncdot"&&cfCasCompactStatus()==="conflict"){
+      e.preventDefault();e.stopPropagation();
+      cfCasOpenConflictCenter(t);
+      return;}
+  },true);
+}catch(e){}
+
+/* And the dot has to SHOW it. syncDotClass() only knows the legacy sync state,
+   which is "ok" while a conflict sits unresolved — a green dot over an athlete's
+   undecided data. A conflict outranks it. */
+var _c10DotClass=syncDotClass;
+syncDotClass=function(){
+  try{if(cfCasCompactStatus()==="conflict")return "warn";}catch(e){}
+  return _c10DotClass.apply(this,arguments);};
+
+try{
+  document.addEventListener("click",function(e){
+    var t=e.target&&e.target.closest&&e.target.closest("[data-act]");
+    if(!t)return;
+    var a=t.getAttribute("data-act")||"";
+    if(["cf:keep","cf:use-device","cf:use-online","cf:retry-recovery",
+        "cf:open-conflicts","cf:close-conflicts"].indexOf(a)<0)return;
+    if(t.disabled)return;
+    e.preventDefault();e.stopPropagation();
+    cfCasActivate.call({el:t},a,t.getAttribute("data-sub")||"");
+  },true);
+
+  /* Escape closes and returns focus to the opener. The centre is not modal,
+     so Escape is a convenience, not the only way out. */
+  document.addEventListener("keydown",function(e){
+    if(e.key!=="Escape"||!CF_CAS_OPEN)return;
+    var host=cfCasHostEl();
+    var active=null;try{active=document.activeElement;}catch(e2){}
+    if(!cfCasInHost(host,active))return;
+    e.preventDefault();
+    cfCasCloseConflictCenter();
+  },true);
+}catch(e){}
+
+try{cfCasPaint();}catch(e){}
 
 </script>
 </body>
