@@ -799,8 +799,10 @@ defer((async function scenarios() {
   await group('C10-P14-06/07/08 — a full ledger refuses rather than discards', async () => {
     const env = await conflicted();
     /* fill the ledger to its bound */
+    /* Full-length ids: the strict validator rejects short ones, and an invalid
+       entry is not an obligation and must not occupy capacity. */
     const full = [];
-    for (let i = 0; i < 200; i++) full.push('casrec-core-' + i.toString(16).padStart(4, '0'));
+    for (let i = 0; i < 200; i++) full.push('casrec-core-' + i.toString(16).padStart(32, '0'));
     env.S.localStorage.setItem('cf:casrec:userA:pending-cleanup', JSON.stringify(full));
     test('the ledger is at capacity', () => eq(env.S.cfCasRecPendingCleanup().length, 200));
 
@@ -821,22 +823,77 @@ defer((async function scenarios() {
       eq(env.S.cfCasRecPendingCleanup().length, 200));
     test('C10-P14-07 the current conflict remains valid despite the tracking failure', () =>
       ok(env.S.cfCasConflictId('core')));
-    test('C10-P14-08 an untracked artifact is still discoverable by reconciliation', async () => {
+    /* C10-P15-01: the previous version of this test asserted only that the
+       ACTIVE artifact was absent from the result — an implementation returning
+       an empty array would have passed it, so it was not evidence for the
+       property it named. It now proves the whole chain. */
+    test('C10-P15-01 the untracked artifact IS returned by reconciliation', async () => {
       const orphans = await new Promise((res) => env.S.cfCasRecReconcile((o) => res(o)));
-      ok(Array.isArray(orphans));
-      /* the live conflict artifact is never reported as an orphan */
+      ok(orphans.indexOf(idF) >= 0, 'expected the untracked artifact to be rediscovered');
+    });
+    test('C10-P14-08 its manifest really is still in storage', () =>
+      ok([...env.S.localStorage._map.keys()].some((k) => k.indexOf(idF) >= 0 && /:manifest$/.test(k))));
+    test('C10-P14-08 and it is NOT in the ledger', () =>
+      notOk(env.S.cfCasRecPendingCleanup().indexOf(idF) >= 0));
+    test('C10-P15-02 the active conflict artifact is excluded', async () => {
+      const orphans = await new Promise((res) => env.S.cfCasRecReconcile((o) => res(o)));
       notOk(orphans.indexOf(env.S.cfCasConflictId('core')) >= 0);
+    });
+    test('C10-P15-02 ledger-tracked artifacts are excluded', async () => {
+      const orphans = await new Promise((res) => env.S.cfCasRecReconcile((o) => res(o)));
+      const owed = env.S.cfCasRecPendingCleanup();
+      orphans.forEach((id) => notOk(owed.indexOf(id) >= 0));
+    });
+    test('C10-P15-03 another account cannot discover it', async () => {
+      env.S.localStorage.setItem('wl_pb', JSON.stringify({ ...PB, uid: 'userB' }));
+      const asB = await new Promise((res) => env.S.cfCasRecReconcile((o) => res(o)));
+      eq(asB, []);
+      env.S.localStorage.setItem('wl_pb', JSON.stringify(PB));
+    });
+    test('C10-P15-04 reconciled cleanup verifies actual absence', async () => {
+      const r = await new Promise((res) => env.S.cfCasRecPurgeTracked('userA', idF, (okF, why) => res({ okF, why })));
+      ok(r.okF);
+      notOk([...env.S.localStorage._map.keys()].some((k) => k.indexOf(idF) >= 0));
+      const after = await new Promise((res) => env.S.cfCasRecReconcile((o) => res(o)));
+      notOk(after.indexOf(idF) >= 0);
+    });
+    test('C10-P15-10 reconciliation returns only well-formed ids', async () => {
+      env.S.localStorage.setItem('cf:casrec:userA:not-an-artifact:manifest', '{}');
+      const orphans = await new Promise((res) => env.S.cfCasRecReconcile((o) => res(o)));
+      orphans.forEach((id) => ok(/^casrec-(core|training)-[0-9a-f]{32}$/.test(id)));
+      notOk(orphans.indexOf('not-an-artifact') >= 0);
     });
   });
 
-  await group('C10-P14-09 — the ledger holds well-formed ids only', async () => {
+  await group('C10-P14-09 / C10-P15-05..09 — only real artifact ids are obligations', async () => {
     const env = await conflicted();
-    env.S.localStorage.setItem('cf:casrec:userA:pending-cleanup',
-      JSON.stringify(['casrec-core-abc123', { not: 'a string' }, 42, 'casrec-training-def456']));
+    const good = 'casrec-core-' + 'a'.repeat(32);
+    const goodTraining = 'casrec-training-' + 'b'.repeat(32);
+    env.S.localStorage.setItem('cf:casrec:userA:pending-cleanup', JSON.stringify([
+      good, goodTraining,
+      { not: 'a string' }, 42,                    /* C10-P14-09 non-strings */
+      'not-an-artifact',                          /* C10-P15-05 malformed string */
+      '../../other-key',                          /* C10-P15-05 path-shaped */
+      'casrec-core-',                             /* C10-P15-06 no entropy */
+      'casrec-core-' + 'a'.repeat(8),             /* C10-P15-06 too short */
+      'casrec-core-' + 'a'.repeat(64),            /* C10-P15-06 too long */
+      'casrec-photos-' + 'a'.repeat(32),          /* C10-P15-07 unknown subsystem */
+      'casrec-core-' + 'A'.repeat(32),            /* uppercase is not our hex */
+    ]));
     const owed = env.S.cfCasRecPendingCleanup();
-    test('C10-P14-09 non-string entries are ignored rather than trusted', () => eq(owed.length, 2));
-    test('C10-P14-09 the survivors are well-formed ids', () =>
-      owed.forEach((id) => ok(/^casrec-(core|training)-[0-9a-z]+$/.test(id))));
+    test('C10-P14-09 / C10-P15-05/06/07 only the two valid ids survive the read', () =>
+      eq(owed, [good, goodTraining]));
+    test('C10-P15-08 invalid entries consume no capacity', () => eq(owed.length, 2));
+    test('C10-P15-09 pendingAdd refuses an invalid id honestly', async () => {
+      const r = await new Promise((res) =>
+        env.S.cfCasRecPurgeTracked('userA', 'not-an-artifact', (ok2, why) => res({ ok2, why })));
+      notOk(r.ok2);
+      eq(r.why, 'invalid-id');
+    });
+    test('C10-P15-09 an invalid id never reaches the ledger', () =>
+      notOk(env.S.cfCasRecPendingCleanup().indexOf('not-an-artifact') >= 0));
+    test('a real generated id passes the same validator', () =>
+      ok(/^casrec-(core|training)-[0-9a-f]{32}$/.test(env.S.cfCasRecNewId('core'))));
   });
 
   report();

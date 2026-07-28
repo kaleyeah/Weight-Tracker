@@ -8301,7 +8301,7 @@ var cfCasRecStore=(function(){
   function scopeNow(){var u=pbUid();return u?String(u):"";}
   function genNow(){return (typeof CF_SESSION_GEN==="undefined")?0:CF_SESSION_GEN;}
   function keysFor(scope,id){
-    var base=PREFIX+scope+":"+id;
+    var base=PREFIX+scope+":"+id;   /* callers validate; see purgeScoped/validId */
     return {claim:base+":claim",payload:base+":payload",manifest:base+":manifest"};}
 
   function randomHex(bytes){
@@ -8359,6 +8359,7 @@ var cfCasRecStore=(function(){
      through a capability handed to the writer that created the artifact. */
   function purgeScoped(scope,id,cb){
     if(!scope){cb(false,"unauthenticated");return;}
+    if(!validId(id)){cb(false,"invalid-id");return;}   /* never key off an unvalidated id */
     var lock="cf-cas-recovery:"+scope+":"+id;
     withLock(lock,function(release){
       var K=keysFor(scope,id),had=false,gone=false;
@@ -8387,11 +8388,21 @@ var cfCasRecStore=(function(){
      project keeps finding. Failed deletions are recorded per account and
      retried; the ledger holds artifact IDs only, never payloads. */
   var PENDING_MAX=200;
+  /* ONE strict artifact-id contract, matching exactly what newId produces:
+     crypto.randomUUID with dashes stripped, or 16 random bytes — both 32 hex
+     characters. A loose pattern let arbitrary strings ("not-an-artifact",
+     "../../other-key", "casrec-core-") survive a ledger read and then be used
+     to build storage keys. No cleanup path may construct a key from an
+     unvalidated id (review C10-P15-02). */
+  var ID_RE=/^casrec-(core|training)-[0-9a-f]{32}$/;
+  function validId(id){return typeof id==="string"&&ID_RE.test(id);}
   function pendingKey(scope){return PREFIX+scope+":pending-cleanup";}
   function pendingLock(scope){return "cf-cas-recovery-cleanup:"+scope;}
   function pendingList(scope){
     try{var raw=localStorage.getItem(pendingKey(scope));var a=raw?JSON.parse(raw):[];
-        return Array.isArray(a)?a.filter(function(x){return typeof x==="string";}):[];}
+        /* Invalid persisted entries are ignored entirely: they are not
+           obligations, and they must not consume capacity. */
+        return Array.isArray(a)?a.filter(validId):[];}
     catch(e){return [];}}
 
   /* EVERY ledger mutation runs under one exclusive account-level lock, re-reads
@@ -8428,11 +8439,14 @@ var cfCasRecStore=(function(){
     },function(){cb(false,"no-lock");});}     /* no lock: say so, never pretend */
 
   function pendingAdd(scope,id,cb){
+    cb=cb||function(){};
+    if(!validId(id)){cb(false,"invalid-id");return;}
     pendingMutate(scope,function(list){
       if(list.indexOf(id)>=0)return list;             /* already owed */
-      if(list.length>=PENDING_MAX)return list.concat([id]);  /* mutate() rejects it honestly */
-      return list.concat([id]);},cb);}
+      return list.concat([id]);},cb);}                /* mutate() enforces the bound */
   function pendingDrop(scope,id,cb){
+    cb=cb||function(){};
+    if(!validId(id)){cb(false,"invalid-id");return;}
     pendingMutate(scope,function(list){
       return list.filter(function(x){return x!==id;});},cb);}
 
@@ -8647,6 +8661,7 @@ var cfCasRecStore=(function(){
           var rest=k.slice(pre.length),cut=rest.lastIndexOf(":");
           if(cut<0||rest.slice(cut+1)!=="manifest")continue;
           var id=rest.slice(0,cut);
+          if(!validId(id))continue;                    /* only real artifact ids */
           if(live.indexOf(id)>=0)continue;
           if(owed.indexOf(id)>=0)continue;
           orphans.push(id);}
