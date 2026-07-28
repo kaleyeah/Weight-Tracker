@@ -582,5 +582,100 @@ defer((async function scenarios() {
     }
   });
 
+
+  /* ====== C10-P10: the captured purge capability actually arrives ======= */
+
+  await group('C10-P10-01..08 — token-only drift after successful publication', async () => {
+    /* The interleaving the review identified, which the previous test missed.
+       The recovery STORE checks owner and generation; the SCHEDULER checks
+       owner, generation and the full token. So a token change with owner and
+       generation unchanged slips past the store — it publishes a verified
+       artifact and hands back a purge capability — and is caught only by the
+       scheduler. That is the exact path where a dropped capability orphans an
+       artifact, and it was unreachable before this fix. */
+    const env = signedIn({ fetchResponses: (e) => (/commit/.test(e.url)
+      ? { ok: false, status: 409, json: () => Promise.resolve({ conflict: true, subsystem: 'core', serverRev: 5, payload: { weights: [{ d: 'server', kg: 60 }] } }), text: () => Promise.resolve('') }
+      : null) });
+    const cfg = JSON.parse(env.S.localStorage.getItem('wl_pb'));
+    const gate = pausableDigest(env);
+    const release = gate.hold(2);                     /* park the RECOVERY digest */
+    env.S.state.weights.push({ d: '2026-10-01', kg: 55 });
+    env.S.save();
+    await pump(env, 2);
+    const ownerBefore = env.S.pbUid();
+    const genBefore = env.S.CF_SESSION_GEN;
+
+    /* token rotates; owner and generation deliberately unchanged */
+    env.S.localStorage.setItem('wl_pb', JSON.stringify({ ...cfg, token: 'ROTATED-TOKEN-VALUE' }));
+    test('C10-P10-02 owner and generation are unchanged', () => {
+      eq(env.S.pbUid(), ownerBefore);
+      eq(env.S.CF_SESSION_GEN, genBefore);
+    });
+    release();
+    await pump(env, 4);
+
+    test('C10-P10-03 the store published (its own drift check did not fire)', () => ok(gate.calls() >= 2));
+    test('C10-P10-04/05 the artifact was purged through the captured capability', () => {
+      const keys = [...env.S.localStorage._map.keys()].filter((k) => k.indexOf('cf:casrec:') === 0);
+      eq(keys, []);
+    });
+    test('C10-P10-05 no conflict reference was published', () => eq(env.S.cfCasConflictId('core'), null));
+    test('C10-P10-06 the active session sees an empty inventory', () => eq(env.S.cfCasRecList().length, 0));
+    test('C10-P10-08 the athlete\'s data is still pending, never discarded', () => ok(env.S.revIsDirty('core')));
+    test('C10-P10-08 no payload content leaked into any storage key', () => {
+      const keys = [...env.S.localStorage._map.keys()].join(' ');
+      notOk(/kg|weights|60/.test(keys.replace(/wl_|cf:/g, '')));
+    });
+    gate.restore();
+  });
+
+  await group('C10-P10-01 — the public wrapper forwards the capability', async () => {
+    const env = signedIn();
+    const id = env.S.cfCasRecNewId('core');
+    const got = await new Promise((res) =>
+      env.S.cfCasRecWrite(id, 'core', 3, '{"a":1}', (ok, out, cap) => res({ ok, out, cap })));
+    test('the write succeeded', () => ok(got.ok));
+    test('C10-P10-01 a capability came back through the real wrapper', () =>
+      ok(got.cap && typeof got.cap.purge === 'function'));
+    test('C10-P10-07 the capability purges through the locked API', async () => {
+      const removed = await new Promise((res) => got.cap.purge((r) => res(r)));
+      ok(removed);
+      eq(env.S.cfCasRecList().length, 0);
+    });
+    test('a failed write returns no capability', async () => {
+      const again = await new Promise((res) =>
+        env.S.cfCasRecWrite(id, 'core', 3, '{"a":1}', (ok, out, cap) => res({ ok, out, cap })));
+      /* the id is free again after purge, so use an occupied one instead */
+      void again;
+      const id2 = env.S.cfCasRecNewId('core');
+      await new Promise((res) => env.S.cfCasRecWrite(id2, 'core', 3, '{"b":1}', () => res()));
+      const dup = await new Promise((res) =>
+        env.S.cfCasRecWrite(id2, 'core', 3, '{"b":1}', (ok, out, cap) => res({ ok, out, cap })));
+      notOk(dup.ok);
+      eq(dup.cap, undefined);
+    });
+  });
+
+  await group('C10-P10-09/10 — a late callback cannot clear a NEWER block', async () => {
+    const env = signedIn();
+    /* Simulate two operations: an old one that will report drift later, and a
+       newer conflict that legitimately owns the current pause. */
+    const oldToken = 'op-old';
+    const newToken = 'op-new';
+    env.S.cfCasSetBlock('core', 'preserving', newToken);
+    test('the newer operation owns the block', () => ok(env.S.cfCasOwnsBlock('core', newToken)));
+    test('C10-P10-09 the older operation does not own it', () =>
+      notOk(env.S.cfCasOwnsBlock('core', oldToken)));
+    test('C10-P10-10 a string match alone would have been enough to clear it', () =>
+      eq(env.S.CF_CAS_BLOCK.core, 'preserving'));
+    /* the old operation's cleanup path is gated on ownership */
+    if (env.S.cfCasOwnsBlock('core', oldToken)) env.S.cfCasSetBlock('core', null, null);
+    test('C10-P10-09 the newer block survives the late callback', () =>
+      eq(env.S.CF_CAS_BLOCK.core, 'preserving'));
+    /* and its true owner can still clear it */
+    if (env.S.cfCasOwnsBlock('core', newToken)) env.S.cfCasSetBlock('core', null, null);
+    test('the owning operation can clear its own block', () => eq(env.S.CF_CAS_BLOCK.core, null));
+  });
+
   report();
 })());

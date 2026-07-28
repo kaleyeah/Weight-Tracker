@@ -8449,7 +8449,13 @@ var cfCasRecStore=(function(){
       if(!ctx.owner){cb(false,"unauthenticated");return;}
       if(!ctx.token){cb(false,"entropy");return;}
       withLock(ctx.lock,function(release){
-        writeLocked(ctx,sub,serverRev,payloadStr,function(ok,out){release();cb(ok,out);});
+        /* Forward ALL THREE arguments. The third is the captured-owner purge
+           capability, and dropping it here made the scheduler's drift cleanup
+           unreachable: cap was always undefined, so a verified artifact could be
+           orphaned and no test noticed, because the test exercised the store's
+           own owner/generation drift check instead — which fires BEFORE
+           publication and never produces a capability at all. */
+        writeLocked(ctx,sub,serverRev,payloadStr,function(ok,out,cap){release();cb(ok,out,cap);});
       },function(){cb(false,"no-lock");});},        /* fail closed, never claim-only */
 
     read:function(id,expected,cb){
@@ -8548,6 +8554,12 @@ var CF_CAS_OP={core:null,training:null};           /* the ONE active operation *
    state — queued work must not cross an ownership boundary (review C10-P9-01). */
 var CF_CAS_RERUN={core:null,training:null};
 var CF_CAS_SEQ={core:{retried:false},training:{retried:false}};  /* conflict sequence */
+/* Which operation set the current transient block. A late callback may clear
+   only the state IT created — a string equality check on "preserving" cannot
+   tell an old operation's pause from a newer one's (review C10-P10-02). */
+var CF_CAS_BLOCK_OP={core:null,training:null};
+function cfCasSetBlock(sub,kind,opToken){CF_CAS_BLOCK[sub]=kind;CF_CAS_BLOCK_OP[sub]=kind?(opToken||null):null;}
+function cfCasOwnsBlock(sub,opToken){return CF_CAS_BLOCK_OP[sub]!==null&&CF_CAS_BLOCK_OP[sub]===opToken;}
 var CF_CAS_ATTEMPT={core:0,training:0};
 var CF_CAS_BLOCK={core:null,training:null};
 
@@ -8601,7 +8613,7 @@ function cfCasCapture(sub){
   var frozen=null;
   try{frozen=JSON.parse(canon);}catch(e){frozen=null;}
   return {sub:sub,localRev:revLocal(sub),expectedRev:cfCasServerRev(sub),
-          canon:canon,payload:frozen,key:null,
+          canon:canon,payload:frozen,key:null,token:cfCasRandomIdFallback(),
           /* EXACT session identity (review C10-P9-03). A 16-character suffix
              was a needless weakening: two sessions can share trailing
              characters. The full token is compared IN MEMORY only — the
@@ -8669,9 +8681,9 @@ function cfCasRun(sub){
 
 function cfCasStartOp(sub,op){
   cfCasSha256Hex(cfCasIdentity(op.sub,op.expectedRev,op.canon),function(hex){
-    if(!cfCasHashValid(hex)){CF_CAS_BLOCK[sub]="invariant";cfCasFinishOp(sub);return;}
+    if(!cfCasHashValid(hex)){cfCasSetBlock(sub,"invariant",op.token);cfCasFinishOp(sub);return;}
     var key=cfCasKeyFrom(hex);
-    if(!key){CF_CAS_BLOCK[sub]="invariant";cfCasFinishOp(sub);return;}  /* never truncate */
+    if(!key){cfCasSetBlock(sub,"invariant",op.token);cfCasFinishOp(sub);return;}  /* never truncate */
     op.key=key;
     if(cfCasOpDrifted(op)){cfCasFinishOp(sub);return;}   /* cancel without sending */
     cfCasDispatch(sub,op);});}
@@ -8693,7 +8705,7 @@ function cfCasHandle(sub,op,status,body){
   var d=cfCasDisposition(status,body,sub);
 
   if(d==="ok"){
-    CF_CAS_ATTEMPT[sub]=0;CF_CAS_BLOCK[sub]=null;CF_CAS_SEQ[sub].retried=false;
+    CF_CAS_ATTEMPT[sub]=0;cfCasSetBlock(sub,null,null);CF_CAS_SEQ[sub].retried=false;
     var acked=cfCasAck(revTrack(sub),op.localRev,body.newRev);
     revCommit(sub,op.localRev);                  /* acknowledges ONLY what was sent */
     cfCasSetServerRev(sub,body.newRev);
@@ -8707,7 +8719,7 @@ function cfCasHandle(sub,op,status,body){
   if(d==="retry"){
     var wait=cfCasRetryDelay(status,CF_CAS_ATTEMPT[sub]);
     CF_CAS_ATTEMPT[sub]=CF_CAS_ATTEMPT[sub]+1;
-    if(wait===null){CF_CAS_BLOCK[sub]="failed";cfCasFinishOp(sub);return;}
+    if(wait===null){cfCasSetBlock(sub,"failed",op.token);cfCasFinishOp(sub);return;}
     /* Re-send the CAPTURED operation: same key, same bytes, same expectedRev. */
     CF_CAS_OP[sub].phase="waiting-retry";
     setTimeout(function(){
@@ -8717,7 +8729,7 @@ function cfCasHandle(sub,op,status,body){
 
   /* auth | update | oversize | contract | invariant: no automatic retry. Local
      data stays exactly where it is and stays exportable. */
-  CF_CAS_BLOCK[sub]=(d==="contract")?"invariant":d;
+  cfCasSetBlock(sub,(d==="contract")?"invariant":d,op.token);
   cfCasFinishOp(sub);}
 
 /* ---- 409 --------------------------------------------------------------- */
@@ -8747,10 +8759,10 @@ function cfCasOnConflict(sub,op,body){
   /* A genuine conflict. Block the subsystem IMMEDIATELY — before the async
      recovery write — so an edit arriving during preservation cannot schedule
      another commit into a conflict that is still being made actionable. */
-  CF_CAS_BLOCK[sub]="preserving";
+  cfCasSetBlock(sub,"preserving",op.token);
   cfCasFinishOp(sub);
   var id=cfCasRecNewId(sub);
-  if(!id){CF_CAS_BLOCK[sub]="recovery";return;}
+  if(!id){cfCasSetBlock(sub,"recovery",op.token);return;}
   cfCasRecWrite(id,sub,serverRev===null?0:serverRev,
     JSON.stringify(body.payload===undefined?null:body.payload),function(ok,manOrReason,cap){
       if(cfCasOpDrifted(op)){
@@ -8761,17 +8773,17 @@ function cfCasOnConflict(sub,op,body){
            write — never through the public purge, which addresses whichever
            account is live now (review C10-P9-02). */
         if(ok&&cap&&cap.purge)cap.purge(function(){});
-        /* Clear the transient state THIS operation set. "preserving" was a
-           pause belonging to the old session; leaving it behind would hand the
-           newly active account a paused subsystem it never caused. Only
-           old-operation state is cleared — nothing belonging to the new
-           session is touched. */
-        if(CF_CAS_BLOCK[sub]==="preserving")CF_CAS_BLOCK[sub]=null;
-        CF_CAS_SEQ[sub].retried=false;
+        /* Clear the transient state THIS operation set, and only that. A late
+           callback must not unpause a NEWER conflict — ownership is proved by
+           the operation token, not by the block happening to read
+           "preserving". */
+        if(cfCasOwnsBlock(sub,op.token)){
+          cfCasSetBlock(sub,null,null);
+          CF_CAS_SEQ[sub].retried=false;}
         return;}
-      if(!ok){CF_CAS_BLOCK[sub]="recovery";return;}
+      if(!ok){cfCasSetBlock(sub,"recovery",op.token);return;}
       cfCasSetConflictId(sub,id);                /* only now is it actionable */
-      CF_CAS_BLOCK[sub]=null;                    /* conflictId is the block now */
+      if(cfCasOwnsBlock(sub,op.token))cfCasSetBlock(sub,null,null);  /* conflictId is the block now */
     });}
 
 /* ---- re-point the frozen entry points ---------------------------------- */
