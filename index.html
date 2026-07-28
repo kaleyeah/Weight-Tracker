@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-28.343 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-28.344 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -851,7 +851,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-28.343-pb";
+var APP_BUILD="2026-07-28.344-pb";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -1105,7 +1105,7 @@ function dayDots(iso){var seen={},cats=[];function _ad(c){if(!seen[c]){seen[c]=1
 var state={settings:Object.assign({},DEFAULT_SETTINGS),weights:[],food:{},workouts:{},steps:{},notes:{},sleep:{},bodyfat:{},waist:{},statuses:[],weeklySummary:null,nightlySummary:null,nightlyLog:{},presets:DEFAULT_PRESETS.slice(),
   view:"overview",calY:new Date().getFullYear(),calM:new Date().getMonth(),weekOffset:0,trendMode:"W",trendOffset:0,calOpen:false,sumOpen:true,nightOpen:true,genBusy:false,nightBusy:false,diaryWeeks:1,
   training:{cardioTypes:DEFAULT_CARDIO_TYPES.slice(),sessions:{},exercises:[],routines:[],liftSessions:{}},cardioForm:null,manageOpen:false,actAddCat:null,actPick:null,exForm:null,routineId:null,riPickOpen:false,noteEdit:null,liftForm:null,workout:null,setMenu:null,woPrompt:false,bwEdit:false,histView:null,exMenu:null,woReplaceEi:null,liftViewId:null,liftViewDate:null,woResume:false,liftEdit:null,quickEntry:null,
-  selDate:todayISO(),foodDate:todayISO(),alertDismissed:false,confirmReset:false,skips:{},glp:glpDefault(),glpDraft:null,glpSheet:null,lrSheet:null,reopenAsk:null};
+  selDate:todayISO(),foodDate:todayISO(),alertDismissed:false,confirmReset:false,skips:{},glp:glpDefault(),glpDraft:null,glpSheet:null,reopenAsk:null};
 
 function load(){
   try{var raw=localStorage.getItem(KEY);if(raw){var d=JSON.parse(raw);
@@ -2491,7 +2491,7 @@ function view_summary(){
       cl(mv(cc,function(v){return v;}),(tCarb!=null&&cc!=null)?((cc>tCarb&&calOverD)?"bad":"good"):"")+
       '</tr>';});
   h+='</tbody></table><button class="wl-btn wl-btn-primary wl-full" style="margin-top:14px" data-act="sum:exportweek">Export this week</button><div class="wl-hint" style="margin-top:8px">Two files: a readable progress report you can open on your phone, plus the CSV — every logged metric, training, and notes.</div>';
-  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:14px" data-act="sum:liftreport">Export lifting report</button><div class="wl-hint" style="margin-top:8px">A standalone document for a strength coach: this week set by set, then your all-time progression. Choose a layout when you tap.</div></div>';
+  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:14px" data-act="sum:coachreport">Export coach report</button><div class="wl-hint" style="margin-top:8px">One file for your coach: this week’s numbers, every workout on one line per exercise, and how your lifts are trending.</div></div>';
   h+='<div class="wl-card"><button class="wl-btn wl-btn-primary wl-full" data-act="go" data-view="diary">'+I.camera+'Food Diary</button><div class="wl-hint" style="margin-top:8px">A visual collage of your meal photos by day, with each day\u2019s calories and macros.</div></div>';
   return h+'</div>';}
 function csvCell(v){v=(v==null?"":String(v));return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
@@ -3002,31 +3002,19 @@ function repDownloadFile(f){
   setTimeout(function(){URL.revokeObjectURL(url);},1000);}
 function shareOrDownload(name,mime,text){shareOrDownloadMulti([{name:name,mime:mime,text:text}]);}
 /* ============================================================
-   LIFTING REPORT FOR A COACH
-   Two standalone documents generated from state.training.liftSessions
-   + state.weights: "The Ledger" (print-first, every set on a row) and
-   "The Coach's Dashboard" (chart-led). Each is a complete HTML file with
-   ONE inline <style>, inline SVG charts with pre-computed coordinates,
-   and NO external resource of any kind — the coach may open it on a
-   phone with no network, or print it.
-   Every user string goes through esc(); every number goes through a
-   formatter that returns an em dash rather than NaN/undefined.
+   LIFTING DATA MODEL FOR THE COACH REPORT
+   lrModel() digests state.training.liftSessions + state.weights
+   into one plain model per displayed week: sessions with per-set
+   reverse-pyramid judging (lrPrescription), PRs via analyzeSession,
+   all-time e1RM history, and weekly bodyweight averages. The simple
+   coach report below is its only consumer today; the retired
+   Ledger / Dashboard / Muscle-Preservation documents read it too
+   (removed 2026-07 — git history holds them).
    ============================================================ */
 function lrPlanLabel(){return ({lose:"Fat Loss",maintain:"Maintenance",gain:"Lean Bulk"})[strategyMode()]||"Fat Loss";}
 function lrTodayLong(){return new Date().toLocaleDateString(undefined,{month:"long",day:"numeric",year:"numeric"});}
 function lrUnits(){return state.settings.units||"lbs";}
 function lrWho(){return (state.settings.name||"").trim()||"Athlete";}
-var LRDASH="—";
-function lrInt(n){if(n==null||typeof n!=="number"||!isFinite(n))return LRDASH;
-  n=Math.round(n);var neg=n<0,s=String(Math.abs(n)),o="";
-  while(s.length>3){o=","+s.slice(-3)+o;s=s.slice(0,-3);}
-  return (neg?"−":"")+s+o;}
-function lrD1(n){if(n==null||typeof n!=="number"||!isFinite(n))return LRDASH;return (Math.round(n*10)/10).toFixed(1);}
-function lrD2(n){if(n==null||typeof n!=="number"||!isFinite(n))return LRDASH;return (Math.round(n*100)/100).toFixed(2);}
-/* plain numeral for SVG coordinates — never an em dash, never NaN */
-function lrC(n){return (typeof n==="number"&&isFinite(n))?String(Math.round(n*100)/100):"0";}
-function lrSigned(n,dp){if(n==null||typeof n!=="number"||!isFinite(n))return LRDASH;
-  var v=Math.abs(n);return (n<0?"−":"+")+(dp?v.toFixed(dp):String(Math.round(v)));}
 /* A working set: logged, not skipped, not a warm-up, and it has reps.
    Weight may legitimately be absent (bodyweight work), which costs tonnage
    but still counts as a hard set — the coach cares about the set count. */
@@ -3301,877 +3289,385 @@ function lrModel(offset){
   M.stand.sort(function(a,b){return (b.e||0)-(a.e||0);});
   return M;}
 
-/* ---------------- SVG chart builders (pre-computed, no JS in the output) ---------------- */
-function lrScale(vals){
-  var mn=null,mx=null;
-  vals.forEach(function(v){if(v==null||!isFinite(v))return;if(mn==null||v<mn)mn=v;if(mx==null||v>mx)mx=v;});
-  if(mn==null)return null;
-  if(mx-mn<1e-9){mn-=1;mx+=1;}
-  var pad=(mx-mn)*0.15;
-  return {lo:mn-pad,hi:mx+pad};}
-function lrAxisLabel(v,span){return (span<10)?lrD1(v):lrInt(v);}
-/* horizontal bars, hard sets per muscle, against the 10-20 set target band */
-function lrSvgMuscle(rows){
-  if(!rows||!rows.length)return "";
-  var N=rows.length,bottom=6+28*N,H=bottom+22;
-  var mx=0;rows.forEach(function(r){if(r.n>mx)mx=r.n;});
-  var ax=Math.max(20,Math.ceil(mx/5)*5);
-  var x0=68,x1=293.5,per=(x1-x0)/ax;
-  function X(v){return x0+v*per;}
-  var lab=rows.map(function(r){return r.label+" "+r.n;}).join(", ");
-  var s='<svg viewBox="0 0 340 '+H+'" role="img" aria-label="'+esc("Hard sets per muscle group this week: "+lab+", against a target band of 10 to 20 sets.")+'">';
-  s+='<rect class="band" x="'+lrC(X(10))+'" y="8" width="'+lrC(X(20)-X(10))+'" height="'+lrC(bottom-8)+'"/>';
-  /* ticks every 5 sets so every label is a whole number of sets at any axis max */
-  var gl="",ga="";
-  for(var v=0;v<=ax;v+=5){var x=lrC(X(v));
-    var ln='<line x1="'+x+'" y1="8" x2="'+x+'" y2="'+lrC(bottom)+'"/>';
-    if(v===10||v===20)ga+=ln;else gl+=ln;}
-  s+='<g class="gLine">'+gl+'</g><g class="gAx">'+ga+'</g>';
-  var bars="",names="",vals="";
-  rows.forEach(function(r,i){
-    var y=14+i*28,w=Math.max(1.5,X(r.n)-x0);
-    bars+='<rect x="68" y="'+lrC(y)+'" width="'+lrC(w)+'" height="15" rx="2"/>';
-    names+='<text x="62" y="'+lrC(y+11.5)+'">'+esc(r.label)+'</text>';
-    vals+='<text x="'+lrC(x0+w+5)+'" y="'+lrC(y+11.5)+'">'+lrInt(r.n)+'</text>';});
-  s+='<g class="barV">'+bars+'</g>';
-  s+='<g class="gLbl" text-anchor="end">'+names+'</g>';
-  s+='<g class="gVal">'+vals+'</g>';
-  var ticks="";
-  for(var tv=0;tv<=ax;tv+=5){ticks+='<text x="'+lrC(X(tv))+'" y="'+lrC(bottom+11)+'">'+lrInt(tv)+'</text>';}
-  s+='<g class="gTx" text-anchor="middle">'+ticks+'</g>';
-  s+='<text class="gBand" x="'+lrC((X(10)+X(20))/2)+'" y="6" text-anchor="middle">TARGET BAND 10–20</text>';
-  return s+'</svg>';}
-/* dual-axis: e1RM (left, solid) against bodyweight (right, dashed) */
-function lrSvgDual(pts,heroName,units){
-  if(!pts||!pts.length)return "";
-  var top=16,bot=148,left=34,right=300,n=pts.length;
-  var eS=lrScale(pts.map(function(p){return p.e;}));
-  if(!eS)return "";
-  var bwPts=[];pts.forEach(function(p,i){if(p.bw!=null&&isFinite(p.bw))bwPts.push({i:i,v:p.bw});});
-  var bS=(bwPts.length>1)?lrScale(bwPts.map(function(p){return p.v;})):null;
-  function X(i){return (n===1)?((left+right)/2):(left+i*(right-left)/(n-1));}
-  function Y(v,S){return bot-((v-S.lo)/(S.hi-S.lo))*(bot-top);}
-  var s='<svg viewBox="0 0 340 172" role="img" aria-label="'+esc(heroName+" estimated one-rep max by training week"+(bS?", against bodyweight":"")+".")+'">';
-  var gl="";for(var i=0;i<4;i++)gl+='<line x1="34" y1="'+lrC(top+i*33)+'" x2="300" y2="'+lrC(top+i*33)+'"/>';
-  s+='<g class="gLine">'+gl+'</g><line class="gAx" x1="34" y1="148" x2="300" y2="148"/>';
-  var lt="";for(var a=0;a<5;a++){var lv=eS.hi-(eS.hi-eS.lo)*a/4;
-    lt+='<text x="29" y="'+lrC(top+a*33+3)+'">'+esc(lrAxisLabel(lv,eS.hi-eS.lo))+'</text>';}
-  s+='<g class="gTx" text-anchor="end">'+lt+'</g>';
-  if(bS){var rt="";for(var b=0;b<5;b++){var bv=bS.hi-(bS.hi-bS.lo)*b/4;
-      rt+='<text x="305" y="'+lrC(top+b*33+3)+'">'+esc(lrAxisLabel(bv,bS.hi-bS.lo))+'</text>';}
-    s+='<g class="gTxB" text-anchor="start">'+rt+'</g>';
-    if(bwPts.length>1)s+='<polyline class="lnB" points="'+bwPts.map(function(p){return lrC(X(p.i))+","+lrC(Y(p.v,bS));}).join(" ")+'"/>';}
-  if(n>1)s+='<polyline class="lnE" points="'+pts.map(function(p,i){return lrC(X(i))+","+lrC(Y(p.e,eS));}).join(" ")+'"/>';
-  if(bS){var bd="";bwPts.forEach(function(p){bd+='<circle cx="'+lrC(X(p.i))+'" cy="'+lrC(Y(p.v,bS))+'" r="2"/>';});
-    s+='<g class="dotB">'+bd+'</g>';}
-  var ed="";pts.forEach(function(p,i){ed+='<circle cx="'+lrC(X(i))+'" cy="'+lrC(Y(p.e,eS))+'" r="'+((i===n-1)?"4":"2.4")+'"/>';});
-  s+='<g class="dotE">'+ed+'</g>';
-  var lastY=Y(pts[n-1].e,eS);
-  s+='<text class="gPk" x="'+lrC(X(n-1)-4)+'" y="'+lrC(Math.max(12,lastY-8))+'" text-anchor="end">'+esc(lrD1(pts[n-1].e))+'</text>';
-  var xt="";pts.forEach(function(p,i){xt+='<text x="'+lrC(X(i))+'" y="162">'+esc(p.label)+'</text>';});
-  s+='<g class="gTx" text-anchor="middle">'+xt+'</g>';
-  return s+'</svg>';}
-/* small all-time e1RM trend, one point per training week */
-function lrSvgMini(pts){
-  if(!pts||!pts.length)return "";
-  var left=8,right=232,top=10,bot=58,n=pts.length;
-  var S=lrScale(pts.map(function(p){return p.e;}));
-  if(!S)return "";
-  function X(i){return (n===1)?((left+right)/2):(left+i*(right-left)/(n-1));}
-  function Y(v){return bot-((v-S.lo)/(S.hi-S.lo))*(bot-top);}
-  var s='<svg viewBox="0 0 240 76" role="img" aria-label="'+esc("Estimated one-rep max across "+n+" training week"+(n===1?"":"s")+".")+'">';
-  s+='<g class="gLine"><line x1="8" y1="10" x2="232" y2="10"/><line x1="8" y1="34" x2="232" y2="34"/></g>';
-  s+='<line class="gAx" x1="8" y1="58" x2="232" y2="58"/>';
-  if(n>1)s+='<polyline class="lnE" points="'+pts.map(function(p,i){return lrC(X(i))+","+lrC(Y(p.e));}).join(" ")+'"/>';
-  var d="";pts.forEach(function(p,i){d+='<circle cx="'+lrC(X(i))+'" cy="'+lrC(Y(p.e))+'" r="'+((i===n-1)?"3":"1.9")+'"/>';});
-  s+='<g class="dotE">'+d+'</g>';
-  s+='<g class="gTx"><text x="8" y="72" text-anchor="start">'+esc(pts[0].label)+'</text>';
-  if(n>1)s+='<text x="232" y="72" text-anchor="end">'+esc(pts[n-1].label)+'</text>';
-  return s+'</g></svg>';}
-/* session tonnage bars */
-function lrSvgSessions(list){
-  if(!list||!list.length)return "";
-  var n=list.length,padL=20,padR=20,base=96,slot=(340-padL-padR)/n;
-  var bw=Math.min(60,slot*0.62);
-  var mx=0;list.forEach(function(s){if(s.ton>mx)mx=s.ton;});
-  if(!(mx>0))mx=1;
-  var s2='<svg viewBox="0 0 340 122" role="img" aria-label="'+esc("Tonnage per session: "+list.map(function(x){return x.dateLabel+" "+lrInt(x.ton);}).join(", ")+".")+'">';
-  s2+='<line class="gAx" x1="20" y1="96" x2="320" y2="96"/>';
-  var bars="",vals="",labs="",rpes="";
-  list.forEach(function(x,i){
-    var cx=padL+slot*(i+0.5),h=Math.max(2,(x.ton/mx)*72.7),y=base-h;
-    bars+='<rect x="'+lrC(cx-bw/2)+'" y="'+lrC(y)+'" width="'+lrC(bw)+'" height="'+lrC(h)+'" rx="2"/>';
-    vals+='<text x="'+lrC(cx)+'" y="'+lrC(y-5)+'">'+lrInt(x.ton)+'</text>';
-    var lab=(n<=3)?(x.dateLabel+(x.mins!=null?(" · "+lrInt(x.mins)+" min"):"")):x.dateLabel;
-    labs+='<text x="'+lrC(cx)+'" y="109">'+esc(lab)+'</text>';
-    if(x.rpe!=null)rpes+='<text x="'+lrC(cx)+'" y="119">RPE '+lrInt(x.rpe)+'</text>';});
-  s2+='<g class="barV">'+bars+'</g>';
-  s2+='<g class="gVal" text-anchor="middle">'+vals+'</g>';
-  s2+='<g class="gTx" text-anchor="middle">'+labs+'</g>';
-  s2+='<g class="gTxB" text-anchor="middle">'+rpes+'</g>';
-  return s2+'</svg>';}
-/* the rep-range position track — one dot per set, placed with calc() so it
-   stays correct when the track shrinks on a phone */
-function lrTrack(rows){
-  var dots="";
-  (rows||[]).forEach(function(r){
-    if(r.t==null)return;
-    dots+='<b style="left:calc(4px + (100% - 10px) * '+lrD2(r.t)+')'+(r.out?';background:var(--am)':'')+'"></b>';});
-  if(!dots)return "";
-  return '<span class="rng"><i></i><u class="a"></u><u class="b"></u>'+dots+'</span>';}
-function lrRangeText(e){
-  if(!e.hasR)return lrInt(e.n)+" set"+(e.n===1?"":"s")+" logged";
-  return lrInt(e.inR)+"/"+lrInt(e.n)+" in range";}
-function lrSpan(g){return lrInt(g.lo)+"–"+lrInt(g.hi);}
-/* the prescription as written: one range for double progression, the whole
-   ladder for reverse pyramid, and a dagger when that ladder was reconstructed */
-function lrRx(e){
-  if(e.rxMode==="rpt"&&e.ranges&&e.ranges.length)
-    return "RPT "+e.ranges.map(function(g){return lrSpan(g);}).join(" / ")+(e.assumed?" †":"");
-  return e.hasR?lrSpan({lo:e.lo,hi:e.hi}):"no range set";}
 
-/* ---------------- shared prose ---------------- */
-function lrFbSummary(M){
-  var kinds=[["sore",FB_SORE,"Soreness"],["pump",FB_PUMP,"Pump"],["vol",FB_VOL,"Volume"]],out=[];
-  kinds.forEach(function(kd){
-    var byVal={},any=false;
-    M.sessions.forEach(function(ses){
-      var mf=ses.mfb||{};
-      for(var mus in mf){
-        var v=mf[mus]&&mf[mus][kd[0]];
-        if(!v)continue;any=true;
-        if(!byVal[v])byVal[v]={};
-        byVal[v][muscleInfo(mus).label]=1;}});
-    if(!any)return;
-    var parts=[];
-    kd[1].forEach(function(o){
-      if(!byVal[o[0]])return;
-      parts.push(esc(o[1])+" ("+esc(Object.keys(byVal[o[0]]).join(", "))+")");});
-    if(parts.length)out.push("<b>"+esc(kd[2])+"</b> — "+parts.join("; ")+".");});
-  return out;}
-function lrRelProse(M){
-  if(!M.rel)return "";
-  var r=M.rel,u=esc(M.units),who=esc(M.who);
-  var eTxt="<b>"+esc(lrSigned(r.eChg,1))+" "+u+(r.ePct!=null?(" ("+esc(lrSigned(r.ePct,0))+"%)"):"")+"</b>";
-  var bwTxt="<b>"+esc(lrSigned(r.bwChg,1))+" "+u+"</b>";
-  var verdict;
-  if(r.ePct!=null&&r.ePct>1&&r.bwChg<0)verdict=who+" is <b>adding strength, not defending it</b>.";
-  else if(r.ePct!=null&&r.ePct>=-1&&r.bwChg<0)verdict="strength is being <b>held while bodyweight falls</b> — in a deficit that is the outcome to aim for.";
-  else if(r.ePct!=null&&r.ePct<-1)verdict="estimated strength has <b>fallen</b> over this window — worth reading against load, sleep and the size of the deficit.";
-  else verdict="strength and bodyweight are <b>moving together</b>, so the relative figure is the one to read.";
-  return "e1RM per "+u.replace(/s$/,"")+" of bodyweight, across "+esc(String(r.n))+" training weeks. "+
-    esc(M.hero?M.hero.m.name:"")+" e1RM "+eTxt+" while bodyweight moved "+bwTxt+". "+verdict;}
-function lrMethodProse(M){
-  var s="Tonnage = Σ (weight × reps) across working sets; warm-ups and skipped sets excluded. "+
-    "Bodyweight exercises are logged as ADDED load, so their tonnage reflects added weight only — the set still counts as a hard set. "+
-    "RIR is self-reported at the end of each set; <b>@0</b> means the set was taken to failure. "+
-    "Rep-range adherence compares logged reps against the prescribed range; the marker shows where in the range the set landed — <b>left = fewer reps / heavier</b>, right = more reps / lighter, amber = outside the range. ";
-  if(M&&M.anyRpt)
-    s+="<b>Reverse-pyramid (RPT)</b> exercises prescribe a different range for <b>every set</b> — heaviest and fewest reps first, then lighter for more reps — printed as <b>RPT 6–8 / 8–10 / 10–12</b>. Each set is judged against its own target and against nothing else, so a 12-rep third set inside a 10–12 target counts as in range. ";
-  if(M&&M.anyAssumed)
-    s+="<b>†</b> marks an exercise whose per-set targets were <b>not stored with the session</b>: it was logged before the app began saving the scheme, so the targets shown are reconstructed — read off the routine as it stands today, or, failing that, the default reverse-pyramid ladder for that number of sets. If the routine has been edited since, those targets are not necessarily the ones that were trained. Read daggered adherence figures as <b>reconstructed, not recorded</b>; sessions logged from now on carry their own scheme. ";
-  s+="An exercise with only one end of its range filled in is reported as <b>no range set</b> rather than half a range, and its sets are excluded from the adherence count. ";
-  return s+"Bodyweight is the average of the week’s weigh-ins. "+
-    "Joint pain is surfaced at Moderate and above only; soreness, pump and volume ratings are summarised rather than listed per set.";}
-function lrEpleyProse(){
-  return "<b>Reading e1RM honestly.</b> e1RM = Epley, <span class=\"num\">weight × (1 + reps / 30)</span>, taken from the single best qualifying set in the whole log — the exact set is printed beside each figure so the arithmetic can be checked. "+
-    "The formula is most reliable at <span class=\"num\">≤6</span> reps and degrades as reps climb: an estimate off a 13-rep set carries far more error than one off an 8-rep set, which is what the confidence badge marks. Read a low-confidence figure as <b>direction, not as a number</b>. "+
-    "Separately: in a calorie deficit a flat e1RM is a normal and acceptable outcome, not a stall — holding the number while bodyweight falls is progress in relative terms.";}
-function lrMainRuleProse(M){
-  return "Charts cover every lift trained this week, plus any <b>main lift</b> that was not — where a main lift is one trained on <b>three or more separate days</b> in the eight weeks ending "+esc(fmtShort(M.we))+". Nothing is chosen from a fixed list.";}
 
-/* ---------------- stylesheet: THE LEDGER ---------------- */
-var LRCSS_LEDGER=[
-":root{--ink:#14171B;--ink2:#4C5460;--ink3:#8A929E;--paper:#FBFAF7;--wash:#F1EFE9;--rule:#E2DED5;--rule2:#C9C3B6;--am:#B0740B;--amBg:#F7EDD6;--gd:#1F7A58;--gdBg:#E4F2EB;--bd:#B23D26;--sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,system-ui,sans-serif;--mono:ui-monospace,'SF Mono','Cascadia Code','Segoe UI Mono',Menlo,Consolas,monospace}",
-"*{box-sizing:border-box}html,body{margin:0;padding:0}",
-"body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%;padding-bottom:6px}",
-"p,h1,h2,h3,h4{margin:0;padding:0}",
-"table{border-collapse:collapse;width:100%}svg{display:block;width:100%;height:auto}",
-".num{font-family:var(--mono);font-variant-numeric:tabular-nums;font-feature-settings:'tnum' 1}",
-".rng{position:relative;display:inline-block;width:56px;height:11px;vertical-align:middle}",
-".rng i{position:absolute;left:4px;right:4px;top:4px;height:3px;border-radius:2px;background:#DCD9D0}",
-".rng u{position:absolute;top:1px;width:1px;height:9px;background:#BFB9AC}.rng u.a{left:4px}.rng u.b{right:4px}",
-".rng b{position:absolute;top:1.5px;width:8px;height:8px;border-radius:50%;background:var(--gd);transform:translateX(-50%);border:1px solid #fff}",
-".pg{max-width:880px;margin:0 auto;padding:0 20px}",
-".mast{border-bottom:2.5px solid var(--ink);padding:22px 0 12px}",
-".mastTop{display:flex;align-items:center;gap:9px}",
-".word{font-size:13.5px;font-weight:800;letter-spacing:.3em}",
-".stamp{margin-left:auto;font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--ink3);text-transform:uppercase}",
-"h1{font-size:23px;font-weight:800;letter-spacing:-.015em;margin:16px 0 8px}",
-".ident{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;font-size:12.5px;color:var(--ink2);font-weight:600}",
-".ident .sep{color:var(--rule2)}",
-".plan{font-size:10px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;background:var(--amBg);color:#7A5008;padding:3px 8px;border-radius:3px}",
-".kv{display:grid;grid-template-columns:repeat(2,1fr)}",
-".kv .c{padding:12px 14px 12px 0;border-bottom:1px solid var(--rule);min-width:0}",
-".kv .c:nth-child(odd){border-right:1px solid var(--rule)}",
-".kv .c:nth-child(even){padding-left:14px;padding-right:0}",
-".kvK{font-size:9.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3)}",
-".kvV{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:19px;font-weight:600;letter-spacing:-.02em;margin-top:4px}",
-".kvV s{text-decoration:none;font-size:10.5px;color:var(--ink3);margin-left:3px}",
-".kvS{font-size:11px;color:var(--ink2);margin-top:2px}.kvS.dn{color:var(--gd);font-weight:600}",
-".sec{padding-top:26px}",
-".secH{display:flex;align-items:center;gap:10px;font-size:10px;font-weight:800;letter-spacing:.2em;text-transform:uppercase;border-bottom:1.5px solid var(--ink);padding-bottom:6px;margin-bottom:14px}",
-".secH .n{font-family:var(--mono);color:var(--am)}",
-".secH{flex-wrap:wrap}.secH .r{margin-left:auto;font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.04em;color:var(--ink3);text-transform:none;text-align:right;min-width:0;overflow-wrap:anywhere}",
-".lede{font-size:14px;line-height:1.6;color:var(--ink2);margin-bottom:14px}.lede b{color:var(--ink);font-weight:700}",
-".flags{border-top:1px solid var(--rule)}",
-".flag{display:flex;gap:12px;align-items:baseline;padding:11px 0;border-bottom:1px solid var(--rule)}",
-".flagT{font-size:9.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;width:78px;flex:none}",
-".pr .flagT{color:var(--gd)}.pain .flagT{color:var(--bd)}.note .flagT{color:var(--ink3)}",
-".flagB{flex:1;min-width:0;font-size:13.5px;line-height:1.5;color:var(--ink2);overflow-wrap:anywhere}.flagB b{color:var(--ink)}",
-".chart{max-width:560px;margin-top:6px;min-width:0}",
-".hero{display:grid;grid-template-columns:1fr;gap:14px}",
-"@media(min-width:860px){.hero{grid-template-columns:minmax(0,560px) 264px;align-items:center}}",
-".call{background:var(--gdBg);border:1px solid #BFE3D3;border-radius:12px;padding:14px;min-width:0}",
-".callK{font-size:9.5px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--gd)}",
-".callV{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:26px;font-weight:600;letter-spacing:-.03em;margin:6px 0 2px;color:#0F5E42}",
-".callP{font-size:12.5px;line-height:1.5;color:#28503F;margin-top:6px}.callP b{font-weight:700}",
-".cap{font-size:11.5px;color:var(--ink3);line-height:1.55;margin-top:8px;max-width:640px}.cap b{color:var(--ink2)}",
-".legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:9px;font-size:11px;color:var(--ink2)}",
-".legend i{display:inline-block;width:16px;height:0;border-top:2.5px solid var(--ink);vertical-align:middle;margin-right:6px}",
-".legend .bw{border-top:2px dashed var(--am)}",
-".gLine{stroke:var(--rule);stroke-width:1}.gAx{stroke:var(--rule2);stroke-width:1}",
-".gTx{font-family:var(--mono);font-size:8.5px;fill:#8A929E}.gTxB{font-family:var(--mono);font-size:8.5px;fill:#B0740B}",
-".gVal{font-family:var(--mono);font-size:9.5px;fill:#14171B;font-weight:600}",
-".gBand{font-family:var(--mono);font-size:8px;fill:#1F7A58;font-weight:700}",
-".gPk{font-family:var(--mono);font-size:9px;fill:#1F7A58;font-weight:700}",
-".lnE{fill:none;stroke:#14171B;stroke-width:2;stroke-linejoin:round}.lnB{fill:none;stroke:#B0740B;stroke-width:1.6;stroke-dasharray:4 3}",
-".dotE{fill:#14171B}.dotB{fill:#FBFAF7;stroke:#B0740B;stroke-width:1.4}",
-".barV{fill:#14171B}.band{fill:#E4F2EB}.gLbl{font-size:9px;font-weight:700;fill:#4C5460}",
-".ses{border-top:2px solid var(--ink);padding-top:11px;margin-top:22px}",
-".sesD{font-size:9.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--am)}",
-".sesN{font-size:16px;font-weight:800;margin-top:2px;overflow-wrap:anywhere}",
-".sesM{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:11px;color:var(--ink2);display:flex;flex-wrap:wrap;gap:3px 14px;margin-top:5px}",
-".sesM em{font-style:normal;color:var(--ink3)}",
-".sesNote{font-size:12.5px;color:var(--ink2);margin-top:7px;line-height:1.5;overflow-wrap:anywhere}.sesNote em{font-style:normal;color:var(--ink3);font-weight:700;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;margin-right:6px}",
-".ex{margin-top:14px}",
-".exH{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;padding-bottom:5px;border-bottom:1px solid var(--rule2)}",
-".exN{font-size:13.5px;font-weight:700;overflow-wrap:anywhere}",
-".exMg{font-size:9.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3)}",
-".exRx{font-family:var(--mono);font-size:10.5px;color:var(--ink2);background:var(--wash);padding:2px 6px;border-radius:3px}",
-".exTot{margin-left:auto;font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:11px;color:var(--ink3)}",
-".st{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:12.5px}",
-".st th{font-family:var(--sans);font-size:8.5px;font-weight:800;letter-spacing:.11em;text-transform:uppercase;color:var(--ink3);text-align:right;padding:6px 0 4px;white-space:nowrap}",
-".st th:first-child{text-align:left;width:26px}",
-".st td{padding:5px 0;text-align:right;border-bottom:1px solid var(--rule);white-space:nowrap}",
-".st td:first-child{text-align:left;color:var(--ink3);font-size:11px}",
-".st tr:last-child td{border-bottom:none}.st .w{font-weight:600}",
-".st .r0{color:var(--bd);font-weight:700}",
-".st .prTag{color:var(--gd);font-weight:700;font-size:9px;font-family:var(--sans);letter-spacing:.1em}",
-".st col.cR{width:74px}",
-".st col.cT{width:56px}.st .tg{color:var(--ink2)}",
-".mini{display:grid;grid-template-columns:1fr;gap:16px 24px}",
-"@media(min-width:640px){.mini{grid-template-columns:1fr 1fr}}",
-".mi{border-top:1px solid var(--rule);padding-top:9px;min-width:0}",
-".miH{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}",
-".miN{font-size:12.5px;font-weight:700;overflow-wrap:anywhere}",
-".miM{font-size:9.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3)}",
-".miV{margin-left:auto;font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:11px;color:var(--ink2)}",
-".miS{font-size:11px;color:var(--ink3);margin-top:5px;line-height:1.45}",
-".mi svg{margin-top:6px}",
-".prog{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:12.5px}",
-".prog th{font-family:var(--sans);font-size:8.5px;font-weight:800;letter-spacing:.11em;text-transform:uppercase;color:var(--ink3);text-align:right;padding-bottom:6px;border-bottom:1.5px solid var(--ink);white-space:nowrap}",
-".prog th:first-child{text-align:left}",
-".prog td{padding:8px 0;text-align:right;border-bottom:1px solid var(--rule);white-space:nowrap}",
-".prog td:first-child{text-align:left;font-family:var(--sans);font-size:13px;font-weight:600;white-space:normal;overflow-wrap:anywhere}",
-".prog td.mg{font-family:var(--sans);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);text-align:left}",
-".prog tr.stale td{color:var(--ink3)}",
-".conf{font-family:var(--sans);font-size:9.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;padding:2px 7px;border-radius:3px;white-space:nowrap}",
-".conf.hi{background:var(--gdBg);color:#1A6349}.conf.md{background:var(--wash);color:var(--ink2)}.conf.lo{background:var(--amBg);color:#8A5C05}",
-".empty{border:1px solid var(--rule2);border-radius:8px;padding:14px;font-size:13.5px;line-height:1.55;color:var(--ink2);background:var(--wash)}.empty b{color:var(--ink)}",
-".colo{margin-top:28px;border-top:2.5px solid var(--ink);padding:14px 0 24px;font-size:11px;line-height:1.65;color:var(--ink3)}",
-".colo b{color:var(--ink2)}",
-".colo .mh{font-size:9.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--ink);margin-bottom:6px}",
-"@media (max-width:640px){.kv{grid-template-columns:1fr}.kv .c:nth-child(odd){border-right:none}.kv .c:nth-child(even){padding-left:0}h1{font-size:20px}.st{font-size:12px}.st col.cR{width:58px}.st col.cT{width:46px}.rng{width:44px}",
-".prog thead{position:absolute;left:-9999px}",
-".prog tr{display:block;border-bottom:1px solid var(--rule2);padding:10px 0}",
-".prog td{display:flex;justify-content:space-between;gap:12px;border-bottom:none;padding:2px 0;white-space:normal}",
-".prog td::before{content:attr(data-l);font-family:var(--sans);font-size:9.5px;font-weight:800;letter-spacing:.11em;text-transform:uppercase;color:var(--ink3);flex:none}",
-".prog td:first-child{font-size:15px;font-weight:800;padding-bottom:5px}.prog td:first-child::before{content:none}",
-".prog td.mg{text-align:right}}",
-"@media print{body{background:#fff;color:#000;padding:0;font-size:10.5pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}",
-".pg{max-width:none;padding:0}",
-".ses,.ex,.sec,.flag,.mi{break-inside:avoid;page-break-inside:avoid}",
-".chart{max-width:460px}",
-".rng b,.rng i,.call,.conf,.plan,.exRx{-webkit-print-color-adjust:exact;print-color-adjust:exact}}"
-];
 
-/* ---------------- stylesheet: THE COACH'S DASHBOARD ---------------- */
-var LRCSS_DASH=[
-":root{--bg:#F1F4F7;--srf:#FFFFFF;--line:#E1E6EC;--line2:#CDD5DE;--tx:#101418;--tx2:#59626F;--tx3:#8B95A3;--am:#B77209;--amBg:#FDF1DA;--gd:#1B7A57;--gdBg:#E2F3EB;--bd:#B23D26;--bdBg:#FBE8E2;--sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,system-ui,sans-serif;--mono:ui-monospace,'SF Mono','Cascadia Code','Segoe UI Mono',Menlo,Consolas,monospace}",
-"*{box-sizing:border-box}html,body{margin:0;padding:0}",
-"body{background:var(--bg);color:var(--tx);font-family:var(--sans);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%;padding-bottom:22px}",
-"p,h1,h2,h3,h4{margin:0;padding:0}svg{display:block;width:100%;height:auto}",
-".num{font-family:var(--mono);font-variant-numeric:tabular-nums;font-feature-settings:'tnum' 1}",
-".rng{position:relative;display:inline-block;width:56px;height:11px;vertical-align:middle;flex:none}",
-".rng i{position:absolute;left:4px;right:4px;top:4px;height:3px;border-radius:2px;background:#DCE2E8}",
-".rng u{position:absolute;top:1px;width:1px;height:9px;background:#BCC5CF}.rng u.a{left:4px}.rng u.b{right:4px}",
-".rng b{position:absolute;top:1.5px;width:8px;height:8px;border-radius:50%;background:var(--gd);transform:translateX(-50%);border:1px solid #fff}",
-".pg{max-width:1060px;margin:0 auto;padding:0 16px}",
-".top{background:var(--tx);color:#fff;padding:16px 0}",
-".topIn{max-width:1060px;margin:0 auto;padding:0 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}",
-".word{font-size:13px;font-weight:800;letter-spacing:.3em}",
-".topR{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:rgba(255,255,255,.6);letter-spacing:.05em}",
-".hd{padding:20px 0 4px;display:flex;align-items:flex-end;gap:12px 18px;flex-wrap:wrap}",
-"h1{font-size:24px;font-weight:800;letter-spacing:-.02em}",
-".sub{font-size:13px;color:var(--tx2);margin-top:4px;display:flex;flex-wrap:wrap;gap:5px 9px;align-items:center;font-weight:600}",
-".sub .sep{color:var(--line2)}",
-".plan{font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;background:var(--amBg);color:#7A5008;padding:3px 9px;border-radius:20px}",
-".tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:16px}",
-"@media(min-width:760px){.tiles{grid-template-columns:repeat(5,1fr)}}",
-".tile{background:var(--srf);border:1px solid var(--line);border-radius:12px;padding:12px 13px;min-width:0}",
-".tK{font-size:9.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--tx3)}",
-".tV{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:22px;font-weight:600;letter-spacing:-.03em;margin-top:5px;line-height:1.1}",
-".tV s{text-decoration:none;font-size:11px;color:var(--tx3);margin-left:2px}",
-".tS{font-size:11px;color:var(--tx2);margin-top:3px}.tS.g{color:var(--gd);font-weight:600}",
-".card{background:var(--srf);border:1px solid var(--line);border-radius:14px;padding:16px 17px;margin-top:12px;min-width:0}",
-".cH{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;margin-bottom:10px}",
-".cT{font-size:14px;font-weight:800;letter-spacing:-.01em}",
-".cR{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--tx3);min-width:0;overflow-wrap:anywhere;text-align:right}",
-".grid2{display:grid;grid-template-columns:1fr;gap:12px}",
-"@media(min-width:860px){.grid2{grid-template-columns:1.15fr .85fr;align-items:start}.grid2 .card{margin-top:0}}",
-".grid3{display:grid;grid-template-columns:1fr;gap:12px}",
-"@media(min-width:900px){.grid3{grid-template-columns:repeat(3,1fr)}.grid3 .card{margin-top:0}}",
-".hero{display:grid;grid-template-columns:1fr;gap:14px}",
-"@media(min-width:860px){.hero{grid-template-columns:minmax(0,1fr) 264px;align-items:center}}",
-".call{background:var(--gdBg);border:1px solid #BFE3D3;border-radius:12px;padding:14px;min-width:0}",
-".callK{font-size:9.5px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--gd)}",
-".callV{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:26px;font-weight:600;letter-spacing:-.03em;margin:6px 0 2px;color:#0F5E42}",
-".callP{font-size:12.5px;line-height:1.5;color:#28503F;margin-top:6px}.callP b{font-weight:700}",
-".legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:9px;font-size:11px;color:var(--tx2)}",
-".legend i{display:inline-block;width:16px;height:0;border-top:2.5px solid #101418;vertical-align:middle;margin-right:6px}",
-".legend .bw{border-top:2px dashed #B77209}",
-".gLine{stroke:#E7EBF0;stroke-width:1}.gAx{stroke:#CDD5DE;stroke-width:1}",
-".gTx{font-family:var(--mono);font-size:8.5px;fill:#8B95A3}.gTxB{font-family:var(--mono);font-size:8.5px;fill:#B77209}",
-".gVal{font-family:var(--mono);font-size:9.5px;fill:#101418;font-weight:600}",
-".gBand{font-family:var(--mono);font-size:8px;fill:#1B7A57;font-weight:700}",
-".gPk{font-family:var(--mono);font-size:9px;fill:#1B7A57;font-weight:700}",
-".lnE{fill:none;stroke:#101418;stroke-width:2.4;stroke-linejoin:round}.lnB{fill:none;stroke:#B77209;stroke-width:1.8;stroke-dasharray:4 3}",
-".dotE{fill:#101418}.dotB{fill:#fff;stroke:#B77209;stroke-width:1.4}",
-".barV{fill:#101418}.band{fill:#E2F3EB}.gLbl{font-size:9px;font-weight:700;fill:#59626F}",
-".cap{font-size:11.5px;color:var(--tx3);line-height:1.55;margin-top:9px}.cap b{color:var(--tx2)}",
-".fl{display:flex;gap:11px;padding:11px 0;border-bottom:1px solid var(--line)}",
-".fl:last-child{border-bottom:none;padding-bottom:0}",
-".flI{width:30px;height:30px;border-radius:9px;flex:none;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800}",
-".flI.g{background:var(--gdBg);color:var(--gd)}.flI.b{background:var(--bdBg);color:var(--bd)}.flI.n{background:#EFF2F5;color:var(--tx3)}",
-".flT{font-size:13px;font-weight:700;overflow-wrap:anywhere}.flS{font-size:12.5px;color:var(--tx2);margin-top:2px;line-height:1.45;overflow-wrap:anywhere}",
-".flS b{color:var(--tx)}",
-".sesH{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;padding-bottom:9px;border-bottom:1px solid var(--line)}",
-".sesD{font-size:9.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--am)}",
-".sesN{font-size:15px;font-weight:800;width:100%;letter-spacing:-.01em;overflow-wrap:anywhere}",
-".chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}",
-".chip{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:10.5px;background:#EFF2F5;color:var(--tx2);padding:3px 7px;border-radius:6px}",
-".chip b{color:var(--tx);font-weight:600}",
-".chip.w{background:var(--amBg);color:#7A5008}",
-".exr{padding:11px 0;border-bottom:1px solid var(--line)}",
-".exr:last-child{border-bottom:none;padding-bottom:0}",
-".exT{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap}",
-".exN{font-size:13px;font-weight:700;overflow-wrap:anywhere}",
-".exRx{font-family:var(--mono);font-size:10px;color:var(--tx3)}",
-".exTn{margin-left:auto;font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:10.5px;color:var(--tx3)}",
-".sets{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--tx);margin-top:6px;display:flex;flex-wrap:wrap;gap:3px 10px}",
-".sets span{white-space:nowrap}",
-".sets em{font-style:normal;color:var(--tx3)}",
-".sets .r0{color:var(--bd);font-weight:700}",
-".sets .prTag{color:var(--gd);font-weight:800;font-family:var(--sans);font-size:9px;letter-spacing:.1em}",
-".adh{display:flex;align-items:center;gap:8px;margin-top:7px;font-size:11px;color:var(--tx3);flex-wrap:wrap}",
-".pain{margin-top:8px;background:var(--bdBg);border-radius:8px;padding:7px 9px;font-size:11.5px;color:#7E2C1B;line-height:1.45}",
-".pain b{font-weight:800}",
-".note{margin-top:8px;background:#F4F6F9;border-radius:8px;padding:7px 9px;font-size:11.5px;color:var(--tx2);line-height:1.45;overflow-wrap:anywhere}",
-".pgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}",
-"@media(min-width:760px){.pgrid{grid-template-columns:repeat(4,1fr)}}",
-".pc{border:1px solid var(--line);border-radius:11px;padding:11px;min-width:0}",
-".pcN{font-size:11.5px;font-weight:700;line-height:1.3;min-height:30px;overflow-wrap:anywhere}",
-".pcV{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:19px;font-weight:600;letter-spacing:-.02em;margin-top:6px}",
-".pcV s{text-decoration:none;font-size:10px;color:var(--tx3)}",
-".pcM{font-family:var(--mono);font-size:10px;color:var(--tx3);margin-top:3px}",
-".conf{display:inline-block;margin-top:7px;font-size:9px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;padding:2px 6px;border-radius:4px}",
-".conf.hi{background:var(--gdBg);color:var(--gd)}.conf.md{background:#EFF2F5;color:var(--tx2)}.conf.lo{background:var(--amBg);color:#7A5008}",
-".pc.stale{background:#F7F9FB}.pc.stale .pcV{color:var(--tx3)}",
-".mini{display:grid;grid-template-columns:1fr;gap:14px}",
-"@media(min-width:620px){.mini{grid-template-columns:repeat(2,1fr)}}",
-"@media(min-width:980px){.mini{grid-template-columns:repeat(3,1fr)}}",
-".mi{border:1px solid var(--line);border-radius:11px;padding:11px;min-width:0}",
-".miH{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}",
-".miN{font-size:12px;font-weight:700;overflow-wrap:anywhere}",
-".miM{font-size:9px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--tx3)}",
-".miV{margin-left:auto;font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:10.5px;color:var(--tx2)}",
-".miS{font-size:10.5px;color:var(--tx3);margin-top:5px;line-height:1.45}",
-".mi svg{margin-top:6px}",
-".empty{border:1px dashed var(--line2);border-radius:11px;padding:14px;font-size:13px;line-height:1.55;color:var(--tx2);background:#F7F9FB}.empty b{color:var(--tx)}",
-".foot{font-size:11px;color:var(--tx3);line-height:1.6;padding:16px 0 4px}.foot b{color:var(--tx2)}",
-".footH{font-size:9.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--tx2);margin-bottom:6px}",
-"@media print{body{background:#fff;color:#000;padding:0;font-size:10.5pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}",
-".pg,.topIn{max-width:none;padding:0}",
-".card,.tile,.exr,.pc,.mi{break-inside:avoid;page-break-inside:avoid;box-shadow:none}",
-".top{background:#fff;color:#000;border-bottom:2px solid #000;padding:0 0 8px}",
-".topR{color:#59626F}.top svg rect{fill:#101418}.top svg rect.am{fill:#B77209}",
-".call,.chip,.pain,.rng b,.rng i,.conf,.plan{-webkit-print-color-adjust:exact;print-color-adjust:exact}}"
-];
-var LRMARK_DARK='<svg viewBox="0 0 17 20" aria-hidden="true" style="width:15px;height:18px;flex:none"><rect x="0" y="11" width="4" height="8" rx="1" fill="#14171B"/><rect x="6" y="8" width="4" height="11" rx="1" fill="#14171B"/><rect x="12" y="1" width="4" height="18" rx="1" fill="#E09B1F"/></svg>';
-var LRMARK_LIGHT='<svg viewBox="0 0 17 20" aria-hidden="true" style="width:15px;height:18px;flex:none"><rect x="0" y="11" width="4" height="8" rx="1" fill="#fff"/><rect x="6" y="8" width="4" height="11" rx="1" fill="#fff"/><rect class="am" x="12" y="1" width="4" height="18" rx="1" fill="#F5B944"/></svg>';
-
-/* ---------------- fragments shared by both documents ---------------- */
-/* weights can be fractional (2.5 kg plates), so they must NOT be rounded to int */
-function lrW(n){if(n==null||typeof n!=="number"||!isFinite(n))return LRDASH;
-  var r=Math.round(n*10)/10;
-  if(r===Math.round(r))return lrInt(r);
-  var neg=r<0,a=Math.abs(r),ip=Math.floor(a),fp=Math.round((a-ip)*10);
-  return (neg?"−":"")+lrInt(ip)+"."+fp;}
-function lrDateShort(iso){return iso?esc(fmtShort(parseISO(iso))):LRDASH;}
-function lrPrText(p,M){
-  var u=esc(M.units);
-  var head="<b>"+esc(p.ex)+" — "+esc(lrW(p.w))+" "+u+" × "+esc(lrInt(p.r))+"</b>, "+esc(p.dateLabel)+". ";
-  if(p.type==="weight")
-    return head+"Heaviest set ever logged for this lift"+
-      (p.prevW!=null?(", past a previous best of <span class=\"num\">"+esc(lrW(p.prevW))+" "+u+"</span>"):"")+".";
-  return head+"Best estimated 1RM to date at <span class=\"num\">"+esc(lrD1(p.e))+" "+u+"</span>"+
-    (p.prevE!=null?(", up from <span class=\"num\">"+esc(lrD1(p.prevE))+"</span>"):"")+".";}
-function lrRirSub(M){
-  var keys=Object.keys(M.rirBuckets).map(Number).sort(function(a,b){return a-b;});
-  if(!keys.length)return "No RIR recorded this week";
-  var parts=keys.map(function(k){return lrInt(M.rirBuckets[k])+" at "+lrInt(k);});
-  return lrInt(M.failSets)+" to failure · "+parts.join(" · ");}
-function lrBwSub(M){
-  var bits=[];
-  if(M.bwChg!=null)bits.push(lrSigned(M.bwChg,1)+" "+M.units+" vs prior week");
-  else bits.push("no prior-week average to compare against");
-  if(M.bwStart!=null&&M.bwGoal!=null)bits.push(lrD1(M.bwStart)+" → "+lrD1(M.bwGoal)+" goal");
-  return esc(bits.join(" · "));}
+/* is the week-over-week bodyweight move the direction the plan wants? */
 function lrBwGood(M){
   if(M.bwChg==null)return false;
   var sm=strategyMode();
   if(sm==="maintain")return Math.abs(M.bwChg)<0.5;
   return (sm==="gain")?(M.bwChg>0):(M.bwChg<0);}
-function lrVolLede(M){
-  if(!M.muscleRows.length)return "No working sets were logged this week, so there is no volume to distribute.";
-  var inB=[],below=[],above=[];
-  M.muscleRows.forEach(function(r){
-    if(r.n<10)below.push(r.label);else if(r.n>20)above.push(r.label);else inB.push(r.label);});
-  var s=esc(lrInt(M.setCount))+" working set"+(M.setCount===1?"":"s")+" across "+
-    esc(lrInt(M.sessions.length))+" session"+(M.sessions.length===1?"":"s")+". ";
-  if(inB.length)s+="<b>"+esc(inB.join(", "))+"</b> "+(inB.length===1?"sits":"sit")+" inside the 10–20 hard-set band. ";
-  if(above.length)s+="<b>"+esc(above.join(", "))+"</b> "+(above.length===1?"is":"are")+" above it. ";
-  if(below.length)s+="<b>"+esc(below.join(", "))+"</b> "+(below.length===1?"is":"are")+" below it — worth confirming that is deliberate while in a deficit.";
-  return s;}
-function lrHeroLede(M){
-  if(!M.hero||!M.heroPts.length)return "No lift has enough logged history to chart yet.";
-  var s="The relationship that matters in a deficit: <b>"+esc(M.hero.m.name)+
-    "</b> estimated 1RM against bodyweight, one point per training week over the eight weeks ending "+esc(fmtShort(M.we))+". ";
-  if(M.heroPts.length===1)return s+"Only one training week falls inside that window, so there is <b>no trend to read yet</b>.";
-  var f=M.heroPts[0].e,l=M.heroPts[M.heroPts.length-1].e;
-  var pct=(f>0)?((l-f)/f*100):null;
-  s+="e1RM has moved <b>"+esc(lrSigned(l-f,1))+" "+esc(M.units)+
-    (pct!=null?(" ("+esc(lrSigned(pct,0))+"%)"):"")+"</b> across "+esc(lrInt(M.heroPts.length))+" training weeks.";
-  return s;}
-function lrProgDelta(it,M){
-  if(!it.pts.length)return "No set with a logged weight — nothing to estimate from.";
-  if(it.pts.length===1)return "One training week on record ("+esc(it.pts[0].label)+") — <b>no trend line yet</b>.";
-  var f=it.pts[0].e,l=it.pts[it.pts.length-1].e,pct=(f>0)?((l-f)/f*100):null;
-  return esc(lrSigned(l-f,1))+" "+esc(M.units)+(pct!=null?(" ("+esc(lrSigned(pct,0))+"%)"):"")+
-    " across "+esc(lrInt(it.pts.length))+" training weeks.";}
-function lrStaleText(it){
-  if(it.trained)return "";
-  if(it.weeksSince==null)return "Main lift · <b>no data</b>.";
-  if(it.weeksSince===0)return "Main lift · trained earlier, not in the reported week.";
-  return "Main lift · <b>not trained in "+esc(lrInt(it.weeksSince))+" wk"+(it.weeksSince===1?"":"s")+"</b>.";}
-function lrBestSetText(it,M){
-  if(it.basisR==null)return LRDASH;
-  return esc(lrInt(it.basisR))+" reps"+(it.basisW!=null?(" @ "+esc(lrW(it.basisW))+" "+esc(M.units)):"");}
 
-/* ---------------- DOCUMENT 1 — THE LEDGER ---------------- */
-function lrLedgerEx(e,M){
-  var u=esc(M.units);
-  var h='<div class="ex"><div class="exH"><span class="exN">'+esc(e.name)+'</span>'+
-    '<span class="exMg">'+esc(e.mLabel)+'</span>'+
-    '<span class="exRx">Rx '+esc(lrRx(e))+'</span>'+
-    '<span class="exTot">'+esc(lrInt(e.ton))+' '+u+' · '+esc(lrRangeText(e))+'</span></div>';
-  /* reverse-pyramid work gets its own Target column — every set has a different
-     one, so the coach cannot read adherence off the header alone */
-  var perSet=(e.rxMode==="rpt");
-  h+='<table class="st"><colgroup><col><col><col><col>'+(perSet?'<col class="cT">':'')+'<col class="cR"></colgroup>'+
-    '<thead><tr><th>Set</th><th>Weight</th><th>Reps</th><th>RIR</th>'+(perSet?'<th>Target</th>':'')+'<th>Rep range</th></tr></thead><tbody>';
-  e.rows.forEach(function(r){
-    h+='<tr><td>'+esc(lrInt(r.i))+'</td>'+
-      '<td class="w">'+(r.w!=null?(esc(lrW(r.w))+' '+u):'BW')+(r.pr?' <span class="prTag">'+esc(r.pr)+'</span>':'')+'</td>'+
-      '<td>'+esc(lrInt(r.r))+'</td>'+
-      '<td'+(r.rir===0?' class="r0"':'')+'>'+(r.rir!=null?esc(lrInt(r.rir)):LRDASH)+'</td>'+
-      (perSet?('<td class="tg">'+((r.lo!=null&&r.hi!=null)?esc(lrSpan(r)):LRDASH)+'</td>'):'')+
-      '<td>'+lrTrack([r])+'</td></tr>';});
-  h+='</tbody></table>';
-  if(e.joint)h+='<div class="flag pain" style="border-bottom:none"><div class="flagT">Joint pain</div>'+
-    '<div class="flagB"><b>'+esc(e.joint)+'</b> reported during this exercise.</div></div>';
-  return h+'</div>';}
-function lrLedgerHTML(M){
-  var u=esc(M.units);
-  var h='<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n';
-  h+='<title>'+esc("Compound — resistance training log — "+M.who+" — week of "+M.weekOf)+'</title>\n';
-  h+='<meta name="viewport" content="width=device-width, initial-scale=1">\n';
-  h+='<style>'+LRCSS_LEDGER.join("")+'</style>\n</head>\n<body>\n<div class="pg">\n';
-  /* masthead */
-  h+='<div class="mast"><div class="mastTop">'+LRMARK_DARK+'<span class="word">COMPOUND</span>'+
-    '<span class="stamp">Training log · export</span></div>'+
-    '<h1>Resistance training log — week of '+esc(M.weekOf)+'</h1>'+
-    '<div class="ident"><span>'+esc(M.who)+'</span><span class="sep">·</span>'+
-    '<span>Exported '+esc(M.today)+'</span><span class="sep">·</span>'+
-    '<span class="plan">'+esc(M.plan)+'</span><span class="sep">·</span>'+
-    '<span class="num" style="font-weight:500">'+esc(M.range)+'</span></div></div>\n';
-  /* headline figures */
-  var minsList=M.sessions.map(function(s){return s.mins!=null?lrInt(s.mins):LRDASH;}).join(" / ");
-  h+='<div class="kv">'+
-    '<div class="c"><div class="kvK">Total tonnage</div><div class="kvV">'+esc(lrInt(M.ton))+'<s>'+u+'</s></div>'+
-      '<div class="kvS">'+esc(lrInt(M.sessions.length))+' session'+(M.sessions.length===1?'':'s')+' · '+esc(lrInt(M.setCount))+' working sets</div></div>'+
-    '<div class="c"><div class="kvK">Time under the bar</div><div class="kvV">'+esc(lrInt(M.mins))+'<s>min</s></div>'+
-      '<div class="kvS">'+(M.sessions.length?esc(minsList):'no sessions')+
-      (M.rpeList.length?(' · session RPE '+esc(M.rpeList.map(function(x){return lrInt(x);}).join(", "))):'')+'</div></div>'+
-    '<div class="c"><div class="kvK">Average RIR</div><div class="kvV">'+esc(lrD1(M.avgRir))+'</div>'+
-      '<div class="kvS">'+esc(lrRirSub(M))+'</div></div>'+
-    '<div class="c"><div class="kvK">Bodyweight (week average)</div><div class="kvV">'+esc(lrD1(M.bwAvg))+'<s>'+u+'</s></div>'+
-      '<div class="kvS'+(lrBwGood(M)?' dn':'')+'">'+lrBwSub(M)+'</div></div>'+
-    '</div>\n';
-  /* 01 volume */
-  h+='<div class="sec"><div class="secH"><span class="n">01</span><span>Volume distribution</span>'+
-    '<span class="r">hard sets per muscle group</span></div>';
-  h+='<p class="lede">'+lrVolLede(M)+'</p>';
-  if(M.muscleRows.length){
-    h+='<div class="chart">'+lrSvgMuscle(M.muscleRows)+'</div>';
-    h+='<p class="cap">Shaded band = the 10–20 hard-sets-per-week range most hypertrophy programming targets. Working sets only; warm-ups and skipped sets excluded.</p>';}
-  h+='</div>\n';
-  /* 02 flags */
-  h+='<div class="sec"><div class="secH"><span class="n">02</span><span>Flags this week</span>'+
-    '<span class="r">surfaced only when notable</span></div><div class="flags">';
-  M.prs.forEach(function(p){
-    h+='<div class="flag pr"><div class="flagT">PR</div><div class="flagB">'+lrPrText(p,M)+'</div></div>';});
-  M.pain.forEach(function(p){
-    h+='<div class="flag pain"><div class="flagT">Joint pain</div><div class="flagB"><b>'+esc(p.label)+'</b> — '+
-      esc(p.ex)+', '+esc(p.dateLabel)+'. '+esc(lrInt(p.sets))+' working set'+(p.sets===1?'':'s')+' logged.</div></div>';});
-  var fbs=lrFbSummary(M);
-  var noteBits=[];
-  if(!M.pain.length)noteBits.push("No joint pain was reported at Moderate or above.");
-  if(fbs.length)noteBits=noteBits.concat(fbs);
-  else noteBits.push("No soreness, pump or volume ratings were recorded this week.");
-  if(M.rpeList.length>1)noteBits.push("Session RPE across the week: <b>"+esc(M.rpeList.map(function(x){return lrInt(x);}).join(" → "))+"</b>.");
-  h+='<div class="flag note"><div class="flagT">Feedback</div><div class="flagB">'+noteBits.join(" ")+'</div></div>';
-  h+='</div></div>\n';
-  /* 03 session log */
-  h+='<div class="sec"><div class="secH"><span class="n">03</span><span>Session log</span>'+
-    '<span class="r">every working set, as logged</span></div>';
-  if(!M.sessions.length){
-    h+='<div class="empty"><b>No lifting sessions were logged between '+esc(fmtShort(M.ws))+' and '+esc(fmtShort(M.we))+'.</b> '+
-      'That is what the log says — it is not an export failure. The all-time progression below is unaffected.</div>';}
-  M.sessions.forEach(function(s){
-    h+='<div class="ses"><div class="sesD">Session '+esc(lrInt(s.n))+' · '+esc(s.dateLabel)+'</div>'+
-      '<div class="sesN">'+esc(s.name)+'</div><div class="sesM">'+
-      (s.mins!=null?('<span><em>Duration</em> '+esc(lrInt(s.mins))+' min</span>'):'')+
-      (s.rpe!=null?('<span><em>Session RPE</em> '+esc(lrInt(s.rpe))+'</span>'):'')+
-      '<span><em>Tonnage</em> '+esc(lrInt(s.ton))+' '+u+'</span>'+
-      '<span><em>Sets</em> '+esc(lrInt(s.sets))+'</span>'+
-      (s.avgRir!=null?('<span><em>Avg RIR</em> '+esc(lrD1(s.avgRir))+'</span>'):'')+'</div>';
-    if(s.notes)h+='<div class="sesNote"><em>Note</em>'+esc(s.notes)+'</div>';
-    s.ex.forEach(function(e){h+=lrLedgerEx(e,M);});
-    h+='</div>';});
-  h+='</div>\n';
-  /* 04 strength vs bodyweight, with the relative-strength callout grafted in */
-  h+='<div class="sec"><div class="secH"><span class="n">04</span><span>Strength against bodyweight</span>'+
-    '<span class="r">'+(M.hero?esc(M.hero.m.name+" · 8 weeks"):"no data")+'</span></div>';
-  h+='<p class="lede">'+lrHeroLede(M)+'</p>';
-  if(M.hero&&M.heroPts.length){
-    h+='<div class="hero"><div class="chart">'+lrSvgDual(M.heroPts,M.hero.m.name,M.units)+
-      '<div class="legend"><span><i></i>'+esc(M.hero.m.name)+' e1RM — '+u+', left axis</span>'+
-      (M.heroPts.filter(function(p){return p.bw!=null;}).length>1?('<span><i class="bw"></i>Bodyweight — '+u+', right axis</span>'):'')+
-      '</div></div>';
-    if(M.rel){
-      h+='<div class="call"><div class="callK">Relative strength</div>'+
-        '<div class="callV">'+esc(lrD2(M.rel.from))+' → '+esc(lrD2(M.rel.to))+'</div>'+
-        '<div class="callP">'+lrRelProse(M)+'</div></div>';}
-    else{
-      h+='<div class="call"><div class="callK">Relative strength</div><div class="callV">'+LRDASH+'</div>'+
-        '<div class="callP">Relative strength needs a bodyweight average in at least two of the training weeks charted. '+
-        'Log weigh-ins across the week and this figure fills in.</div></div>';}
-    h+='</div>';
-    h+='<p class="cap">One point per training week, taken from the best qualifying set of that week. '+
-      'The two axes are scaled independently, so where the lines cross means nothing on its own — the <b>divergence</b> is the signal. '+
-      'Single-week dips are usually session noise rather than a trend break.</p>';}
-  else h+='<div class="empty">No lift has a logged set with a weight yet, so there is nothing to chart.</div>';
-  h+='</div>\n';
-  /* 05 progression, every lift */
-  h+='<div class="sec"><div class="secH"><span class="n">05</span><span>Progression — all-time</span>'+
-    '<span class="r">estimated 1RM per training week</span></div>';
-  h+='<p class="lede">'+lrMainRuleProse(M)+'</p>';
-  if(!M.progItems.length)h+='<div class="empty">Nothing has been logged, so there is no progression to show.</div>';
-  else{
-    h+='<div class="mini">';
-    M.progItems.forEach(function(it){
-      var last=it.pts.length?it.pts[it.pts.length-1].e:null;
-      var first=it.pts.length?it.pts[0].e:null;
-      h+='<div class="mi"><div class="miH"><span class="miN">'+esc(it.name)+'</span>'+
-        '<span class="miM">'+esc(it.mLabel)+'</span>'+
-        '<span class="miV">'+(it.pts.length>1?(esc(lrD1(first))+' → '+esc(lrD1(last))):esc(lrD1(last)))+' '+u+'</span></div>';
-      if(it.pts.length)h+=lrSvgMini(it.pts);
-      h+='<div class="miS">'+lrProgDelta(it,M)+(it.trained?'':(' '+lrStaleText(it)))+'</div></div>';});
-    h+='</div>';}
-  h+='</div>\n';
-  /* 06 e1RM standings */
-  h+='<div class="sec"><div class="secH"><span class="n">06</span><span>Estimated 1RM — all lifts</span>'+
-    '<span class="r">Epley · current standing</span></div>';
-  if(!M.stand.length)h+='<div class="empty">No lifts logged yet.</div>';
-  else{
-    h+='<table class="prog"><thead><tr><th>Exercise</th><th>Muscle</th><th>e1RM</th><th>Best set</th>'+
-      '<th>Confidence</th><th>Last trained</th></tr></thead><tbody>';
-    M.stand.forEach(function(it){
-      h+='<tr'+(it.trained?'':' class="stale"')+'>'+
-        '<td>'+esc(it.name)+'</td>'+
-        '<td class="mg" data-l="Muscle">'+esc(it.mLabel)+'</td>'+
-        '<td data-l="e1RM"><b>'+esc(lrD1(it.e))+' '+u+'</b></td>'+
-        '<td data-l="Best set">'+lrBestSetText(it,M)+'</td>'+
-        '<td data-l="Confidence"><span class="conf '+it.conf.c+'">'+esc(it.conf.t)+'</span></td>'+
-        '<td data-l="Last trained">'+(it.last?lrDateShort(it.last):LRDASH)+
-        ((!it.trained&&it.weeksSince)?(' <span style="color:var(--ink3)">('+esc(lrInt(it.weeksSince))+' wk)</span>'):'')+'</td></tr>';});
-    h+='</tbody></table>';
-    h+='<p class="cap" style="margin-top:12px">'+lrEpleyProse()+'</p>';}
-  h+='</div>\n';
-  /* colophon */
-  h+='<div class="colo"><div class="mh">Method</div>'+lrMethodProse(M)+
-    '<div style="margin-top:10px">COMPOUND · exported '+esc(M.today)+' · '+esc(M.who)+' · '+esc(M.plan)+' · weights in '+u+'</div></div>\n';
-  return h+'</div>\n</body>\n</html>\n';}
 
-/* ---------------- DOCUMENT 2 — THE COACH'S DASHBOARD ---------------- */
-function lrDashSets(e){
-  /* per-set targets are printed beside the set only for reverse pyramid, where
-     they differ set to set; repeating one shared range would just be noise */
-  var perSet=(e.rxMode==="rpt");
-  var out=e.rows.map(function(r){
-    var s='<span>'+(r.w!=null?esc(lrW(r.w)):'BW')+'<em>×</em>'+esc(lrInt(r.r));
-    if(r.rir!=null)s+=(r.rir===0?' <em class="r0">@0</em>':(' <em>@</em>'+esc(lrInt(r.rir))));
-    if(perSet&&r.lo!=null&&r.hi!=null)s+=' <em>('+esc(lrSpan(r))+')</em>';
-    if(r.pr)s+=' <span class="prTag">'+esc(r.pr)+'</span>';
-    return s+'</span>';});
-  return '<div class="sets">'+out.join("")+'</div>';}
-function lrDashHTML(M){
-  var u=esc(M.units);
-  var h='<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n';
-  h+='<title>'+esc("Compound — weekly lifting report — "+M.who+" — week of "+M.weekOf)+'</title>\n';
-  h+='<meta name="viewport" content="width=device-width, initial-scale=1">\n';
-  h+='<style>'+LRCSS_DASH.join("")+'</style>\n</head>\n<body>\n';
-  h+='<div class="top"><div class="topIn">'+LRMARK_LIGHT+'<span class="word">COMPOUND</span>'+
-    '<span class="topR">TRAINING REPORT · '+esc(M.range.toUpperCase())+'</span></div></div>\n';
-  h+='<div class="pg">\n';
-  h+='<div class="hd"><div><h1>Weekly lifting report</h1><div class="sub"><span>'+esc(M.who)+'</span>'+
-    '<span class="sep">·</span><span>'+esc(M.today)+'</span><span class="sep">·</span>'+
-    '<span class="plan">'+esc(M.plan)+'</span></div></div></div>\n';
-  /* tiles */
-  h+='<div class="tiles">'+
-    '<div class="tile"><div class="tK">Tonnage</div><div class="tV">'+esc(lrInt(M.ton))+'<s>'+u+'</s></div>'+
-      '<div class="tS">'+esc(lrInt(M.sessions.length))+' session'+(M.sessions.length===1?'':'s')+'</div></div>'+
-    '<div class="tile"><div class="tK">Hard sets</div><div class="tV">'+esc(lrInt(M.setCount))+'</div>'+
-      '<div class="tS">'+(M.rngN?(esc(lrInt(M.inR))+' of '+esc(lrInt(M.rngN))+' in range'):'no rep ranges set')+'</div></div>'+
-    '<div class="tile"><div class="tK">Time</div><div class="tV">'+esc(lrInt(M.mins))+'<s>min</s></div>'+
-      '<div class="tS">'+(M.rpeList.length?('RPE '+esc(M.rpeList.map(function(x){return lrInt(x);}).join(" · "))):'no session RPE')+'</div></div>'+
-    '<div class="tile"><div class="tK">Avg RIR</div><div class="tV">'+esc(lrD1(M.avgRir))+'</div>'+
-      '<div class="tS">'+esc(lrInt(M.failSets))+' set'+(M.failSets===1?'':'s')+' to failure</div></div>'+
-    '<div class="tile"><div class="tK">Bodyweight</div><div class="tV">'+esc(lrD1(M.bwAvg))+'<s>'+u+'</s></div>'+
-      '<div class="tS'+(lrBwGood(M)?' g':'')+'">'+(M.bwChg!=null?(esc(lrSigned(M.bwChg,1))+' this week'):'no prior week')+'</div></div>'+
-    '</div>\n';
-  if(!M.sessions.length)
-    h+='<div class="card"><div class="empty"><b>No lifting sessions were logged between '+esc(fmtShort(M.ws))+' and '+esc(fmtShort(M.we))+'.</b> '+
-      'That is what the log says — it is not an export failure. Everything below is drawn from the all-time record.</div></div>\n';
-  /* strength vs bodyweight + relative-strength callout */
-  h+='<div class="card"><div class="cH"><span class="cT">Strength vs bodyweight</span>'+
-    '<span class="cR">'+(M.hero?esc(M.hero.m.name+" · 8 weeks"):"no data")+'</span></div>';
-  if(M.hero&&M.heroPts.length){
-    h+='<div class="hero"><div>'+lrSvgDual(M.heroPts,M.hero.m.name,M.units)+
-      '<div class="legend"><span><i></i>'+esc(M.hero.m.name)+' e1RM — '+u+', left axis</span>'+
-      (M.heroPts.filter(function(p){return p.bw!=null;}).length>1?('<span><i class="bw"></i>Bodyweight — '+u+', right axis</span>'):'')+
-      '</div></div>';
-    if(M.rel)
-      h+='<div class="call"><div class="callK">Relative strength</div>'+
-        '<div class="callV">'+esc(lrD2(M.rel.from))+' → '+esc(lrD2(M.rel.to))+'</div>'+
-        '<div class="callP">'+lrRelProse(M)+'</div></div>';
-    else
-      h+='<div class="call"><div class="callK">Relative strength</div><div class="callV">'+LRDASH+'</div>'+
-        '<div class="callP">Relative strength needs a bodyweight average in at least two of the training weeks charted.</div></div>';
-    h+='</div>';
-    h+='<p class="cap">'+lrHeroLede(M)+' Axes are independently scaled — the crossing point carries no meaning, the <b>divergence</b> does.</p>';}
-  else h+='<div class="empty">No lift has a logged set with a weight yet, so there is nothing to chart.</div>';
-  h+='</div>\n';
-  /* sets per muscle + flags */
-  h+='<div class="grid2"><div class="card"><div class="cH"><span class="cT">Weekly sets per muscle</span>'+
-    '<span class="cR">target 10–20</span></div>';
-  if(M.muscleRows.length){h+=lrSvgMuscle(M.muscleRows)+'<p class="cap">'+lrVolLede(M)+'</p>';}
-  else h+='<div class="empty">No working sets logged this week.</div>';
-  h+='</div>';
-  h+='<div class="card"><div class="cH"><span class="cT">Flags</span><span class="cR">notable only</span></div>';
-  M.prs.forEach(function(p){
-    h+='<div class="fl"><div class="flI g">★</div><div><div class="flT">PR — '+esc(p.ex)+'</div>'+
-      '<div class="flS">'+lrPrText(p,M)+'</div></div></div>';});
-  M.pain.forEach(function(p){
-    h+='<div class="fl"><div class="flI b">!</div><div><div class="flT">Joint pain — '+esc(p.label)+'</div>'+
-      '<div class="flS"><b>'+esc(p.ex)+'</b>, '+esc(p.dateLabel)+'. '+esc(lrInt(p.sets))+' working set'+(p.sets===1?'':'s')+' logged.</div></div></div>';});
-  var fbs2=lrFbSummary(M);
-  var nb2=[];
-  if(!M.pain.length)nb2.push("No joint pain reported at Moderate or above.");
-  if(fbs2.length)nb2=nb2.concat(fbs2);else nb2.push("No soreness, pump or volume ratings recorded.");
-  if(M.rpeList.length>1)nb2.push("Session RPE: <b>"+esc(M.rpeList.map(function(x){return lrInt(x);}).join(" → "))+"</b>.");
-  h+='<div class="fl"><div class="flI n">·</div><div><div class="flT">Feedback summary</div>'+
-    '<div class="flS">'+nb2.join(" ")+'</div></div></div>';
-  h+='</div></div>\n';
-  /* session tonnage */
-  if(M.sessions.length){
-    h+='<div class="card"><div class="cH"><span class="cT">Session tonnage</span><span class="cR">'+u+' per session</span></div>'+
-      lrSvgSessions(M.sessions)+
-      '<p class="cap">Tonnage is volume, not effort — a session can match another’s total at a higher RPE and closer to failure. Read it alongside RIR.</p></div>\n';
-    /* session panels */
-    h+='<div class="grid3">';
-    M.sessions.forEach(function(s){
-      h+='<div class="card"><div class="sesH"><span class="sesD">Session '+esc(lrInt(s.n))+' · '+esc(s.dateLabel)+'</span>'+
-        '<span class="sesN">'+esc(s.name)+'</span></div><div class="chips">'+
-        (s.mins!=null?('<span class="chip"><b>'+esc(lrInt(s.mins))+'</b> min</span>'):'')+
-        '<span class="chip"><b>'+esc(lrInt(s.ton))+'</b> '+u+'</span>'+
-        '<span class="chip"><b>'+esc(lrInt(s.sets))+'</b> sets</span>'+
-        (s.rpe!=null?('<span class="chip w">RPE <b>'+esc(lrInt(s.rpe))+'</b></span>'):'')+
-        (s.avgRir!=null?('<span class="chip">RIR <b>'+esc(lrD1(s.avgRir))+'</b></span>'):'')+'</div>';
-      s.ex.forEach(function(e){
-        h+='<div class="exr"><div class="exT"><span class="exN">'+esc(e.name)+'</span>'+
-          '<span class="exRx">'+esc(e.mLabel.toLowerCase())+' · '+esc(lrRx(e))+'</span>'+
-          '<span class="exTn">'+esc(lrInt(e.ton))+' '+u+'</span></div>'+
-          lrDashSets(e);
-        var tr=lrTrack(e.rows);
-        h+='<div class="adh">'+tr+'<span>'+esc(lrRangeText(e))+'</span></div>';
-        if(e.joint)h+='<div class="pain"><b>Joint pain — '+esc(e.joint)+'.</b> Reported during this exercise.</div>';
-        h+='</div>';});
-      if(s.notes)h+='<div class="note"><b>Note:</b> '+esc(s.notes)+'</div>';
-      h+='</div>';});
-    h+='</div>\n';}
-  /* progression */
-  h+='<div class="card"><div class="cH"><span class="cT">Progression — all-time</span>'+
-    '<span class="cR">e1RM per training week</span></div>';
-  h+='<p class="cap" style="margin-top:0;margin-bottom:11px">'+lrMainRuleProse(M)+'</p>';
-  if(!M.progItems.length)h+='<div class="empty">Nothing has been logged, so there is no progression to show.</div>';
-  else{
-    h+='<div class="mini">';
-    M.progItems.forEach(function(it){
-      var last=it.pts.length?it.pts[it.pts.length-1].e:null;
-      var first=it.pts.length?it.pts[0].e:null;
-      h+='<div class="mi"><div class="miH"><span class="miN">'+esc(it.name)+'</span>'+
-        '<span class="miM">'+esc(it.mLabel)+'</span>'+
-        '<span class="miV">'+(it.pts.length>1?(esc(lrD1(first))+' → '+esc(lrD1(last))):esc(lrD1(last)))+' '+u+'</span></div>';
-      if(it.pts.length)h+=lrSvgMini(it.pts);
-      h+='<div class="miS">'+lrProgDelta(it,M)+(it.trained?'':(' '+lrStaleText(it)))+'</div></div>';});
-    h+='</div>';}
-  h+='</div>\n';
-  /* e1RM cards */
-  h+='<div class="card"><div class="cH"><span class="cT">Estimated 1RM — all lifts</span>'+
-    '<span class="cR">Epley · weight × (1 + reps / 30)</span></div>';
-  if(!M.stand.length)h+='<div class="empty">No lifts logged yet.</div>';
-  else{
-    h+='<div class="pgrid">';
-    M.stand.forEach(function(it){
-      h+='<div class="pc'+(it.trained?'':' stale')+'"><div class="pcN">'+esc(it.name)+'</div>'+
-        '<div class="pcV">'+esc(lrD1(it.e))+'<s> '+u+'</s></div>'+
-        '<div class="pcM">'+lrBestSetText(it,M)+(it.last?(' · '+lrDateShort(it.last)):'')+'</div>'+
-        '<span class="conf '+it.conf.c+'">'+esc(it.conf.t)+'</span></div>';});
-    h+='</div><p class="cap">'+lrEpleyProse()+'</p>';}
-  h+='</div>\n';
-  h+='<div class="foot"><div class="footH">Method</div>'+lrMethodProse(M)+
-    ' Set notation is <b>weight × reps @ RIR</b>.'+
-    '<div style="margin-top:10px">COMPOUND · exported '+esc(M.today)+' · '+esc(M.who)+' · '+esc(M.plan)+' · weights in '+u+'</div></div>\n';
-  return h+'</div>\n</body>\n</html>\n';}
-
-/* ---------------- export: style picker + file emission ---------------- */
-/* The review window is chosen HERE, at export, and frozen into the file: the
-   evidence panel is static HTML with no script, so it cannot offer a selector of
-   its own. Presets, Current Phase and a custom range all arrive as this object. */
-function lrWinTag(rw){
-  if(!rw)return "42d";
-  if(rw.mode==="phase")return "phase";
-  if(rw.mode==="custom")return "custom-"+(rw.start||"")+"_"+(rw.end||"");
-  return (rw.days||42)+"d";}
-function lrFiles(style,reviewWindow){
-  var M=lrModel(state.weekOffset||0);
-  var base=toISO(M.ws),out=[];
-  if(style==="ledger"||style==="both")
-    out.push({name:"lifting-report-ledger-"+base+".html",mime:"text/html;charset=utf-8",text:lrLedgerHTML(M)});
-  if(style==="dashboard"||style==="both")
-    out.push({name:"lifting-report-dashboard-"+base+".html",mime:"text/html;charset=utf-8",text:lrDashHTML(M)});
-  /* The evidence panel is built from its OWN snapshot, not from lrModel: it reads
-     a multi-week review window, not one reported week, so it cannot share a model
-     that is keyed to a single week. */
-  if(style==="preservation")
-    out.push({name:"muscle-preservation-"+lrWinTag(reviewWindow)+"-"+base+".html",
-      mime:"text/html;charset=utf-8",
-      text:mpReportHTML(mpBuildInput(state.weekOffset||0,reviewWindow||null))});
-  return out;}
-/* Reuses the app's existing bottom-sheet overlay (same markup contract as
-   glpSheetHTML) rather than inventing a second modal system. */
-function lrSheetHTML(){
-  if(!state.lrSheet)return "";
-  var ws=weekStartFor(state.weekOffset||0);
-  var h='<div class="wl-confirm wl-glpsheetwrap"><div class="wl-glpsheetdim" data-act="lr:close"></div>'+
-    '<div class="wl-glpsheet"><div class="wl-glpgrab"></div>';
-  h+='<div class="wl-glpsheet-h">Export lifting report</div>';
-  h+='<div class="wl-glpsheet-sub">Week of '+esc(fmtShort(ws))+' in full detail, then your all-time progression — or the muscle-preservation evidence panel, which reads a longer window. '+
-    'Every one is a single file your coach can open anywhere, or print.</div>';
-  h+='<div class="wl-glpfield"><button class="wl-glpcta" data-act="lr:go" data-style="ledger">The Ledger</button>'+
-    '<div class="wl-glpcsub">Print-first. Every set on its own aligned row, per-exercise subtotals. Best for reading slowly and annotating.</div></div>';
-  h+='<div class="wl-glpfield"><button class="wl-glpcta" data-act="lr:go" data-style="dashboard">The Coach’s Dashboard</button>'+
-    '<div class="wl-glpcsub">Chart-led. Tiles, strength-vs-bodyweight up top, sets compressed to coach notation. Best for the five-second verdict.</div></div>';
-  /* The evidence panel is the only style with a window choice, because it is the
-     only one that reads a multi-week span. The buttons ARE the export — the
-     window is baked into the file, so choosing it and asking for it is one act
-     rather than a setting you have to remember you changed. */
-  h+='<div class="wl-glpfield"><div class="wl-glpsheet-h" style="font-size:15px;margin-bottom:2px">Muscle Preservation Evidence</div>'+
-    '<div class="wl-glpcsub" style="margin-bottom:8px">Evidence panel for a GLP-1 fat-loss phase: is weight coming off, is comparable strength holding, and do the behaviours and warning signs agree. '+
-    'It reads a review window, not one week, and withholds any conclusion the data has not earned. Pick the window — it is written into the file.</div>'+
-    '<button class="wl-glpcta" data-act="lr:go" data-style="preservation" data-win="28">28 days</button>'+
-    '<button class="wl-glpcta" data-act="lr:go" data-style="preservation" data-win="42" style="margin-top:6px">42 days — the default</button>'+
-    '<button class="wl-glpcta" data-act="lr:go" data-style="preservation" data-win="56" style="margin-top:6px">56 days</button>'+
-    '<button class="wl-glpcta" data-act="lr:go" data-style="preservation" data-win="phase" style="margin-top:6px">Current phase</button>'+
-    '<div class="wl-glpcsub" style="margin-top:6px">Current phase runs from your profile start date'+
-    (mpIsISO(state.settings.startDate)?(' ('+esc(fmtShort(parseISO(state.settings.startDate)))+')'):'')+
-    ' to today. If that date is missing or in the future the report falls back to your first GLP-1 dose, then to your first logged day, and prints which one it used.</div>'+
-    '<div class="wl-row" style="margin-top:10px">'+
-    '<label class="wl-field"><span>Custom from</span><input type="date" id="wl-lr-cs" max="'+esc(todayISO())+'"></label>'+
-    '<label class="wl-field"><span>to</span><input type="date" id="wl-lr-ce" max="'+esc(todayISO())+'"></label></div>'+
-    '<button class="wl-btn wl-btn-ghost wl-full" data-act="lr:go" data-style="preservation" data-win="custom" style="margin-top:6px">Export custom range</button>'+
-    '</div>';
-  /* "Both" is deliberately a ghost: there are real choices here plus one
-     convenience, and identical primary buttons would read as equals. It still
-     means the two LIFTING layouts — the evidence panel answers a different
-     question over a different window, so bundling it in would be misleading. */
-  h+='<div class="wl-glpfield"><button class="wl-btn wl-btn-ghost wl-full" data-act="lr:go" data-style="both">Both</button>'+
-    '<div class="wl-glpcsub">The Ledger and the Coach’s Dashboard — two files through one share sheet.</div></div>';
-  h+='<button class="wl-btn wl-btn-ghost wl-full" data-act="lr:close">Cancel</button>';
-  return h+'</div></div>';}
-/* Reads the window choice off the button that was pressed. The two custom-range
-   fields are read from the live DOM at click time rather than mirrored into
-   state, so a re-render can never wipe a half-filled pair of dates.
-   Returns null for "no window applies", or false to abort the export. */
-function lrWinFromEl(el){
-  var w=el&&el.getAttribute?el.getAttribute("data-win"):null;
-  if(!w)return null;
-  if(w==="phase")return {mode:"phase"};
-  if(w==="custom"){
-    var a=document.getElementById("wl-lr-cs"),b=document.getElementById("wl-lr-ce");
-    var s=a?a.value:"",e=b?b.value:"";
-    if(!mpIsISO(s)||!mpIsISO(e)){toast("Pick both dates for a custom range");return false;}
-    if(s>e){toast("The custom range starts after it ends");return false;}
-    return {mode:"custom",start:s,end:e};}
-  var n=parseInt(w,10);
-  return isFinite(n)?{mode:"days",days:n}:null;}
-function lrExport(style,reviewWindow){
-  var files;
-  try{files=lrFiles(style,reviewWindow||null);}
-  catch(e){state.lrSheet=null;render();toast("Couldn’t build the report");return;}
-  if(!files.length){state.lrSheet=null;render();toast("Nothing to export");return;}
-  /* share FIRST, close the sheet after: iOS grants navigator.share one call per
-     user gesture, so nothing that could interrupt the task should run before it. */
-  shareOrDownloadMulti(files);
-  state.lrSheet=null;render();}
 
 /* ============================================================
-   MUSCLE PRESERVATION EVIDENCE  —  lifting-report style 3
+   COACH REPORT — the one lifting export (2026-07).
+   Replaces the Ledger, the Coach's Dashboard and the Muscle
+   Preservation document. Griffin's verdict on all three:
+   overcomplicated. One page — big numbers, one line per exercise,
+   plain words. The honest math still runs underneath (lrModel:
+   best-set e1RM, per-set reverse-pyramid judging, analyzeSession
+   PR detection, weekly bodyweight averages) — it just doesn't
+   narrate itself. Nothing is fabricated: an unlogged input prints
+   an em dash or one plain sentence, never a substitute.
+   Everything between SR-VIEW-START and SR-VIEW-END is pure: no
+   DOM, no `state`, no Date.now(). tools/mp-formulas.test.mjs
+   extracts it verbatim and renders it under node — the tested
+   characters are the shipped characters. srInput() below is the
+   only impure part: it snapshots `state` into the plain object
+   the renderer eats.
+   ============================================================ */
+/* SR-VIEW-START */
+var SRDASH="—";
+function srEsc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");}
+function srFin(n){return typeof n==="number"&&isFinite(n);}
+function srInt(n){if(!srFin(n))return SRDASH;n=Math.round(n);var neg=n<0,s=String(Math.abs(n)),o="";while(s.length>3){o=","+s.slice(-3)+o;s=s.slice(0,-3);}return (neg?"−":"")+s+o;}
+function srD1(n){return srFin(n)?(Math.round(n*10)/10).toFixed(1):SRDASH;}
+/* weights can be fractional (2.5 kg plates): print the decimal only when real */
+function srW(n){if(!srFin(n))return SRDASH;var r=Math.round(n*10)/10;return r===Math.round(r)?srInt(r):String(r);}
+/* plain numeral for SVG coordinates — never a dash, never NaN */
+function srC(n){return srFin(n)?String(Math.round(n*100)/100):"0";}
+function srRangeTxt(g){return srInt(g.lo)+"–"+srInt(g.hi);}
+function srCap(s){return s?s.charAt(0).toUpperCase()+s.slice(1):s;}
+/* the prescription at a glance: the whole ladder for reverse pyramid,
+   sets × range for one shared range, nothing when nothing was set */
+function srScheme(x){
+  if(x.mode==="rpt"&&x.ranges&&x.ranges.length)return "RPT "+x.ranges.map(srRangeTxt).join(" / ");
+  if(x.mode==="single"&&x.ranges&&x.ranges.length)return srInt(x.sets.length)+" × "+srRangeTxt(x.ranges[0]);
+  return "";}
+/* one line per exercise: 130×8, 120×10, 110×11 — a PR tag rides its set */
+function srSetsHTML(x){
+  return x.sets.map(function(st){
+    return (st.w!=null?srW(st.w):"BW")+"×"+srInt(st.r)+(st.pr?'<span class="pr">PR</span>':"");
+  }).join(", ");}
+function srTile(k,v,s,good,wide){
+  return '<div class="tile'+(wide?' wide':'')+'"><div class="tK">'+srEsc(k)+'</div>'+
+    '<div class="tV">'+v+'</div><div class="tS'+(good?' good':'')+'">'+s+'</div></div>';}
+function srTilesHTML(inp){
+  var u=srEsc(inp.units);
+  var h='<div class="tiles">';
+  var wv=(inp.bwAvg!=null)?(srD1(inp.bwAvg)+'<s>'+u+'</s>'):SRDASH;
+  var wsb,wg=false;
+  if(inp.bwChg!=null){wsb=(inp.bwChg<0?"&#8595; ":inp.bwChg>0?"&#8593; ":"")+srD1(Math.abs(inp.bwChg))+" "+u+" vs last week";wg=!!inp.bwGood;}
+  else wsb=(inp.bwAvg!=null)?"no weigh-ins last week to compare":"no weigh-ins this week";
+  h+=srTile("Weight",wv,wsb,wg);
+  var n=(inp.sessDays||[]).length;
+  h+=srTile("Sessions",srInt(n)+((inp.sessGoal!=null)?('<s>of '+srInt(inp.sessGoal)+'</s>'):""),
+    n?srEsc(inp.sessDays.join(" · ")):"none this week",(inp.sessGoal!=null&&n>=inp.sessGoal));
+  h+=srTile("Hard sets",srInt(inp.hardSets),
+    inp.hardSets?("across "+srInt(inp.exCount)+" exercise"+(inp.exCount===1?"":"s")):"no working sets",false);
+  var p=inp.protein;
+  if(p&&p.logged){
+    var pg=(p.target!=null&&p.avg>=p.target);
+    h+=srTile("Protein",srInt(p.avg)+'<s>g/day</s>',
+      (p.target!=null)?("target "+srInt(p.target)+" — "+(pg?"hit":"short")):(srInt(p.logged)+" day"+(p.logged===1?"":"s")+" logged"),pg);}
+  else h+=srTile("Protein",SRDASH,"not logged this week",false);
+  var st=inp.steps;
+  if(st&&st.logged){
+    var sg=(st.goal!=null&&st.over===st.logged);
+    h+=srTile("Steps",srInt(st.avg)+'<s>/day</s>',
+      (st.goal!=null)?(srInt(st.over)+" of "+srInt(st.logged)+" days over "+srInt(st.goal)):(srInt(st.logged)+" day"+(st.logged===1?"":"s")+" logged"),sg);}
+  else h+=srTile("Steps",SRDASH,"not logged this week",false);
+  var r=inp.rir;
+  if(r&&r.avg!=null)
+    h+=srTile("Avg RIR",srD1(r.avg),
+      r.fail?(srInt(r.fail)+" set"+(r.fail===1?"":"s")+" to failure"):"no sets to failure",false);
+  else h+=srTile("Avg RIR",SRDASH,"not recorded",false);
+  var he=inp.hero;
+  if(he&&he.e!=null)
+    h+=srTile(he.name+" e1RM",srInt(he.e)+'<s>'+u+'</s>',
+      (he.chg!=null&&he.weeks>1)?((he.chg>=0?"+":"−")+srW(Math.abs(he.chg))+" "+u+" in "+srInt(he.weeks)+" weeks"):"best-set estimate",
+      (he.chg!=null&&he.chg>0),true);
+  else h+=srTile("Top lift e1RM",SRDASH,"no lifts logged yet",false,true);
+  return h+'</div>';}
+function srSparkSVG(pts){
+  if(!pts||!pts.length)return "";
+  var L=4,R=176,T=8,B=36,n=pts.length;
+  var mn=null,mx=null;
+  pts.forEach(function(v){if(!srFin(v))return;if(mn==null||v<mn)mn=v;if(mx==null||v>mx)mx=v;});
+  if(mn==null)return "";
+  if(mx-mn<1e-9){mn-=1;mx+=1;}
+  function X(i){return n===1?(L+R)/2:L+i*(R-L)/(n-1);}
+  function Y(v){return B-(v-mn)/(mx-mn)*(B-T);}
+  var s='<svg viewBox="0 0 180 44" role="img" aria-label="Trend over '+srInt(n)+' training week'+(n===1?'':'s')+'">';
+  if(n>1)s+='<polyline class="spLn" points="'+pts.map(function(v,i){return srC(X(i))+","+srC(Y(v));}).join(" ")+'"/>';
+  s+='<circle class="spDot" cx="'+srC(X(n-1))+'" cy="'+srC(Y(pts[n-1]))+'" r="3.5"/>';
+  return s+'</svg>';}
+/* the one chart: strength on top, bodyweight underneath, same week axis */
+function srStackSVG(c,units){
+  if(!c||!c.pts||!c.pts.length)return "";
+  var pts=c.pts,n=pts.length,L=50,R=610;
+  function X(i){return n===1?(L+R)/2:L+i*(R-L)/(n-1);}
+  var ep=[],bp=[];
+  pts.forEach(function(p,i){if(srFin(p.e))ep.push({i:i,v:p.e});if(srFin(p.bw))bp.push({i:i,v:p.bw});});
+  if(!ep.length)return "";
+  var eLo=null,eHi=null;
+  ep.forEach(function(p){if(eLo==null||p.v<eLo)eLo=p.v;if(eHi==null||p.v>eHi)eHi=p.v;});
+  if(eHi-eLo<1e-9){eLo-=1;eHi+=1;}
+  var hasBw=bp.length>1,bLo=null,bHi=null;
+  if(hasBw){bp.forEach(function(p){if(bLo==null||p.v<bLo)bLo=p.v;if(bHi==null||p.v>bHi)bHi=p.v;});
+    if(bHi-bLo<1e-9){bLo-=1;bHi+=1;}}
+  function EY(v){return 120-(v-eLo)/(eHi-eLo)*96;}
+  function BY(v){return 176+(bHi-v)/(bHi-bLo)*74;}
+  var axY=hasBw?276:150,H=hasBw?296:176;
+  var s='<svg viewBox="0 0 640 '+H+'" role="img" aria-label="'+srEsc(c.name+" strength and bodyweight, week by week")+'">';
+  s+='<text class="gLbl" x="50" y="14">'+srEsc(String(c.name).toUpperCase())+' — STRENGTH</text>';
+  s+='<g class="gGrid"><line x1="50" y1="120" x2="610" y2="120"/><line x1="50" y1="70" x2="610" y2="70"/></g>';
+  if(ep.length>1)s+='<polyline class="lnS" points="'+ep.map(function(p){return srC(X(p.i))+","+srC(EY(p.v));}).join(" ")+'"/>';
+  s+='<g class="dS">'+ep.map(function(p,k){return '<circle cx="'+srC(X(p.i))+'" cy="'+srC(EY(p.v))+'" r="'+((k===0||k===ep.length-1)?4:3)+'"/>';}).join("")+'</g>';
+  s+='<text class="gVal" x="50" y="136" text-anchor="start">'+srInt(ep[0].v)+' '+srEsc(units)+'</text>';
+  if(ep.length>1)s+='<text class="gVal" x="610" y="16" text-anchor="end">'+srInt(ep[ep.length-1].v)+' '+srEsc(units)+'</text>';
+  if(hasBw){
+    s+='<text class="gLbl" x="50" y="168" fill="#B0740B">BODYWEIGHT — WEEKLY AVERAGE</text>';
+    s+='<g class="gGrid"><line x1="50" y1="215" x2="610" y2="215"/></g>';
+    s+='<polyline class="lnW" points="'+bp.map(function(p){return srC(X(p.i))+","+srC(BY(p.v));}).join(" ")+'"/>';
+    s+='<g class="dW">'+bp.map(function(p,k){return '<circle cx="'+srC(X(p.i))+'" cy="'+srC(BY(p.v))+'" r="'+((k===0||k===bp.length-1)?4:3)+'"/>';}).join("")+'</g>';
+    s+='<text class="gValA" x="56" y="'+srC(Math.max(160,BY(bp[0].v)-9))+'" text-anchor="start">'+srD1(bp[0].v)+'</text>';
+    s+='<text class="gValA" x="610" y="'+srC(Math.min(268,BY(bp[bp.length-1].v)+17))+'" text-anchor="end">'+srD1(bp[bp.length-1].v)+'</text>';}
+  s+='<line class="gAx" x1="50" y1="'+axY+'" x2="610" y2="'+axY+'"/>';
+  s+='<g class="gTx" text-anchor="middle">'+pts.map(function(p,i){return '<text x="'+srC(X(i))+'" y="'+(axY+14)+'">'+srEsc(p.label)+'</text>';}).join("")+'</g>';
+  return s+'</svg>';}
+/* the caption under the chart: one plain sentence, only what the data shows */
+function srTakeaway(inp){
+  if(!inp.rel)return "Not enough weigh-ins across these weeks to read strength against bodyweight yet.";
+  var r=inp.rel,u=inp.units,e=r.ePct;
+  var sTxt=(e==null)?"Strength held":(e>1?("Strength up "+srInt(Math.abs(e))+"%"):(e<-1?("Strength down "+srInt(Math.abs(e))+"%"):"Strength held"));
+  var bTxt=(r.bwChg==null)?"weight was not tracked":(r.bwChg<0?("weight is down "+srD1(Math.abs(r.bwChg))+" "+u):(r.bwChg>0?("weight is up "+srD1(r.bwChg)+" "+u):"weight held steady"));
+  var tail=".";
+  if(e!=null&&r.bwChg!=null){
+    if(inp.planMode==="lose"&&e>1&&r.bwChg<0)tail=" — exactly what you want in a cut.";
+    else if(inp.planMode==="lose"&&e>=-1&&r.bwChg<0)tail=" — holding strength while the weight comes off is a win.";
+    else if(e<-1)tail=" — worth keeping an eye on over the next few weeks.";}
+  return sTxt+" while "+bTxt+tail;}
+function srSessionsHTML(inp){
+  var h='<div class="sec"><div class="secH">This week’s workouts <span class="r">weight × reps</span></div>';
+  if(!inp.sessions.length)return h+'<p class="none">No lifting sessions logged this week.</p></div>';
+  inp.sessions.forEach(function(s){
+    h+='<div class="ses"><div class="sesTop"><span class="sesD">'+srEsc(s.dateLabel)+'</span>'+
+      '<span class="sesN">'+srEsc(s.name)+'</span>'+
+      (s.mins!=null?('<span class="sesDur num">'+srInt(s.mins)+' min</span>'):"")+'</div><div class="exList">';
+    s.ex.forEach(function(x){
+      var sch=srScheme(x);
+      h+='<div class="exRow"><span class="exN">'+srEsc(x.name)+'</span>'+
+        '<span class="exSets">'+srSetsHTML(x)+'</span>'+
+        (sch?('<span class="exScheme">'+srEsc(sch)+'</span>'):"")+'</div>';});
+    if(s.note)h+='<div class="sesNote"><em>Note</em>'+srEsc(s.note)+'</div>';
+    h+='</div></div>';});
+  return h+'</div>';}
+function srProgressHTML(inp){
+  var weeks=0;
+  if(inp.chart)weeks=inp.chart.pts.length;
+  (inp.sparks||[]).forEach(function(sp){if(sp.n>weeks)weeks=sp.n;});
+  var h='<div class="sec"><div class="secH">Progress'+(weeks>1?(' <span class="r">last '+srInt(weeks)+' weeks</span>'):'')+'</div>';
+  if(inp.thinDays!=null)h+='<p class="thin">Only '+srInt(inp.thinDays)+' day'+(inp.thinDays===1?'':'s')+' logged — trends firm up around 4 weeks.</p>';
+  if(inp.sparks&&inp.sparks.length){
+    h+='<div class="sparks">';
+    inp.sparks.forEach(function(sp){
+      h+='<div class="sp"><div class="spN">'+srEsc(sp.name)+'</div>'+
+        '<div class="spRow"><span class="spV">'+srInt(sp.cur)+'<s> '+srEsc(inp.units)+'</s></span>'+
+        ((sp.pct!=null&&sp.n>1)?('<span class="spD'+(sp.pct<0?' dn':'')+'">'+(sp.pct<0?'−':'+')+srInt(Math.abs(sp.pct))+'%</span>'):'')+'</div>'+
+        '<div class="spSub">best-set estimate (e1RM)</div>'+srSparkSVG(sp.pts)+'</div>';});
+    h+='</div>';}
+  if(inp.chart&&inp.chart.pts.length>1){
+    h+='<div class="hero"><div class="heroT">Strength vs bodyweight'+(inp.planMode==="lose"?" — the picture that matters in a cut":"")+'</div>'+
+      srStackSVG(inp.chart,inp.units);
+    var tk=srTakeaway(inp);
+    if(tk)h+='<div class="takeaway">'+srEsc(tk)+'</div>';
+    h+='</div>';}
+  if(!(inp.sparks&&inp.sparks.length)&&!(inp.chart&&inp.chart.pts.length>1))
+    h+='<p class="none">Nothing to chart yet — log a few sessions and this fills in.</p>';
+  return h+'</div>';}
+function srMentionsHTML(inp){
+  var u=srEsc(inp.units),rows=[];
+  (inp.prs||[]).forEach(function(p){
+    var b="<b>"+srEsc(p.ex)+" "+srW(p.w)+" × "+srInt(p.r)+"</b> on "+srEsc(p.dateLabel)+" — ";
+    if(p.type==="weight")b+="heaviest set on record."+(p.prevW!=null?(" Previous best was "+srW(p.prevW)+" "+u+"."):"");
+    else b+="new best-set estimate"+(p.e!=null?(" ("+srInt(p.e)+" "+u+")"):"")+"."+(p.prevE!=null?(" Previous best was "+srInt(p.prevE)+"."):"");
+    rows.push('<div class="wmRow"><span class="wmTag pr2">PR</span><span class="wmB">'+b+'</span></div>');});
+  (inp.pain||[]).forEach(function(p){
+    rows.push('<div class="wmRow"><span class="wmTag watch">Watch</span><span class="wmB"><b>'+
+      srEsc(p.label)+' during '+srEsc(p.ex)+'</b> on '+srEsc(p.dateLabel)+
+      '. If it shows up again, back the weight off for a week and see how it feels.</span></div>');});
+  var good=[],p2=inp.protein;
+  if(p2&&p2.target!=null&&p2.logged>0&&p2.avg>=p2.target)good.push("protein averaged over target");
+  if(inp.sessGoal!=null&&(inp.sessDays||[]).length>=inp.sessGoal)good.push("every planned session done");
+  if((inp.sessDays||[]).length&&!(inp.pain||[]).length)good.push("no aches reported");
+  if(good.length)rows.push('<div class="wmRow"><span class="wmTag good">Good</span><span class="wmB">'+
+    srEsc(srCap(good.join(", ")+"."))+'</span></div>');
+  if(!rows.length)return "";
+  return '<div class="sec"><div class="secH">Worth mentioning</div><div class="wm">'+rows.join("")+'</div></div>';}
+var SRMARK='<svg viewBox="0 0 17 20" aria-hidden="true" style="width:15px;height:18px;flex:none"><rect x="0" y="11" width="4" height="8" rx="1" fill="#14171B"/><rect x="6" y="8" width="4" height="11" rx="1" fill="#14171B"/><rect x="12" y="1" width="4" height="18" rx="1" fill="#E09B1F"/></svg>';
+var SRCSS=[
+":root{--ink:#14171B;--ink2:#4C5460;--ink3:#8A929E;--paper:#FBFAF7;--rule:#E2DED5;--green:#1F7A58;--greenBg:#E4F2EB;--red:#B23D26;--sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,system-ui,sans-serif;--mono:ui-monospace,'SF Mono','Cascadia Code','Segoe UI Mono',Menlo,Consolas,monospace}",
+"*{box-sizing:border-box}html,body{margin:0;padding:0}",
+"body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%}",
+"p,h1,h2,h3{margin:0}svg{display:block;width:100%;height:auto}",
+".num{font-family:var(--mono);font-variant-numeric:tabular-nums;font-feature-settings:'tnum' 1}",
+".pg{max-width:640px;margin:0 auto;padding:0 20px 40px}",
+".mast{padding:26px 0 14px;border-bottom:2.5px solid var(--ink)}",
+".mastTop{display:flex;align-items:center;gap:9px}",
+".word{font-size:13px;font-weight:800;letter-spacing:.3em}",
+".stamp{margin-left:auto;font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--ink3);text-transform:uppercase}",
+"h1{font-size:24px;font-weight:800;letter-spacing:-.015em;margin-top:16px}",
+".ident{display:flex;flex-wrap:wrap;gap:5px 10px;align-items:center;font-size:13px;color:var(--ink2);font-weight:600;margin-top:6px}",
+".ident .sep{color:var(--rule)}",
+".plan{font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;background:#F7EDD6;color:#7A5008;padding:3px 8px;border-radius:3px}",
+".tiles{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--rule);border-bottom:1px solid var(--rule)}",
+".tile{background:var(--paper);padding:16px 14px 14px}",
+".tile.wide{grid-column:1/-1}",
+".tK{font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3)}",
+".tV{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:28px;font-weight:600;letter-spacing:-.03em;margin-top:4px;line-height:1.1}",
+".tV s{text-decoration:none;font-size:12px;color:var(--ink3);margin-left:2px;font-weight:500}",
+".tS{font-size:12px;color:var(--ink2);margin-top:3px}",
+".tS.good{color:var(--green);font-weight:600}",
+".sec{margin-top:32px}",
+".secH{font-size:11px;font-weight:800;letter-spacing:.2em;text-transform:uppercase;color:var(--ink);border-bottom:1.5px solid var(--ink);padding-bottom:6px;margin-bottom:4px;display:flex;align-items:baseline}",
+".secH .r{margin-left:auto;font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.03em;color:var(--ink3);text-transform:none}",
+".ses{padding:16px 0 4px;border-bottom:1px solid var(--rule)}",
+".ses:last-child{border-bottom:none}",
+".sesTop{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px}",
+".sesD{font-size:10px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:#B0740B}",
+".sesN{font-size:17px;font-weight:800}",
+".sesDur{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--ink3)}",
+".exList{margin-top:10px}",
+".exRow{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px;padding:7px 0;border-top:1px solid var(--rule)}",
+".exN{font-size:14px;font-weight:700;flex:none;overflow-wrap:anywhere}",
+".exSets{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:13.5px;color:var(--ink)}",
+".exScheme{font-family:var(--mono);font-size:11px;color:var(--ink3)}",
+".pr{display:inline-block;font-family:var(--sans);font-size:9px;font-weight:800;letter-spacing:.1em;background:var(--greenBg);color:var(--green);padding:1px 6px;border-radius:3px;vertical-align:2px;margin-left:4px}",
+".sesNote{font-size:13px;color:var(--ink2);padding:8px 0 10px;border-top:1px solid var(--rule)}",
+".sesNote em{font-style:normal;font-size:9.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);margin-right:7px}",
+".none,.thin{font-size:13px;color:var(--ink2);padding:12px 0}",
+".sparks{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:14px}",
+"@media(max-width:479px){.sparks{grid-template-columns:1fr;gap:0}}",
+".sp{border-top:1px solid var(--rule);padding-top:8px}",
+"@media(min-width:480px){.sp{border-top:none}}",
+".spN{font-size:12.5px;font-weight:700;overflow-wrap:anywhere}",
+".spRow{display:flex;align-items:baseline;gap:8px;margin-top:2px}",
+".spV{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:19px;font-weight:600}",
+".spV s{text-decoration:none;font-size:10.5px;color:var(--ink3);font-weight:500}",
+".spD{font-family:var(--mono);font-size:11.5px;font-weight:700;color:var(--green)}",
+".spD.dn{color:var(--red)}",
+".spSub{font-size:11px;color:var(--ink3);margin-top:1px}",
+".sp svg{margin-top:6px;max-width:190px}",
+".spLn{fill:none;stroke:var(--ink);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}",
+".spDot{fill:var(--green)}",
+".hero{margin-top:26px;border-top:1px solid var(--rule);padding-top:16px}",
+".heroT{font-size:12.5px;font-weight:700;color:var(--ink2);margin-bottom:8px}",
+".gGrid{stroke:var(--rule);stroke-width:1}.gAx{stroke:#C9C3B6;stroke-width:1}",
+".gTx{font-family:var(--mono);font-size:9.5px;fill:#8A929E}",
+".gVal{font-family:var(--mono);font-size:10.5px;font-weight:700;fill:#14171B}",
+".gValA{font-family:var(--mono);font-size:10.5px;font-weight:700;fill:#B0740B}",
+".gLbl{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:10px;font-weight:700;fill:#4C5460;letter-spacing:.04em}",
+".lnS{fill:none;stroke:#14171B;stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round}",
+".lnW{fill:none;stroke:#B0740B;stroke-width:2;stroke-dasharray:5 4;stroke-linejoin:round;stroke-linecap:round}",
+".dS{fill:#14171B}",
+".dW{fill:#FBFAF7;stroke:#B0740B;stroke-width:1.6}",
+".takeaway{margin-top:12px;background:var(--greenBg);border:1px solid #BFE3D3;border-radius:10px;padding:12px 14px;font-size:14.5px;line-height:1.5;color:#1A5940;font-weight:600}",
+".wm{margin-top:4px}",
+".wmRow{display:flex;gap:11px;padding:11px 0;border-bottom:1px solid var(--rule);align-items:baseline}",
+".wmRow:last-child{border-bottom:none}",
+".wmTag{flex:none;width:60px;font-size:9.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}",
+".wmTag.pr2{color:var(--green)}",
+".wmTag.watch{color:var(--red)}",
+".wmTag.good{color:var(--ink3)}",
+".wmB{font-size:13.5px;line-height:1.5;color:var(--ink2);overflow-wrap:anywhere}",
+".wmB b{color:var(--ink)}",
+".foot{margin-top:34px;border-top:2.5px solid var(--ink);padding-top:12px;font-size:12px;line-height:1.6;color:var(--ink3)}",
+".foot .hon{color:var(--ink2)}",
+"@media print{body{background:#fff;font-size:10.5pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}",
+".pg{max-width:none;padding:0}",
+".ses,.sec,.hero,.wmRow,.sp{break-inside:avoid;page-break-inside:avoid}",
+".takeaway,.pr,.plan{-webkit-print-color-adjust:exact;print-color-adjust:exact}}"
+];
+function srReportHTML(inp){
+  var who=inp.who||"Athlete";
+  var h='<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n';
+  h+='<title>'+srEsc("Compound — Weekly report — "+who+" — "+(inp.range||""))+'</title>\n';
+  h+='<meta name="viewport" content="width=device-width, initial-scale=1">\n';
+  h+='<style>'+SRCSS.join("")+'</style>\n</head>\n<body>\n<div class="pg">\n';
+  h+='<div class="mast"><div class="mastTop">'+SRMARK+'<span class="word">COMPOUND</span>'+
+    '<span class="stamp">Weekly report</span></div>'+
+    '<h1>'+srEsc(inp.weekTitle||"This week")+'</h1>'+
+    '<div class="ident"><span>'+srEsc(who)+'</span><span class="sep">·</span>'+
+    '<span class="plan">'+srEsc(inp.plan||"")+'</span><span class="sep">·</span>'+
+    '<span class="num" style="font-weight:500">'+srEsc(inp.range||"")+'</span></div></div>\n';
+  h+=srTilesHTML(inp)+"\n";
+  h+=srSessionsHTML(inp)+"\n";
+  h+=srProgressHTML(inp)+"\n";
+  h+=srMentionsHTML(inp)+"\n";
+  h+='<div class="foot"><p class="hon">Strength figures are estimated from your best set each week — read them as direction, not decimal points.</p>'+
+    '<p style="margin-top:8px">COMPOUND · exported '+srEsc(inp.today||"")+' · '+srEsc(who)+' · weights in '+srEsc(inp.units||"lbs")+'</p></div>\n';
+  return h+'</div>\n</body>\n</html>\n';}
+/* SR-VIEW-END */
+
+/* the ONLY impure part: snapshot state (via lrModel) into the renderer's input */
+function srInput(offset){
+  var M=lrModel(offset);
+  var rows=weekDays(offset).map(dayRow);
+  /* protein and steps come from the same daily rows the Summary table shows */
+  var pLog=rows.filter(function(r){return r.protein!=null;});
+  var pT=num(state.settings.targetProtein);
+  var protein=pLog.length?{avg:pLog.reduce(function(a,r){return a+r.protein;},0)/pLog.length,
+    target:pT,logged:pLog.length}:null;
+  var sLog=rows.filter(function(r){return r.steps!=null;});
+  var sG=num(state.settings.stepsGoal);
+  var steps=sLog.length?{avg:sLog.reduce(function(a,r){return a+r.steps;},0)/sLog.length,
+    goal:sG,logged:sLog.length,over:(sG!=null?sLog.filter(function(r){return r.steps>=sG;}).length:null)}:null;
+  /* thin-data note: days from the first lifting log ever to the week's end */
+  var first=null;
+  for(var k in M.hist){var m=M.hist[k];if(m.first&&(first==null||m.first<first))first=m.first;}
+  var thin=null;
+  if(first){var span=Math.round((parseISO(M.endISO).getTime()-parseISO(first).getTime())/86400000)+1;
+    if(span>0&&span<28)thin=span;}
+  var hero=null;
+  if(M.hero){
+    var hp=M.heroPts;
+    var he=hp.length?hp[hp.length-1].e:(M.hero.m.bestE?M.hero.m.bestE.e:null);
+    hero={name:M.hero.m.name,e:he,chg:(hp.length>1?(hp[hp.length-1].e-hp[0].e):null),weeks:hp.length};}
+  var sparks=M.progItems.filter(function(it){return it.pts&&it.pts.length;}).slice(0,6).map(function(it){
+    var pts=it.pts.slice(-6).map(function(p){return p.e;});
+    return {name:it.name,cur:pts[pts.length-1],n:pts.length,pts:pts,
+      pct:(pts.length>1&&pts[0]>0)?((pts[pts.length-1]-pts[0])/pts[0]*100):null};});
+  return {
+    who:M.who,plan:M.plan,units:M.units,planMode:strategyMode(),
+    weekTitle:"Week of "+M.ws.toLocaleDateString(undefined,{month:"long",day:"numeric"}),
+    range:M.range,today:M.today,
+    bwAvg:M.bwAvg,bwChg:M.bwChg,bwGood:lrBwGood(M),
+    sessGoal:num(state.settings.liftSessGoal),
+    sessDays:M.sessions.map(function(s){return s.dateLabel.split(" ")[0];}),
+    hardSets:M.setCount,exCount:M.weekKeys.length,
+    protein:protein,steps:steps,
+    rir:(M.rirN?{avg:M.avgRir,fail:M.failSets}:null),
+    hero:hero,
+    sessions:M.sessions.map(function(s){return {dateLabel:s.dateLabel,name:s.name,mins:s.mins,note:s.notes,
+      ex:s.ex.map(function(e){return {name:e.name,mode:e.rxMode,ranges:e.ranges||[],
+        sets:e.rows.map(function(r){return {w:r.w,r:r.r,pr:r.pr};})};})};}),
+    sparks:sparks,
+    chart:(M.hero&&M.heroPts.length?{name:M.hero.m.name,
+      pts:M.heroPts.map(function(p){return {label:p.label,e:p.e,bw:p.bw};})}:null),
+    rel:(M.rel?{ePct:M.rel.ePct,eChg:M.rel.eChg,bwChg:M.rel.bwChg}:null),
+    prs:M.prs.map(function(p){return {ex:p.ex,type:p.type,w:p.w,r:p.r,e:p.e,prevW:p.prevW,prevE:p.prevE,dateLabel:p.dateLabel};}),
+    pain:M.pain.map(function(p){return {ex:p.ex,label:p.label,dateLabel:p.dateLabel};}),
+    thinDays:thin};}
+/* one tap: build the displayed week's report and hand it straight to the share sheet */
+function srExport(){
+  var files;
+  try{
+    files=[{name:"coach-report-"+toISO(weekStartFor(state.weekOffset||0))+".html",
+      mime:"text/html;charset=utf-8",text:srReportHTML(srInput(state.weekOffset||0))}];
+  }catch(e){toast("Couldn’t build the report");return;}
+  shareOrDownloadMulti(files);}
+
+/* ============================================================
+   MUSCLE PRESERVATION ENGINE  —  calculation module only
    ------------------------------------------------------------
-   A coach-auditable evidence panel for a GLP-1 fat-loss phase.
+   The deterministic engine behind a GLP-1 fat-loss phase review.
+   Its standalone document view was retired with the simple coach
+   report (2026-07, git history holds it); the engine stays because
+   the phase-machine / coach-evaluator work builds on it and
+   tools/mp-formulas.test.mjs keeps it proven.
    Governing rule, applied without exception: NEVER fabricate,
    substitute, redistribute or infer a missing input. A component
    that is not eligible renders its STATE (available / provisional /
@@ -6186,703 +5682,17 @@ function mpReport(input){
     units:m.units,config:MPCFG};}
 /* MP-CALC-END */
 
-/* MP-VIEW-START */
-/* One self-contained document: inline CSS, inline SVG, no script, no external
-   resource of any kind. Expandable audit uses <details>/<summary>, which is the
-   only disclosure widget that works with JavaScript switched off. */
-var MPCSS=[
-"*{box-sizing:border-box}",
-"body{margin:0;background:#F4F5F7;color:#14171B;font:15px/1.55 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-text-size-adjust:100%}",
-".pg{max-width:900px;margin:0 auto;padding:20px 16px 56px}",
-".mast{background:#14171B;color:#fff;border-radius:14px;padding:20px 18px;margin-bottom:18px}",
-".mastTop{display:flex;align-items:center;gap:9px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#c3c9d2}",
-".mastTop .word{font-weight:700;letter-spacing:.16em}",
-".mast h1{font-size:22px;line-height:1.25;margin:14px 0 4px;font-weight:700;letter-spacing:-.01em}",
-".mast .sub{font-size:13px;color:#aab2bd;margin-bottom:12px}",
-".ident{display:flex;flex-wrap:wrap;gap:6px 10px;font-size:12.5px;color:#d7dce3}",
-".ident .sep{color:#5c6572}",
-".chip{display:inline-block;padding:3px 9px;border-radius:999px;font-size:11.5px;font-weight:700;letter-spacing:.02em}",
-".chip.ok{background:#1f7a4d;color:#fff}.chip.warn{background:#8a6100;color:#fff}",
-".chip.bad{background:#9b2c2c;color:#fff}.chip.neu{background:#39414d;color:#e6eaef}",
-".sec{margin:18px 0}",
-".secH{display:flex;align-items:baseline;gap:9px;padding:0 2px 8px;border-bottom:2px solid #14171B;margin-bottom:12px}",
-".secH .n{font-size:11px;font-weight:700;color:#8a93a0;letter-spacing:.1em}",
-".secH .t{font-size:14.5px;font-weight:700;letter-spacing:.01em}",
-".secH .r{margin-left:auto;font-size:11.5px;color:#78818e;text-align:right}",
-".card{background:#fff;border:1px solid #e2e5ea;border-radius:12px;padding:14px;margin-bottom:12px}",
-".cardH{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;margin-bottom:8px}",
-".cardH .k{font-size:13.5px;font-weight:700}",
-".cardH .st{margin-left:auto;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#78818e}",
-".big{font-size:26px;font-weight:700;letter-spacing:-.02em;line-height:1.1}",
-".big s{font-size:13px;font-weight:600;color:#78818e;text-decoration:none;margin-left:4px}",
-".lab{font-size:13.5px;font-weight:650;margin-top:3px}",
-".sub{font-size:12.5px;color:#5b6472;margin-top:5px;line-height:1.5}",
-".kvs{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:9px;font-size:12.5px;color:#3f4854}",
-".kvs b{font-weight:700;color:#14171B}",
-".blk{margin:9px 0 0;padding:9px 11px;background:#fbf6ea;border:1px solid #ecdfc0;border-radius:9px;font-size:12.5px;color:#5c4a1e}",
-".blk ul{margin:5px 0 0;padding-left:17px}.blk li{margin:3px 0}",
-".exc{margin:8px 0 0;padding:9px 11px;background:#f5f6f8;border:1px solid #e2e5ea;border-radius:9px;font-size:12px;color:#5b6472}",
-".exc ul{margin:5px 0 0;padding-left:17px}.exc li{margin:3px 0}",
-"details.aud{margin-top:10px;border-top:1px solid #eceff3;padding-top:8px}",
-"details.aud>summary{cursor:pointer;font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#6b7684;list-style:none}",
-"details.aud>summary::-webkit-details-marker{display:none}",
-"details.aud>summary::before{content:'+ ';font-weight:700}",
-"details.aud[open]>summary::before{content:'\\2212 '}",
-".audB{margin-top:9px;font-size:12px;color:#3f4854}",
-".audR{display:grid;grid-template-columns:130px 1fr;gap:3px 10px;padding:4px 0;border-bottom:1px solid #f0f2f5}",
-".audR:last-child{border-bottom:0}",
-".audR .ak{color:#78818e;font-weight:650}",
-".audR .av{word-break:break-word}",
-".mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11.5px}",
-".list{margin:0;padding-left:17px}.list li{margin:3px 0}",
-"table.t{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:6px}",
-"table.t th{text-align:left;font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:#78818e;border-bottom:1px solid #d9dde3;padding:6px 6px 6px 0;font-weight:700}",
-"table.t td{padding:7px 6px 7px 0;border-bottom:1px solid #f0f2f5;vertical-align:top}",
-"table.t td.num{font-variant-numeric:tabular-nums}",
-".pill{display:inline-block;padding:2px 7px;border-radius:6px;background:#eef1f5;font-size:11px;font-weight:650;color:#4a5361}",
-".win{display:flex;gap:9px;padding:8px 0;border-bottom:1px solid #f0f2f5;font-size:13px}",
-".win:last-child{border-bottom:0}",
-".win .m{flex:0 0 auto;font-weight:700;color:#1f7a4d}",
-".wat .m{color:#9b2c2c}",
-/* split confidence: two axes, shown as two chips so neither can be mistaken
-   for the other or read as one blended number */
-".confp{display:flex;flex-wrap:wrap;gap:6px 8px;margin:-2px 0 8px}",
-".cf{display:inline-flex;align-items:baseline;gap:5px;padding:2px 8px;border-radius:7px;background:#f1f3f6;font-size:11px;color:#5b6472;letter-spacing:.01em}",
-".cf b{font-weight:700;color:#14171B;text-transform:none}",
-".cf.hi b{color:#1f7a4d}.cf.mo b{color:#8a6100}.cf.lo b{color:#9b2c2c}.cf.ins b{color:#6b7684}",
-/* the coach narrative */
-".narr{background:#fff;border:1px solid #e2e5ea;border-radius:12px;padding:16px 16px 14px;margin-bottom:12px}",
-".narrH{font-size:11px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:#8a93a0;margin:14px 0 6px}",
-".narrH:first-child{margin-top:0}",
-".narrP{font-size:14px;line-height:1.62;color:#20252c;margin:0 0 7px}",
-".narrP:last-child{margin-bottom:0}",
-".narrP .cite{font-size:10.5px;color:#8a93a0;font-variant-numeric:tabular-nums;white-space:nowrap;margin-left:5px}",
-/* relationship candidates */
-".rel{padding:10px 0;border-bottom:1px solid #f0f2f5}",
-".rel:last-child{border-bottom:0}",
-".relT{font-size:13px;font-weight:700}",
-".relS{font-size:12.5px;color:#3f4854;margin-top:4px;line-height:1.5}",
-".relN{font-size:11.5px;color:#78818e;margin-top:4px}",
-".foot{margin-top:24px;padding-top:14px;border-top:2px solid #14171B;font-size:11.5px;color:#5b6472;line-height:1.6}",
-".foot b{color:#14171B}",
-".spark{display:block;width:100%;height:auto;margin-top:10px}",
-"@media (max-width:640px){",
-" .pg{padding:14px 11px 44px}",
-" .audR{grid-template-columns:1fr;gap:1px}",
-" table.t thead{display:none}",
-" table.t tr{display:block;border-bottom:1px solid #e2e5ea;padding:8px 0}",
-" table.t td{display:flex;gap:10px;border:0;padding:2px 0}",
-" table.t td::before{content:attr(data-l);flex:0 0 42%;color:#78818e;font-size:11px;text-transform:uppercase;letter-spacing:.05em;font-weight:700}",
-"}",
-"@media print{",
-" body{background:#fff}",
-" .pg{max-width:none;padding:0}",
-" .card,.sec{break-inside:avoid;page-break-inside:avoid}",
-" details.aud>.audB{display:block!important;content-visibility:visible!important}",
-" details.aud>summary::before{content:''}",
-"}"
-];
-var MPMARK='<svg viewBox="0 0 17 20" aria-hidden="true" style="width:15px;height:18px;flex:none"><rect x="0" y="11" width="4" height="8" rx="1" fill="#fff"/><rect x="6" y="8" width="4" height="11" rx="1" fill="#fff"/><rect x="12" y="1" width="4" height="18" rx="1" fill="#E09B1F"/></svg>';
+/* The MP document view (MPCSS … mpReportHTML) was retired 2026-07 in favour of
+   the simple coach report; git history holds it. The MP-CALC engine above stays. */
 
-var MP_STATE_LABEL={available:"Available",provisional:"Provisional",
-  missing:"Missing",not_applicable:"Not applicable"};
-function mpStateChip(st){
-  var c=(st==="available")?"ok":(st==="provisional")?"warn":(st==="missing")?"bad":"neu";
-  return '<span class="chip '+c+'">'+mpEsc(MP_STATE_LABEL[st]||st)+'</span>';}
-function mpAudRow(k,v){
-  return '<div class="audR"><span class="ak">'+mpEsc(k)+'</span><span class="av">'+v+'</span></div>';}
-function mpAudList(items){
-  if(!items||!items.length)return "None.";
-  return '<ul class="list">'+items.map(function(x){return '<li>'+mpEsc(x)+'</li>';}).join("")+'</ul>';}
-/* G1: every calculated metric exposes formula, source dates, valid vs expected
-   counts, exclusions, blockers and confidence — from the result object itself,
-   so a card cannot forget one. */
-function mpAudit(res,extra){
-  var cov=res.coverage;
-  var h='<details class="aud"><summary>Audit — how this figure was produced</summary><div class="audB">';
-  h+=mpAudRow("Formula",'<span class="mono">'+mpEsc(res.formulaId)+'</span> · v'+mpEsc(res.formulaVersion)+' · config '+mpEsc(res.configVersion));
-  h+=mpAudRow("Expression",mpEsc(MP_FORMULA_TEXT[res.formulaId]||"—"));
-  h+=mpAudRow("Source window",mpEsc(res.sourceWindow.start?(mpDateFull(res.sourceWindow.start)+" → "+mpDateFull(res.sourceWindow.end)):"—"));
-  h+=mpAudRow("Records",mpEsc(cov.valid+" valid of "+cov.expected+" expected"+
-    (cov.percentage!=null?(" · "+mpPct(cov.percentage)+" coverage"):"")));
-  h+=mpAudRow("State",mpEsc(MP_STATE_LABEL[res.state]||res.state));
-  h+=mpAudRow("Data confidence",mpEsc(res.dataConfidence)+
-    " — how much of the window was measured: coverage, valid count, gaps.");
-  var ii=res.interpretationInputs||{};
-  h+=mpAudRow("Interpretation confidence",mpEsc(res.interpretationConfidence)+
-    " — whether the number can be read: effect against noise, agreement between parts, comparability, window length."+
-    '<div style="margin-top:4px">'+mpAudList((res.interpretationReasons||[]).length?res.interpretationReasons:
-      ["Effect separable from noise: "+(ii.effectClear==null?"not assessed for this measure":(ii.effectClear?"yes":"no"))+
-       ". Parts agree: "+(ii.consistent==null?"not assessed":(ii.consistent?"yes":"no"))+
-       ". Comparability intact: "+(ii.comparable==null?"not assessed":(ii.comparable?"yes":"no"))+
-       ". Minimum window for a reading: "+(ii.minimumDays||0)+" days, this window is "+(res.windowDays||0)+"."])+'</div>');
-  h+=mpAudRow("Anchor",'<span class="mono">'+mpEsc(res.anchorId||"—")+'</span>');
-  h+=mpAudRow("Resulting label",mpEsc(res.label==null?"none — withheld":res.label));
-  h+=mpAudRow("Blockers",mpAudList(res.blockers));
-  h+=mpAudRow("Exclusions",mpAudList(res.exclusions));
-  if(extra)h+=extra;
-  return h+'</div></details>';}
-function mpBlockers(res){
-  if(!res.blockers||!res.blockers.length)return "";
-  return '<div class="blk"><b>Why this is limited</b>'+
-    '<ul>'+res.blockers.map(function(b){return '<li>'+mpEsc(b)+'</li>';}).join("")+'</ul></div>';}
-function mpValueLine(res,fmt){
-  var v=(res.state==="missing"||res.state==="not_applicable"||res.value==null)?"—":fmt(res.value);
-  return '<div class="big">'+v+(res.unit&&res.value!=null&&res.state!=="missing"&&res.state!=="not_applicable"?('<s>'+mpEsc(res.unit)+'</s>'):"")+'</div>';}
-/* Both confidence axes, always, side by side and never merged. A metric can
-   legitimately read "high / low" — a sound measurement whose direction is not
-   readable — and that is the whole reason the pair exists. */
-var MP_CONF_CLASS={high:"hi",moderate:"mo",low:"lo",insufficient:"ins"};
-function mpConfChip(label,level){
-  var lv=String(level||"insufficient");
-  return '<span class="cf '+(MP_CONF_CLASS[lv]||"ins")+'">'+mpEsc(label)+' <b>'+mpEsc(lv)+'</b></span>';}
-function mpConfPair(res){
-  return '<div class="confp">'+mpConfChip("Data confidence",res.dataConfidence)+
-    mpConfChip("Interpretation confidence",res.interpretationConfidence)+'</div>';}
-/* The anchor lives on the card header: derived from the metric key, so it is
-   stable across re-renders, re-exports and a change of window. */
-function mpCardHead(res){
-  return '<div class="cardH" data-anchor="'+mpEsc(res.anchorId||("mp:metric:"+res.key))+'">'+
-    '<span class="k">'+mpEsc(res.title)+'</span><span class="st">'+mpStateChip(res.state)+'</span></div>'+
-    mpConfPair(res);}
 
-/* one small inline sparkline over the bodyweight rolling means */
-function mpSpark(points){
-  if(!points||points.length<2)return "";
-  var vals=points.map(function(p){return p.value;});
-  var mn=null,mx=null;
-  vals.forEach(function(v){if(mn==null||v<mn)mn=v;if(mx==null||v>mx)mx=v;});
-  if(mn==null||!isFinite(mn)||!isFinite(mx))return "";
-  if(mx-mn<0.01){mn-=0.5;mx+=0.5;}
-  var W=600,H=90,px=6,py=10;
-  var d="";
-  points.forEach(function(p,i){
-    var x=px+(W-2*px)*(points.length===1?0:(i/(points.length-1)));
-    var y=py+(H-2*py)*(1-(p.value-mn)/(mx-mn));
-    d+=(i?"L":"M")+mpC(x)+" "+mpC(y)+" ";});
-  return '<svg class="spark" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+
-    mpEsc("Seven-day rolling mean bodyweight, "+mpFmt(points[0].value,1)+" to "+mpFmt(points[points.length-1].value,1)+".")+
-    '"><path d="'+d.replace(/\s+$/,"")+'" fill="none" stroke="#14171B" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>';}
 
-function mpSecH(n,title,right){
-  return '<div class="secH"><span class="n">'+mpEsc(n)+'</span><span class="t">'+mpEsc(title)+
-    '</span><span class="r">'+mpEsc(right||"")+'</span></div>';}
 
-/* ---- 0. The coach summary — rule-generated narrative ---- */
-function mpSecSummary(V){
-  var S=V.summary,w=V.window;
-  var h='<div class="sec">'+mpSecH("00","Coach summary","assembled by rule from the metrics below — no model, no network");
-  h+='<div class="narr" data-anchor="'+mpEsc(S.anchorId)+'">';
-  S.sections.forEach(function(sec){
-    h+='<div class="narrH" data-anchor="'+mpEsc(sec.anchorId)+'">'+mpEsc(sec.title)+'</div>';
-    sec.sentences.forEach(function(s){
-      var cite=s.metrics.length?s.metrics.join(" · "):"window";
-      h+='<p class="narrP" data-anchor="'+mpEsc(s.anchorId)+'">'+mpEsc(s.text)+
-        '<span class="cite">['+mpEsc(cite)+']</span></p>';});});
-  h+='</div>';
-  h+='<div class="card">';
-  h+='<div class="sub">Every sentence above is generated by rule from the metric objects in this document. '+
-    'There is no language model and no network call anywhere in this report: the same data produces the same '+
-    'sentences, in the same order, every time it is exported. A sentence is only written when the metric under '+
-    'it carries the state that sentence claims, which is why an absent measure produces a stated limitation '+
-    'rather than a softer sentence.</div>';
-  h+='<details class="aud"><summary>Evidence — every sentence, its metrics and its formulas</summary><div class="audB">';
-  V.aiSummaryEvidence.forEach(function(e){
-    h+=mpAudRow(e.sentenceId,mpEsc(e.claim)+
-      '<div style="margin-top:4px" class="mono">'+mpEsc("kind: "+e.kind+" · metrics: "+
-        (e.metrics.length?e.metrics.join(", "):"none (window fact)")+" · formulas: "+e.formulaIds.join(", "))+'</div>'+
-      (e.values.length?('<div style="margin-top:3px">'+mpAudList(e.values.map(function(v){
-        return v.label+": "+v.value;}))+'</div>'):''));});
-  h+='</div></details>';
-  h+='</div></div>';
-  return h;}
 
-/* ---- Relationship candidates: what was considered, and what was refused ---- */
-function mpRelBlock(c){
-  var h='<div class="rel" data-anchor="'+mpEsc(c.anchorId)+'">';
-  h+='<div class="relT">'+mpEsc(c.title)+'</div>';
-  if(c.eligible&&c.claim)h+='<div class="relS">'+mpEsc(c.claim)+'</div>';
-  else h+='<div class="relS">Not evaluated: '+mpEsc(c.blockers.join(" "))+'</div>';
-  h+='<div class="relN">'+mpEsc(c.left+" against "+c.right+" · "+c.n+" "+c.nUnit+
-    " (minimum "+c.minimumN+") · "+c.verdict+
-    (c.coefficient!=null?(" · r = "+mpSigned(c.coefficient,2)):""))+'</div>';
-  return h+'</div>';}
-function mpSecRelationships(V){
-  var h='<div class="sec">'+mpSecH("07","Relationships considered","stated only when both sides are established");
-  h+='<div class="card">';
-  h+='<div class="cardH"><span class="k">Coaching insights</span></div>';
-  h+='<div class="sub">A relationship is only stated when both sides are Available in their own right, the '+
-    'window clears '+mpEsc(String(MPCFG.insight.minWindowDays))+' days, and the paired count clears its own '+
-    'minimum. Everything that fails is still listed with the blocker that stopped it, because what was '+
-    'considered and refused is part of the evidence. Nothing here asserts cause: two measures moving together '+
-    'inside one window is a coincidence in time until a controlled test says otherwise.</div>';
-  V.insightCandidates.forEach(function(c){h+=mpRelBlock(c);});
-  h+='</div>';
-  h+='<div class="card">';
-  h+='<div class="cardH"><span class="k">Correlation candidates</span></div>';
-  h+='<div class="sub">Day-level series pairings. A coefficient is calculated only above '+
-    mpEsc(String(MPCFG.correlation.minPairedPoints))+' paired days and '+
-    mpEsc(String(MPCFG.correlation.minWindowDays))+' window days, and a magnitude below '+
-    mpEsc(mpFmt(MPCFG.correlation.minAbsR,2))+' is reported as no relationship established. Below either gate '+
-    'the pairing is listed with its paired count and its blocker and no number is produced — an r computed on '+
-    'a handful of days is noise with a decimal point on it.</div>';
-  V.correlationCandidates.forEach(function(c){h+=mpRelBlock(c);});
-  h+='<details class="aud"><summary>How a coefficient would be calculated</summary><div class="audB">';
-  h+=mpAudRow("Formula",'<span class="mono">correlation.pearson.v1</span>');
-  h+=mpAudRow("Expression",mpEsc(MP_FORMULA_TEXT["correlation.pearson.v1"]));
-  h+=mpAudRow("Gates",mpEsc("n ≥ "+MPCFG.correlation.minPairedPoints+" paired days · window ≥ "+
-    MPCFG.correlation.minWindowDays+" days · |r| ≥ "+mpFmt(MPCFG.correlation.minAbsR,2)+" to be called readable"));
-  h+='</div></details>';
-  h+='</div></div>';
-  return h;}
 
-/* ---- 1. Assessment state ---- */
-function mpSecAssessment(V){
-  var w=V.window,vd=V.verdict;
-  var h='<div class="sec">'+mpSecH("01","Assessment state",V.vocab.tierName);
-  h+='<div class="card">';
-  h+='<div class="cardH"><span class="k">Status</span><span class="st">'+
-    '<span class="chip '+(V.assessment.key==="eligible"?"ok":V.assessment.key==="comparability"?"warn":"neu")+'">'+
-    mpEsc(V.assessment.label)+'</span></span></div>';
-  h+='<div class="big">'+mpEsc(vd.eligible?vd.label:("Muscle-preservation verdict: "+mpTerm("verdict.none",w.days)))+'</div>';
-  if(vd.eligible&&vd.rate)h+='<div class="lab">'+mpEsc(vd.rate)+'</div>';
-  h+='<div class="sub">Review window: <b>'+mpEsc(w.label||"—")+'</b> — '+
-    mpEsc(w.start?(mpDateFull(w.start)+" to "+mpDateFull(w.end)):"none")+', '+
-    mpEsc(w.days+" "+mpPlural(w.days,"day","days"))+', set by the '+mpEsc(w.basis)+'. '+
-    mpEsc(mpTerm("confidence.note",w.days))+'. '+
-    'The window was chosen at export; every threshold in this report is expressed in days and is applied '+
-    'against it, so a longer window never lowers a minimum.</div>';
-  if((w.limitations||[]).length)
-    h+='<div class="exc"><b>About this window</b><ul>'+
-      w.limitations.map(function(x){return '<li>'+mpEsc(x)+'</li>';}).join("")+'</ul></div>';
-  if(vd.eligible&&vd.rationale.length){
-    h+='<div class="exc"><b>What the verdict rests on</b><ul>'+
-      vd.rationale.map(function(r){return '<li>'+mpEsc(r)+'</li>';}).join("")+'</ul></div>';}
-  if(!vd.eligible){
-    h+='<div class="blk"><b>Overall preservation assessment: Not calculated.</b> A headline verdict needs '+
-      mpEsc(MPCFG.verdict.minDays+" calendar days, "+MPCFG.verdict.minWeighIns+" valid weigh-ins, "+
-        MPCFG.verdict.minCategories+" comparable movement categories including one upper-body and one lower-body, two baseline and two current observations per eligible exercise, "+
-        mpPct(MPCFG.verdict.minNutritionCoverage*100,0)+" nutrition coverage, programmed-session data, and no unresolved movement-comparability break.")+
-      '<ul>'+vd.blockers.map(function(b){return '<li>'+mpEsc(b)+'</li>';}).join("")+'</ul></div>';}
-  h+='<div class="exc"><b>Standing comparability caveat.</b> '+
-    mpEsc(V.metrics.strength.detail.comparabilityCaveat||"")+'</div>';
-  h+='<div class="exc"><b>Acceptance test E5 — not applicable.</b> '+mpEsc(V.e5.blocker)+'</div>';
-  h+='</div></div>';
-  return h;}
 
-/* ---- 2. Outcome measures ---- */
-function mpSecOutcomes(V){
-  var m=V.metrics,u=V.units,w=V.window;
-  var h='<div class="sec">'+mpSecH("02","Outcome measures","bodyweight · strength · relative strength");
-  /* bodyweight */
-  var bw=m.bodyweight,bd=bw.detail;
-  h+='<div class="card">'+mpCardHead(bw);
-  h+=mpValueLine(bw,function(v){return mpSigned(v,2);});
-  h+='<div class="lab">'+mpEsc(bw.label||"—")+'</div>';
-  h+='<div class="kvs">'+
-    '<span>Weigh-ins <b>'+mpEsc(mpInt(bd.weighIns))+'</b> of '+mpEsc(String(w.days))+' days</span>'+
-    '<span>Coverage <b>'+mpEsc(mpPct(bd.coveragePct))+'</b></span>'+
-    '<span>Mean <b>'+mpEsc(mpFmt(bd.mean,1))+' '+mpEsc(u)+'</b></span>'+
-    '<span>First → latest <b>'+mpEsc(mpFmt(bd.first,1))+' → '+mpEsc(mpFmt(bd.last,1))+' '+mpEsc(u)+'</b></span>'+
-    (bd.r2!=null?('<span>R² <b>'+mpEsc(mpFmt(bd.r2,2))+'</b></span>'):'')+'</div>';
-  if(bd.rolling&&bd.rolling.length>1)h+=mpSpark(bd.rolling);
-  h+=mpBlockers(bw);
-  var bwExtra=mpAudRow("Window tier",mpEsc(bd.tier||"—"))+
-    mpAudRow("Weigh-ins used",mpAudList((bd.rows||[]).map(function(r){return mpDateLabel(r.date)+" · "+mpFmt(r.weight,1)+" "+u;})));
-  if(bd.firstBlock!=null)bwExtra+=mpAudRow("Endpoint weeks",mpEsc(bd.firstBlock+" valid weights in the first 7 days, "+bd.lastBlock+" in the last 7"));
-  if(bd.rollingPoints!=null)bwExtra+=mpAudRow("Rolling means fitted",mpEsc(String(bd.rollingPoints)));
-  h+=mpAudit(bw,bwExtra);
-  h+='</div>';
-  /* projection */
-  var pj=m.projection;
-  h+='<div class="card">'+mpCardHead(pj);
-  h+=mpValueLine(pj,function(v){return mpFmt(v,1);});
-  if(pj.state==="available")h+='<div class="sub">'+mpEsc(pj.detail.caveat||"")+'</div>';
-  h+=mpBlockers(pj);
-  h+=mpAudit(pj,"");
-  h+='</div>';
-  /* comparable strength */
-  var st=m.strength,sd=st.detail;
-  h+='<div class="card">'+mpCardHead(st);
-  h+=mpValueLine(st,function(v){return mpSignedPct(v);});
-  h+='<div class="lab">'+mpEsc(st.label||"—")+'</div>';
-  h+='<div class="kvs">'+
-    '<span>Eligible categories <b>'+mpEsc(String((sd.globalCategories||[]).length))+'</b></span>'+
-    '<span>Upper body <b>'+(sd.hasUpper?"yes":"no")+'</b></span>'+
-    '<span>Lower body <b>'+(sd.hasLower?"yes":"no")+'</b></span>'+
-    '<span>Eligible exercises <b>'+mpEsc(String(sd.eligibleExercises||0))+'</b></span></div>';
-  if((sd.categories||[]).length){
-    h+='<table class="t"><thead><tr><th>Movement category</th><th>Region</th><th>Change</th><th>Exercises</th></tr></thead><tbody>';
-    sd.categories.forEach(function(c){
-      h+='<tr><td data-l="Category">'+mpEsc(c.label)+(c.global?"":' <span class="pill">not in index</span>')+'</td>'+
-        '<td data-l="Region">'+mpEsc(c.region)+'</td>'+
-        '<td data-l="Change" class="num">'+mpEsc(mpSignedPct(c.change))+'</td>'+
-        '<td data-l="Exercises">'+mpEsc(c.exercises.join(", "))+'</td></tr>';});
-    h+='</tbody></table>';}
-  h+=mpBlockers(st);
-  if((st.exclusions||[]).length)h+='<div class="exc"><b>Excluded from the index</b><ul>'+
-    st.exclusions.map(function(x){return '<li>'+mpEsc(x)+'</li>';}).join("")+'</ul></div>';
-  h+=mpAudit(st,mpAudRow("Movement categories",mpEsc("Derived heuristically from the muscle group; back is split on a name keyword (pulldown / pull-up / chin = vertical, row = horizontal) and left uncategorised otherwise. Isolation and uncategorised work never enters the global index."))+
-    mpAudRow("e1RM equation",mpEsc("Epley on RIR-adjusted reps: load × (1 + (reps + RIR) / 30). One equation, used everywhere in Compound.")));
-  h+='</div>';
-  /* relative strength */
-  var rs=m.relative;
-  h+='<div class="card">'+mpCardHead(rs);
-  h+=mpValueLine(rs,function(v){return mpSignedPct(v);});
-  h+='<div class="sub">'+mpEsc(rs.detail.note||"Relative strength is secondary evidence.")+'</div>';
-  if((rs.detail.rows||[]).length){
-    h+='<table class="t"><thead><tr><th>Exercise</th><th>Baseline</th><th>Current</th><th>Change</th></tr></thead><tbody>';
-    rs.detail.rows.forEach(function(r){
-      h+='<tr><td data-l="Exercise">'+mpEsc(r.name)+'</td>'+
-        '<td data-l="Baseline" class="num">'+mpEsc(mpFmt(r.baseline,2))+'</td>'+
-        '<td data-l="Current" class="num">'+mpEsc(mpFmt(r.current,2))+'</td>'+
-        '<td data-l="Change" class="num">'+mpEsc(mpSignedPct(r.changePct))+'</td></tr>';});
-    h+='</tbody></table>';}
-  h+=mpBlockers(rs);
-  h+=mpAudit(rs,"");
-  h+='</div></div>';
-  return h;}
 
-/* ---- 3. Supporting behaviours ---- */
-function mpSecBehaviours(V){
-  var m=V.metrics,w=V.window;
-  var h='<div class="sec">'+mpSecH("03","Supporting behaviours","protein · calories · training completion");
-  /* protein */
-  var p=m.protein,pd=p.detail;
-  h+='<div class="card">'+mpCardHead(p);
-  h+=mpValueLine(p,function(v){return mpPct(v);});
-  h+='<div class="lab">'+mpEsc(p.label||"No behavioural label — the data window has not earned one")+'</div>';
-  h+='<div class="kvs">'+
-    '<span>Daily target <b>'+mpEsc(mpFmt(pd.target,0))+' g</b></span>'+
-    '<span>Target basis <b>'+mpEsc(pd.targetBasis||"—")+'</b></span>'+
-    '<span>Target-hit rate <b>'+mpEsc(mpPct(pd.hitRate))+'</b> (at or above '+mpEsc(mpPct((pd.hitThreshold||0.9)*100,0))+' of target)</span>'+
-    '<span>Valid days <b>'+mpEsc(String((pd.rows||[]).length))+'</b> of '+mpEsc(String(w.days))+'</span>'+
-    '<span>Coverage <b>'+mpEsc(mpPct(p.coverage.percentage))+'</b></span></div>';
-  h+=mpBlockers(p);
-  if((p.exclusions||[]).length)h+='<div class="exc"><ul>'+
-    p.exclusions.map(function(x){return '<li>'+mpEsc(x)+'</li>';}).join("")+'</ul></div>';
-  h+=mpAudit(p,mpAudRow("Daily rows",mpAudList((pd.rows||[]).map(function(r){
-    return mpDateLabel(r.date)+" · "+mpFmt(r.protein,0)+" g of "+mpFmt(r.target,0)+" g · attainment "+mpPct(100*r.attainment)+(r.hit?" · hit":"");}))));
-  h+='</div>';
-  /* calories */
-  var c=m.calories,cd=c.detail;
-  h+='<div class="card">'+mpCardHead(c);
-  h+=mpValueLine(c,function(v){return mpPct(v);});
-  h+='<div class="lab">Days inside the plan tolerance</div>';
-  h+='<div class="kvs">'+
-    '<span>Daily target <b>'+mpEsc(mpFmt(cd.target,0))+'</b></span>'+
-    '<span>Tolerance <b>±'+mpEsc(mpPct(cd.tolerancePct,0))+'</b></span>'+
-    '<span>Inside tolerance <b>'+mpEsc(String(cd.within||0))+' of '+mpEsc(String((cd.rows||[]).length))+'</b></span>'+
-    '<span>Mean absolute deviation <b>'+mpEsc(mpFmt(cd.meanAbsDeviation,0))+'</b></span>'+
-    '<span>Days below a minimum intake <b>Not applicable</b></span>'+
-    '<span>Coverage <b>'+mpEsc(mpPct(c.coverage.percentage))+'</b></span></div>';
-  h+=mpBlockers(c);
-  if((c.exclusions||[]).length)h+='<div class="exc"><ul>'+
-    c.exclusions.map(function(x){return '<li>'+mpEsc(x)+'</li>';}).join("")+'</ul></div>';
-  h+=mpAudit(c,mpAudRow("Daily rows",mpAudList((cd.rows||[]).map(function(r){
-    return mpDateLabel(r.date)+" · "+mpFmt(r.calories,0)+" · "+mpSigned(r.deviation,0)+(r.within?" · inside":" · outside")+(r.auto?" · computed from macros":"");}))));
-  h+='</div>';
-  /* nutrition coverage */
-  var nu=m.nutrition;
-  h+='<div class="card">'+mpCardHead(nu);
-  h+=mpValueLine(nu,function(v){return mpPct(v);});
-  h+='<div class="sub">A day counts when any calorie or macro value is logged and the day is not marked skipped. This is the coverage figure the headline verdict is gated on.</div>';
-  h+=mpBlockers(nu);
-  h+=mpAudit(nu,"");
-  h+='</div>';
-  /* training completion */
-  var t=m.training,td=t.detail;
-  h+='<div class="card">'+mpCardHead(t);
-  h+=mpValueLine(t,function(v){return mpPct(v);});
-  h+='<div class="kvs">'+
-    '<span>Completed <b>'+mpEsc(String(td.completed||0))+'</b></span>'+
-    '<span>Programmed <b>'+mpEsc(td.programmed!=null?String(td.programmed):"unknown")+'</b></span>'+
-    '<span>Weekly goal <b>'+mpEsc(td.weeklyGoal!=null?String(td.weeklyGoal):"not set")+'</b></span></div>';
-  h+=mpBlockers(t);
-  h+=mpAudit(t,mpAudRow("Sessions counted",mpAudList((td.sessions||[]).map(function(s){
-    return mpDateLabel(s.date)+" · "+s.name;}))));
-  h+='</div></div>';
-  return h;}
 
-/* ---- 4. Recovery and safety context ---- */
-function mpSecRecovery(V){
-  var m=V.metrics;
-  var h='<div class="sec">'+mpSecH("04","Recovery and safety context","no composite recovery score is calculated");
-  /* sleep */
-  var s=m.sleep,sd=s.detail;
-  h+='<div class="card">'+mpCardHead(s);
-  h+=mpValueLine(s,function(v){return mpPct(v);});
-  h+='<div class="lab">Mean goal attainment</div>';
-  h+='<div class="kvs">'+
-    '<span>Average duration <b>'+mpEsc(sd.meanMinutes!=null?(mpFmt(Math.floor(sd.meanMinutes/60),0)+"h "+mpFmt(Math.round(sd.meanMinutes%60),0)+"m"):"—")+'</b></span>'+
-    '<span>Goal <b>'+mpEsc(sd.goalMinutes!=null?(mpFmt(Math.floor(sd.goalMinutes/60),0)+"h "+mpFmt(Math.round(sd.goalMinutes%60),0)+"m"):"not set")+'</b></span>'+
-    '<span>Nights below '+mpEsc(mpPct((sd.lowThresholdPct||80),0))+' of goal <b>'+mpEsc(sd.lowNights!=null?String(sd.lowNights):"—")+'</b></span>'+
-    '<span>Coverage <b>'+mpEsc(mpPct(s.coverage.percentage))+'</b></span></div>';
-  h+=mpBlockers(s);
-  h+=mpAudit(s,mpAudRow("Nights",mpAudList((sd.rows||[]).map(function(r){
-    return mpDateLabel(r.date)+" · "+mpFmt(r.minutes,0)+" min · "+mpPct(100*r.attainment)+(r.low?" · below threshold":"");}))));
-  h+='</div>';
-  /* session RPE */
-  var r=m.rpe,rd=r.detail;
-  h+='<div class="card">'+mpCardHead(r);
-  h+=mpValueLine(r,function(v){return mpSigned(v,1);});
-  h+='<div class="lab">'+mpEsc(r.label||"No limitation flag")+'</div>';
-  h+='<div class="kvs">'+
-    '<span>Prior half <b>'+mpEsc(mpFmt(rd.priorAvg,1))+'</b> ('+mpEsc(String((rd.prior||[]).length))+' sessions)</span>'+
-    '<span>Current half <b>'+mpEsc(mpFmt(rd.currentAvg,1))+'</b> ('+mpEsc(String((rd.current||[]).length))+' sessions)</span>'+
-    '<span>Split at <b>'+mpEsc(mpDateLabel(rd.midpoint))+'</b></span></div>';
-  h+='<div class="sub">A rise in session RPE is only a flag when measured strength is flat or falling as well, across at least '+
-    mpEsc(String(MPCFG.rpe.minSessions))+' comparable sessions. On its own it is not evidence of anything.</div>';
-  h+=mpBlockers(r);
-  h+=mpAudit(r,mpAudRow("Sessions",mpAudList(((rd.prior||[]).concat(rd.current||[])).map(function(x){
-    return mpDateLabel(x.date)+" · "+x.name+" · RPE "+mpFmt(x.rpe,1);}))));
-  h+='</div>';
-  /* soreness */
-  var so=m.soreness,sod=so.detail;
-  h+='<div class="card">'+mpCardHead(so);
-  h+='<div class="big">'+mpEsc(so.state==="missing"?"—":String((sod.alerts||[]).length))+'</div>';
-  h+='<div class="lab">'+mpEsc(so.label||"No persistent soreness pattern")+'</div>';
-  h+='<div class="sub">'+mpEsc(sod.rule||"")+' Soreness is never averaged into a score. Pump and volume ratings are session detail only and are not inputs to anything in this report.</div>';
-  if((sod.alerts||[]).length)h+='<ul class="list">'+sod.alerts.map(function(a){
-    return '<li>'+mpEsc(a.muscle+" — "+a.count+" consecutive check-ins ("+a.dates.map(mpDateLabel).join(", ")+")")+'</li>';}).join("")+'</ul>';
-  h+=mpBlockers(so);
-  var soRows=[];
-  for(var mus in (sod.sequences||{})){
-    soRows.push(mus+": "+sod.sequences[mus].map(function(e){
-      return mpDateLabel(e.date)+" "+e.value;}).join(" → "));}
-  h+=mpAudit(so,mpAudRow("Check-in sequences",mpAudList(soRows)));
-  h+='</div>';
-  /* joint pain */
-  var j=m.joint,jd=j.detail;
-  h+='<div class="card">'+mpCardHead(j);
-  h+='<div class="big">'+mpEsc(j.state==="missing"?"—":String((jd.current||[]).length))+'</div>';
-  h+='<div class="lab">'+mpEsc(j.label||"No rating at Moderate or above")+'</div>';
-  if((jd.current||[]).length)h+='<ul class="list">'+jd.current.map(function(x){
-    return '<li>'+mpEsc(x.label+" — "+x.exercise+", "+mpDateLabel(x.date))+'</li>';}).join("")+'</ul>';
-  if((jd.persistent||[]).length)h+='<div class="blk"><b>Persistent</b><ul>'+jd.persistent.map(function(x){
-    return '<li>'+mpEsc(x.exercise+": "+x.labels[0]+" then "+x.labels[1]+" on consecutive exposures ("+mpDateLabel(x.dates[0])+", "+mpDateLabel(x.dates[1])+")")+'</li>';}).join("")+'</ul></div>';
-  if((jd.rising||[]).length)h+='<div class="blk"><b>Rising severity</b><ul>'+jd.rising.map(function(x){
-    return '<li>'+mpEsc(x.exercise+": "+x.from+" → "+x.to+" ("+mpDateLabel(x.date)+")")+'</li>';}).join("")+'</ul></div>';
-  h+=mpBlockers(j);
-  var jRows=[];
-  for(var kk in (jd.sequences||{})){
-    jRows.push((jd.names[kk]||kk)+": "+jd.sequences[kk].map(function(e){
-      return mpDateLabel(e.date)+" "+(MP_JOINT_LABEL[e.value]||e.value);}).join(" → "));}
-  h+=mpAudit(j,mpAudRow("Exposure sequences",mpAudList(jRows)));
-  h+='</div>';
-  /* GLP-1 */
-  var g=m.glp,gd=g.detail;
-  h+='<div class="card">'+mpCardHead(g);
-  h+='<div class="big">'+mpEsc(String((gd.symptoms||[]).length))+'<s>logged</s></div>';
-  h+='<div class="sub">Symptoms are listed as context. They are never blended into a wellness or recovery score, because no clinically reviewed rule for doing so has been supplied.</div>';
-  if(gd.compound&&gd.compound.name)h+='<div class="kvs"><span>Compound <b>'+mpEsc(gd.compound.name)+
-    (gd.compound.dose!=null&&gd.compound.dose!==""?(" "+mpEsc(String(gd.compound.dose))+" "+mpEsc(gd.compound.unit||"mg")):"")+'</b></span>'+
-    (gd.lastChange?('<span>Latest '+mpEsc(gd.lastChangeKind||"change")+' <b>'+mpEsc(mpDateLabel(gd.lastChange))+'</b></span>'):'')+'</div>';
-  if((gd.symptoms||[]).length){
-    h+='<table class="t"><thead><tr><th>Date</th><th>Symptom</th><th>Severity</th><th>Days after dose</th><th>Note</th></tr></thead><tbody>';
-    gd.symptoms.forEach(function(x){
-      h+='<tr><td data-l="Date">'+mpEsc(mpDateLabel(x.date))+'</td>'+
-        '<td data-l="Symptom">'+mpEsc(x.type)+'</td>'+
-        '<td data-l="Severity" class="num">'+mpEsc(mpInt(x.severity))+' / 5</td>'+
-        '<td data-l="Days after dose" class="num">'+mpEsc(x.daysSinceDose!=null?String(x.daysSinceDose):"—")+'</td>'+
-        '<td data-l="Note">'+mpEsc(x.note||"—")+'</td></tr>';});
-    h+='</tbody></table>';}
-  if(gd.suppressProjection)h+='<div class="blk">'+mpEsc(gd.suppressReason)+'</div>';
-  h+=mpBlockers(g);
-  h+=mpAudit(g,mpAudRow("Doses in record",mpAudList((gd.doses||[]).map(function(d){
-    return mpDateLabel(d.date)+" · "+(d.skipped?"skipped":(mpFmt(d.dose,2)+" "+(d.unit||"")));}))));
-  h+='</div></div>';
-  return h;}
-
-/* ---- 5 & 6. Biggest Wins and Watch List ---- */
-function mpSecWinsWatch(V){
-  var h='<div class="sec">'+mpSecH("05","Biggest wins","evidence-backed only, maximum five");
-  h+='<div class="card">';
-  if(!V.wins.length)h+='<div class="sub">Nothing here yet. A win is only listed when the underlying metric is eligible or the statement is plainly factual — there is no encouragement filler in this report.</div>';
-  else V.wins.forEach(function(w){
-    h+='<div class="win"><span class="m">+</span><span>'+mpEsc(w.text)+'</span></div>';});
-  h+='</div></div>';
-  h+='<div class="sec">'+mpSecH("06","Watch list","rule-generated, highest priority first");
-  h+='<div class="card">';
-  if(!V.watch.length)h+='<div class="sub">No rule fired against this window.</div>';
-  else{
-    V.watch.slice(0,5).forEach(function(w){
-      h+='<div class="win wat"><span class="m">!</span><span>'+mpEsc(w.text)+'</span></div>';});
-    if(V.watch.length>5){
-      h+='<details class="aud"><summary>Show all '+mpEsc(String(V.watch.length))+' items</summary><div class="audB">';
-      V.watch.slice(5).forEach(function(w){
-        h+='<div class="win wat"><span class="m">!</span><span>'+mpEsc(w.text)+'</span></div>';});
-      h+='</div></details>';}}
-  h+='</div></div>';
-  return h;}
-
-/* ---- 7. Exercise progress ---- */
-function mpSecExercises(V){
-  var u=V.units;
-  var h='<div class="sec">'+mpSecH("08","Exercise progress","first qualifying top set per session");
-  if(!V.series.length){
-    h+='<div class="card"><div class="sub">No exercise has a qualifying top set inside the window. A qualifying set carries a load, '+
-      mpEsc(MPCFG.strength.minCompletedReps+"–"+MPCFG.strength.maxCompletedReps)+' completed reps and an RIR of 0–'+
-      mpEsc(String(MPCFG.strength.maxRir))+'.</div></div></div>';
-    return h;}
-  h+='<div class="card"><table class="t"><thead><tr><th>Exercise</th><th>Category</th><th>Baseline e1RM</th>'+
-    '<th>Current e1RM</th><th>Change</th><th>Status</th><th>Obs</th><th>Confidence</th></tr></thead><tbody>';
-  V.series.forEach(function(x){
-    h+='<tr><td data-l="Exercise">'+mpEsc(x.name)+(x.eligible?"":' <span class="pill">not eligible</span>')+'</td>'+
-      '<td data-l="Category">'+mpEsc(x.categoryLabel)+'</td>'+
-      '<td data-l="Baseline" class="num">'+mpEsc(mpFmt(x.baselineValue,1))+' '+mpEsc(u)+'</td>'+
-      '<td data-l="Current" class="num">'+mpEsc(mpFmt(x.currentValue,1))+' '+mpEsc(u)+'</td>'+
-      '<td data-l="Change" class="num">'+mpEsc(mpSignedPct(x.changePct))+'</td>'+
-      '<td data-l="Status">'+mpEsc(x.status)+'</td>'+
-      '<td data-l="Observations" class="num">'+mpEsc(String(x.observationCount))+'</td>'+
-      '<td data-l="Confidence">'+mpEsc(x.confidence)+'</td></tr>';});
-  h+='</tbody></table></div>';
-  /* G2: a coach can expand an exercise and see exactly which observations built
-     the baseline and the current value */
-  V.series.forEach(function(x){
-    h+='<div class="card" data-anchor="'+mpEsc("mp:exercise:"+x.key)+'">'+
-      '<details class="aud" style="margin-top:0;border-top:0;padding-top:0">'+
-      '<summary>'+mpEsc(x.name+" — every observation, baseline and current")+'</summary><div class="audB">';
-    h+=mpAudRow("Movement category",mpEsc(x.categoryLabel+" (heuristic, derived from muscle group"+(x.equipment?"; equipment: "+x.equipment:"")+")"));
-    h+=mpAudRow("Load convention",mpEsc(x.loadConvention));
-    h+=mpAudRow("Eligible",mpEsc(x.eligible?"yes":"no"));
-    h+=mpAudRow("Span",mpEsc(x.spanWeeks+" calendar "+mpPlural(x.spanWeeks,"week","weeks")+" · "+x.weeks.length+" training "+mpPlural(x.weeks.length,"week","weeks")));
-    h+=mpAudRow("Baseline",mpEsc(x.baselineWeeks.map(function(w){return "week of "+mpDateLabel(w.week)+" = "+mpFmt(w.value,1)+" "+u+" (median of "+w.n+")";}).join("; ")||"—"));
-    h+=mpAudRow("Current",mpEsc(x.currentWeeks.map(function(w){return "week of "+mpDateLabel(w.week)+" = "+mpFmt(w.value,1)+" "+u+" (median of "+w.n+")";}).join("; ")||"—"));
-    h+=mpAudRow("Confidence",mpEsc(x.confidence+(x.meanEvidenceWeight!=null?(" · mean rep-range evidence weight "+mpFmt(x.meanEvidenceWeight,2)):"")));
-    h+=mpAudRow("Blockers",mpAudList(x.blockers));
-    h+=mpAudRow("Observations",'<table class="t"><thead><tr><th>Date</th><th>Set</th><th>Load</th><th>Reps</th><th>RIR</th><th>Adj</th><th>e1RM</th><th>Weight</th></tr></thead><tbody>'+
-      x.observations.map(function(o){
-        return '<tr><td data-l="Date">'+mpEsc(mpDateLabel(o.date))+'</td>'+
-          '<td data-l="Set" class="num">#'+mpEsc(String(o.setIndex))+'</td>'+
-          '<td data-l="Load" class="num">'+mpEsc(mpFmt(o.load,1))+' '+mpEsc(u)+'</td>'+
-          '<td data-l="Reps" class="num">'+mpEsc(String(o.reps))+'</td>'+
-          '<td data-l="RIR" class="num">'+mpEsc(String(o.rir))+'</td>'+
-          '<td data-l="Adjusted reps" class="num">'+mpEsc(String(o.adjReps))+'</td>'+
-          '<td data-l="e1RM" class="num">'+mpEsc(mpFmt(o.e1rm,1))+'</td>'+
-          '<td data-l="Evidence weight" class="num">'+mpEsc(mpFmt(o.evidenceWeight,2))+'</td></tr>';}).join("")+
-      '</tbody></table>');
-    h+='</div></details></div>';});
-  /* excluded observations, with reasons */
-  h+='<div class="card"><details class="aud" style="margin-top:0;border-top:0;padding-top:0">'+
-    '<summary>Excluded observations and why</summary><div class="audB">';
-  if(!V.exclusions.length)h+='<div class="sub">Nothing was excluded.</div>';
-  else h+='<ul class="list">'+V.exclusions.map(function(e){
-    return '<li>'+mpEsc(mpDateLabel(e.date)+" · "+e.exercise+" — "+e.note+": "+
-      e.reasons.map(function(r){return "set "+r.set+" "+r.reason;}).join("; "))+'</li>';}).join("")+'</ul>';
-  h+='</div></details></div></div>';
-  return h;}
-
-/* ---- 8. Complete ledger — every source record behind the report ---- */
-function mpSecLedger(V){
-  var I=V.input,w=V.window,u=V.units;
-  var h='<div class="sec">'+mpSecH("09","Complete ledger","every source record in the window");
-  h+='<div class="card"><details class="aud" style="margin-top:0;border-top:0;padding-top:0">'+
-    '<summary>Weigh-ins, food, sleep</summary><div class="audB">';
-  h+='<table class="t"><thead><tr><th>Date</th><th>Weight</th><th>Calories</th><th>Protein</th><th>Sleep</th></tr></thead><tbody>';
-  var byDate={};
-  (I.weights||[]).forEach(function(x){if(x&&mpIsISO(x.date))byDate[x.date]=mpNum(x.weight);});
-  (w.dates||[]).forEach(function(d){
-    var f=(I.food||{})[d]||{};
-    var sl=mpNum((I.sleep||{})[d]);
-    h+='<tr><td data-l="Date">'+mpEsc(mpDateLabel(d))+'</td>'+
-      '<td data-l="Weight" class="num">'+mpEsc(byDate[d]!=null?(mpFmt(byDate[d],1)+" "+u):"—")+'</td>'+
-      '<td data-l="Calories" class="num">'+mpEsc(mpNum(f.calories)!=null?mpFmt(mpNum(f.calories),0):"—")+'</td>'+
-      '<td data-l="Protein" class="num">'+mpEsc(mpNum(f.protein)!=null?(mpFmt(mpNum(f.protein),0)+" g"):"—")+'</td>'+
-      '<td data-l="Sleep" class="num">'+mpEsc(sl!=null?(mpFmt(sl,0)+" min"):"—")+'</td></tr>';});
-  h+='</tbody></table></div></details></div>';
-  h+='<div class="card"><details class="aud" style="margin-top:0;border-top:0;padding-top:0">'+
-    '<summary>Lifting sessions, set by set</summary><div class="audB">';
-  var sessions=mpSessionsInWindow(I,w);
-  if(!sessions.length)h+='<div class="sub">No lifting session was logged in the window.</div>';
-  sessions.forEach(function(s,si){
-    h+='<div style="margin:10px 0 4px" data-anchor="'+mpEsc("mp:session:"+s.date+":"+si)+'"><b>'+
-      mpEsc(mpDateFull(s.date)+" · "+(s.name||"Workout"))+'</b>'+
-      (mpNum(s.mins)!=null?mpEsc(" · "+mpFmt(mpNum(s.mins),0)+" min"):"")+
-      (mpNum(s.rpe)!=null?mpEsc(" · session RPE "+mpFmt(mpNum(s.rpe),1)):"")+'</div>';
-    if(s.notes)h+='<div class="sub">'+mpEsc(String(s.notes))+'</div>';
-    (s.entries||[]).forEach(function(en){
-      if(!en)return;
-      var sets=(en.sets||[]).filter(function(st){return st&&st.status!=="warmup";});
-      h+='<div style="margin-top:6px"><b>'+mpEsc(en.name||"Exercise")+'</b> '+
-        '<span class="pill">'+mpEsc((MP_CATEGORIES[mpCategoryFor(en.muscle,en.name)]||MP_CATEGORIES.other).label)+'</span>'+
-        (en.fb&&en.fb.joint&&en.fb.joint!=="none"?(' <span class="pill">'+mpEsc(MP_JOINT_LABEL[en.fb.joint]||en.fb.joint)+'</span>'):'')+'</div>';
-      h+='<table class="t"><thead><tr><th>Set</th><th>Load</th><th>Reps</th><th>RIR</th><th>Status</th></tr></thead><tbody>';
-      sets.forEach(function(st,i){
-        h+='<tr><td data-l="Set" class="num">'+mpEsc(String(i+1))+'</td>'+
-          '<td data-l="Load" class="num">'+mpEsc(mpNum(st.weight)!=null?(mpFmt(mpNum(st.weight),1)+" "+u):"—")+'</td>'+
-          '<td data-l="Reps" class="num">'+mpEsc(mpNum(st.reps)!=null?mpFmt(mpNum(st.reps),0):"—")+'</td>'+
-          '<td data-l="RIR" class="num">'+mpEsc(mpNum(st.rir)!=null?mpFmt(mpNum(st.rir),0):"—")+'</td>'+
-          '<td data-l="Status">'+mpEsc(String(st.status||"—"))+'</td></tr>';});
-      h+='</tbody></table>';});
-    var mf=s.mfb||{};var mfRows=[];
-    for(var mus in mf){
-      var e=mf[mus]||{};
-      mfRows.push(mus+" — soreness "+(e.sore||"—")+", pump "+(e.pump||"—")+", volume "+(e.vol||"—"));}
-    if(mfRows.length)h+='<div class="sub">Muscle feedback: '+mpEsc(mfRows.join("; "))+
-      '. Pump and volume are shown here only; neither is an input to any conclusion.</div>';});
-  h+='</div></details></div>';
-  h+='<div class="card"><details class="aud" style="margin-top:0;border-top:0;padding-top:0">'+
-    '<summary>GLP-1 doses and symptoms</summary><div class="audB">';
-  var gd=V.metrics.glp.detail;
-  if(!(gd.doses||[]).length&&!(gd.symptoms||[]).length)h+='<div class="sub">Nothing logged.</div>';
-  if((gd.doses||[]).length){
-    h+='<table class="t"><thead><tr><th>Date</th><th>Dose</th><th>Status</th></tr></thead><tbody>';
-    gd.doses.forEach(function(d){
-      h+='<tr><td data-l="Date">'+mpEsc(mpDateLabel(d.date))+'</td>'+
-        '<td data-l="Dose" class="num">'+mpEsc(d.dose!=null?(mpFmt(d.dose,2)+" "+(d.unit||"")):"—")+'</td>'+
-        '<td data-l="Status">'+mpEsc(d.skipped?"skipped":"taken")+'</td></tr>';});
-    h+='</tbody></table>';}
-  h+='</div></details></div></div>';
-  return h;}
-
-/* ---- the document ---- */
-function mpReportHTML(input){
-  var V=mpReport(input);
-  var w=V.window;
-  var title="Compound Muscle Preservation Report — "+V.who+" — "+mpDateFull(V.today);
-  var h='<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n';
-  h+='<title>'+mpEsc(title)+'</title>\n';
-  h+='<meta name="viewport" content="width=device-width, initial-scale=1">\n';
-  h+='<style>'+MPCSS.join("")+'</style>\n</head>\n<body>\n<div class="pg">\n';
-  h+='<div class="mast"><div class="mastTop">'+MPMARK+'<span class="word">COMPOUND</span></div>'+
-    '<h1>Muscle Preservation Report</h1>'+
-    '<div class="sub">GLP-1 fat-loss phase · Coach review</div>'+
-    '<div class="ident"><span>'+mpEsc(V.who)+'</span><span class="sep">·</span>'+
-    '<span>'+mpEsc(mpDateFull(V.today))+'</span><span class="sep">·</span>'+
-    '<span>'+mpEsc(V.plan)+'</span><span class="sep">·</span>'+
-    '<span>'+mpEsc(w.start?(mpDateLabel(w.start)+" – "+mpDateLabel(w.end)):"no window")+'</span>'+
-    '<span class="sep">·</span><span>'+mpEsc(w.days+" "+mpPlural(w.days,"day","days"))+'</span>'+
-    '<span class="sep">·</span><span>'+mpEsc(w.label||"—")+'</span></div></div>\n';
-  h+=mpSecSummary(V)+"\n";
-  h+=mpSecAssessment(V)+"\n";
-  h+=mpSecOutcomes(V)+"\n";
-  h+=mpSecBehaviours(V)+"\n";
-  h+=mpSecRecovery(V)+"\n";
-  h+=mpSecWinsWatch(V)+"\n";
-  h+=mpSecRelationships(V)+"\n";
-  h+=mpSecExercises(V)+"\n";
-  h+=mpSecLedger(V)+"\n";
-  h+='<div class="foot"><b>How to read this document.</b> Nothing here is estimated, substituted or back-filled. '+
-    'Where an input is missing the metric says so and names the blocker, and any conclusion that depended on it is withheld rather than guessed. '+
-    'The language is deliberately restrained until the data window earns something stronger: this window is '+
-    mpEsc(w.days+" "+mpPlural(w.days,"day","days"))+', which is the <b>'+mpEsc(V.vocab.tierName.toLowerCase())+'</b> tier. '+
-    'Strength evidence is measured strength, not lean mass — no strength figure in this report, favourable or otherwise, can establish what happened to muscle tissue. '+
-    'A DXA scan or standardised strength test is the only thing that settles that question.'+
-    '<div style="margin-top:10px"><b>Confidence is two numbers, not one.</b> Data confidence says how much of '+
-    'the window was actually measured. Interpretation confidence says whether the number that came out can be '+
-    'read. They come apart all the time and legitimately — a flawless set of weigh-ins whose trend line explains '+
-    'almost none of the scatter is high data confidence and low interpretation confidence — so both are printed '+
-    'on every card and neither is blended into the other.</div>'+
-    '<div style="margin-top:10px"><b>The summary was written by rule, not by a model.</b> No part of this '+
-    'document calls a network or a language model. Each sentence is assembled from the metric objects above and '+
-    'carries the metric ids and formulas it rests on, so the same data always produces the same words.</div>'+
-    '<div style="margin-top:10px">Formula set <b>'+mpEsc(MPCFG.version)+'</b> · formulas v'+mpEsc(MPCFG.formulaVersion)+
-    ' · review window <b>'+mpEsc(w.label||"—")+'</b> ('+mpEsc(w.basis)+')'+
-    ' · e1RM: Epley on RIR-adjusted reps · weights in '+mpEsc(V.units)+'</div>'+
-    '<div style="margin-top:6px">COMPOUND · '+mpEsc(V.who)+' · '+mpEsc(mpDateFull(V.today))+' · '+mpEsc(V.plan)+'</div></div>\n';
-  return h+'</div>\n</body>\n</html>\n';}
-/* MP-VIEW-END */
 
 /* The ONLY impure function in this feature: it reads `state` once and hands the
    calculator a frozen plain-object snapshot. Everything downstream is a pure
@@ -8223,7 +7033,7 @@ function render(){
   var maxBtn=isOwner()?'<button class="wl-maxb'+(coachUnreadW()?" hot":"")+'" data-act="max:open" aria-label="Messages from Coach Max">M</button>':'';
   var backBtn=(state.view==="photos"||state.view==="glptimeline")?'<button class="wl-hdr-back" data-act="go" data-view="weight" aria-label="Back">‹</button>':state.view==="diary"?'<button class="wl-hdr-back" data-act="go" data-view="overview" aria-label="Back">‹</button>':'';
   var _navH=headerNav();var _brand='<span class="wl-mark">'+BRANDMARK+'</span>';var _md=statusFor(todayISO());var _mbanner=_md?('<button class="wl-modebanner" data-act="go" data-view="settings"><span class="wl-mb-em">'+(_md.status.type==="vacation"?"\ud83c\udfd6\ufe0f":"\ud83e\udd12")+'</span><span>'+(_md.status.type==="vacation"?"Vacation Mode":"Recovery Mode")+'</span><span class="wl-mb-go">Settings \u203a</span></button>'):'';
-  document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header'+(_md?" hasbanner":"")+'">'+_mbanner+'<div class="wl-hdr-brand"><div class="wl-brandrow">'+_brand+'<span class="wl-eyebrow">Compound</span></div>'+hdrRight+'</div><div class="wl-hdr-main">'+backBtn+'<div class="wl-title-slot">'+(title?('<h1 class="wl-title">'+title+'</h1>'):'')+(hsub?'<div class="wl-hsub">'+esc(hsub)+'</div>':'')+'</div><div class="wl-hdr-actions">'+maxBtn+avatar+'</div></div>'+(_navH?'<div class="wl-hdr-datebar">'+_navH+'</div>':'')+'</header><main class="wl-main">'+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML()+statusSheetHTML()+obOverlayHTML()+deviceSheetHTML()+maxSheetHTML()+infoSheetHTML()+glpSheetHTML()+lrSheetHTML();
+  document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header'+(_md?" hasbanner":"")+'">'+_mbanner+'<div class="wl-hdr-brand"><div class="wl-brandrow">'+_brand+'<span class="wl-eyebrow">Compound</span></div>'+hdrRight+'</div><div class="wl-hdr-main">'+backBtn+'<div class="wl-title-slot">'+(title?('<h1 class="wl-title">'+title+'</h1>'):'')+(hsub?'<div class="wl-hsub">'+esc(hsub)+'</div>':'')+'</div><div class="wl-hdr-actions">'+maxBtn+avatar+'</div></div>'+(_navH?'<div class="wl-hdr-datebar">'+_navH+'</div>':'')+'</header><main class="wl-main">'+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML()+statusSheetHTML()+obOverlayHTML()+deviceSheetHTML()+maxSheetHTML()+infoSheetHTML()+glpSheetHTML();
   var hdr=document.querySelector(".wl-header");if(hdr)document.documentElement.style.setProperty("--headh",hdr.offsetHeight+"px");
   if(document.getElementById("wl-photostrip"))renderPhotosStrip(state.selDate);
   if(state.view==="diary")renderDiary();
@@ -8594,10 +7404,7 @@ document.addEventListener("click",function(e){
   if(a==="sum:next"){if(state.weekOffset<0){state.weekOffset++;render();}return;}
   if(a==="sum:day"){var sdd=el.getAttribute("data-date");state.selDate=sdd;var sp=parseISO(sdd);state.calY=sp.getFullYear();state.calM=sp.getMonth();state.view="overview";render();return;}
   if(a==="sum:exportweek"){exportWeekFiles();return;}
-  if(a==="sum:liftreport"){state.lrSheet=true;render();return;}
-  if(a==="lr:close"){state.lrSheet=null;render();return;}
-  if(a==="lr:go"){var lrw=lrWinFromEl(el);if(lrw===false)return;
-    lrExport(el.getAttribute("data-style")||"ledger",lrw);return;}
+  if(a==="sum:coachreport"){srExport();return;}
   if(a==="sum:exportall"){exportAllFiles();return;}
   if(a==="reset:ask"){state.confirmReset=true;render();return;}
   if(a==="reset:cancel"){state.confirmReset=false;render();return;}
