@@ -49,10 +49,38 @@ group('The three choices carry the specified labels and help text', () => {
   test('C10-UX-01 choice 3 label states its destination', () => ok(h.includes('Use the online copy on this device')));
   test('choice 3 help names what is replaced and what is saved first', () =>
     ok(h.includes('Replace this device’s version. This device’s current version will be saved first.')));
-  test('the confirmations name what is being replaced', () => {
+  test('C10-UX-05 the confirmations name exactly what will be replaced', () => {
     const c = env().S.CF_CAS_COPY;
-    ok(c.device.confirm.includes('Replace the online copy'));
-    ok(c.online.confirm.includes('Replace this device’s version'));
+    eq(c.device.confirm, 'Replace the online copy with this device’s version?');
+    eq(c.online.confirm, 'Replace this device’s version with the online copy?');
+  });
+  test('C10-UX-02 the online-overwrite action cannot read as adopting locally', () => {
+    const c = env().S.CF_CAS_COPY;
+    /* "Use this device’s copy online" — the destination is "online", and the
+       source is this device. Neither word order can be read the other way. */
+    ok(/online\s*$/.test(c.device.label));
+    ok(c.device.label.includes('this device’s copy'));
+    notOk(/on this device$/.test(c.device.label));
+  });
+  test('C10-UX-03 the device-overwrite action cannot read as publishing online', () => {
+    const c = env().S.CF_CAS_COPY;
+    ok(/on this device$/.test(c.online.label));
+    ok(c.online.label.includes('the online copy'));
+    notOk(/ online$/.test(c.online.label));
+  });
+  test('C10-UX-02/03 the two labels differ in destination, not just wording', () => {
+    const c = env().S.CF_CAS_COPY;
+    notOk(c.device.label === c.online.label);
+    ok(c.device.label.endsWith('online'));
+    ok(c.online.label.endsWith('on this device'));
+  });
+  test('C10-UX-04 the accessible names are the full revised labels', () => {
+    const c = env().S.CF_CAS_COPY;
+    /* the buttons carry their label as their text, so the accessible name IS
+       the full label — asserted against the rendered markup, not assumed */
+    ok(h.includes('>' + c.device.label + '</button>'));
+    ok(h.includes('>' + c.online.label + '</button>'));
+    ok(h.includes('>' + c.keep.label + '</button>'));
   });
 });
 
@@ -76,6 +104,12 @@ group('Hierarchy and focus order put the safe choice first', () => {
   test('C10-UX-11 no autofocus survives anywhere, with either card count', () => {
     const both = env([withConflict('core'), withConflict('training')]).S.cfCasConflictCenterHTML();
     eq((both.match(/autofocus/g) || []).length, 0);
+  });
+  test('C10-UX-13 the first action in DOM order is the first card\'s safe choice', () => {
+    const both = env([withConflict('core'), withConflict('training')]).S.cfCasConflictCenterHTML();
+    const first = both.match(/data-act="cf:([a-z-]+)" data-sub="(core|training)"/);
+    eq(first[1], 'keep');
+    eq(first[2], 'core');
   });
   test('C10-UX-16 tab order is card 1 safe→destructive, then card 2', () => {
     const both = env([withConflict('core'), withConflict('training')]).S.cfCasConflictCenterHTML();
@@ -264,6 +298,26 @@ group('C10-UX-06..10 / 12..15 — both cards stay, and focus is managed', () => 
     notOk(/first|then|next|step [0-9]/i.test(both.replace(/saved first/g, ''))));
   test('C10-UX-10 there is still no bulk destructive action', () =>
     notOk(/resolve.all/i.test(both)));
+  test('C10-UX-07 either card can be resolved first — neither is gated', () => {
+    /* every action in both cards is present and enabled; nothing marks the
+       second card as waiting on the first */
+    ['core', 'training'].forEach((sub) =>
+      ['keep', 'use-device', 'use-online'].forEach((act) =>
+        ok(both.includes('data-act="cf:' + act + '" data-sub="' + sub + '"'))));
+    notOk(/disabled/.test(both));
+  });
+  test('C10-UX-08 resolving one card leaves the other visible and unchanged', () => {
+    const e2 = env([withConflict('core'), withConflict('training')]);
+    const before = e2.S.cfCasConflictCenterHTML();
+    ok(before.includes('Health &amp; progress') && before.includes('Training &amp; workouts'));
+    e2.S.cfCasSetConflictId('core', null);              /* core resolved */
+    const after = e2.S.cfCasConflictCenterHTML();
+    notOk(after.includes('Health &amp; progress'));
+    ok(after.includes('Training &amp; workouts'));
+    /* the surviving card is untouched: same actions, same wording */
+    ['keep', 'use-device', 'use-online'].forEach((act) =>
+      ok(after.includes('data-act="cf:' + act + '" data-sub="training"')));
+  });
   const e = env([withConflict('core')]);
   test('C10-UX-12 opening focuses the heading', () => {
     let focused = null;
