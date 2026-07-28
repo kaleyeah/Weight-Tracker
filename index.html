@@ -840,6 +840,25 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 .wl-prow-bot{display:flex;align-items:center;gap:7px;min-width:0}
 .wl-prow-bot .wl-exrow-sub{min-width:0;overflow-wrap:anywhere}
 
+/* ---- set-aside notice on the login screen (FINDING-003) -----------------
+   Rendered only when set-aside data exists, and placed above the login form so
+   it is on screen before sign-in. Higher specificity than .wl-login so it wins
+   over the runtime-injected login stylesheet regardless of order. */
+.wl-login.wl-login-setaside{align-items:flex-start;}
+.wl-setaside{margin:0 0 22px;padding:14px;border-radius:14px;
+  background:var(--card);border:1px solid var(--accent);}
+.wl-setaside-title{margin:0 0 10px;font-size:15px;font-weight:800;color:var(--text);
+  line-height:1.35;}
+.wl-setaside-row{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:10px;}
+.wl-setaside-date{flex:1 1 100%;color:var(--muted);font-size:13px;}
+.wl-setaside .wl-btn{flex:1 1 0;min-width:120px;min-height:44px;padding:10px 12px;
+  font-size:14px;white-space:normal;}
+.wl-setaside .wl-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+@media(max-width:400px){
+  .wl-setaside{padding:12px;}
+  .wl-setaside .wl-btn{min-width:0;}
+}
+
 /* ---- Commit 10: the conflict centre ------------------------------------
    Non-modal by design. It sits above the page but never traps focus and
    never blocks an active workout: the athlete reaches it when they choose
@@ -7490,16 +7509,35 @@ var _c1dLoginHTML=pbLoginHTML;
 pbLoginHTML=function(){
   var h=_c1dLoginHTML();
   var q=cfQuarList();
-  if(!q.length)return h;
-  var extra='<div style="max-width:520px;margin:12px auto 0;padding:0 20px">'+
-    '<div style="font-weight:700;margin-bottom:6px">Data set aside on this device</div>';
+  if(!q.length)return h;                       /* nothing set aside: login is untouched */
+  var extra='<section class="wl-setaside" aria-labelledby="wl-setaside-title">'+
+    '<h2 id="wl-setaside-title" class="wl-setaside-title">Data set aside on this device</h2>';
   q.forEach(function(m){
     var dt=m.createdAt?new Date(m.createdAt).toLocaleDateString():"";
-    extra+='<div class="wl-row" style="margin-bottom:8px;align-items:center">'+
-      '<span style="flex:1;opacity:.8;font-size:13px">'+esc(dt)+'</span>'+
-      '<button class="wl-btn wl-btn-ghost" data-act="cf:qexport:'+esc(m.stamp)+'">Save a copy</button>'+
-      '<button class="wl-btn wl-btn-ghost" data-act="cf:qdelete:'+esc(m.stamp)+'">Delete</button></div>';});
-  return h+extra+'</div>';};
+    extra+='<div class="wl-setaside-row">'+
+      '<span class="wl-setaside-date">'+esc(dt)+'</span>'+
+      '<button class="wl-btn wl-btn-primary wl-setaside-save" data-act="cf:qexport:'+esc(m.stamp)+'">Save a copy</button>'+
+      '<button class="wl-btn wl-btn-ghost wl-setaside-del" data-act="cf:qdelete:'+esc(m.stamp)+'">Delete</button></div>';});
+  extra+='</section>';
+
+  /* ABOVE the login form, not after it (Architect FINDING-003, Option 1).
+     Appended at the end, this sat 12px BELOW the fold on every phone size
+     measured — iPhone SE, 14 and Pro Max — with no partial sliver to suggest
+     anything was there. Set-aside data may be the only remaining copy of an
+     athlete's history, so the notice has to be on the screen they actually see
+     before signing in.
+
+     Spliced in before the form rather than appended, so the order is:
+     brand, tagline, THIS, then email/password/log in. */
+  var at=h.indexOf('<form class="wl-login-form"');
+  if(at<0)return h+extra;                      /* markup moved: still show it, just lower */
+  h=h.slice(0,at)+extra+h.slice(at);
+  /* .wl-login centres its contents vertically against min-height:100dvh. Taller
+     content in a centred flex container overflows the TOP, where it cannot be
+     scrolled to — so when this block is present the container flows from the
+     top instead. Without this the fix would move the notice out of view in the
+     opposite direction. */
+  return h.replace('<div class="wl-login">', '<div class="wl-login wl-login-setaside">');};
 document.addEventListener("click",function(e){
   var t=e.target&&e.target.closest&&e.target.closest("[data-act]");
   if(!t)return;var a=t.getAttribute("data-act")||"";
