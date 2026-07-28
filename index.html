@@ -8848,10 +8848,56 @@ var CF_CAS_STATUS_TEXT={
   synced:"Synced"};
 function cfCasStatusText(state){return CF_CAS_STATUS_TEXT[state]||CF_CAS_STATUS_TEXT.synced;}
 
-/* ---- the resolution context (review §3, subsystem-specific) ------------- */
+/* ---- resolution operations (review C10-P12-01..05) ----------------------
+   The scheduler already treats a request as one owned, drift-checked operation.
+   The manual choices did not, and every gap the review found follows from that:
+   a double tap could start two overwrites, a late response could apply to
+   whichever account was signed in when it landed, and an artifact created by an
+   aborted choice was left behind.
+
+   So a resolution is now an operation too — one per subsystem, owning its
+   action, session, revisions, conflict, token and every artifact it creates. */
+var CF_CAS_RES={core:null,training:null};
+
 function cfCasResolveCtx(sub){
   return cfCasCtx(sub,pbUid(),CF_SESSION_GEN,revLocal(sub),
                   cfCasConflictId(sub),cfCasServerRev(sub),cfCasConflictId(sub));}
+
+/* Only the operation that owns the subsystem may act on it. A repeat activation
+   is ignored rather than queued: the athlete pressing twice means one decision,
+   not two. */
+function cfCasResBegin(sub,action){
+  if(CF_CAS_RES[sub])return null;                       /* already resolving */
+  var op={action:action,sub:sub,token:cfCasRandomIdFallback(),
+          ctx:cfCasResolveCtx(sub),tok:String(pbTok()||""),
+          artifacts:[]};                                /* capabilities to clean up */
+  CF_CAS_RES[sub]=op;
+  return op;}
+function cfCasResOwns(sub,op){return !!op&&CF_CAS_RES[sub]===op;}
+function cfCasResEnd(sub,op){if(CF_CAS_RES[sub]===op)CF_CAS_RES[sub]=null;}
+
+/* Has anything this decision depends on moved? Owner, session token, subsystem
+   revision, conflict identity, server revision — plus the operation still being
+   the one that owns the subsystem. */
+function cfCasResDrifted(sub,op){
+  if(!cfCasResOwns(sub,op))return true;
+  if(op.tok!==String(pbTok()||""))return true;
+  return cfCasCtxDrifted(op.ctx,cfCasResolveCtx(sub));}
+
+/* Everything a resolution creates is purged through the capability captured
+   when it was written — never through the public purge, which addresses
+   whichever account is live now. */
+function cfCasResCleanup(op){
+  if(!op)return;
+  for(var i=0;i<op.artifacts.length;i++){
+    var cap=op.artifacts[i];
+    if(cap&&cap.purge){try{cap.purge(function(){});}catch(e){}}}
+  op.artifacts=[];}
+
+function cfCasResFail(sub,op,why,cb){
+  cfCasResCleanup(op);
+  cfCasResEnd(sub,op);
+  cb(false,why);}
 
 /* Read the referenced recovery artifact and prove it before offering or acting
    on any choice. A conflict whose artifact does not verify is not actionable —
@@ -8869,82 +8915,92 @@ function cfCasConflictArtifact(sub,cb){
    was written before the card existed — so this choice has nothing to preserve
    and nothing to destroy. */
 function cfCasKeepLocal(sub,cb){
-  cfCasConflictArtifact(sub,function(payload,why){   /* nothing destructive: no ctx needed */
-    if(payload===null){cfCasSetBlock(sub,"recovery",null);cb(false,why);return;}
+  var op=cfCasResBegin(sub,"keep");
+  if(!op){cb(false,"busy");return;}
+  cfCasConflictArtifact(sub,function(payload,why){
+    if(payload===null){cfCasSetBlock(sub,"recovery",null);cfCasResFail(sub,op,why,cb);return;}
+    cfCasResEnd(sub,op);
     cb(true,null);});}                          /* stays pending, stays conflicted */
 
 /* ---- choice 2: Use this device everywhere -----------------------------
    Submit the LATEST local payload against the captured server revision. A
    second 409 does not loop and does not silently win: the newer online copy is
-   preserved, the conflict is replaced, and the athlete is told the online copy
-   changed again and asked to choose afresh. */
+   preserved and VERIFIED before the old reference is replaced, and the athlete
+   is told the online copy changed again. */
 var CF_CAS_RECHOOSE={core:false,training:false};
 function cfCasUseThisDevice(sub,cb){
-  /* Captured BEFORE the artifact read. Reading the artifact is asynchronous, so
-     capturing afterwards meant an edit made during the read was already folded
-     into the "before" picture and could never register as drift. */
-  var ctx=cfCasResolveCtx(sub);
+  var op=cfCasResBegin(sub,"use-device");
+  if(!op){cb(false,"busy");return;}
   cfCasConflictArtifact(sub,function(payload,why){
-    if(payload===null){cfCasSetBlock(sub,"recovery",null);cb(false,why);return;}
-    if(cfCasCtxDrifted(ctx,cfCasResolveCtx(sub))){cb(false,"drift");return;}
+    if(payload===null){cfCasSetBlock(sub,"recovery",null);cfCasResFail(sub,op,why,cb);return;}
+    if(cfCasResDrifted(sub,op)){cfCasResFail(sub,op,"drift",cb);return;}
     var canon=cfCanon(cfCasPayloadFor(sub));
     var frozen=null;try{frozen=JSON.parse(canon);}catch(e){frozen=null;}
-    if(frozen===null){cb(false,"invalid");return;}
+    if(frozen===null){cfCasResFail(sub,op,"invalid",cb);return;}
+    var localRev=revLocal(sub);
     cfCasSha256Hex(cfCasIdentity(sub,cfCasServerRev(sub),canon),function(hex){
       var key=cfCasHashValid(hex)?cfCasKeyFrom(hex):null;   /* new key: expectedRev moved */
-      if(!key){cb(false,"invariant");return;}
-      if(cfCasCtxDrifted(ctx,cfCasResolveCtx(sub))){cb(false,"drift");return;}
-      var op={sub:sub,expectedRev:cfCasServerRev(sub),key:key,canon:canon,payload:frozen,
-              localRev:revLocal(sub),build:APP_BUILD,device:cfCasDeviceId()};
-      cfCasSend(op,function(status,body){
+      if(!key){cfCasResFail(sub,op,"invariant",cb);return;}
+      if(cfCasResDrifted(sub,op)){cfCasResFail(sub,op,"drift",cb);return;}
+      var req={sub:sub,expectedRev:cfCasServerRev(sub),key:key,canon:canon,payload:frozen,
+               localRev:localRev,build:APP_BUILD,device:cfCasDeviceId()};
+      cfCasSend(req,function(status,body){
         body=body||{};
+        /* The response may be late. Applying it to whoever is signed in now
+           would transfer one account's acknowledgement to another. */
+        if(cfCasResDrifted(sub,op)){cfCasResFail(sub,op,"drift",cb);return;}
         var d=cfCasDisposition(status,body,sub);
         if(d==="ok"){
-          revCommit(sub,op.localRev);
+          revCommit(sub,req.localRev);
           cfCasSetServerRev(sub,body.newRev);
           cfCasSetBaseline(sub,canon);
-          cfCasResolved(sub);
+          cfCasResolved(sub,op);
+          cfCasResEnd(sub,op);
           cb(true,null);return;}
         if(d==="conflict"){
-          /* the online copy moved again — preserve the NEWER copy and re-ask */
-          cfCasReplaceConflict(sub,body,function(ok){
-            CF_CAS_RECHOOSE[sub]=true;
-            cb(false,ok?"changed-again":"recovery");});
+          cfCasReplaceConflict(sub,op,body,function(ok2){
+            if(ok2)CF_CAS_RECHOOSE[sub]=true;
+            cfCasResEnd(sub,op);
+            cb(false,ok2?"changed-again":"recovery");});
           return;}
         cfCasSetBlock(sub,(d==="contract")?"invariant":d,null);
-        cb(false,d);});});});}
+        cfCasResFail(sub,op,d,cb);});});});}
 
 /* ---- choice 3: Use the online copy here --------------------------------
    The device's CURRENT version is stored and verified first, then the server is
-   re-read: a captured payload is never adopted merely because it was valid once
-   (review ruling A). Adoption aborts if anything moved meanwhile (K1). */
+   re-read: a captured payload is never adopted merely because it was valid once.
+   Refresh and adoption belong to the same owned operation, so a late refresh
+   cannot adopt into a session or a conflict that has moved on. */
 function cfCasUseOnlineCopy(sub,cb){
-  /* Captured BEFORE anything asynchronous begins. K1 is precisely an edit made
-     while the safety copy is in flight, and the copy starts with this read. */
-  var ctx=cfCasResolveCtx(sub);
+  var op=cfCasResBegin(sub,"use-online");
+  if(!op){cb(false,"busy");return;}
   cfCasConflictArtifact(sub,function(serverPayload,why){
-    if(serverPayload===null){cfCasSetBlock(sub,"recovery",null);cb(false,why);return;}
-    if(cfCasCtxDrifted(ctx,cfCasResolveCtx(sub))){cb(false,"drift");return;}
-    /* 1. preserve THIS DEVICE's version before replacing it */
+    if(serverPayload===null){cfCasSetBlock(sub,"recovery",null);cfCasResFail(sub,op,why,cb);return;}
+    if(cfCasResDrifted(sub,op)){cfCasResFail(sub,op,"drift",cb);return;}
     var localId=cfCasRecNewId(sub);
-    if(!localId){cfCasSetBlock(sub,"recovery",null);cb(false,"entropy");return;}
-    cfCasRecWrite(localId,sub,cfCasServerRev(sub),cfCanon(cfCasPayloadFor(sub)),function(ok){
-      if(!ok){cfCasSetBlock(sub,"recovery",null);cb(false,"recovery");return;}
-      if(cfCasCtxDrifted(ctx,cfCasResolveCtx(sub))){cb(false,"drift");return;}
+    if(!localId){cfCasSetBlock(sub,"recovery",null);cfCasResFail(sub,op,"entropy",cb);return;}
+    /* 1. preserve THIS DEVICE's version before replacing it */
+    cfCasRecWrite(localId,sub,cfCasServerRev(sub),cfCanon(cfCasPayloadFor(sub)),function(ok,man,cap){
+      if(!ok){cfCasSetBlock(sub,"recovery",null);cfCasResFail(sub,op,"recovery",cb);return;}
+      if(cap)op.artifacts.push(cap);            /* cleaned up if we abort below */
+      if(cfCasResDrifted(sub,op)){cfCasResFail(sub,op,"drift",cb);return;}
       /* 2. is the online copy still what the athlete is choosing against? */
       cfCasRefreshServerRev(sub,function(rev,err){
-        if(err){cb(false,err);return;}
-        if(cfCasCtxDrifted(ctx,cfCasResolveCtx(sub))){cb(false,"drift");return;}
+        if(err){cfCasResFail(sub,op,err,cb);return;}
+        if(cfCasResDrifted(sub,op)){cfCasResFail(sub,op,"drift",cb);return;}
         if(rev!==cfCasServerRev(sub)){
           CF_CAS_RECHOOSE[sub]=true;
-          cb(false,"changed-again");return;}
-        /* 3. adopt */
+          cfCasResFail(sub,op,"changed-again",cb);return;}
+        /* 3. adopt — one guarded destructive transition */
         var parsed=null;try{parsed=JSON.parse(serverPayload);}catch(e){parsed=null;}
-        if(parsed===null){cb(false,"unverified");return;}
+        if(parsed===null){cfCasResFail(sub,op,"unverified",cb);return;}
+        if(cfCasResDrifted(sub,op)){cfCasResFail(sub,op,"drift",cb);return;}
         cfCasAdopt(sub,parsed);
         revClean(sub);
         cfCasSetBaseline(sub,cfCanon(parsed));
-        cfCasResolved(sub);
+        op.artifacts=[];                        /* the safety copy is kept, deliberately */
+        cfCasResolved(sub,op);
+        cfCasResEnd(sub,op);
         cb(true,null);});});});}
 
 /* Read-only: the current server revision for this subsystem. */
@@ -8961,8 +9017,10 @@ function cfCasAdopt(sub,parsed){
   if(sub==="training"){state.training=parsed;saveTrainingLocal();return;}
   applyCloudRaw(parsed);saveLocal();}
 
-/* A resolved conflict releases the subsystem and lets normal syncing resume. */
-function cfCasResolved(sub){
+/* A resolved conflict releases the subsystem. Only the operation that owns the
+   subsystem may resolve it, so a late callback cannot clear a newer conflict. */
+function cfCasResolved(sub,op){
+  if(op&&!cfCasResOwns(sub,op))return;
   var id=cfCasConflictId(sub);
   cfCasSetConflictId(sub,null);
   CF_CAS_RECHOOSE[sub]=false;
@@ -8971,18 +9029,25 @@ function cfCasResolved(sub){
   if(id)cfCasRecPurge(id,function(){});          /* the copy has served its purpose */
   cfCasSchedule(sub,0);}
 
-/* Replace a conflict with a newer one, preserving the newer online copy first. */
-function cfCasReplaceConflict(sub,body,cb){
+/* Replace a conflict with a newer one. The ORIGINAL stays actionable until the
+   newer artifact is written AND verified; only then is the reference swapped
+   and the old copy purged. A failure or a drift leaves the original intact and
+   removes the candidate, rather than leaving a misleading half-state. */
+function cfCasReplaceConflict(sub,op,body,cb){
+  if(!cfCasConflictBody(body,sub)){cfCasSetBlock(sub,"invariant",null);cb(false);return;}
   var serverRev=(body.serverRev===null)?0:body.serverRev;
   var old=cfCasConflictId(sub);
   var id=cfCasRecNewId(sub);
   if(!id){cfCasSetBlock(sub,"recovery",null);cb(false);return;}
   cfCasRecWrite(id,sub,serverRev,JSON.stringify(body.payload===undefined?null:body.payload),
-    function(ok){
-      if(!ok){cfCasSetBlock(sub,"recovery",null);cb(false);return;}
+    function(ok,man,cap){
+      if(!ok){cfCasSetBlock(sub,"recovery",null);cb(false);return;}   /* original intact */
+      if(op&&cfCasResDrifted(sub,op)){
+        if(cap&&cap.purge)cap.purge(function(){});                    /* candidate removed */
+        cb(false);return;}                                            /* original intact */
       cfCasSetServerRev(sub,serverRev);
-      cfCasSetConflictId(sub,id);
-      if(old)cfCasRecPurge(old,function(){});
+      cfCasSetConflictId(sub,id);                                     /* swap AFTER verify */
+      if(old&&old!==id)cfCasRecPurge(old,function(){});                /* now safe to purge */
       cb(true);});}
 
 </script>

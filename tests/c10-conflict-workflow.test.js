@@ -267,5 +267,214 @@ defer((async function scenarios() {
     });
   });
 
+
+  /* ============ C10-P12: resolutions are owned operations =============== */
+
+  const commitsOf = (env) => env.fetchLog.filter((e) => /cf\/appdata\/commit/.test(e.url));
+  function localStorageKeys(env) { return [...env.S.localStorage._map.keys()]; }
+
+  await group('C10-P12-01/02/03 — one resolution per subsystem', async () => {
+    const env = await conflicted();
+    const before = commitsOf(env).length;
+    /* two activations of the same choice, second while the first is in flight */
+    const a = call(env, 'cfCasUseThisDevice', 'core');
+    const b = call(env, 'cfCasUseThisDevice', 'core');
+    const [ra, rb] = await Promise.all([a, b]);
+    await settle();
+    test('C10-P12-01 the double activation sends ONE commit', () =>
+      eq(commitsOf(env).length - before, 1));
+    test('the second activation is refused as busy, not queued', () => {
+      const busy = [ra, rb].filter((r) => r.why === 'busy');
+      eq(busy.length, 1);
+    });
+    test('C10-P12-03 a different choice cannot overlap either', async () => {
+      const env2 = await conflicted();
+      const p = call(env2, 'cfCasUseOnlineCopy', 'core');
+      const q = await call(env2, 'cfCasUseThisDevice', 'core');
+      eq(q.why, 'busy');
+      await p;
+    });
+  });
+
+  await group('C10-P12-02 — a double "use the online copy" writes one safety copy', async () => {
+    const env = await conflicted({
+      fetchResponses: (e) => {
+        if (/cf\/appdata\/commit/.test(e.url)) {
+          return { ok: false, status: 409, json: () => Promise.resolve({ conflict: true, subsystem: 'core', serverRev: 5, payload: SERVER_CORE }), text: () => Promise.resolve('') };
+        }
+        if (/collections\/appdata\/records/.test(e.url)) {
+          return { ok: true, status: 200, json: () => Promise.resolve({ items: [{ id: 'r1', coreRev: 5, trainingRev: 0 }] }), text: () => Promise.resolve('') };
+        }
+        return null;
+      },
+    });
+    const before = localStorageKeys(env).filter((k) => /cf:casrec:.*:manifest$/.test(k)).length;
+    const p1 = call(env, 'cfCasUseOnlineCopy', 'core');
+    const p2 = call(env, 'cfCasUseOnlineCopy', 'core');
+    const [r1, r2] = await Promise.all([p1, p2]);
+    await settle();
+    test('one of the two is refused as busy', () =>
+      eq([r1, r2].filter((r) => r.why === 'busy').length, 1));
+    test('C10-P12-02 at most one additional safety artifact was written', () => {
+      const after = localStorageKeys(env).filter((k) => /cf:casrec:.*:manifest$/.test(k)).length;
+      ok(after - before <= 1);
+    });
+  });
+
+  await group('C10-P12-04 — core and training resolve independently', async () => {
+    const env = await conflicted();
+    env.S.cfCasSetConflictId('training', 'fake-training-conflict');
+    const busyCore = env.S.cfCasResBegin('core', 'use-device');
+    test('core is now owned', () => ok(busyCore));
+    test('C10-P12-04 training can still begin its own resolution', () =>
+      ok(env.S.cfCasResBegin('training', 'use-device')));
+    test('core refuses a second operation', () => eq(env.S.cfCasResBegin('core', 'keep'), null));
+  });
+
+  await group('C10-P12-06/07/08/10 — a late manual response is inert', async () => {
+    let resolveFetch;
+    const env = await conflicted({
+      fetchResponses: (e) => {
+        if (!/cf\/appdata\/commit/.test(e.url)) return null;
+        if (!resolveFetch) {
+          return { ok: false, status: 409, json: () => Promise.resolve({ conflict: true, subsystem: 'core', serverRev: 5, payload: SERVER_CORE }), text: () => Promise.resolve('') };
+        }
+        return null;
+      },
+    });
+    /* now make the manual overwrite hang until we release it */
+    env.S.fetch = ((orig) => (url, init) => {
+      if (/cf\/appdata\/commit/.test(String(url))) {
+        env.fetchLog.push({ url: String(url), method: 'POST', body: init && init.body });
+        return new Promise((r) => { resolveFetch = () => r({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, subsystem: 'core', newRev: 42 }), text: () => Promise.resolve('') }); });
+      }
+      return orig(url, init);
+    })(env.S.fetch);
+
+    const p = call(env, 'cfCasUseThisDevice', 'core');
+    await settle();
+    const conflictBefore = env.S.cfCasConflictId('core');
+    const revBefore = env.S.cfCasServerRev('core');
+    env.S.CF_SESSION_GEN = env.S.CF_SESSION_GEN + 1;     /* account switch mid-flight */
+    if (resolveFetch) resolveFetch();
+    const r = await p;
+    await settle();
+    test('C10-P12-06 the late 200 is not applied', () => {
+      notOk(r.ok);
+      eq(r.why, 'drift');
+    });
+    test('C10-P12-06 no revision was adopted into the new session', () =>
+      eq(env.S.cfCasServerRev('core'), revBefore));
+    test('C10-P12-06 the subsystem was not marked clean', () => ok(env.S.revIsDirty('core')));
+    test('C10-P12-10 the conflict was not resolved by the stale operation', () =>
+      eq(env.S.cfCasConflictId('core'), conflictBefore));
+  });
+
+  await group('C10-P12-11/12 — an aborted resolution purges what it created', async () => {
+    const env = await conflicted({
+      fetchResponses: (e) => {
+        if (/cf\/appdata\/commit/.test(e.url)) {
+          return { ok: false, status: 409, json: () => Promise.resolve({ conflict: true, subsystem: 'core', serverRev: 5, payload: SERVER_CORE }), text: () => Promise.resolve('') };
+        }
+        if (/collections\/appdata\/records/.test(e.url)) {
+          /* the server moved, so the resolution aborts AFTER the safety copy */
+          return { ok: true, status: 200, json: () => Promise.resolve({ items: [{ id: 'r1', coreRev: 77, trainingRev: 0 }] }), text: () => Promise.resolve('') };
+        }
+        return null;
+      },
+    });
+    const before = localStorageKeys(env).filter((k) => /cf:casrec:.*:manifest$/.test(k)).length;
+    const r = await call(env, 'cfCasUseOnlineCopy', 'core');
+    await settle();
+    test('the resolution aborts because the online copy moved', () => {
+      notOk(r.ok);
+      eq(r.why, 'changed-again');
+    });
+    test('C10-P12-11 the safety artifact it created was purged', () => {
+      const after = localStorageKeys(env).filter((k) => /cf:casrec:.*:manifest$/.test(k)).length;
+      eq(after, before);
+    });
+    test('C10-P12-12 the original conflict artifact survives', () => ok(env.S.cfCasConflictId('core')));
+    test('local data is untouched', () => ok(JSON.stringify(env.S.state.weights).includes('81.5')));
+  });
+
+  await group('C10-P12-20/21/22 — replacement verifies before it swaps', async () => {
+    let calls = 0;
+    const env = await conflicted({
+      fetchResponses: (e) => {
+        if (!/cf\/appdata\/commit/.test(e.url)) return null;
+        calls++;
+        return { ok: false, status: 409, json: () => Promise.resolve({ conflict: true, subsystem: 'core', serverRev: 4 + calls, payload: { weights: [{ d: 'newer', kg: 90 }] } }), text: () => Promise.resolve('') };
+      },
+    });
+    const original = env.S.cfCasConflictId('core');
+    const r = await call(env, 'cfCasUseThisDevice', 'core');
+    await settle();
+    test('the athlete is asked to review the choice again', () => eq(r.why, 'changed-again'));
+    test('C10-P12-21 the reference now points at the NEWER verified artifact', () => {
+      const now = env.S.cfCasConflictId('core');
+      ok(now); notOk(now === original);
+    });
+    test('C10-P12-22 the old artifact was purged only after the swap', () => {
+      const keys = localStorageKeys(env).filter((k) => /cf:casrec:.*:manifest$/.test(k));
+      eq(keys.length, 1);
+      ok(keys[0].includes(env.S.cfCasConflictId('core')));
+    });
+    test('C10-P12-24 it did not loop', () => ok(calls <= 2));
+  });
+
+  await group('C10-P12-20 — a failed replacement leaves the original intact', async () => {
+    const env = await conflicted({
+      fetchResponses: (e) => (/cf\/appdata\/commit/.test(e.url)
+        ? { ok: false, status: 409, json: () => Promise.resolve({ conflict: true, subsystem: 'core', serverRev: 6, payload: { weights: [{ d: 'newer', kg: 90 }] } }), text: () => Promise.resolve('') }
+        : null),
+    });
+    const original = env.S.cfCasConflictId('core');
+    /* make the replacement write fail */
+    const realWrite = env.S.cfCasRecWrite;
+    env.S.cfCasRecWrite = (id, sub, rev, payload, cb) => cb(false, 'storage');
+    const r = await call(env, 'cfCasUseThisDevice', 'core');
+    env.S.cfCasRecWrite = realWrite;
+    await settle();
+    test('the choice reports failure', () => notOk(r.ok));
+    test('C10-P12-20 the ORIGINAL conflict reference is unchanged', () =>
+      eq(env.S.cfCasConflictId('core'), original));
+    test('C10-P12-20 the original artifact still exists', () => {
+      const keys = localStorageKeys(env).filter((k) => /cf:casrec:.*:manifest$/.test(k));
+      ok(keys.some((k) => k.includes(original)));
+    });
+    test('the subsystem is recovery-blocked rather than silently half-swapped', () =>
+      eq(env.S.CF_CAS_BLOCK.core, 'recovery'));
+  });
+
+  await group('C10-P12-16/17/18 — adoption aborts if anything moved', async () => {
+    /* The handler must not close over `env` directly: fetch fires during boot,
+       before the binding is initialised. A holder is filled in afterwards, and
+       the edit only fires once the resolution is actually running. */
+    const hold = { env: null, armed: false };
+    const env = await conflicted({
+      fetchResponses: (e) => {
+        if (/cf\/appdata\/commit/.test(e.url)) {
+          return { ok: false, status: 409, json: () => Promise.resolve({ conflict: true, subsystem: 'core', serverRev: 5, payload: SERVER_CORE }), text: () => Promise.resolve('') };
+        }
+        if (/collections\/appdata\/records/.test(e.url)) {
+          if (hold.armed && hold.env) {          /* the athlete edits mid-refresh */
+            hold.env.S.state.weights.push({ d: '2026-07-24', kg: 77 });
+            hold.env.S.save();
+          }
+          return { ok: true, status: 200, json: () => Promise.resolve({ items: [{ id: 'r1', coreRev: 5, trainingRev: 0 }] }), text: () => Promise.resolve('') };
+        }
+        return null;
+      },
+    });
+    hold.env = env; hold.armed = true;
+    const r = await call(env, 'cfCasUseOnlineCopy', 'core');
+    await settle();
+    test('C10-P12-18 adoption aborts', () => notOk(r.ok));
+    test('C10-P12-18 the newer edit survives', () =>
+      ok(JSON.stringify(env.S.state.weights).includes('77')));
+    test('C10-P12-18 the conflict remains unresolved', () => ok(env.S.cfCasConflictId('core')));
+  });
+
   report();
 })());
