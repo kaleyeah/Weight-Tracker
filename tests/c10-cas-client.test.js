@@ -88,12 +88,45 @@ group('C10-PLAN-05 / C10-PLAN-06 — the resolution context is subsystem-specifi
   test('a missing context is treated as drifted', () => ok(C.cfCasCtxDrifted(null, ctx())));
 });
 
+group('C10-P1-01 — recovery sizes are UTF-8 BYTES, not code units', () => {
+  const cases = [
+    ['ascii', 'abc', 3],
+    ['accented', 'f\u00e9\u00e9', 5],
+    ['em dash', '81.5 kg \u2014 ok', 14],   /* 8 ASCII + 3 (em dash) + 3 */
+    ['emoji (surrogate pair)', 'a\ud83c\udfcbb', 6],
+    ['lone high surrogate', 'a\ud83cb', 5],
+    ['empty', '', 0],
+  ];
+  cases.forEach(([name, str, expected]) => {
+    test(`${name}: counts ${expected} UTF-8 bytes`, () => eq(C.cfCasUtf8Bytes(str), expected));
+    test(`${name}: agrees with Buffer.byteLength`, () =>
+      eq(C.cfCasUtf8Bytes(str), Buffer.byteLength(str, 'utf8')));
+  });
+  test('a multibyte payload measures LONGER than String.length', () => {
+    const p = '{"note":"f\u00e9\u00e9 \ud83c\udfcb"}';
+    ok(C.cfCasUtf8Bytes(p) > p.length);
+  });
+  test('null and undefined measure 0 rather than throwing', () => {
+    eq(C.cfCasUtf8Bytes(null), 0); eq(C.cfCasUtf8Bytes(undefined), 0);
+  });
+});
+
+group('C10-P1-02 — a declared digest must look like a full SHA-256', () => {
+  test('accepts a 64-char lowercase hex digest', () => ok(C.cfCasHashValid(sha('x'))));
+  test('rejects a truncated digest', () => notOk(C.cfCasHashValid(sha('x').slice(0, 32))));
+  test('rejects uppercase hex', () => notOk(C.cfCasHashValid(sha('x').toUpperCase())));
+  test('rejects non-hex characters', () => notOk(C.cfCasHashValid('z'.repeat(64))));
+  test('rejects an empty or absent digest', () => {
+    notOk(C.cfCasHashValid('')); notOk(C.cfCasHashValid(undefined));
+  });
+});
+
 group('C10-PLAN-09 — the cas-conflict artifact contract', () => {
   const comps = { payload: '{"w":[1,2]}' };
   const man = (o) => Object.assign({
     kind: 'cas-conflict', id: 'r1', sub: 'core', serverRev: 11,
-    account: 'userA', keys: ['payload'], sizes: { payload: comps.payload.length },
-    hash: 'abc',
+    account: 'userA', keys: ['payload'], sizes: { payload: C.cfCasUtf8Bytes(comps.payload) },
+    hash: sha(comps.payload),
   }, o || {});
   test('a well-formed single-subsystem artifact validates', () => ok(C.cfCasRecValid(man(), 'r1', comps)));
   test('rejects the whole-snapshot component set (no hybrids)', () =>
@@ -118,6 +151,61 @@ group('C10-PLAN-09 — the cas-conflict artifact contract', () => {
   test('an artifact is immutable once written', () => {
     ok(C.cfCasRecMayWrite(null));
     notOk(C.cfCasRecMayWrite(man()));
+  });
+  test('a multibyte payload validates on BYTES, not code units', () => {
+    const mb = { payload: '{"n":"f\u00e9\u00e9 \ud83c\udfcb"}' };
+    ok(C.cfCasRecValid(
+      man({ sizes: { payload: C.cfCasUtf8Bytes(mb.payload) }, hash: sha(mb.payload) }), 'r1', mb));
+  });
+  test('the OLD code-unit length is now REJECTED for a multibyte payload', () => {
+    const mb = { payload: '{"n":"f\u00e9\u00e9 \ud83c\udfcb"}' };
+    notOk(C.cfCasRecValid(
+      man({ sizes: { payload: mb.payload.length }, hash: sha(mb.payload) }), 'r1', mb));
+  });
+  test('a non-digest hash is rejected by shape validation', () =>
+    notOk(C.cfCasRecValid(man({ hash: 'abc' }), 'r1', comps)));
+});
+
+group('C10-P1-02 — "verified" means content and ownership were CHECKED', () => {
+  const payload = '{"w":[1,2]}';
+  const comps = { payload };
+  const good = {
+    kind: 'cas-conflict', id: 'r1', sub: 'core', serverRev: 11, account: 'userA',
+    keys: ['payload'], sizes: { payload: C.cfCasUtf8Bytes(payload) }, hash: sha(payload),
+  };
+  const expect = { account: 'userA', sub: 'core', serverRev: 11, rec: 'r1' };
+  const V = (m, c, e, h) => C.cfCasRecVerified(m, 'r1', c, e, h === undefined ? sha(c.payload) : h);
+
+  test('a fully consistent artifact verifies', () => ok(V(good, comps, expect)));
+  test('changed payload, unchanged manifest hash → REJECTED', () => {
+    const tampered = { payload: '{"w":[9,9]}' };
+    const m = { ...good, sizes: { payload: C.cfCasUtf8Bytes(tampered.payload) } };
+    notOk(V(m, tampered, expect, sha(tampered.payload)));
+  });
+  test('changed hash, unchanged payload → REJECTED', () =>
+    notOk(V({ ...good, hash: sha('something else') }, comps, expect)));
+  test('malformed/short hash → REJECTED', () =>
+    notOk(V({ ...good, hash: 'deadbeef' }, comps, expect)));
+  test('a computed digest that is not a digest → REJECTED', () =>
+    notOk(V(good, comps, expect, 'not-a-digest')));
+  test('artifact from ANOTHER ACCOUNT → REJECTED', () =>
+    notOk(V({ ...good, account: 'userB' }, comps, expect)));
+  test('artifact for the other subsystem → REJECTED', () =>
+    notOk(V({ ...good, sub: 'training' }, comps, expect)));
+  test('artifact captured at a different server revision → REJECTED', () =>
+    notOk(V(good, comps, { ...expect, serverRev: 12 })));
+  test('conflict pointing at a different artifact id → REJECTED', () =>
+    notOk(V(good, comps, { ...expect, rec: 'r2' })));
+  test('no expectation supplied → REJECTED, never assumed', () =>
+    notOk(V(good, comps, null)));
+  test('a multibyte payload verifies end to end', () => {
+    const mb = { payload: '{"n":"f\u00e9\u00e9 \ud83c\udfcb"}' };
+    const m = { ...good, sizes: { payload: C.cfCasUtf8Bytes(mb.payload) }, hash: sha(mb.payload) };
+    ok(V(m, mb, expect));
+  });
+  test('shape-valid but unverified is NOT actionable', () => {
+    ok(C.cfCasRecValid(good, 'r1', comps));
+    notOk(V({ ...good, account: 'userB' }, comps, expect));
   });
 });
 

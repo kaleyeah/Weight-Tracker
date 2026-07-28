@@ -120,6 +120,50 @@ group('K5 — incomplete sets refuse export', () => {
       sizes: { core: -1, training: TRAIN.length, workout: WO.length } }), '100')));
 });
 
+group('C10-P1-03 — the independent reader counts UTF-8 BYTES', () => {
+  const cases = [
+    ['ascii', 'abc', 3],
+    ['accented', 'f\u00e9\u00e9', 5],
+    ['em dash', '81.5 kg \u2014 ok', 14],
+    ['emoji (surrogate pair)', 'a\ud83c\udfcbb', 6],
+    ['lone high surrogate', 'a\ud83cb', 5],
+  ];
+  cases.forEach(([name, str, expected]) => {
+    test(`${name}: ${expected} bytes`, () => eq(R.utf8Bytes(str), expected));
+    test(`${name}: agrees with Buffer.byteLength`, () =>
+      eq(R.utf8Bytes(str), Buffer.byteLength(str, 'utf8')));
+  });
+
+  /* A set-aside holding real athlete text: accented notes and an emoji. */
+  const MBCORE = '{"note":"f\u00e9\u00e9 day \ud83c\udfcb","kg":81.5}';
+  const mbStore = (sizes) => ({
+    'cf:quarantine:300:core': MBCORE,
+    'cf:quarantine:300:training': TRAIN,
+    'cf:quarantine:300:workout': WO,
+    'cf:quarantine:300:manifest': JSON.stringify({
+      stamp: '300', keys: ['core', 'training', 'workout'], sizes,
+    }),
+  });
+  const BYTES = { core: R.utf8Bytes(MBCORE), training: R.utf8Bytes(TRAIN), workout: R.utf8Bytes(WO) };
+  const CODEUNITS = { core: MBCORE.length, training: TRAIN.length, workout: WO.length };
+
+  test('a manifest declaring UTF-8 byte sizes validates', () =>
+    ok(R.inspect(mbStore(BYTES), '300').complete));
+  test('a manifest declaring CODE-UNIT sizes is now REJECTED', () =>
+    notOk(R.inspect(mbStore(CODEUNITS), '300').complete));
+  test('the two really do differ for this payload', () =>
+    notOk(BYTES.core === CODEUNITS.core));
+  test('the reported problem names UTF-8 bytes explicitly', () =>
+    ok(R.inspect(mbStore(CODEUNITS), '300').problems.some((p) => p.includes('UTF-8 bytes'))));
+  test('export is refused when sizes were measured in code units', () =>
+    notOk(R.mayExport(mbStore(CODEUNITS), '300')));
+  test('a one-byte truncation of multibyte text is caught', () => {
+    const s = mbStore(BYTES);
+    s['cf:quarantine:300:core'] = MBCORE.slice(0, -1);
+    notOk(R.inspect(s, '300').complete);
+  });
+});
+
 group('L4 — a newer set is never confused with a stale one', () => {
   const s = { ...complete('100'), ...complete('200') };
   test('both stamps are found', () => eq(R.listStamps(s).length, 2));

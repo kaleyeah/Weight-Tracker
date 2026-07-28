@@ -73,6 +73,32 @@ function isValidSize(n) {
   return typeof n === 'number' && Number.isFinite(n) && Number.isInteger(n) && n >= 0;
 }
 
+/* UTF-8 BYTE length, computed here rather than borrowed.
+
+   Required correction C10-P1-03: this reader previously compared
+   String.length, which counts UTF-16 code units. The contract says bytes, and
+   a payload containing accented text or emoji measures differently under the
+   two. Repeating the app's mistake independently would have hidden it rather
+   than caught it — which is the whole point of a second implementation.
+
+   Deliberately NOT Buffer.byteLength and NOT the app's helper: this stays a
+   second implementation derived from the UTF-8 encoding rules themselves. */
+function utf8Bytes(s) {
+  const str = String(s === undefined || s === null ? '' : s);
+  let n = 0;
+  for (let i = 0; i < str.length; i++) {
+    const c = str.charCodeAt(i);
+    if (c < 0x80) n += 1;
+    else if (c < 0x800) n += 2;
+    else if (c >= 0xd800 && c <= 0xdbff) {
+      const d = i + 1 < str.length ? str.charCodeAt(i + 1) : 0;
+      if (d >= 0xdc00 && d <= 0xdfff) { n += 4; i++; }   /* surrogate pair */
+      else n += 3;                                        /* lone surrogate */
+    } else n += 3;
+  }
+  return n;
+}
+
 /**
  * Validate one set-aside artifact against the contract.
  * Returns { stamp, complete, exportable, problems[] }.
@@ -132,8 +158,9 @@ function inspect(store, stamp) {
       continue;
     }
     const declared = sizes && sizes[name];
-    if (isValidSize(declared) && stored.length !== declared) {
-      problems.push(`component "${name}" is ${stored.length} bytes but the manifest declares ${declared}`);
+    const actualBytes = utf8Bytes(stored);
+    if (isValidSize(declared) && actualBytes !== declared) {
+      problems.push(`component "${name}" is ${actualBytes} UTF-8 bytes but the manifest declares ${declared}`);
     }
   }
 
@@ -159,4 +186,4 @@ function mayExport(store, stamp) {
   return inspect(store, stamp).exportable;
 }
 
-module.exports = { REQUIRED, KEY, listStamps, inspect, inspectAll, mayExport, isExactSet };
+module.exports = { REQUIRED, KEY, listStamps, inspect, inspectAll, mayExport, isExactSet, utf8Bytes };

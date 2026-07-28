@@ -8117,6 +8117,35 @@ function cfCasCtxDrifted(a,b){
    (Commit 1g) keeps governing set-aside artifacts, untouched.
    The artifact must be self-contained enough to restore its subsystem: kind,
    subsystem, server revision, canonical hash, byte length, account. */
+/* UTF-8 BYTES, never String.length. Review correction C10-P1-01: .length
+   counts UTF-16 code units, so "81.5 kg — féé" measures short and a payload
+   could validate against the wrong size. The server measures bytes and so does
+   the recovery contract. Written out longhand rather than via TextEncoder so it
+   is pure and testable in the same sandbox as everything else here.
+   The same trap appeared during the production cutover, where sqlite length()
+   reported 19,030 characters for a payload of 19,556 UTF-8 bytes. */
+function cfCasUtf8Bytes(s){
+  s=String(s===undefined||s===null?"":s);
+  var n=0;
+  for(var i=0;i<s.length;i++){
+    var c=s.charCodeAt(i);
+    if(c<0x80){n+=1;}
+    else if(c<0x800){n+=2;}
+    else if(c>=0xD800&&c<=0xDBFF){                      /* high surrogate */
+      var d=(i+1<s.length)?s.charCodeAt(i+1):0;
+      if(d>=0xDC00&&d<=0xDFFF){n+=4;i++;}               /* valid pair -> 4 bytes */
+      else{n+=3;}                                      /* lone surrogate -> U+FFFD */
+    }
+    else{n+=3;}}
+  return n;}
+
+/* A declared digest must LOOK like a full SHA-256 before it is trusted enough
+   to compare (review C10-P1-02). */
+function cfCasHashValid(hex){return typeof hex==="string"&&/^[0-9a-f]{64}$/.test(hex);}
+
+/* SHAPE only: the artifact is well-formed. This is not the same as verified —
+   see cfCasRecVerified. Kept separate so the pure shape rules stay testable
+   without a digest implementation in the sandbox. */
 function cfCasRecValid(man,id,comps){
   if(!man||typeof man!=="object")return false;
   if(man.kind!=="cas-conflict")return false;
@@ -8127,9 +8156,26 @@ function cfCasRecValid(man,id,comps){
   if(!Array.isArray(man.keys)||man.keys.length!==1||man.keys[0]!=="payload")return false;
   if(!comps||typeof comps.payload!=="string")return false;
   if(!man.sizes||typeof man.sizes.payload!=="number")return false;
-  if(man.sizes.payload!==comps.payload.length)return false;
+  if(man.sizes.payload!==cfCasUtf8Bytes(comps.payload))return false;   /* BYTES */
   if(Object.keys(comps).length!==1)return false;              /* no extra components */
-  if(typeof man.hash!=="string"||!man.hash)return false;
+  if(!cfCasHashValid(man.hash))return false;
+  return true;}
+
+/* VERIFIED: shape, plus proof that the stored bytes really are what the
+   manifest claims and that the artifact belongs to this account and this
+   conflict (review C10-P1-02). "Verified" must mean checked, not declared.
+   The digest is computed by the caller (crypto.subtle) and passed in, so this
+   stays pure and the tests can hash with a real SHA-256 implementation.
+   A conflict card must not become actionable until this returns true. */
+function cfCasRecVerified(man,id,comps,expected,computedHashHex){
+  if(!cfCasRecValid(man,id,comps))return false;
+  if(!expected)return false;
+  if(!cfCasHashValid(computedHashHex))return false;
+  if(computedHashHex!==man.hash)return false;                 /* content really matches */
+  if(man.account!==expected.account)return false;             /* belongs to THIS account */
+  if(man.sub!==expected.sub)return false;                     /* and this subsystem */
+  if(man.serverRev!==expected.serverRev)return false;         /* and this conflict's revision */
+  if(String(man.id)!==String(expected.rec))return false;      /* and the referenced artifact */
   return true;}
 
 /* An artifact is immutable once a conflict references it: a fresh capture
