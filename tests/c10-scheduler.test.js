@@ -229,11 +229,23 @@ defer((async function scenarios() {
     const subtle = env.S.crypto.subtle;
     const real = subtle.digest.bind(subtle);
     let gate = null; let holdIndex = null; let calls = 0;
+    /* Resolves the moment a digest is actually PARKED. Waiting a fixed 5ms and
+       assuming the build had reached the digest is a race: under load it may
+       not have, and then an edit the test makes "during hashing" actually lands
+       BEFORE capture — at which point including it is correct behaviour and the
+       assertion fails for the opposite of the reason it exists. Seen once in a
+       full-suite run and not reproducible in 44 further runs, which is exactly
+       how a timing assumption behaves. */
+    let announceParked = null;
     subtle.digest = (a, d) => {
       const n = ++calls;
-      return (gate && (holdIndex === null || holdIndex === n)) ? gate.then(() => real(a, d)) : real(a, d);
+      const held = gate && (holdIndex === null || holdIndex === n);
+      if (held && announceParked) { const f = announceParked; announceParked = null; f(); }
+      return held ? gate.then(() => real(a, d)) : real(a, d);
     };
     return {
+      /* Await this instead of guessing. */
+      parked() { return new Promise((r) => { announceParked = r; }); },
       /* hold() parks every digest; hold(n) parks only the nth. A commit uses
          digest #1 for its idempotency key and digest #2 for the recovery
          artifact, so the conflict-drift case must park #2 — parking after the
@@ -257,10 +269,12 @@ defer((async function scenarios() {
     env.S.state.weights.push({ d: '2026-08-01', kg: 70 });
     env.S.save();
     const release = gate.hold();
+    const parked = gate.parked();
     env.runTimers();                       /* build starts, parks in the digest */
-    await settle();
+    await parked;                          /* proven parked, not assumed */
     const revBefore = env.S.revLocal('core');
-    /* the athlete edits while we hash */
+    /* the athlete edits while we hash — genuinely DURING, now that the parking
+       is observed rather than waited out */
     env.S.state.weights.push({ d: '2026-08-02', kg: 999 });
     env.S.save();
     const revAfterEdit = env.S.revLocal('core');
