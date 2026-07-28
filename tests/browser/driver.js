@@ -104,6 +104,31 @@ async function makePending(page, sub) {
   await page.evaluate((s) => { revBump(s); }, sub);
 }
 
+/* A second tab on the SAME origin and the same browsing context group.
+   This is what "multi-context" has to mean for Web Locks and localStorage: a
+   fresh browser.newContext() is a different storage partition entirely, so two
+   such contexts could never contend for a lock or see each other's artifacts,
+   and a test built on them would prove the opposite of what it claimed. */
+async function newTab(b) {
+  const page = await b.context.newPage();
+  page.on('pageerror', (e) => b.pageErrors.push('tab: ' + String((e && e.message) || e)));
+  await page.goto(b.origin + '/index.html', { waitUntil: 'load' });
+  await page.waitForFunction(() => document.documentElement.style.visibility !== 'hidden',
+    null, { timeout: 10000 });
+  return page;
+}
+
+/* Sign the page into a different account, the way the app does. */
+async function switchAccount(page, uid, email) {
+  await page.evaluate((a) => {
+    const cfg = JSON.parse(localStorage.getItem('wl_pb') || '{}');
+    cfg.uid = a.uid; cfg.email = a.email; cfg.token = 'tok-' + a.uid;
+    localStorage.setItem('wl_pb', JSON.stringify(cfg));
+    localStorage.setItem('cf:lastOwner', a.uid);
+    if (typeof CF_SESSION_GEN === 'number') CF_SESSION_GEN++;
+  }, { uid, email: email || (uid + '@x.com') });
+}
+
 /* What currently has focus, described the way a person would describe it. */
 async function focused(page) {
   return page.evaluate(() => {
@@ -138,4 +163,7 @@ async function liveText(page) {
   });
 }
 
-module.exports = { boot, setState, seedConflict, makePending, focused, tabOrder, liveText, ACCOUNT, REC };
+module.exports = {
+  boot, newTab, switchAccount, setState, seedConflict, makePending,
+  focused, tabOrder, liveText, ACCOUNT, REC,
+};

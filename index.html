@@ -9624,9 +9624,42 @@ function cfCasFindByKey(host,key){
     return host.querySelector(sel);
   }catch(e){return null;}}
 
+/* Focus, and PROVE it moved. Calling .focus() on an element that cannot take
+   focus — a plain heading, a disabled control, a display:none node — is silent:
+   nothing throws, focus stays where it was or falls to <body>, and a function
+   that returns true here reports a restoration that did not happen. Every
+   restoration path below is only as honest as this predicate. */
 function cfCasFocus(el){
-  try{if(el&&el.focus){el.focus();return true;}}catch(e){}
-  return false;}
+  try{
+    if(!el||!el.focus)return false;
+    el.focus();
+    return document.activeElement===el;
+  }catch(e){return false;}}
+
+/* Visible and enabled, as the browser sees it — not as the markup claims. */
+function cfCasFocusable(el){
+  try{
+    if(!el||el.disabled)return false;
+    if(el.getAttribute&&el.getAttribute("aria-disabled")==="true")return false;
+    if(!cfCasConnected(el))return false;
+    var r=el.getBoundingClientRect();
+    if(!(r.width>0&&r.height>0))return false;
+    var s=(window.getComputedStyle?getComputedStyle(el):null);
+    if(s&&(s.visibility==="hidden"||s.display==="none"))return false;
+    return true;
+  }catch(e){return false;}}
+
+/* A heading is the safest contextual landing place when the opener is gone, but
+   it is not focusable on its own. Give it the same tabindex="-1" the centre's
+   own heading carries — programmatically focusable, never in the tab order —
+   and leave it there: removing it immediately would invalidate the focus we
+   just placed, and a permanent -1 changes nothing for anyone tabbing through. */
+function cfCasFocusHeading(el){
+  try{
+    if(!el||!cfCasFocusable(el))return false;
+    if(!el.hasAttribute("tabindex"))el.setAttribute("tabindex","-1");
+    return cfCasFocus(el);
+  }catch(e){return false;}}
 
 function cfCasInHost(host,el){
   try{return !!(host&&el&&host.contains&&host.contains(el));}catch(e){return false;}}
@@ -9728,18 +9761,37 @@ function cfCasConnected(el){
 
 /* 1. the original node, if it is still in the document;
    2. otherwise its current replacement, found by its own action id;
-   3. otherwise a safe nearby control — never a removed node, never <body>. */
+   3. otherwise, in the Architect's approved order: the sync control, the main
+      page heading, then the first visible enabled application control;
+   4. otherwise "none", said honestly.
+
+   Every step is gated on focus having ACTUALLY moved. The first version
+   returned "fallback" whenever .focus() did not throw, so a plain unfocusable
+   <h1> produced a confident "fallback" while the athlete was left on <body> —
+   the exact failure the fallback exists to prevent. */
 function cfCasRestoreFocus(node,key){
-  if(cfCasConnected(node)&&cfCasFocus(node))return "node";
+  if(cfCasFocusable(node)&&cfCasFocus(node))return "node";
   if(key){
     try{
       var el=document.querySelector('[data-act="'+key+'"]');
-      if(cfCasConnected(el)&&cfCasFocus(el))return "reacquired";
+      if(cfCasFocusable(el)&&cfCasFocus(el))return "reacquired";
     }catch(e){}}
+
+  var sync=cfCasSyncControl();
+  if(cfCasFocusable(sync)&&cfCasFocus(sync))return "fallback";
+
   try{
-    var fb=cfCasSyncControl()||document.querySelector("#app h1,#app h2,#app button");
-    if(cfCasConnected(fb)&&cfCasFocus(fb))return "fallback";
+    var heads=document.querySelectorAll("#app h1, #app h2");
+    for(var i=0;i<heads.length;i++)
+      if(cfCasFocusHeading(heads[i]))return "fallback";
   }catch(e){}
+
+  try{
+    var ctrls=document.querySelectorAll("#app button, #app a[href], #app [tabindex]");
+    for(var j=0;j<ctrls.length;j++)
+      if(cfCasFocusable(ctrls[j])&&cfCasFocus(ctrls[j]))return "fallback";
+  }catch(e){}
+
   return "none";}
 
 cfCasOpenConflictCenter=function(openerEl){

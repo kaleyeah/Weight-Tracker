@@ -418,21 +418,36 @@ group('C10-UX-06..10 / 12..15 — both cards stay, and focus is managed', () => 
     e.S.cfCasOpenConflictCenter(null);
     eq(focused, 'cf-conflict-heading');
   });
+  /* An opener that behaves the way a real element does. Restoration now refuses
+     to report success unless document.activeElement actually became the target
+     — calling .focus() on an unfocusable node is silent, so "it did not throw"
+     was never evidence that focus moved. A stub that cannot be focused is
+     therefore a stub that correctly gets rejected, and it has to model
+     connectedness, a real box, and taking focus for the test to mean anything.
+     Proving this properly is the browser suite's job (C10-BW-F01..F05); this
+     keeps the contract visible at the string level. */
+  const opener = (connected) => {
+    const el = {
+      isConnected: connected,
+      focused: false,
+      getBoundingClientRect: () => ({ width: 22, height: 22, top: 0, left: 0, right: 22, bottom: 22 }),
+      focus() { this.focused = true; e.S.document.activeElement = this; },
+    };
+    return el;
+  };
+
   test('C10-UX-15 closing returns focus to whatever opened it', () => {
-    let back = false;
-    /* isConnected, because restoration now refuses to focus a node it cannot
-       prove is still in the document — the app's render() replaces #app, where
-       the opener lives, and focusing a detached element silently drops the
-       athlete on <body>. */
-    e.S.cfCasOpenConflictCenter({ isConnected: true, focus() { back = true; } });
-    e.S.cfCasCloseConflictCenter();
-    ok(back);
+    const el = opener(true);
+    e.S.cfCasOpenConflictCenter(el);
+    const how = e.S.cfCasCloseConflictCenter();
+    ok(el.focused);
+    eq(how, 'node');
   });
   test('C10-UX-15b an opener that has been replaced is not focused as a ghost', () => {
-    let ghost = false;
-    e.S.cfCasOpenConflictCenter({ isConnected: false, focus() { ghost = true; } });
+    const el = opener(false);
+    e.S.cfCasOpenConflictCenter(el);
     const how = e.S.cfCasCloseConflictCenter();
-    notOk(ghost, 'a detached node must never receive focus');
+    notOk(el.focused, 'a detached node must never receive focus');
     notOk(how === 'node', 'and must not be reported as a successful restore');
   });
   test('C10-UX-14 background discovery moves no focus', () => {

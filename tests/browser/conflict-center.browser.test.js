@@ -513,6 +513,129 @@ const CARD = { core: 'Health & progress', training: 'Training & workouts' };
     ok(res.stillOpen, 'and the centre stays open');
   });
 
+  section('C10-BW-F01..F05 — the fallback never claims a focus move it did not make');
+
+  /* Remove the header control entirely, so the fallback chain is what runs.
+     `hide` optionally breaks the headings too, to force the next step. */
+  const fallbackWith = (opts) => page.evaluate((o) => {
+    const dot = document.querySelector('[data-act="syncdot"]');
+    if (dot) dot.remove();
+    if (o.hideHeadings) {
+      document.querySelectorAll('#app h1, #app h2').forEach((h) => { h.style.display = 'none'; });
+    }
+    if (o.hideAll) {
+      const app = document.getElementById('app');
+      if (app) app.style.display = 'none';
+      document.querySelectorAll('#cf-conflict-host button').forEach((btn) => btn.remove());
+    }
+    const orphan = document.createElement('button');
+    orphan.setAttribute('data-act', 'cf:gone-control');
+    document.body.appendChild(orphan);
+    cfCasOpenConflictCenter(orphan);
+    orphan.remove();
+    const how = cfCasCloseConflictCenter();
+    const a = document.activeElement;
+    return {
+      how,
+      onBody: a === document.body || !a,
+      tag: a ? a.tagName : null,
+      text: a ? (a.textContent || '').trim().slice(0, 40) : null,
+      tabindex: a && a.getAttribute ? a.getAttribute('tabindex') : null,
+    };
+  }, opts || {});
+
+  const freshPage = async () => {
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForFunction(() => document.documentElement.style.visibility !== 'hidden');
+    await setState(page, { conflicts: ['core'] });
+  };
+
+  await test('C10-BW-F01 with the sync control gone, the main heading becomes the ACTIVE element', async () => {
+    await freshPage();
+    const r = await fallbackWith({});
+    eq(r.how, 'fallback');
+    notOk(r.onBody, 'focus must not have been left on the document body');
+    ok(/^H[12]$/.test(r.tag), 'expected a heading, got ' + r.tag + ' (' + r.text + ')');
+    eq(r.tabindex, '-1', 'a heading needs tabindex to be focusable at all');
+  });
+
+  await test('C10-BW-F02 a hidden or disabled control is never chosen as the fallback', async () => {
+    await freshPage();
+    const r = await page.evaluate(() => {
+      const dot = document.querySelector('[data-act="syncdot"]');
+      if (dot) dot.remove();
+      document.querySelectorAll('#app h1, #app h2').forEach((h) => { h.style.display = 'none'; });
+      /* Put decoys first in document order: a disabled button, a display:none
+         button, and one with zero size. A chain that only checks existence
+         picks one of these. */
+      const app = document.getElementById('app');
+      const mk = (setup) => { const el = document.createElement('button'); setup(el); app.insertBefore(el, app.firstChild); return el; };
+      const zero = mk((el) => { el.id = 'decoy-zero'; el.style.cssText = 'width:0;height:0;padding:0;border:0'; });
+      const none = mk((el) => { el.id = 'decoy-none'; el.style.display = 'none'; el.textContent = 'x'; });
+      const off = mk((el) => { el.id = 'decoy-disabled'; el.disabled = true; el.textContent = 'x'; });
+      const real = document.createElement('button');
+      real.id = 'decoy-real'; real.textContent = 'usable';
+      app.insertBefore(real, off.nextSibling);
+      const orphan = document.createElement('button');
+      orphan.setAttribute('data-act', 'cf:gone-control');
+      document.body.appendChild(orphan);
+      cfCasOpenConflictCenter(orphan);
+      orphan.remove();
+      const how = cfCasCloseConflictCenter();
+      const a = document.activeElement;
+      return { how, id: a ? a.id : null, decoys: [zero.id, none.id, off.id] };
+    });
+    eq(r.how, 'fallback');
+    notOk(r.decoys.indexOf(r.id) >= 0, 'a hidden or disabled decoy was chosen: ' + r.id);
+    eq(r.id, 'decoy-real', 'the first genuinely usable control should win');
+  });
+
+  await test('C10-BW-F03 when heading focus fails, the next visible enabled control is tried', async () => {
+    await freshPage();
+    const r = await fallbackWith({ hideHeadings: true });
+    eq(r.how, 'fallback');
+    notOk(r.onBody);
+    ok(r.tag === 'BUTTON' || r.tag === 'A', 'expected a control, got ' + r.tag);
+  });
+
+  await test('C10-BW-F04 it never reports success while focus is still on body', async () => {
+    await freshPage();
+    /* Every reachable target refuses focus. The old implementation returned
+       "fallback" here because .focus() on an unfocusable heading does not
+       throw — the athlete was told they had been returned somewhere useful
+       while sitting on <body>. */
+    const r = await fallbackWith({ hideHeadings: true, hideAll: true });
+    if (r.how === 'fallback') {
+      notOk(r.onBody, 'reported "fallback" while focus was on ' + r.tag);
+    } else {
+      eq(r.how, 'none');
+      ok(r.onBody, 'if it says none, body is the honest answer');
+    }
+  });
+
+  await test('C10-BW-F05 with no valid target at all it returns "none", honestly', async () => {
+    await freshPage();
+    const r = await page.evaluate(() => {
+      /* Strip the page of everything focusable. */
+      const dot = document.querySelector('[data-act="syncdot"]');
+      if (dot) dot.remove();
+      const app = document.getElementById('app');
+      if (app) app.remove();
+      document.querySelectorAll('button,a[href],[tabindex]').forEach((el) => el.remove());
+      const orphan = document.createElement('button');
+      orphan.setAttribute('data-act', 'cf:gone-control');
+      document.body.appendChild(orphan);
+      cfCasOpenConflictCenter(orphan);
+      orphan.remove();
+      const how = cfCasCloseConflictCenter();
+      const a = document.activeElement;
+      return { how, onBody: a === document.body || !a, tag: a ? a.tagName : null };
+    });
+    eq(r.how, 'none', 'it must not invent a success: reported ' + r.how + ' on ' + r.tag);
+    ok(r.onBody);
+    await freshPage();
+  });
+
   /* ------------------------------------------------- screen reader / live */
   section('Screen reader and live regions (real Chromium)');
 

@@ -14,7 +14,8 @@ Flows needing a real browser (IndexedDB, two-user login, session expiry) are in
 
 ## Browser tests (real Chromium)
 
-    node tests/browser/conflict-center.browser.test.js     # 32 assertions
+    node tests/browser/conflict-center.browser.test.js     # 56 assertions
+    node tests/browser/multi-context.browser.test.js       # 21 assertions
     node tests/browser/shots.js <outdir>                   # screenshots of every state
 
 These boot the **shipping `index.html`** over `http://127.0.0.1` in real
@@ -33,5 +34,13 @@ and whether the screen is reachable at all. Commit 10's conflict centre passed
 deliberately **refuses** a promise-returning callback, because in that suite an
 async failure would be silently swallowed; the browser suite awaits every test
 instead, so the property that harness protects is preserved rather than bypassed.
+
+`multi-context.browser.test.js` opens a **second tab in the same context** —
+not a second `browser.newContext()`, which is a different storage partition
+entirely and could never contend for a lock or see the other's artifacts. It
+covers the real `navigator.locks` under two-tab contention, reload, and account
+switching: an artifact that verifies only in the session that wrote it proves
+nothing about the session that has to read it back, which is exactly when an
+athlete needs it.
 
 Requires Playwright at `~/staging-cas/node_modules`. Not part of `run-all.js`.
