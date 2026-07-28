@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-28.341 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-28.342 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -851,7 +851,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-28.341-pb";
+var APP_BUILD="2026-07-28.342-pb";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -3044,6 +3044,44 @@ function lrConf(r){if(r==null)return {c:"lo",t:"No data"};
 function lrRangePos(r,lo,hi){
   if(r==null||lo==null||hi==null||!(hi>lo))return null;
   var t=(r-lo)/(hi-lo);return t<0?0:(t>1?1:t);}
+/* What a logged entry should actually be judged against.
+   Reverse-pyramid work prescribes a DIFFERENT range per set — heaviest and
+   fewest reps first, e.g. 6–8 / 8–10 / 10–12 — so a single repLow–repHigh pair
+   cannot describe it, and a 12-rep third set read against 6–8 looks like a
+   failure when it is exactly the plan. Resolution order:
+     1. the progression + per-set ranges saved with the session (authoritative)
+     2. RPT recorded but no per-set ranges saved — derive the default ladder
+     3. neither recorded, because the session predates the app storing them —
+        read the scheme off the routine AS IT STANDS TODAY
+     4. the single repLow–repHigh pair
+     5. nothing prescribed
+   Anything reconstructed under 2 or 3 comes back assumed:true and is daggered in
+   the document; a reconstruction is never passed off as a record.
+   A half-open pair (one bound left blank, which the routine editor permits) is
+   not a range: it falls to case 5 rather than rendering as "10–" or NaN. */
+function lrPrescription(en,n,rt){
+  n=Math.max(1,n|0);
+  var prog=(en&&en.progression)||null,it=null,inferred=false;
+  if(!prog&&rt){
+    it=(rt.items||[]).filter(function(x){return x.exerciseId===(en&&en.exerciseId);})[0]||null;
+    prog=(it&&it.progression)||rt.progression||null;
+    if(prog)inferred=true;}
+  if(prog==="rpt"){
+    var mv=(en&&en.movement)||(it&&it.movement)||"compound";
+    var sr=Array.isArray(en&&en.setRanges)?en.setRanges:((it&&Array.isArray(it.setRanges))?it.setRanges:null);
+    var def=rptDefRanges(mv,n);
+    var rg=rptRangesFor({movement:mv,setRanges:sr},n);
+    var full=!!sr;
+    for(var i=0;i<n;i++){
+      if(!sr||!sr[i]||num(sr[i].lo)==null||num(sr[i].hi)==null)full=false;
+      /* an inverted or unusable saved pair is discarded, not rendered */
+      if(!(rg[i]&&rg[i].lo!=null&&rg[i].hi!=null&&rg[i].hi>=rg[i].lo)){rg[i]=def[i];full=false;}}
+    return {mode:"rpt",ranges:rg,assumed:(inferred||!full)};}
+  var lo=num(en&&en.repLow),hi=num(en&&en.repHigh);
+  if(lo!=null&&hi!=null&&hi>=lo){
+    var one=[];for(var k=0;k<n;k++)one.push({lo:lo,hi:hi});
+    return {mode:"single",ranges:one,assumed:false};}
+  return {mode:"none",ranges:[],assumed:false};}
 function lrWeekStartISO(iso){
   var ws=parseInt(state.settings.weekStart,10)||0;
   var d=parseISO(iso);var diff=(d.getDay()-ws+7)%7;d.setDate(d.getDate()-diff);return toISO(d);}
@@ -3110,33 +3148,45 @@ function lrModel(offset){
   raw.sort(function(a,b){return a.iso===b.iso?((a.s.ts||0)-(b.s.ts||0)):(a.iso<b.iso?-1:1);});
 
   M.weekKeys=[];var seenKey={};
-  M.prs=[];M.pain=[];
+  M.prs=[];M.pain=[];M.anyRpt=false;M.anyAssumed=false;
   M.sessions=raw.map(function(rw,si){
     var s=rw.s,d=rw.iso,dt=parseISO(d);
     var an={prs:[]};try{an=analyzeSession(d,s.id)||{prs:[]};}catch(e){an={prs:[]};}
+    /* only consulted for sessions logged before the scheme was stored with them */
+    var sRt=null;try{sRt=getRoutine(s.routineId)||null;}catch(e3){sRt=null;}
     var prByName={};(an.prs||[]).forEach(function(p){prByName[p.name]=p;});
     var ses={n:si+1,iso:d,
       dateLabel:dt.toLocaleDateString(undefined,{weekday:"short"})+" "+fmtShort(dt),
       name:(s.name||"Workout"),mins:num(s.mins),rpe:num(s.rpe),notes:(s.notes||"").trim(),
       mfb:s.mfb||null,ton:0,sets:0,rirSum:0,rirN:0,inR:0,rngN:0,ex:[]};
     (s.entries||[]).forEach(function(en){
-      var work=(en.sets||[]).filter(lrIsWork);
+      var all=(en.sets||[]);
+      /* keep each working set's ORIGINAL slot index — a skipped opening set must
+         not slide the remaining sets onto the wrong reverse-pyramid targets */
+      var work=[];all.forEach(function(st,ix){if(lrIsWork(st))work.push({st:st,ix:ix});});
       if(!work.length)return;
       var key=en.exerciseId||en.name;
       if(key&&!seenKey[key]){seenKey[key]=1;M.weekKeys.push(key);}
-      var lo=num(en.repLow),hi=num(en.repHigh),hasR=(lo!=null&&hi!=null&&hi>=lo);
+      var px=lrPrescription(en,all.length,sRt);
+      var hasR=(px.mode!=="none");
+      if(px.mode==="rpt")M.anyRpt=true;
+      if(px.assumed)M.anyAssumed=true;
+      var lo=hasR?px.ranges[0].lo:null,hi=hasR?px.ranges[0].hi:null;
       var ton=0,inR=0,bestW=null,bestWi=-1,bestE=null,bestEi=-1;
-      var rows=work.map(function(st,k){
+      var rows=work.map(function(wk,k){
+        var st=wk.st;
+        var g=hasR?(px.ranges[wk.ix]||px.ranges[px.ranges.length-1]):null;
         var w=num(st.weight),r=num(st.reps),rir=num(st.rir);
         ton+=lrSetTon(st);
         var out=false;
-        if(hasR){if(r>=lo&&r<=hi)inR++;else out=true;}
+        if(g){if(r>=g.lo&&r<=g.hi)inR++;else out=true;}
         if(w!=null){
           if(bestW==null||w>bestW){bestW=w;bestWi=k;}
           var e=e1rm(w,r);
           if(e!=null&&(bestE==null||e>bestE)){bestE=e;bestEi=k;}}
         if(rir!=null){ses.rirSum+=rir;ses.rirN++;}
-        return {i:k+1,w:w,r:r,rir:rir,t:(hasR?lrRangePos(r,lo,hi):null),out:out,pr:null};});
+        return {i:k+1,w:w,r:r,rir:rir,lo:(g?g.lo:null),hi:(g?g.hi:null),
+          t:(g?lrRangePos(r,g.lo,g.hi):null),out:out,pr:null};});
       var pr=prByName[en.name]||null;
       if(pr){
         var pi=(pr.type==="weight")?bestWi:bestEi;
@@ -3149,7 +3199,8 @@ function lrModel(offset){
       var jLabel=(jt==="mod"||jt==="alot")?fbLabel(FB_JOINT,jt):null;
       var ee={name:en.name||"Exercise",muscle:en.muscle||"other",
         mLabel:muscleInfo(en.muscle||"other").label,
-        lo:lo,hi:hi,hasR:hasR,ton:ton,inR:inR,n:rows.length,rows:rows,joint:jLabel};
+        lo:lo,hi:hi,hasR:hasR,rxMode:px.mode,ranges:px.ranges,assumed:px.assumed,
+        ton:ton,inR:inR,n:rows.length,rows:rows,joint:jLabel};
       if(jLabel)M.pain.push({ex:ee.name,label:jLabel,dateLabel:ses.dateLabel,sets:rows.length});
       ses.ton+=ton;ses.sets+=rows.length;
       if(hasR){ses.inR+=inR;ses.rngN+=rows.length;}
@@ -3371,7 +3422,13 @@ function lrTrack(rows){
 function lrRangeText(e){
   if(!e.hasR)return lrInt(e.n)+" set"+(e.n===1?"":"s")+" logged";
   return lrInt(e.inR)+"/"+lrInt(e.n)+" in range";}
-function lrRx(e){return e.hasR?(lrInt(e.lo)+"–"+lrInt(e.hi)):"no range set";}
+function lrSpan(g){return lrInt(g.lo)+"–"+lrInt(g.hi);}
+/* the prescription as written: one range for double progression, the whole
+   ladder for reverse pyramid, and a dagger when that ladder was reconstructed */
+function lrRx(e){
+  if(e.rxMode==="rpt"&&e.ranges&&e.ranges.length)
+    return "RPT "+e.ranges.map(function(g){return lrSpan(g);}).join(" / ")+(e.assumed?" †":"");
+  return e.hasR?lrSpan({lo:e.lo,hi:e.hi}):"no range set";}
 
 /* ---------------- shared prose ---------------- */
 function lrFbSummary(M){
@@ -3405,11 +3462,16 @@ function lrRelProse(M){
   return "e1RM per "+u.replace(/s$/,"")+" of bodyweight, across "+esc(String(r.n))+" training weeks. "+
     esc(M.hero?M.hero.m.name:"")+" e1RM "+eTxt+" while bodyweight moved "+bwTxt+". "+verdict;}
 function lrMethodProse(M){
-  return "Tonnage = Σ (weight × reps) across working sets; warm-ups and skipped sets excluded. "+
+  var s="Tonnage = Σ (weight × reps) across working sets; warm-ups and skipped sets excluded. "+
     "Bodyweight exercises are logged as ADDED load, so their tonnage reflects added weight only — the set still counts as a hard set. "+
     "RIR is self-reported at the end of each set; <b>@0</b> means the set was taken to failure. "+
-    "Rep-range adherence compares logged reps against the prescribed range; the marker shows where in the range the set landed — <b>left = fewer reps / heavier</b>, right = more reps / lighter, amber = outside the range. "+
-    "Bodyweight is the average of the week’s weigh-ins. "+
+    "Rep-range adherence compares logged reps against the prescribed range; the marker shows where in the range the set landed — <b>left = fewer reps / heavier</b>, right = more reps / lighter, amber = outside the range. ";
+  if(M&&M.anyRpt)
+    s+="<b>Reverse-pyramid (RPT)</b> exercises prescribe a different range for <b>every set</b> — heaviest and fewest reps first, then lighter for more reps — printed as <b>RPT 6–8 / 8–10 / 10–12</b>. Each set is judged against its own target and against nothing else, so a 12-rep third set inside a 10–12 target counts as in range. ";
+  if(M&&M.anyAssumed)
+    s+="<b>†</b> marks an exercise whose per-set targets were <b>not stored with the session</b>: it was logged before the app began saving the scheme, so the targets shown are reconstructed — read off the routine as it stands today, or, failing that, the default reverse-pyramid ladder for that number of sets. If the routine has been edited since, those targets are not necessarily the ones that were trained. Read daggered adherence figures as <b>reconstructed, not recorded</b>; sessions logged from now on carry their own scheme. ";
+  s+="An exercise with only one end of its range filled in is reported as <b>no range set</b> rather than half a range, and its sets are excluded from the adherence count. ";
+  return s+"Bodyweight is the average of the week’s weigh-ins. "+
     "Joint pain is surfaced at Moderate and above only; soreness, pump and volume ratings are summarised rather than listed per set.";}
 function lrEpleyProse(){
   return "<b>Reading e1RM honestly.</b> e1RM = Epley, <span class=\"num\">weight × (1 + reps / 30)</span>, taken from the single best qualifying set in the whole log — the exact set is printed beside each figure so the arithmetic can be checked. "+
@@ -3497,6 +3559,7 @@ var LRCSS_LEDGER=[
 ".st .r0{color:var(--bd);font-weight:700}",
 ".st .prTag{color:var(--gd);font-weight:700;font-size:9px;font-family:var(--sans);letter-spacing:.1em}",
 ".st col.cR{width:74px}",
+".st col.cT{width:56px}.st .tg{color:var(--ink2)}",
 ".mini{display:grid;grid-template-columns:1fr;gap:16px 24px}",
 "@media(min-width:640px){.mini{grid-template-columns:1fr 1fr}}",
 ".mi{border-top:1px solid var(--rule);padding-top:9px;min-width:0}",
@@ -3519,7 +3582,7 @@ var LRCSS_LEDGER=[
 ".colo{margin-top:28px;border-top:2.5px solid var(--ink);padding:14px 0 24px;font-size:11px;line-height:1.65;color:var(--ink3)}",
 ".colo b{color:var(--ink2)}",
 ".colo .mh{font-size:9.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--ink);margin-bottom:6px}",
-"@media (max-width:640px){.kv{grid-template-columns:1fr}.kv .c:nth-child(odd){border-right:none}.kv .c:nth-child(even){padding-left:0}h1{font-size:20px}.st{font-size:12px}.st col.cR{width:58px}.rng{width:44px}",
+"@media (max-width:640px){.kv{grid-template-columns:1fr}.kv .c:nth-child(odd){border-right:none}.kv .c:nth-child(even){padding-left:0}h1{font-size:20px}.st{font-size:12px}.st col.cR{width:58px}.st col.cT{width:46px}.rng{width:44px}",
 ".prog thead{position:absolute;left:-9999px}",
 ".prog tr{display:block;border-bottom:1px solid var(--rule2);padding:10px 0}",
 ".prog td{display:flex;justify-content:space-between;gap:12px;border-bottom:none;padding:2px 0;white-space:normal}",
@@ -3723,13 +3786,17 @@ function lrLedgerEx(e,M){
     '<span class="exMg">'+esc(e.mLabel)+'</span>'+
     '<span class="exRx">Rx '+esc(lrRx(e))+'</span>'+
     '<span class="exTot">'+esc(lrInt(e.ton))+' '+u+' · '+esc(lrRangeText(e))+'</span></div>';
-  h+='<table class="st"><colgroup><col><col><col><col><col class="cR"></colgroup>'+
-    '<thead><tr><th>Set</th><th>Weight</th><th>Reps</th><th>RIR</th><th>Rep range</th></tr></thead><tbody>';
+  /* reverse-pyramid work gets its own Target column — every set has a different
+     one, so the coach cannot read adherence off the header alone */
+  var perSet=(e.rxMode==="rpt");
+  h+='<table class="st"><colgroup><col><col><col><col>'+(perSet?'<col class="cT">':'')+'<col class="cR"></colgroup>'+
+    '<thead><tr><th>Set</th><th>Weight</th><th>Reps</th><th>RIR</th>'+(perSet?'<th>Target</th>':'')+'<th>Rep range</th></tr></thead><tbody>';
   e.rows.forEach(function(r){
     h+='<tr><td>'+esc(lrInt(r.i))+'</td>'+
       '<td class="w">'+(r.w!=null?(esc(lrW(r.w))+' '+u):'BW')+(r.pr?' <span class="prTag">'+esc(r.pr)+'</span>':'')+'</td>'+
       '<td>'+esc(lrInt(r.r))+'</td>'+
       '<td'+(r.rir===0?' class="r0"':'')+'>'+(r.rir!=null?esc(lrInt(r.rir)):LRDASH)+'</td>'+
+      (perSet?('<td class="tg">'+((r.lo!=null&&r.hi!=null)?esc(lrSpan(r)):LRDASH)+'</td>'):'')+
       '<td>'+lrTrack([r])+'</td></tr>';});
   h+='</tbody></table>';
   if(e.joint)h+='<div class="flag pain" style="border-bottom:none"><div class="flagT">Joint pain</div>'+
@@ -3870,9 +3937,13 @@ function lrLedgerHTML(M){
 
 /* ---------------- DOCUMENT 2 — THE COACH'S DASHBOARD ---------------- */
 function lrDashSets(e){
+  /* per-set targets are printed beside the set only for reverse pyramid, where
+     they differ set to set; repeating one shared range would just be noise */
+  var perSet=(e.rxMode==="rpt");
   var out=e.rows.map(function(r){
     var s='<span>'+(r.w!=null?esc(lrW(r.w)):'BW')+'<em>×</em>'+esc(lrInt(r.r));
     if(r.rir!=null)s+=(r.rir===0?' <em class="r0">@0</em>':(' <em>@</em>'+esc(lrInt(r.rir))));
+    if(perSet&&r.lo!=null&&r.hi!=null)s+=' <em>('+esc(lrSpan(r))+')</em>';
     if(r.pr)s+=' <span class="prTag">'+esc(r.pr)+'</span>';
     return s+'</span>';});
   return '<div class="sets">'+out.join("")+'</div>';}
@@ -5516,7 +5587,18 @@ document.addEventListener("click",function(e){
   if(a==="wo:hist"){var w=state.workout;var en=w&&w.entries[+el.getAttribute("data-ei")];if(en)openHistory(en.exerciseId,en.name);return;}
   if(a==="wo:histclose"){state.histView=null;render();return;}
   if(a==="wo:savesession"){var w=state.workout;if(!w)return;var b=woBuckets();var ff=w.finishForm||{};var mxh=effMaxHR(),hrv=num(ff.hr);var zone=(hrv!=null&&mxh!=null)?zoneFromHR(hrv,mxh):(ff.zone||null);
-    var entries=w.entries.map(function(en){return {exerciseId:en.exerciseId,name:en.name,muscle:en.muscle,fb:en.fb||null,repLow:en.repLow,repHigh:en.repHigh,sets:en.sets.map(function(s){return {weight:num(s.weight),reps:num(s.reps),rir:num(s.rir),status:s.status,sugR:num(s.sugR),sugW:num(s.sugW)};})};});
+    /* Persist the scheme the session was actually trained under, not just a single
+       rep range. Reverse pyramid prescribes a different range per set, so dropping
+       setRanges here left every report judging a 12-rep third set against 6-8.
+       setRanges is stored for RPT only — under double progression all sets share
+       repLow/repHigh and a per-set copy would be noise. Sized to the sets actually
+       logged, since sets can be added or removed mid-workout. */
+    var _srt=getRoutine(w.routineId);
+    var entries=w.entries.map(function(en){
+      var prog=en.progression||(_srt&&_srt.progression)||"double";
+      var o={exerciseId:en.exerciseId,name:en.name,muscle:en.muscle,fb:en.fb||null,progression:prog,repLow:en.repLow,repHigh:en.repHigh,sets:en.sets.map(function(s){return {weight:num(s.weight),reps:num(s.reps),rir:num(s.rir),status:s.status,sugR:num(s.sugR),sugW:num(s.sugW)};})};
+      if(prog==="rpt")o.setRanges=rptRangesFor({movement:en.movement,setRanges:en.setRanges},Math.max(1,en.sets.length));
+      return o;});
     var sess={id:"l-"+Date.now()+"-"+Math.random().toString(36).slice(2,6),routineId:w.routineId,name:w.name,mode:"full",date:w.date,mins:Math.round(b.total/60000),warmupSec:Math.round(b.warmup/1000),workSec:Math.round(b.work/1000),restSec:Math.round(b.rest/1000),mfb:w.mfb||null,hr:num(ff.hr),hrMax:num(ff.hrMax),zone:zone,cal:num(ff.cal),rpe:num(ff.rpe),notes:(ff.notes||"").trim(),bw:w.bw,entries:entries,ts:Date.now()};
     state.training.liftSessions=state.training.liftSessions||{};var d=w.date;var list=(state.training.liftSessions[d]||[]).slice();list.push(sess);state.training.liftSessions[d]=list;
     syncLiftTags(d);saveTraining();save();state.workout=null;saveWorkout();if(woTimer)clearInterval(woTimer);state.liftViewDate=d;state.liftViewId=sess.id;state.liftEdit=null;state.view="liftview";toast("Workout saved");render();return;}
