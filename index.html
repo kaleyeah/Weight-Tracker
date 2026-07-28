@@ -883,6 +883,18 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
    ghost buttons on the card background. */
 .cf-conflict-host .wl-btn:focus-visible,.cf-conflict-close:focus-visible{
   outline:2px solid var(--accent);outline-offset:2px;}
+/* The header dot's non-colour cue: a shape as well as a hue, so the state is
+   legible without colour vision and at a glance. */
+.cf-dot-cue{display:inline-flex;align-items:center;justify-content:center;
+  min-width:14px;height:14px;margin-left:5px;padding:0 3px;border-radius:7px;
+  font-size:10px;font-weight:900;line-height:1;vertical-align:middle;}
+.cf-dot-cue-warn{background:var(--accent);color:var(--on-accent);}
+.cf-dot-cue-bad{background:var(--bad);color:#fff;}
+/* .wl-syncdot is a fixed 22x22 box built for a 7px dot alone. With the cue
+   beside it the content is 26px and overflows its own button, so the control
+   grows only while it carries one — and reverts when the workflow clears. */
+.wl-syncdot[aria-controls]{display:inline-flex;align-items:center;justify-content:center;
+  width:auto;min-width:22px;padding:0 3px;gap:3px;}
 .cf-status{display:inline-flex;align-items:center;gap:6px;width:auto;height:auto;
   border-radius:999px;padding:6px 12px;font-size:12.5px;font-weight:700;
   background:var(--bg2);color:var(--muted);border:1px solid var(--line);}
@@ -9386,13 +9398,47 @@ function cfCasCardState(sub,now){
   if(CF_CAS_RECHOOSE[sub])return "changed-again";
   return "choose";}
 
-function cfCasConflictCenterHTML(){
-  var subs=[],hidden=false,now=Date.now();
+/* ---- the ONE predicate for "the centre has something to show" -----------
+   The view used to work this out inline while the entry point used a separate
+   status check, and the two disagreed: a recovery-blocked subsystem maps to the
+   safe failure state rather than to "conflict", so the header opened the centre
+   for an unresolved conflict but NOT for a blocked one — a correctly rendered
+   card with no way in, which is the exact defect browser testing had just
+   found. Both now read the same function, so they cannot drift apart again.
+
+   Returns the subsystems worth showing, plus whether something is happening
+   that is deliberately not shown yet (a sub-400ms preservation). */
+function cfCasCentreSubs(now){
+  var subs=[],hidden=false;
+  now=(now===undefined)?Date.now():now;
   ["core","training"].forEach(function(sub){
-    var busy=cfCasConflictId(sub)||CF_CAS_BLOCK[sub]==="recovery"||CF_CAS_BLOCK[sub]==="preserving";
-    if(!busy)return;
+    var active=cfCasConflictId(sub)||CF_CAS_BLOCK[sub]==="recovery"||CF_CAS_BLOCK[sub]==="preserving";
+    if(!active)return;
     if(CF_CAS_BLOCK[sub]==="preserving"&&!cfCasPreserveVisible(sub,now)){hidden=true;return;}
     subs.push(sub);});
+  return {subs:subs,hidden:hidden};}
+
+/* True when the centre holds actionable or explanatory state: an unresolved
+   verified conflict, a recovery block, a changed-again, or a preservation that
+   has become visible. A sole hidden preservation is deliberately false — it
+   must neither open the centre nor render one. */
+function cfCasCentreHasWorkflow(){return cfCasCentreSubs().subs.length>0;}
+
+/* Severity for the header control. Recovery-blocked is a FAILED preservation —
+   the online copy could not be saved and the destructive choices are withdrawn
+   — so it takes the app's error severity. An unresolved conflict is not a
+   failure: both versions are safe and the athlete simply has to choose. The
+   higher severity wins when both exist. */
+function cfCasCentreSeverity(){
+  var subs=cfCasCentreSubs().subs,sev=null;
+  for(var i=0;i<subs.length;i++){
+    if(CF_CAS_BLOCK[subs[i]]==="recovery")return "bad";
+    sev="warn";}
+  return sev;}
+
+function cfCasConflictCenterHTML(){
+  var now=Date.now(),found=cfCasCentreSubs(now);
+  var subs=found.subs,hidden=found.hidden;
 
   /* If the ONLY thing happening is a preservation too brief to show, render
      NOTHING — not the empty state. Saying "Nothing needs your attention right
@@ -9591,6 +9637,10 @@ function cfCasPaint(){
   var host=cfCasHostEl();
   cfCasAnnounce();
   cfCasPreserveArm();
+  /* Before the signature gate: the header control is rebuilt by the app's own
+     render, so it needs re-describing even on the repaints where the centre
+     itself has not changed. */
+  cfCasPaintStatusControl();
   if(!host)return false;
 
   var sig=cfCasViewSig();
@@ -9647,8 +9697,54 @@ function cfCasPreserveArm(){
 /* ---- open and close -----------------------------------------------------
    Explicit opening focuses the HEADING — the explanation — so the first Tab
    lands on the safe default choice rather than on a destructive one. */
+/* ---- rerender-safe opener identity --------------------------------------
+   CF_CAS_OPENER used to hold the DOM node alone, and the comment beside it
+   claimed focus was restored "after the opener may have been re-mounted".
+   A node reference cannot do that. The app's render() replaces #app — where the
+   header sync control lives — so an athlete who opens the centre, waits for any
+   ordinary repaint, and then closes it would have focus put on a detached
+   element: focus silently falls to <body> and a keyboard user is dropped at the
+   top of the document.
+
+   So the opener is captured twice: the node for the ordinary case, and a stable
+   identity for reacquiring its replacement. The identity is the element's own
+   data-act — our vocabulary, matched against a strict pattern and used only to
+   build a data-act selector — never an arbitrary selector from page content. */
+var CF_CAS_OPENER_KEY=null;
+var CF_CAS_ACT_RE=/^[a-z][a-z0-9:-]{0,39}$/;
+
+function cfCasOpenerKey(el){
+  try{
+    var a=el&&el.getAttribute&&el.getAttribute("data-act");
+    return (a&&CF_CAS_ACT_RE.test(a))?a:null;
+  }catch(e){return null;}}
+
+function cfCasConnected(el){
+  try{
+    if(!el||!el.focus)return false;
+    if(typeof el.isConnected==="boolean")return el.isConnected;
+    return !!(document.documentElement&&document.documentElement.contains(el));
+  }catch(e){return false;}}
+
+/* 1. the original node, if it is still in the document;
+   2. otherwise its current replacement, found by its own action id;
+   3. otherwise a safe nearby control — never a removed node, never <body>. */
+function cfCasRestoreFocus(node,key){
+  if(cfCasConnected(node)&&cfCasFocus(node))return "node";
+  if(key){
+    try{
+      var el=document.querySelector('[data-act="'+key+'"]');
+      if(cfCasConnected(el)&&cfCasFocus(el))return "reacquired";
+    }catch(e){}}
+  try{
+    var fb=cfCasSyncControl()||document.querySelector("#app h1,#app h2,#app button");
+    if(cfCasConnected(fb)&&cfCasFocus(fb))return "fallback";
+  }catch(e){}
+  return "none";}
+
 cfCasOpenConflictCenter=function(openerEl){
   CF_CAS_OPENER=openerEl||null;
+  CF_CAS_OPENER_KEY=cfCasOpenerKey(openerEl);
   CF_CAS_OPEN=true;
   cfCasPaint();
   try{
@@ -9659,13 +9755,11 @@ cfCasOpenConflictCenter=function(openerEl){
 
 cfCasCloseConflictCenter=function(){
   CF_CAS_OPEN=false;
-  var back=CF_CAS_OPENER;
+  var back=CF_CAS_OPENER,key=CF_CAS_OPENER_KEY;
   cfCasPaint();
-  /* Focus returns to the EXACT element that opened the centre. Restoring it
-     after the repaint matters: the opener may have been re-mounted. */
-  try{if(back&&back.focus)back.focus();}catch(e){}
-  CF_CAS_OPENER=null;
-  return true;};
+  var how=cfCasRestoreFocus(back,key);
+  CF_CAS_OPENER=null;CF_CAS_OPENER_KEY=null;
+  return how;};
 
 /* ---- state changes drive the paint --------------------------------------
    Every path that changes what the centre shows goes through one of these
@@ -9792,7 +9886,11 @@ try{
   document.addEventListener("click",function(e){
     var t=e.target&&e.target.closest&&e.target.closest("[data-act]");
     if(!t)return;
-    if((t.getAttribute("data-act")||"")==="syncdot"&&cfCasCompactStatus()==="conflict"){
+    /* Gated on the shared predicate, NOT on the compact status. The first
+       version asked whether the status was "conflict", which is false for a
+       recovery-blocked subsystem — so the blocked card, with its Try again and
+       Export a copy, was unreachable. */
+    if((t.getAttribute("data-act")||"")==="syncdot"&&cfCasCentreHasWorkflow()){
       e.preventDefault();e.stopPropagation();
       cfCasOpenConflictCenter(t);
       return;}
@@ -9801,11 +9899,71 @@ try{
 
 /* And the dot has to SHOW it. syncDotClass() only knows the legacy sync state,
    which is "ok" while a conflict sits unresolved — a green dot over an athlete's
-   undecided data. A conflict outranks it. */
+   undecided data. */
 var _c10DotClass=syncDotClass;
 syncDotClass=function(){
-  try{if(cfCasCompactStatus()==="conflict")return "warn";}catch(e){}
+  try{var sev=cfCasCentreSeverity();if(sev)return sev;}catch(e){}
   return _c10DotClass.apply(this,arguments);};
+
+/* ---- the header control has to SAY what it now means --------------------
+   Changing its colour and intercepting its click is not enough: a colour is
+   invisible to a screen reader and ambiguous to anyone who cannot distinguish
+   it, and a control that opens a region has to say so. While the centre owns
+   the control it is a disclosure control for it, and when the workflow clears
+   it becomes the ordinary sync button again — attributes removed, not left
+   behind pointing at a region that is no longer there.
+
+   Applied from cfCasPaint(), which runs after the app's own render, because the
+   header markup is built by Commit 1 and re-mounted constantly. */
+var CF_CAS_DOT_LEGACY=null;
+function cfCasStatusControlText(){
+  var subs=cfCasCentreSubs().subs;
+  for(var i=0;i<subs.length;i++)
+    if(CF_CAS_BLOCK[subs[i]]==="recovery")return CF_CAS_STATUS_TEXT.failed;
+  return subs.length?CF_CAS_STATUS_TEXT.conflict:null;}
+
+function cfCasSyncControl(){
+  try{return document.querySelector('[data-act="syncdot"]');}catch(e){return null;}}
+
+function cfCasPaintStatusControl(){
+  var el=cfCasSyncControl();
+  if(!el)return false;
+  try{
+    if(CF_CAS_DOT_LEGACY===null)CF_CAS_DOT_LEGACY=el.getAttribute("aria-label")||"Sync status";
+    var say=cfCasStatusControlText();
+    var cue=el.querySelector(".cf-dot-cue");
+    if(!say){
+      el.setAttribute("aria-label",CF_CAS_DOT_LEGACY);
+      el.removeAttribute("aria-controls");
+      el.removeAttribute("aria-expanded");
+      el.removeAttribute("title");
+      if(cue&&cue.parentNode)cue.parentNode.removeChild(cue);
+      return true;}
+    el.setAttribute("aria-label",say);
+    el.setAttribute("title",say);
+    el.setAttribute("aria-controls","cf-conflict-host");
+    el.setAttribute("aria-expanded",CF_CAS_OPEN?"true":"false");
+    /* A shape, not just a colour: "!" needs a decision, "×" means the copy
+       could not be saved. aria-hidden because the accessible name above already
+       carries the meaning — the glyph must not be read out twice. */
+    var sev=cfCasCentreSeverity();
+    if(!cue){
+      cue=document.createElement("span");
+      cue.className="cf-dot-cue";
+      cue.setAttribute("aria-hidden","true");
+      el.appendChild(cue);}
+    cue.className="cf-dot-cue cf-dot-cue-"+(sev||"warn");
+    cue.textContent=(sev==="bad")?"×":"!";
+    return true;
+  }catch(e){return false;}}
+
+/* setSync() rewrites the dot's class without going through render(), so the
+   control has to be re-described there too or it keeps a stale name. */
+var _c10SetSync=setSync;
+setSync=function(){
+  var r=_c10SetSync.apply(this,arguments);
+  try{cfCasPaintStatusControl();}catch(e){}
+  return r;};
 
 try{
   document.addEventListener("click",function(e){

@@ -44,6 +44,13 @@ const SHOTS = [
     { conflicts: ['core'] }, 'confirm-device'],
   ['12-confirm-online', 'Confirming "use the online copy on this device"',
     { conflicts: ['core'] }, 'confirm-online'],
+  /* The entry point itself. Closed, so the header control is what is on show. */
+  ['13-header-warn', 'The header control with an unresolved conflict (warn)',
+    { conflicts: ['core'] }, 'header'],
+  ['14-header-bad', 'The header control with a recovery-blocked section (bad)',
+    { conflicts: ['core'], blocks: [['core', 'recovery']] }, 'header'],
+  ['15-header-clean', 'The header control with nothing to decide',
+    {}, 'header'],
 ];
 
 (async () => {
@@ -55,10 +62,28 @@ const SHOTS = [
     for (const [w, tag] of [[1280, 'desktop'], [390, 'mobile']]) {
       await page.setViewportSize({ width: w, height: 900 });
       await setState(page, spec);
-      await page.evaluate(() => {
-        const el = document.querySelector('[data-act="cf:open-conflicts"]') || document.body;
-        cfCasOpenConflictCenter(el);
-      });
+      if (extra === 'header') {
+        /* Leave the centre CLOSED — the header control is the subject. Clear
+           anything a previous shot left over the page: a lingering confirm
+           dims the whole app, and the update banner sits on top of the very
+           control being photographed. */
+        await page.evaluate(() => {
+          state.pendingConfirm = null;
+          ['wl-applied-banner', 'wl-update-banner'].forEach((id) => {
+            const el = document.getElementById(id);
+            if (el && el.remove) el.remove();
+          });
+          setSync('ok', '');
+          cfCasCloseConflictCenter();
+          render();
+        });
+      } else {
+        await page.evaluate(() => {
+          const el = document.querySelector('[data-act="syncdot"]')
+            || document.querySelector('[data-act="cf:open-conflicts"]') || document.body;
+          cfCasOpenConflictCenter(el);
+        });
+      }
       if (extra === 'changed-again') {
         await page.evaluate(() => {
           document.querySelector('[data-act="cf:use-device"][data-sub="core"]').focus();
@@ -85,7 +110,28 @@ const SHOTS = [
          capture stretches the page behind it and photographs the sheet against
          whatever happens to be at the top of the document rather than where the
          athlete actually sees it. */
-      await page.screenshot({ path: path.join(OUT, name + '-' + tag + '.png') });
+      if (extra === 'header') {
+        /* Clip to the control itself, found at its real position, so the cue is
+           legible at review size instead of being a few pixels in a wide shot. */
+        const box = await page.evaluate(() => {
+          const el = document.querySelector('[data-act="syncdot"]');
+          if (!el) return null;
+          const r = el.getBoundingClientRect();
+          return { x: r.x, y: r.y, width: r.width, height: r.height };
+        });
+        const pad = 60;
+        await page.screenshot({
+          path: path.join(OUT, name + '-' + tag + '.png'),
+          clip: box
+            ? {
+              x: Math.max(0, box.x - pad * 3), y: Math.max(0, box.y - pad),
+              width: Math.min(w, box.width + pad * 4), height: box.height + pad * 2,
+            }
+            : { x: 0, y: 0, width: Math.min(w, 1280), height: 180 },
+        });
+      } else {
+        await page.screenshot({ path: path.join(OUT, name + '-' + tag + '.png') });
+      }
 
       if (tag === 'desktop') {
         const detail = await page.evaluate(() => {

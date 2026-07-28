@@ -194,6 +194,325 @@ const CARD = { core: 'Health & progress', training: 'Training & workouts' };
     ok(res.toast, 'and the existing sync summary still appears');
   });
 
+  /* --------------------------------- Architect-required: C10-BW-01..18 */
+  section('C10-BW-01..07 — every workflow that needs the athlete is reachable');
+
+  /* Reach the centre only by clicking what is on the screen. */
+  const clickSyncDot = async () => {
+    const dot = await page.$('[data-act="syncdot"]');
+    ok(dot, 'the shipping header control must exist');
+    await dot.click();
+    return page.evaluate(() => ({
+      open: CF_CAS_OPEN,
+      cards: [...document.querySelectorAll('.cf-conflict-card h3')].map((h) => h.textContent.trim()),
+      text: document.getElementById('cf-conflict-host').textContent,
+      dot: syncDotClass(),
+    }));
+  };
+
+  await test('C10-BW-01 recovery-blocked Health & progress is reachable from the header', async () => {
+    await setState(page, { conflicts: ['core'], blocks: [['core', 'recovery']] });
+    const r = await clickSyncDot();
+    ok(r.open, 'a blocked subsystem must open the centre — this was the defect');
+    eq(r.cards.join(','), CARD.core);
+    ok(/Try again/.test(r.text) && /Export a copy/.test(r.text));
+    await page.evaluate(() => cfCasCloseConflictCenter());
+  });
+
+  await test('C10-BW-02 recovery-blocked Training & workouts is reachable', async () => {
+    await setState(page, { conflicts: ['training'], blocks: [['training', 'recovery']] });
+    const r = await clickSyncDot();
+    ok(r.open);
+    eq(r.cards.join(','), CARD.training);
+    await page.evaluate(() => cfCasCloseConflictCenter());
+  });
+
+  await test('C10-BW-03 a blocked subsystem plus a conflict opens ONE centre with both cards', async () => {
+    await setState(page, {
+      conflicts: ['core', 'training'], blocks: [['core', 'recovery']],
+    });
+    const r = await clickSyncDot();
+    ok(r.open);
+    eq(r.cards.join(','), [CARD.core, CARD.training].join(','));
+    const centres = await page.evaluate(() => document.querySelectorAll('.cf-conflict-center').length);
+    eq(centres, 1, 'one centre, not one per subsystem');
+    await page.evaluate(() => cfCasCloseConflictCenter());
+  });
+
+  await test('C10-BW-04 blocked is "bad", an ordinary conflict is "warn", higher severity wins', async () => {
+    const sev = await page.evaluate(async (recIds) => {
+      const out = {};
+      const reset = () => ['core', 'training'].forEach((s) => {
+        cfCasSetConflictId(s, null); cfCasSetBlock(s, null, null);
+      });
+      setSync('ok', '');
+      reset(); out.clean = syncDotClass();
+      reset(); cfCasSetConflictId('core', recIds.core); out.conflict = syncDotClass();
+      reset(); cfCasSetBlock('core', 'recovery', 'tok'); out.blocked = syncDotClass();
+      reset();
+      cfCasSetConflictId('training', recIds.training);
+      cfCasSetBlock('core', 'recovery', 'tok');
+      out.both = syncDotClass();
+      return out;
+    }, { core: 'casrec-core-' + 'a'.repeat(32), training: 'casrec-training-' + 'a'.repeat(32) });
+    eq(sev.clean, 'good');
+    eq(sev.conflict, 'warn', 'both versions are safe — this is a decision, not a failure');
+    eq(sev.blocked, 'bad', 'a failed preservation is an error state');
+    eq(sev.both, 'bad', 'the higher severity wins');
+  });
+
+  await test('C10-BW-05 a sole hidden preservation does not open an empty centre', async () => {
+    await setState(page, {});
+    await page.evaluate(() => cfCasSetBlock('core', 'preserving', 'tok'));
+    const r = await clickSyncDot();
+    notOk(r.open, 'nothing worth showing yet means nothing to open');
+    eq(r.text, '', 'and certainly not an empty centre');
+  });
+
+  await test('C10-BW-06 a preservation past 400ms can be opened, and offers no choice', async () => {
+    await setState(page, { blocks: [['core', 'preserving']], aged: ['core'] });
+    const r = await clickSyncDot();
+    ok(r.open, 'a visible preservation is explanatory state worth reaching');
+    ok(/Saving a copy of the online version/.test(r.text));
+    const choices = await page.evaluate(() =>
+      document.querySelectorAll('.cf-conflict-card button').length);
+    eq(choices, 0, 'nothing to decide until the copy is safe');
+    eq(r.dot, 'warn');
+    await page.evaluate(() => cfCasCloseConflictCenter());
+  });
+
+  await test('C10-BW-07 with no workflow at all, the legacy sync control is untouched', async () => {
+    await setState(page, {});
+    const r = await page.evaluate(async () => {
+      setSync('ok', '');
+      const el = document.querySelector('[data-act="syncdot"]');
+      el.click();
+      await new Promise((res) => setTimeout(res, 30));
+      return {
+        open: CF_CAS_OPEN,
+        toast: document.getElementById('wl-toast').classList.contains('show'),
+        label: el.getAttribute('aria-label'),
+        controls: el.getAttribute('aria-controls'),
+        expanded: el.getAttribute('aria-expanded'),
+        cue: !!el.querySelector('.cf-dot-cue'),
+        dot: syncDotClass(),
+      };
+    });
+    notOk(r.open);
+    ok(r.toast, 'the existing sync summary still appears');
+    eq(r.label, 'Sync status', 'the legacy accessible name is restored');
+    eq(r.controls, null, 'and no dangling aria-controls to a region it no longer owns');
+    eq(r.expanded, null);
+    notOk(r.cue);
+    eq(r.dot, 'good');
+  });
+
+  section('C10-BW-08..13 — the control says what it now means');
+
+  const dotState = () => page.evaluate(() => {
+    const el = document.querySelector('[data-act="syncdot"]');
+    const cue = el.querySelector('.cf-dot-cue');
+    return {
+      label: el.getAttribute('aria-label'),
+      title: el.getAttribute('title'),
+      controls: el.getAttribute('aria-controls'),
+      expanded: el.getAttribute('aria-expanded'),
+      cueText: cue ? cue.textContent : null,
+      cueClass: cue ? cue.className : null,
+      cueHidden: cue ? cue.getAttribute('aria-hidden') : null,
+    };
+  });
+
+  await test('C10-BW-08 an unresolved conflict names the control "Sync needs your choice"', async () => {
+    await setState(page, { conflicts: ['core'] });
+    const d = await dotState();
+    eq(d.label, 'Sync needs your choice');
+    notOk(/CAS|rev|subsystem|casrec/i.test(d.label), 'no raw CAS vocabulary');
+  });
+
+  await test('C10-BW-09 recovery-blocked names the safe failed state', async () => {
+    await setState(page, { conflicts: ['core'], blocks: [['core', 'recovery']] });
+    const d = await dotState();
+    eq(d.label, 'Couldn’t sync — changes are safe here');
+  });
+
+  await test('C10-BW-10 aria-controls points at the host that is actually mounted', async () => {
+    await setState(page, { conflicts: ['core'] });
+    const d = await dotState();
+    eq(d.controls, 'cf-conflict-host');
+    const real = await page.evaluate((id) => !!document.getElementById(id), d.controls);
+    ok(real, 'aria-controls must name a element that exists');
+  });
+
+  await test('C10-BW-11 aria-expanded follows the real open and closed state', async () => {
+    await setState(page, { conflicts: ['core'] });
+    const closed = await dotState();
+    eq(closed.expanded, 'false');
+    await (await page.$('[data-act="syncdot"]')).click();
+    const opened = await dotState();
+    eq(opened.expanded, 'true');
+    await page.evaluate(() => cfCasCloseConflictCenter());
+    const again = await dotState();
+    eq(again.expanded, 'false');
+  });
+
+  await test('C10-BW-12 clearing the workflow restores the legacy label and drops the attributes', async () => {
+    await setState(page, { conflicts: ['core'] });
+    const during = await dotState();
+    eq(during.label, 'Sync needs your choice');
+    await setState(page, {});
+    const after = await dotState();
+    eq(after.label, 'Sync status');
+    eq(after.controls, null);
+    eq(after.expanded, null);
+    eq(after.cueText, null);
+  });
+
+  await test('C10-BW-13 severity is legible without colour: a distinct glyph per state', async () => {
+    await setState(page, { conflicts: ['core'] });
+    const warn = await dotState();
+    await setState(page, { conflicts: ['core'], blocks: [['core', 'recovery']] });
+    const bad = await dotState();
+    ok(warn.cueText && bad.cueText, 'both states need a non-colour cue');
+    notOk(warn.cueText === bad.cueText, 'and the cues must differ from each other');
+    ok(/cf-dot-cue-warn/.test(warn.cueClass));
+    ok(/cf-dot-cue-bad/.test(bad.cueClass));
+    eq(warn.cueHidden, 'true', 'the accessible name already says it — do not read it twice');
+    eq(warn.title, 'Sync needs your choice', 'and a pointer user gets it as a tooltip');
+    /* Really painted, and really INSIDE its button. .wl-syncdot is a fixed
+       22x22 box built for a 7px dot alone; the cue beside it overflowed the
+       control until the button was allowed to grow. A cue that is present in
+       the DOM but clipped out of its own button is not a visible cue. */
+    const drawn = await page.evaluate(() => {
+      const btn = document.querySelector('[data-act="syncdot"]');
+      const cue = btn.querySelector('.cf-dot-cue');
+      const b = btn.getBoundingClientRect(), c = cue.getBoundingClientRect();
+      return {
+        painted: c.width > 0 && c.height > 0,
+        contained: c.left >= b.left - 0.5 && c.right <= b.right + 0.5
+          && c.top >= b.top - 0.5 && c.bottom <= b.bottom + 0.5,
+        btn: [Math.round(b.width), Math.round(b.height)],
+        cue: [Math.round(c.width), Math.round(c.height)],
+      };
+    });
+    ok(drawn.painted, 'the cue must actually be visible');
+    ok(drawn.contained,
+      'the cue overflows its control: button ' + drawn.btn + ', cue ' + drawn.cue);
+  });
+
+  await test('C10-BW-13b the control returns to its original size when the workflow clears', async () => {
+    const sizes = await page.evaluate(() => {
+      const btn = () => document.querySelector('[data-act="syncdot"]');
+      ['core', 'training'].forEach((s) => { cfCasSetConflictId(s, null); cfCasSetBlock(s, null, null); });
+      const clean = Math.round(btn().getBoundingClientRect().width);
+      cfCasSetConflictId('core', 'casrec-core-' + 'a'.repeat(32));
+      const withCue = Math.round(btn().getBoundingClientRect().width);
+      cfCasSetConflictId('core', null);
+      const after = Math.round(btn().getBoundingClientRect().width);
+      return { clean, withCue, after };
+    });
+    ok(sizes.withCue > sizes.clean, 'the control has to make room for the cue');
+    eq(sizes.after, sizes.clean, 'and give the room back — no permanently widened header');
+  });
+
+  section('C10-BW-14..18 — focus restoration survives the app rerendering');
+
+  await test('C10-BW-14 closing after a real render() lands on the NEW header control', async () => {
+    await setState(page, { conflicts: ['core'] });
+    const res = await page.evaluate(async () => {
+      const before = document.querySelector('[data-act="syncdot"]');
+      cfCasOpenConflictCenter(before);
+      render();                                  /* the app's own render, replacing #app */
+      const detached = !before.isConnected;
+      const how = cfCasCloseConflictCenter();
+      const now = document.querySelector('[data-act="syncdot"]');
+      return {
+        detached,
+        how,
+        onNew: document.activeElement === now,
+        sameNode: now === before,
+        onBody: document.activeElement === document.body,
+      };
+    });
+    ok(res.detached, 'render() must genuinely have replaced the opener for this to test anything');
+    notOk(res.sameNode, 'and the new control must be a different node');
+    eq(res.how, 'reacquired');
+    ok(res.onNew, 'focus must land on the control the athlete can now see');
+    notOk(res.onBody, 'never dropped at the top of the document');
+  });
+
+  await test('C10-BW-15 with no rerender, the original node is still the one restored', async () => {
+    await setState(page, { conflicts: ['core'] });
+    const res = await page.evaluate(() => {
+      const el = document.querySelector('[data-act="syncdot"]');
+      cfCasOpenConflictCenter(el);
+      const how = cfCasCloseConflictCenter();
+      return { how, same: document.activeElement === el };
+    });
+    eq(res.how, 'node');
+    ok(res.same);
+  });
+
+  await test('C10-BW-16 an opener with no equivalent left falls back safely, never to body', async () => {
+    await setState(page, { conflicts: ['core'] });
+    const res = await page.evaluate(() => {
+      const orphan = document.createElement('button');
+      orphan.setAttribute('data-act', 'cf:not-a-real-control');
+      document.body.appendChild(orphan);
+      cfCasOpenConflictCenter(orphan);
+      orphan.remove();                            /* nothing of its kind remains */
+      const how = cfCasCloseConflictCenter();
+      return {
+        how,
+        onBody: document.activeElement === document.body,
+        focused: document.activeElement && (document.activeElement.getAttribute('data-act')
+          || document.activeElement.tagName),
+      };
+    });
+    eq(res.how, 'fallback');
+    notOk(res.onBody, 'focus must not be abandoned');
+    ok(res.focused, 'it must land on something real: ' + res.focused);
+  });
+
+  await test('C10-BW-17 Escape uses the same rerender-safe restoration path', async () => {
+    await setState(page, { conflicts: ['core'] });
+    await page.evaluate(() => {
+      cfCasOpenConflictCenter(document.querySelector('[data-act="syncdot"]'));
+      render();                                   /* opener replaced while open */
+    });
+    await page.keyboard.press('Escape');
+    const res = await page.evaluate(() => ({
+      open: CF_CAS_OPEN,
+      onControl: document.activeElement === document.querySelector('[data-act="syncdot"]'),
+      onBody: document.activeElement === document.body,
+    }));
+    notOk(res.open);
+    ok(res.onControl, 'Escape must restore focus the same way Close does');
+    notOk(res.onBody);
+  });
+
+  await test('C10-BW-18 a background rerender while open does not move focus into the centre', async () => {
+    await setState(page, { conflicts: ['core'] });
+    const res = await page.evaluate(async () => {
+      const outside = document.createElement('input');
+      outside.id = 'bw18'; document.body.appendChild(outside);
+      cfCasOpenConflictCenter(document.querySelector('[data-act="syncdot"]'));
+      outside.focus();                            /* the athlete moves elsewhere */
+      const before = document.activeElement;
+      render();                                   /* an ordinary background repaint */
+      await new Promise((r) => setTimeout(r, 40));
+      const host = document.getElementById('cf-conflict-host');
+      return {
+        stillOutside: document.activeElement === before,
+        insideCentre: host.contains(document.activeElement),
+        stillOpen: CF_CAS_OPEN,
+      };
+    });
+    ok(res.stillOutside, 'a repaint must not pull the athlete into the centre');
+    notOk(res.insideCentre);
+    ok(res.stillOpen, 'and the centre stays open');
+  });
+
   /* ------------------------------------------------- screen reader / live */
   section('Screen reader and live regions (real Chromium)');
 

@@ -420,9 +420,20 @@ group('C10-UX-06..10 / 12..15 — both cards stay, and focus is managed', () => 
   });
   test('C10-UX-15 closing returns focus to whatever opened it', () => {
     let back = false;
-    e.S.cfCasOpenConflictCenter({ focus() { back = true; } });
+    /* isConnected, because restoration now refuses to focus a node it cannot
+       prove is still in the document — the app's render() replaces #app, where
+       the opener lives, and focusing a detached element silently drops the
+       athlete on <body>. */
+    e.S.cfCasOpenConflictCenter({ isConnected: true, focus() { back = true; } });
     e.S.cfCasCloseConflictCenter();
     ok(back);
+  });
+  test('C10-UX-15b an opener that has been replaced is not focused as a ghost', () => {
+    let ghost = false;
+    e.S.cfCasOpenConflictCenter({ isConnected: false, focus() { ghost = true; } });
+    const how = e.S.cfCasCloseConflictCenter();
+    notOk(ghost, 'a detached node must never receive focus');
+    notOk(how === 'node', 'and must not be reported as a successful restore');
   });
   test('C10-UX-14 background discovery moves no focus', () => {
     /* rendering alone must never focus anything */
