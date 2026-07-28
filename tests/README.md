@@ -8,6 +8,13 @@ Tests slice the `@testable-start NAME ... @testable-end NAME` blocks out of
 `index.html` and evaluate them, so they run against the **real shipping source**
 rather than a copy that can drift.
 
+`harness-self.test.js` (HARNESS-01..06) tests the harness itself. A harness
+cannot credibly assert its own failure behaviour — if it is broken in the way
+under test, the assertion is broken too — so each case writes a tiny suite to a
+temp file, runs it in a real child `node` process, and checks the exit code and
+output from outside. That is the only way to prove "the runner exits nonzero",
+which is the property every other guarantee here depends on.
+
 Flows needing a real browser (IndexedDB, two-user login, session expiry) are in
 `MANUAL_CHECKLIST_COMMIT1.md` — the 58-case gate for the hardening commits
 (`MANUAL_CHECKLIST.md` is the older M1–M4 list, retained for history).
