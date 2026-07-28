@@ -8226,6 +8226,89 @@ function cfCasDisposition(status,body){
   return "contract";}
 /* @testable-end C10 */
 
+/* ---- CAS recovery artifact: storage integration -------------------------
+   The pure contract above says what a valid artifact IS. This says how one
+   comes into existence, and the order is the whole point (Architect progress-2
+   review, "recovery immutability boundary"):
+
+     1. choose a FRESH id
+     2. refuse an existing id BEFORE writing anything
+     3. write the payload bytes first
+     4. READ THEM BACK and hash what came back, never what we meant to write
+     5. write the manifest LAST — its presence is what makes the artifact real
+     6. on any failure, leave nothing actionable behind
+     7. no later caller can overwrite it in place
+
+   Step 4 is not ceremony. A digest computed from the in-memory string would
+   certify our intention; a digest computed from the bytes storage handed back
+   certifies what a future reader will actually find. Quota truncation, a
+   storage shim that mangles unicode, or a partial write are all invisible to
+   the first and caught by the second. */
+var CF_CASREC_PREFIX="cf:casrec:";
+var CF_CASREC_SEQ=0;
+function cfCasRecKeys(id){return {payload:CF_CASREC_PREFIX+id+":payload",manifest:CF_CASREC_PREFIX+id+":manifest"};}
+function cfCasRecExists(id){
+  var K=cfCasRecKeys(id);
+  try{return localStorage.getItem(K.manifest)!==null||localStorage.getItem(K.payload)!==null;}
+  catch(e){return true;}}                                   /* unreadable storage: assume taken */
+
+/* A fresh id, verified free. Never reuses an id that has any trace on disk. */
+function cfCasRecNewId(sub,now){
+  for(var i=0;i<50;i++){
+    var id="casrec-"+sub+"-"+now+"-"+(++CF_CASREC_SEQ);
+    if(!cfCasRecExists(id))return id;}
+  return null;}
+
+function cfCasSha256Hex(str,cb){
+  try{
+    if(typeof crypto==="undefined"||!crypto.subtle){cb(null);return;}
+    var bytes=new TextEncoder().encode(String(str));
+    crypto.subtle.digest("SHA-256",bytes).then(function(buf){
+      var v=new Uint8Array(buf),h="";
+      for(var i=0;i<v.length;i++){var x=v[i].toString(16);h+=(x.length===1?"0":"")+x;}
+      cb(h);},function(){cb(null);});
+  }catch(e){cb(null);}}
+
+function cfCasRecPurge(id){
+  var K=cfCasRecKeys(id);
+  try{localStorage.removeItem(K.manifest);localStorage.removeItem(K.payload);}catch(e){}}
+
+/* cb(ok, manifestOrReason). Reasons are diagnostic strings, never payloads. */
+function cfCasRecWrite(id,sub,serverRev,account,payloadStr,cb){
+  var K=cfCasRecKeys(id),man0=null,pay0=null;
+  try{man0=localStorage.getItem(K.manifest);pay0=localStorage.getItem(K.payload);}
+  catch(e){cb(false,"storage");return;}
+  if(!cfCasRecMayWrite(man0)){cb(false,"exists");return;}            /* 2, 7 */
+  if(pay0!==null){cb(false,"exists");return;}                        /* a partial from before */
+  var want=String(payloadStr);
+  try{localStorage.setItem(K.payload,want);}catch(e){cfCasRecPurge(id);cb(false,"storage");return;}  /* 3 */
+  var back=null;
+  try{back=localStorage.getItem(K.payload);}catch(e){back=null;}     /* 4 */
+  if(back===null||back!==want){cfCasRecPurge(id);cb(false,"readback");return;}
+  cfCasSha256Hex(back,function(hex){                                 /* hash of what STORAGE returned */
+    if(!cfCasHashValid(hex)){cfCasRecPurge(id);cb(false,"digest");return;}
+    var man={kind:"cas-conflict",id:String(id),sub:sub,serverRev:serverRev,account:account,
+             keys:["payload"],sizes:{payload:cfCasUtf8Bytes(back)},hash:hex};
+    if(!cfCasRecValid(man,id,{payload:back})){cfCasRecPurge(id);cb(false,"invalid");return;}
+    try{localStorage.setItem(K.manifest,JSON.stringify(man));}       /* 5: manifest LAST */
+    catch(e){cfCasRecPurge(id);cb(false,"storage");return;}
+    cb(true,man);});}
+
+/* cb(payloadOrNull, reason). The digest is recomputed from the bytes read back
+   out of storage — a caller-supplied digest is never trusted (progress-2
+   review). Returns the payload only when cfCasRecVerified passes, so a conflict
+   card cannot become actionable on an unverified artifact. */
+function cfCasRecRead(id,expected,cb){
+  var K=cfCasRecKeys(id),raw=null,pay=null;
+  try{raw=localStorage.getItem(K.manifest);pay=localStorage.getItem(K.payload);}
+  catch(e){cb(null,"storage");return;}
+  if(raw===null){cb(null,"absent");return;}                          /* 6: no manifest, not actionable */
+  if(pay===null){cb(null,"missing-payload");return;}
+  var man=null;try{man=JSON.parse(raw);}catch(e){cb(null,"unparseable");return;}
+  cfCasSha256Hex(pay,function(hex){
+    if(!cfCasRecVerified(man,id,{payload:pay},expected,hex)){cb(null,"unverified");return;}
+    cb(pay,null);});}
+
 </script>
 </body>
 </html>

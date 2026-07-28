@@ -69,6 +69,12 @@ function createEnv(opts) {
     Blob: function (parts, o) { this.parts = parts; this.type = o && o.type; },
     File: function (parts, name, o) { this.parts = parts; this.name = name; this.type = o && o.type; },
     indexedDB: { open: () => ({ set onsuccess(f){}, set onerror(f){}, set onupgradeneeded(f){} }) },
+    /* Real browsers expose WebCrypto and TextEncoder on a secure context, and
+       the app is served over https. The stub models that rather than forcing a
+       test seam into production code — the CAS recovery writer hashes with the
+       same crypto.subtle call it will use in the browser. */
+    crypto: require('crypto').webcrypto,
+    TextEncoder,
     atob: (s) => Buffer.from(s, 'base64').toString('binary'),
     btoa: (s) => Buffer.from(s, 'binary').toString('base64'),
     alert(){}, confirm(){ return true; }, matchMedia: () => ({ matches: false, addListener(){}, addEventListener(){} }),
