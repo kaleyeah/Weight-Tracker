@@ -8355,6 +8355,23 @@ var cfCasRecStore=(function(){
       return had;
     }catch(e){return false;}}
 
+  /* Locked deletion for an explicit captured scope. Private: reachable only
+     through a capability handed to the writer that created the artifact. */
+  function purgeScoped(scope,id,cb){
+    if(!scope){cb(false,"unauthenticated");return;}
+    var lock="cf-cas-recovery:"+scope+":"+id;
+    withLock(lock,function(release){
+      var K=keysFor(scope,id),removed=false;
+      try{
+        removed=localStorage.getItem(K.manifest)!==null||localStorage.getItem(K.payload)!==null||
+                localStorage.getItem(K.claim)!==null;
+        localStorage.removeItem(K.manifest);
+        localStorage.removeItem(K.payload);
+        localStorage.removeItem(K.claim);
+      }catch(e){release();cb(false,"storage");return;}
+      release();cb(removed,removed?null:"absent");
+    },function(){cb(false,"no-lock");});}
+
   function withLock(name,body,unavailable){
     try{
       if(typeof navigator==="undefined"||!navigator.locks||!navigator.locks.request){unavailable();return;}
@@ -8416,7 +8433,12 @@ var cfCasRecStore=(function(){
       var stored=null;
       try{stored=localStorage.getItem(K.manifest);}catch(e){stored=null;}
       if(stored!==serialized){purgeCapturedLocked(ctx);done(false,"publish-mismatch");return;}
-      done(true,candidate);});}
+      /* A capability to remove THIS artifact under the scope it was written in.
+         Handed only to the caller that created it, so a failed or drifted
+         operation can clean up its own artifact without the public purge, which
+         always addresses the currently authenticated account. */
+      var cap={purge:function(cb){purgeScoped(ctx.owner,ctx.id,cb||function(){});}};
+      done(true,candidate,cap);});}
 
   return {
     newId:newId,
@@ -8521,7 +8543,10 @@ function cfCasSha256Hex(str,cb){return cfCasRecStore.sha256(str,cb);}
 var CF_CAS_DEBOUNCE_MS=3000;                       /* spec §2.1 */
 var CF_CAS_TIMER={core:null,training:null};
 var CF_CAS_OP={core:null,training:null};           /* the ONE active operation */
-var CF_CAS_RERUN={core:false,training:false};      /* a trigger arrived mid-flight */
+/* A queued rerun records WHOSE trigger it was. A bare boolean let an Account A
+   trigger survive a logout and schedule a run that captured Account B's live
+   state — queued work must not cross an ownership boundary (review C10-P9-01). */
+var CF_CAS_RERUN={core:null,training:null};
 var CF_CAS_SEQ={core:{retried:false},training:{retried:false}};  /* conflict sequence */
 var CF_CAS_ATTEMPT={core:0,training:0};
 var CF_CAS_BLOCK={core:null,training:null};
@@ -8577,14 +8602,18 @@ function cfCasCapture(sub){
   try{frozen=JSON.parse(canon);}catch(e){frozen=null;}
   return {sub:sub,localRev:revLocal(sub),expectedRev:cfCasServerRev(sub),
           canon:canon,payload:frozen,key:null,
-          owner:pbUid(),gen:CF_SESSION_GEN,tok:String(pbTok()||"").slice(-16),
+          /* EXACT session identity (review C10-P9-03). A 16-character suffix
+             was a needless weakening: two sessions can share trailing
+             characters. The full token is compared IN MEMORY only — the
+             operation object is never logged, serialised or persisted. */
+          owner:pbUid(),gen:CF_SESSION_GEN,tok:String(pbTok()||""),
           build:APP_BUILD,device:cfCasDeviceId()};}
 
 /* Has the ground moved under this operation? Checked before sending AND before
    applying any response, so a late answer for a signed-out account is inert. */
 function cfCasOpDrifted(op){
   return !op||op.owner!==pbUid()||op.gen!==CF_SESSION_GEN||
-         op.tok!==String(pbTok()||"").slice(-16);}
+         op.tok!==String(pbTok()||"");}
 
 function cfCasSend(op,cb){
   var url=pbBase()+"/api/cf/appdata/commit";
@@ -8616,14 +8645,20 @@ function cfCasSyncNow(sub){
 /* The subsystem is reserved BEFORE the asynchronous build, not after it, so a
    second trigger during hashing cannot start a second hash or fetch. It records
    that another run is wanted and takes its turn when this one finishes. */
+function cfCasSessionNow(){return {owner:pbUid(),gen:CF_SESSION_GEN,tok:String(pbTok()||"")};}
+function cfCasSameSession(a,b){
+  return !!a&&!!b&&a.owner===b.owner&&a.gen===b.gen&&a.tok===b.tok;}
+
 function cfCasFinishOp(sub){
   CF_CAS_OP[sub]=null;
-  if(CF_CAS_RERUN[sub]){
-    CF_CAS_RERUN[sub]=false;
-    if(cfCasCanCommit(cfCasState(sub)))cfCasSchedule(sub,0);}}
+  var queued=CF_CAS_RERUN[sub];
+  CF_CAS_RERUN[sub]=null;                            /* consumed either way */
+  if(!queued)return;
+  if(!cfCasSameSession(queued,cfCasSessionNow()))return;   /* belonged to another session */
+  if(cfCasCanCommit(cfCasState(sub)))cfCasSchedule(sub,0);}
 
 function cfCasRun(sub){
-  if(CF_CAS_OP[sub]){CF_CAS_RERUN[sub]=true;return;}   /* building OR sending */
+  if(CF_CAS_OP[sub]){CF_CAS_RERUN[sub]=cfCasSessionNow();return;}   /* building OR sending */
   if(!syncOn())return;
   if(!cfCasCanCommit(cfCasState(sub)))return;
   if(cfAccountBlocked&&cfAccountBlocked())return;      /* ownership gates stay preconditions */
@@ -8717,8 +8752,23 @@ function cfCasOnConflict(sub,op,body){
   var id=cfCasRecNewId(sub);
   if(!id){CF_CAS_BLOCK[sub]="recovery";return;}
   cfCasRecWrite(id,sub,serverRev===null?0:serverRev,
-    JSON.stringify(body.payload===undefined?null:body.payload),function(ok){
-      if(cfCasOpDrifted(op)){return;}            /* drifted: publish nothing */
+    JSON.stringify(body.payload===undefined?null:body.payload),function(ok,manOrReason,cap){
+      if(cfCasOpDrifted(op)){
+        /* The session changed while the recovery artifact was being written.
+           Publishing nothing is necessary but not sufficient: a VERIFIED
+           artifact may already exist, and returning here would orphan it. It is
+           purged through the locked API using the capability captured for that
+           write — never through the public purge, which addresses whichever
+           account is live now (review C10-P9-02). */
+        if(ok&&cap&&cap.purge)cap.purge(function(){});
+        /* Clear the transient state THIS operation set. "preserving" was a
+           pause belonging to the old session; leaving it behind would hand the
+           newly active account a paused subsystem it never caused. Only
+           old-operation state is cleared — nothing belonging to the new
+           session is touched. */
+        if(CF_CAS_BLOCK[sub]==="preserving")CF_CAS_BLOCK[sub]=null;
+        CF_CAS_SEQ[sub].retried=false;
+        return;}
       if(!ok){CF_CAS_BLOCK[sub]="recovery";return;}
       cfCasSetConflictId(sub,id);                /* only now is it actionable */
       CF_CAS_BLOCK[sub]=null;                    /* conflictId is the block now */

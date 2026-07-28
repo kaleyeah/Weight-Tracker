@@ -224,10 +224,22 @@ defer((async function scenarios() {
   function pausableDigest(env) {
     const subtle = env.S.crypto.subtle;
     const real = subtle.digest.bind(subtle);
-    let gate = null;
-    subtle.digest = (a, d) => (gate ? gate.then(() => real(a, d)) : real(a, d));
+    let gate = null; let holdIndex = null; let calls = 0;
+    subtle.digest = (a, d) => {
+      const n = ++calls;
+      return (gate && (holdIndex === null || holdIndex === n)) ? gate.then(() => real(a, d)) : real(a, d);
+    };
     return {
-      hold() { let open; gate = new Promise((r) => { open = r; }); return () => { const g = open; gate = null; g(); }; },
+      /* hold() parks every digest; hold(n) parks only the nth. A commit uses
+         digest #1 for its idempotency key and digest #2 for the recovery
+         artifact, so the conflict-drift case must park #2 — parking after the
+         fact is too late, because the artifact is already published. */
+      hold(n) {
+        let open; holdIndex = n === undefined ? null : n;
+        gate = new Promise((r) => { open = r; });
+        return () => { const g = open; gate = null; holdIndex = null; g(); };
+      },
+      calls: () => calls,
       restore() { subtle.digest = real; },
     };
   }
@@ -427,6 +439,147 @@ defer((async function scenarios() {
     await pump(env, 4);
     test('no timer callback threw', () => eq(env.timerErrors.map(String), []));
     test('the operation completed cleanly', () => eq(env.S.CF_CAS_OP.core, null));
+  });
+
+
+  /* ============ C10-P9: session-scoped queuing and conflict cleanup ===== */
+
+  await group('C10-P9-01/02/03/04 — a queued rerun cannot cross a session boundary', async () => {
+    const env = signedIn({ fetchResponses: okStub(1) });
+    const gate = pausableDigest(env);
+    env.S.state.weights.push({ d: '2026-09-01', kg: 60 });
+    env.S.save();
+    const release = gate.hold();
+    env.runTimers();
+    await settle();
+    /* Account A queues a rerun while its own operation is building */
+    env.S.cfCasSyncNow('core');
+    await settle();
+    test('the rerun is queued and carries a session', () => ok(env.S.CF_CAS_RERUN.core));
+    const before = commits(env).length;
+    /* the athlete logs out / switches account */
+    env.S.CF_SESSION_GEN = env.S.CF_SESSION_GEN + 1;
+    release();
+    await pump(env, 4);
+    test('C10-P9-01 A\'s queued rerun caused no request under the new session', () =>
+      eq(commits(env).length, before));
+    test('C10-P9-02 the stale queue was cleared, not left armed', () => eq(env.S.CF_CAS_RERUN.core, null));
+    test('C10-P9-04 training\'s queue was untouched', () => eq(env.S.CF_CAS_RERUN.training, null));
+    test('the old account\'s pending work is preserved for its next session', () =>
+      ok(env.S.revIsDirty('core')));
+    gate.restore();
+  });
+
+  await group('C10-P9-03 — a new session schedules its own work normally', async () => {
+    const env = signedIn({ fetchResponses: okStub(4) });
+    env.S.CF_SESSION_GEN = env.S.CF_SESSION_GEN + 1;   /* fresh session, same device */
+    env.S.state.weights.push({ d: '2026-09-02', kg: 61 });
+    env.S.save();
+    await pump(env, 3);
+    test('the new session syncs under its own context', () => ok(commits(env).length >= 1));
+    test('and settles clean', () => notOk(env.S.revIsDirty('core')));
+  });
+
+  await group('C10-P9-10 — sessions sharing a token suffix are different sessions', async () => {
+    const env = signedIn();
+    const cfg = JSON.parse(env.S.localStorage.getItem('wl_pb'));
+    /* two tokens with identical last 16 characters — the old comparison saw
+       these as the same session */
+    const tokA = 'AAAAAAAAAAAAAAAAAAAA-IDENTICALSUFFIX';
+    const tokB = 'BBBBBBBBBBBBBBBBBBBB-IDENTICALSUFFIX';
+    env.S.localStorage.setItem('wl_pb', JSON.stringify({ ...cfg, token: tokA }));
+    const op = env.S.cfCasCapture('core');
+    test('the captured token is the whole token, not a suffix', () => eq(op.tok, tokA));
+    env.S.localStorage.setItem('wl_pb', JSON.stringify({ ...cfg, token: tokB }));
+    test('C10-P9-10 the operation is treated as drifted', () => ok(env.S.cfCasOpDrifted(op)));
+    test('the last 16 characters really are identical', () => eq(tokA.slice(-16), tokB.slice(-16)));
+  });
+
+  await group('C10-P9-05..09 — drift during recovery preservation purges the artifact', async () => {
+    /* A genuine conflict starts recovery storage; the session changes while the
+       recovery WRITE is in flight. The previous version returned without
+       publishing — correct — but left the verified artifact orphaned. */
+    const env = signedIn({ fetchResponses: (e) => (/commit/.test(e.url)
+      ? { ok: false, status: 409, json: () => Promise.resolve({ conflict: true, subsystem: 'core', serverRev: 5, payload: { weights: [{ d: 'server', kg: 60 }] } }), text: () => Promise.resolve('') }
+      : null) });
+    const gate = pausableDigest(env);
+    const release = gate.hold(2);             /* park the RECOVERY digest, not the key's */
+    env.S.state.weights.push({ d: '2026-09-03', kg: 62 });
+    env.S.save();
+    await pump(env, 2);                       /* 409 applied; recovery write now parked */
+    test('the recovery write is parked, unpublished', () => {
+      const keys = [...env.S.localStorage._map.keys()].filter((k) => /:manifest$/.test(k) && k.indexOf('cf:casrec') === 0);
+      eq(keys, []);
+    });
+    env.S.CF_SESSION_GEN = env.S.CF_SESSION_GEN + 1;   /* session changes mid-write */
+    release();
+    await pump(env, 4);
+
+    test('C10-P9-05 no conflict reference was published', () => eq(env.S.cfCasConflictId('core'), null));
+    test('C10-P9-06/08 no orphaned artifact remains in storage', () => {
+      const keys = [...env.S.localStorage._map.keys()].filter((k) => k.indexOf('cf:casrec:') === 0);
+      eq(keys, []);
+    });
+    test('C10-P9-08 the new session sees an empty recovery inventory', () =>
+      eq(env.S.cfCasRecList().length, 0));
+    test('C10-P9-07 the new session has no conflict or block state imposed on it', () =>
+      notOk(env.S.CF_CAS_BLOCK.core === 'preserving'));
+    test('C10-P9-09 the original account keeps its pending local revision', () =>
+      ok(env.S.revIsDirty('core')));
+    gate.restore();
+  });
+
+  /* ---- the C10-P8-11/12/13 behavioural evidence the review found missing --- */
+
+  await group('C10-P8-11 — a 200 without a matching subsystem never marks data clean', async () => {
+    for (const [label, body] of [
+      ['missing subsystem', { ok: true, newRev: 1 }],
+      ['wrong subsystem', { ok: true, subsystem: 'training', newRev: 1 }],
+    ]) {
+      const env = signedIn({ fetchResponses: (e) => (/commit/.test(e.url)
+        ? { ok: true, status: 200, json: () => Promise.resolve(body), text: () => Promise.resolve('') } : null) });
+      env.S.state.weights.push({ d: '2026-09-04', kg: 63 });
+      env.S.save();
+      await pump(env, 3);
+      test(`${label}: data stays pending`, () => ok(env.S.revIsDirty('core')));
+      test(`${label}: subsystem is blocked as invariant`, () => eq(env.S.CF_CAS_BLOCK.core, 'invariant'));
+      test(`${label}: no server revision was adopted`, () => eq(env.S.cfCasServerRev('core'), 0));
+    }
+  });
+
+  await group('C10-P8-12 — an invalid newRev never marks data clean', async () => {
+    for (const [label, rev] of [['missing', undefined], ['string', '3'], ['negative', -1], ['fractional', 1.5]]) {
+      const env = signedIn({ fetchResponses: (e) => (/commit/.test(e.url)
+        ? { ok: true, status: 200, json: () => Promise.resolve({ ok: true, subsystem: 'core', newRev: rev }), text: () => Promise.resolve('') } : null) });
+      env.S.state.weights.push({ d: '2026-09-05', kg: 64 });
+      env.S.save();
+      await pump(env, 3);
+      test(`newRev ${label}: data stays pending`, () => ok(env.S.revIsDirty('core')));
+      test(`newRev ${label}: no revision adopted`, () => eq(env.S.cfCasServerRev('core'), 0));
+    }
+  });
+
+  await group('C10-P8-13 — a malformed 409 creates no recovery artifact and no conflict', async () => {
+    for (const [label, body] of [
+      ['no serverRev', { conflict: true, subsystem: 'core', payload: {} }],
+      ['fractional serverRev', { conflict: true, subsystem: 'core', serverRev: 1.5, payload: {} }],
+      ['array payload', { conflict: true, subsystem: 'core', serverRev: 2, payload: [] }],
+      ['primitive payload', { conflict: true, subsystem: 'core', serverRev: 2, payload: 'x' }],
+      ['no-row with a payload', { conflict: true, subsystem: 'core', serverRev: null, payload: {} }],
+    ]) {
+      const env = signedIn({ fetchResponses: (e) => (/commit/.test(e.url)
+        ? { ok: false, status: 409, json: () => Promise.resolve(body), text: () => Promise.resolve('') } : null) });
+      env.S.state.weights.push({ d: '2026-09-06', kg: 65 });
+      env.S.save();
+      await pump(env, 3);
+      test(`${label}: no recovery artifact was written`, () => {
+        const keys = [...env.S.localStorage._map.keys()].filter((k) => k.indexOf('cf:casrec:') === 0);
+        eq(keys, []);
+      });
+      test(`${label}: no conflict reference`, () => eq(env.S.cfCasConflictId('core'), null));
+      test(`${label}: treated as a contract failure`, () => eq(env.S.CF_CAS_BLOCK.core, 'invariant'));
+      test(`${label}: the athlete's data stays pending`, () => ok(env.S.revIsDirty('core')));
+    }
   });
 
   report();
