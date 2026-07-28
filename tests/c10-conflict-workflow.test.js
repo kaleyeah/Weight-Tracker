@@ -706,5 +706,138 @@ defer((async function scenarios() {
       ok(env.S.cfCasRecPendingCleanup().indexOf(id) >= 0));
   });
 
+
+  /* ===== C10-P14: the ledger itself must not lose obligations ========== */
+
+  const tracked = (env, scope, id) =>
+    new Promise((res) => env.S.cfCasRecPurgeTracked(scope, id, (ok, why) => res({ ok, why })));
+
+  await group('C10-P14-01/02/10 — concurrent ledger writes preserve both obligations', async () => {
+    /* Two tabs sharing one storage and one lock registry, each recording a
+       different failed deletion. The bare read-modify-write lost one of them. */
+    const a = await conflicted();
+    const b = await conflicted();
+    b.S.localStorage = a.S.localStorage;
+    b.S.navigator = a.S.navigator;
+
+    /* Two REAL artifacts. An id that was never written is legitimately
+       "absent", which needs no cleanup and is reported as success — my first
+       version of this test blocked deletion but used ids that did not exist,
+       so it proved nothing. */
+    const idA = a.S.cfCasRecNewId('core');
+    const idB = a.S.cfCasRecNewId('core');
+    await new Promise((res) => a.S.cfCasRecWrite(idA, 'core', 1, '{"a":1}', res));
+    await new Promise((res) => b.S.cfCasRecWrite(idB, 'core', 1, '{"b":1}', res));
+
+    /* now make every deletion fail so both attempts must record an obligation */
+    const realRemove = a.S.localStorage.removeItem;
+    a.S.localStorage.removeItem = function (k) { if (/cf:casrec:.*:(payload|manifest|claim)$/.test(String(k))) return; return realRemove.call(this, k); };
+
+    const [r1, r2] = await Promise.all([
+      tracked(a, 'userA', idA),
+      tracked(b, 'userA', idB),
+    ]);
+    a.S.localStorage.removeItem = realRemove;
+
+    test('both deletions report failure honestly', () => { notOk(r1.ok); notOk(r2.ok); });
+    test('C10-P14-01 BOTH obligations are recorded — neither writer erased the other', () => {
+      const owed = a.S.cfCasRecPendingCleanup();
+      ok(owed.indexOf(idA) >= 0);
+      ok(owed.indexOf(idB) >= 0);
+    });
+    test('C10-P14-02 an unrelated obligation survives a concurrent drop', async () => {
+      await new Promise((res) => a.S.cfCasRecPurgeTracked('userA', idA, res));
+      ok(a.S.cfCasRecPendingCleanup().indexOf(idB) >= 0);
+    });
+    test('C10-P14-10 another account sees none of it', () => {
+      a.S.localStorage.setItem('wl_pb', JSON.stringify({ ...PB, uid: 'userB' }));
+      eq(a.S.cfCasRecPendingCleanup().length, 0);
+      a.S.localStorage.setItem('wl_pb', JSON.stringify(PB));
+    });
+  });
+
+  await group('C10-P14-03 — a sweep never drops an unverified obligation', async () => {
+    const env = await conflicted();
+    const realRemove = env.S.localStorage.removeItem;
+    const realId = env.S.cfCasRecNewId('core');
+    await new Promise((res) => env.S.cfCasRecWrite(realId, 'core', 1, '{"c":1}', res));
+    env.S.localStorage.removeItem = function (k) { if (/cf:casrec:.*:(payload|manifest|claim)$/.test(String(k))) return; return realRemove.call(this, k); };
+    await tracked(env, 'userA', realId);
+    const owedBefore = env.S.cfCasRecPendingCleanup().length;
+    const swept = await new Promise((res) => env.S.cfCasRecCleanupSweep(res));
+    env.S.localStorage.removeItem = realRemove;
+    test('the sweep removes nothing it could not verify', () => eq(swept, 0));
+    test('C10-P14-03 the obligation is still owed', () =>
+      eq(env.S.cfCasRecPendingCleanup().length, owedBefore));
+  });
+
+  await group('C10-P14-04/05 — the ledger fails closed and verifies its write', async () => {
+    const noLock = createEnv({ locks: false, localStorage: { wl_pb: JSON.stringify(PB) } });
+    const r = await new Promise((res) => noLock.S.cfCasRecPurgeTracked('userA', 'casrec-core-dddd', (ok, why) => res({ ok, why })));
+    test('C10-P14-04 without Web Locks nothing claims to be recorded', () => {
+      notOk(r.ok);
+      ok(String(r.why).indexOf('untracked') === 0 || r.why === 'no-lock');
+    });
+
+    const env = await conflicted();
+    const realSet = env.S.localStorage.setItem;
+    env.S.localStorage.setItem = function (k, v) { if (String(k).endsWith('pending-cleanup')) return; return realSet.call(this, k, v); };
+    const realRemove = env.S.localStorage.removeItem;
+    env.S.localStorage.removeItem = function (k) { if (/cf:casrec:.*:(payload|manifest|claim)$/.test(String(k))) return; return realRemove.call(this, k); };
+    const idE = env.S.cfCasRecNewId('core');
+    env.S.localStorage.setItem = realSet;
+    await new Promise((res) => env.S.cfCasRecWrite(idE, 'core', 1, '{"e":1}', res));
+    env.S.localStorage.setItem = function (k, v) { if (String(k).endsWith('pending-cleanup')) return; return realSet.call(this, k, v); };
+    const r2 = await tracked(env, 'userA', idE);
+    env.S.localStorage.setItem = realSet; env.S.localStorage.removeItem = realRemove;
+    test('C10-P14-05 a ledger write that did not persist is reported, not assumed', () => {
+      notOk(r2.ok);
+      ok(String(r2.why).indexOf('untracked') === 0);
+    });
+  });
+
+  await group('C10-P14-06/07/08 — a full ledger refuses rather than discards', async () => {
+    const env = await conflicted();
+    /* fill the ledger to its bound */
+    const full = [];
+    for (let i = 0; i < 200; i++) full.push('casrec-core-' + i.toString(16).padStart(4, '0'));
+    env.S.localStorage.setItem('cf:casrec:userA:pending-cleanup', JSON.stringify(full));
+    test('the ledger is at capacity', () => eq(env.S.cfCasRecPendingCleanup().length, 200));
+
+    const realRemove = env.S.localStorage.removeItem;
+    env.S.localStorage.removeItem = function (k) { if (/cf:casrec:.*:(payload|manifest|claim)$/.test(String(k))) return; return realRemove.call(this, k); };
+    const idF = env.S.cfCasRecNewId('core');
+    env.S.localStorage.removeItem = realRemove;
+    await new Promise((res) => env.S.cfCasRecWrite(idF, 'core', 1, '{"f":1}', res));
+    env.S.localStorage.removeItem = function (k) { if (/cf:casrec:.*:(payload|manifest|claim)$/.test(String(k))) return; return realRemove.call(this, k); };
+    const r = await tracked(env, 'userA', idF);
+    env.S.localStorage.removeItem = realRemove;
+
+    test('C10-P14-06 the new obligation is NOT silently discarded', () => {
+      notOk(r.ok);
+      ok(String(r.why).indexOf('untracked') === 0);
+    });
+    test('C10-P14-06 the existing obligations are intact', () =>
+      eq(env.S.cfCasRecPendingCleanup().length, 200));
+    test('C10-P14-07 the current conflict remains valid despite the tracking failure', () =>
+      ok(env.S.cfCasConflictId('core')));
+    test('C10-P14-08 an untracked artifact is still discoverable by reconciliation', async () => {
+      const orphans = await new Promise((res) => env.S.cfCasRecReconcile((o) => res(o)));
+      ok(Array.isArray(orphans));
+      /* the live conflict artifact is never reported as an orphan */
+      notOk(orphans.indexOf(env.S.cfCasConflictId('core')) >= 0);
+    });
+  });
+
+  await group('C10-P14-09 — the ledger holds well-formed ids only', async () => {
+    const env = await conflicted();
+    env.S.localStorage.setItem('cf:casrec:userA:pending-cleanup',
+      JSON.stringify(['casrec-core-abc123', { not: 'a string' }, 42, 'casrec-training-def456']));
+    const owed = env.S.cfCasRecPendingCleanup();
+    test('C10-P14-09 non-string entries are ignored rather than trusted', () => eq(owed.length, 2));
+    test('C10-P14-09 the survivors are well-formed ids', () =>
+      owed.forEach((id) => ok(/^casrec-(core|training)-[0-9a-z]+$/.test(id))));
+  });
+
   report();
 })());

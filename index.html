@@ -8386,20 +8386,55 @@ var cfCasRecStore=(function(){
      athlete's data survives is exactly the kind of quiet accumulation this
      project keeps finding. Failed deletions are recorded per account and
      retried; the ledger holds artifact IDs only, never payloads. */
+  var PENDING_MAX=200;
   function pendingKey(scope){return PREFIX+scope+":pending-cleanup";}
+  function pendingLock(scope){return "cf-cas-recovery-cleanup:"+scope;}
   function pendingList(scope){
     try{var raw=localStorage.getItem(pendingKey(scope));var a=raw?JSON.parse(raw):[];
-        return Array.isArray(a)?a:[];}catch(e){return [];}}
-  function pendingSave(scope,list){
-    try{
-      if(!list.length){localStorage.removeItem(pendingKey(scope));return;}
-      localStorage.setItem(pendingKey(scope),JSON.stringify(list.slice(0,200)));
-    }catch(e){}}
-  function pendingAdd(scope,id){
-    var l=pendingList(scope);
-    if(l.indexOf(id)<0){l.push(id);pendingSave(scope,l);}}
-  function pendingDrop(scope,id){
-    pendingSave(scope,pendingList(scope).filter(function(x){return x!==id;}));}
+        return Array.isArray(a)?a.filter(function(x){return typeof x==="string";}):[];}
+    catch(e){return [];}}
+
+  /* EVERY ledger mutation runs under one exclusive account-level lock, re-reads
+     the current list inside it, merges, writes, and READS BACK to confirm.
+
+     The previous version did a bare read-modify-write, so two tabs recording
+     different failed deletions would each write their own list and the last
+     writer would erase the other's obligation — recreating, inside the ledger,
+     precisely the untracked-artifact defect the ledger exists to prevent
+     (review C10-P14-01). It also truncated at 200 silently, which loses an
+     obligation for the same reason with no race required (C10-P14-02).
+
+     mutate(list) returns the new list, or null to abort. cb(ok, reason). */
+  function pendingMutate(scope,mutate,cb){
+    cb=cb||function(){};
+    if(!scope){cb(false,"unauthenticated");return;}
+    withLock(pendingLock(scope),function(release){
+      var current=pendingList(scope),next=null;
+      try{next=mutate(current.slice());}catch(e){next=null;}
+      if(next===null){release();cb(false,"aborted");return;}
+      if(next.length>PENDING_MAX){release();cb(false,"ledger-full");return;}  /* never truncate */
+      var serialized=next.length?JSON.stringify(next):"";
+      try{
+        if(!next.length)localStorage.removeItem(pendingKey(scope));
+        else localStorage.setItem(pendingKey(scope),serialized);
+      }catch(e){release();cb(false,"storage");return;}
+      /* Read back: a write that did not persist must not be reported as
+         recorded, or the obligation is lost exactly as if it were truncated. */
+      var back=null;
+      try{back=localStorage.getItem(pendingKey(scope));}catch(e){back=null;}
+      var ok=next.length?(back===serialized):(back===null);
+      release();
+      cb(ok,ok?null:"not-persisted");
+    },function(){cb(false,"no-lock");});}     /* no lock: say so, never pretend */
+
+  function pendingAdd(scope,id,cb){
+    pendingMutate(scope,function(list){
+      if(list.indexOf(id)>=0)return list;             /* already owed */
+      if(list.length>=PENDING_MAX)return list.concat([id]);  /* mutate() rejects it honestly */
+      return list.concat([id]);},cb);}
+  function pendingDrop(scope,id,cb){
+    pendingMutate(scope,function(list){
+      return list.filter(function(x){return x!==id;});},cb);}
 
   function withLock(name,body,unavailable){
     try{
@@ -8567,10 +8602,14 @@ var cfCasRecStore=(function(){
       cb=cb||function(){};
       if(!scope){cb(false,"unauthenticated");return;}
       purgeScoped(scope,id,function(removed,why){
-        if(removed){pendingDrop(scope,id);cb(true,null);return;}
-        if(why==="absent"){pendingDrop(scope,id);cb(true,"absent");return;}
-        pendingAdd(scope,id);                       /* try again later */
-        cb(false,why||"failed");});},
+        if(removed||why==="absent"){
+          pendingDrop(scope,id,function(){cb(true,removed?null:"absent");});
+          return;}
+        /* The deletion failed. Whether the OBLIGATION was recorded is a second,
+           separately reportable fact — "we could not delete it and we could not
+           even write that down" is a different situation from "we will retry". */
+        pendingAdd(scope,id,function(recorded,rwhy){
+          cb(false,recorded?(why||"failed"):("untracked:"+(rwhy||"failed")));});});},
 
     /* Retry every deletion this account still owes. Never touches another
        account's ledger, because the scope comes from the live session. */
@@ -8582,10 +8621,37 @@ var cfCasRecStore=(function(){
       if(!left){cb(0);return;}
       ids.forEach(function(id){
         purgeScoped(scope,id,function(removed,why){
-          if(removed||why==="absent"){pendingDrop(scope,id);done++;}
-          if(--left===0)cb(done);});});},
+          if(!(removed||why==="absent")){if(--left===0)cb(done);return;}
+          /* Only drop the obligation once the artifact is verifiably gone. */
+          pendingDrop(scope,id,function(dropped){
+            if(dropped)done++;
+            if(--left===0)cb(done);});});});},
 
-    pending:function(){return pendingList(scopeNow());}
+    pending:function(){return pendingList(scopeNow());},
+
+    /* Deterministic account-scoped inventory. If a ledger write ever fails, the
+       artifact is still discoverable: it is a manifest in this account's
+       namespace that no live reference and no ledger entry accounts for. This
+       is the recovery path the review requires for a capacity or persistence
+       failure — nothing depends on the ledger having succeeded. */
+    reconcile:function(activeIds,cb){
+      cb=cb||function(){};
+      var scope=scopeNow();
+      if(!scope){cb([],"unauthenticated");return;}
+      var owed=pendingList(scope),live=activeIds||[];
+      var pre=PREFIX+scope+":",orphans=[];
+      try{
+        for(var i=0;i<localStorage.length;i++){
+          var k=localStorage.key(i)||"";
+          if(k.indexOf(pre)!==0)continue;
+          var rest=k.slice(pre.length),cut=rest.lastIndexOf(":");
+          if(cut<0||rest.slice(cut+1)!=="manifest")continue;
+          var id=rest.slice(0,cut);
+          if(live.indexOf(id)>=0)continue;
+          if(owed.indexOf(id)>=0)continue;
+          orphans.push(id);}
+      }catch(e){cb([],"storage");return;}
+      cb(orphans,null);}
   };
 })();
 
@@ -8599,6 +8665,11 @@ function cfCasRecScope(){return cfCasRecStore.scope();}
 function cfCasRecPurgeTracked(scope,id,cb){return cfCasRecStore.purgeTracked(scope,id,cb);}
 function cfCasRecCleanupSweep(cb){return cfCasRecStore.cleanupSweep(cb);}
 function cfCasRecPendingCleanup(){return cfCasRecStore.pending();}
+function cfCasRecReconcile(cb){
+  var live=[];
+  var a=cfCasConflictId("core"),b=cfCasConflictId("training");
+  if(a)live.push(a); if(b)live.push(b);
+  return cfCasRecStore.reconcile(live,cb);}
 /* The adapter needs the same digest the store uses; it lives in the closure so
    there is one implementation, not two. */
 function cfCasSha256Hex(str,cb){return cfCasRecStore.sha256(str,cb);}
