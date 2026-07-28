@@ -41,6 +41,26 @@ const WORKOUT = '{"draft":true}';
    read like a missing confirmation dialog and was actually the app being right
    about a fixture I had got wrong. */
 const SIZES = { core: CORE.length, training: TRAINING.length, workout: WORKOUT.length };
+/* Several records, some on the SAME DAY — the case a date alone cannot tell
+   apart, and the reason SETASIDE-MULTI exists. */
+const RECORDS = [
+  { stamp: '1700000000001', at: Date.UTC(2026, 0, 28, 9, 5) },
+  { stamp: '1700000000002', at: Date.UTC(2026, 0, 28, 15, 42) },   /* same day */
+  { stamp: '1700000000003', at: Date.UTC(2026, 1, 2, 20, 11) },
+];
+const seedOne = (r) => `
+localStorage.setItem('cf:quarantine:${r.stamp}:core', ${JSON.stringify(CORE)});
+localStorage.setItem('cf:quarantine:${r.stamp}:training', ${JSON.stringify(TRAINING)});
+localStorage.setItem('cf:quarantine:${r.stamp}:workout', ${JSON.stringify(WORKOUT)});
+localStorage.setItem('cf:quarantine:${r.stamp}:manifest', JSON.stringify({
+  stamp:'${r.stamp}', createdAt: ${r.at}, appBuild:'ux-test',
+  keys:['core','training','workout'], sizes:${JSON.stringify(SIZES)}}));`;
+const SEED_MULTI = `<!doctype html><meta charset="utf-8"><body><script>
+localStorage.clear();
+${RECORDS.map(seedOne).join('')}
+location.replace('/index.html');
+</script>`;
+
 const SEED = (withData) => `<!doctype html><meta charset="utf-8"><body><script>
 localStorage.clear();
 ${withData ? `
@@ -60,6 +80,7 @@ location.replace('/index.html');
     const url = (req.url || '/').split('?')[0];
     if (url === '/with') { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(SEED(true)); return; }
     if (url === '/without') { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(SEED(false)); return; }
+    if (url === '/multi') { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(SEED_MULTI); return; }
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
     res.end(html);
   });
@@ -74,7 +95,8 @@ location.replace('/index.html');
       deviceScaleFactor: 2, isMobile: true, acceptDownloads: true,
     });
     const page = await ctx.newPage();
-    await page.goto(base + (withData ? '/with' : '/without'), { waitUntil: 'load' });
+    const route = withData === 'multi' ? '/multi' : (withData ? '/with' : '/without');
+    await page.goto(base + route, { waitUntil: 'load' });
     await page.waitForFunction(() => document.documentElement.style.visibility !== 'hidden',
       null, { timeout: 10000 });
     await page.waitForTimeout(350);
@@ -83,7 +105,7 @@ location.replace('/index.html');
       const el = document.getElementById(id); if (el && el.remove) el.remove();
     }));
     /* Fail as a broken FIXTURE rather than as a mysterious missing dialog. */
-    if (withData) {
+    if (withData && withData !== 'multi') {
       const valid = await page.evaluate((st) => cfQuarComplete(st), STAMP);
       if (!valid) throw new Error('seeded set-aside record is not valid per cfManifestValid — fix the fixture, not the app');
     }
@@ -283,6 +305,150 @@ location.replace('/index.html');
       await page.waitForTimeout(1500);
       const after = await page.evaluate(() => Object.keys(localStorage).filter((k) => /quarantine/.test(k)).sort());
       eq(after.join(','), before.join(','), 'a sign-in attempt changed set-aside storage');
+    });
+    await ctx.close();
+  }
+
+  section('SETASIDE-MULTI-01..08 — several copies must be told apart');
+
+  {
+    const { ctx, page } = await open(DEVICES[1], 'multi');
+    const rows = () => page.evaluate(() => [...document.querySelectorAll('.wl-setaside-row')].map((r) => ({
+      text: r.querySelector('.wl-setaside-date').textContent.trim(),
+      save: r.querySelector('[data-act^="cf:qexport"]').getAttribute('aria-label'),
+      del: r.querySelector('[data-act^="cf:qdelete"]').getAttribute('aria-label'),
+      saveAct: r.querySelector('[data-act^="cf:qexport"]').getAttribute('data-act'),
+    })));
+
+    await test('SETASIDE-MULTI-01 two copies made the same day show different times', async () => {
+      const r = await rows();
+      eq(r.length, 3, 'expected three rows, saw ' + r.length);
+      const sameDay = r.filter((x) => /Jan 28, 2026/.test(x.text));
+      eq(sameDay.length, 2, 'the fixture must contain two same-day copies');
+      notOk(sameDay[0].text === sameDay[1].text,
+        'both same-day rows read "' + sameDay[0].text + '" — indistinguishable');
+      r.forEach((x) => ok(/\d{1,2}:\d{2}/.test(x.text), 'no time shown in "' + x.text + '"'));
+    });
+
+    await test('SETASIDE-MULTI-04 each row\'s actions are uniquely named for a reader', async () => {
+      const r = await rows();
+      const saves = r.map((x) => x.save), dels = r.map((x) => x.del);
+      eq(new Set(saves).size, 3, 'duplicate Save names: ' + JSON.stringify(saves));
+      eq(new Set(dels).size, 3, 'duplicate Delete names: ' + JSON.stringify(dels));
+      saves.forEach((n) => ok(/^Save a copy — /.test(n), 'unexpected Save name: ' + n));
+      dels.forEach((n) => ok(/^Delete set-aside copy — /.test(n), 'unexpected Delete name: ' + n));
+    });
+
+    await test('SETASIDE-MULTI-06 no raw internal stamp appears in athlete-facing text', async () => {
+      const seen = await page.evaluate(() => {
+        const s_ = document.querySelector('.wl-setaside');
+        const labels = [...s_.querySelectorAll('[aria-label]')].map((e) => e.getAttribute('aria-label'));
+        return { text: s_.textContent, labels: labels.join(' | ') };
+      });
+      ['1700000000001', '1700000000002', '1700000000003'].forEach((st) => {
+        notOk(seen.text.indexOf(st) >= 0, 'stamp ' + st + ' is visible in the text');
+        notOk(seen.labels.indexOf(st) >= 0, 'stamp ' + st + ' is in an accessible name');
+      });
+      notOk(/ux-test/.test(seen.text), 'the internal build code is visible');
+    });
+
+    await test('SETASIDE-MULTI-02 Save operates on the intended record', async () => {
+      const target = (await rows())[1];
+      const captured = await page.evaluate(async (act) => {
+        window.__exported = null;
+        const real = window.cfQuarExport;
+        window.cfQuarExport = function (stamp) { window.__exported = stamp; };
+        document.querySelector('[data-act="' + act + '"]').click();
+        await new Promise((r) => setTimeout(r, 200));
+        window.cfQuarExport = real;
+        return window.__exported;
+      }, target.saveAct);
+      eq(captured, target.saveAct.split(':').pop(), 'Save acted on the wrong record');
+    });
+
+    await test('SETASIDE-MULTI-03/08 Delete removes only the selected row', async () => {
+      const beforeRows = await rows();
+      const victim = beforeRows[1];
+      const victimStamp = victim.saveAct.split(':').pop();
+      await page.click('[data-act="cf:qdelete:' + victimStamp + '"]');
+      await page.waitForSelector('.wl-confirm-msg', { timeout: 5000 });
+      await page.click('[data-act="confirm:yes"]');
+      await page.waitForTimeout(600);
+      const afterRows = await rows();
+      eq(afterRows.length, 2, 'expected two rows to remain, saw ' + afterRows.length);
+      notOk(afterRows.some((x) => x.text === victim.text), 'the wrong row survived');
+      const left = await page.evaluate((st) => ({
+        gone: Object.keys(localStorage).filter((k) => k.indexOf(st) >= 0).length,
+        others: Object.keys(localStorage).filter((k) => /^cf:quarantine:/.test(k)).length,
+      }), victimStamp);
+      eq(left.gone, 0, 'the deleted record left keys behind');
+      eq(left.others, 8, 'the remaining two records must keep four keys each');
+      const stillThere = await page.evaluate(() => !!document.getElementById('wl-setaside-title'));
+      ok(stillThere, 'the block must remain while other copies exist');
+    });
+
+    await ctx.close();
+  }
+
+  {
+    const { ctx, page } = await open(DEVICES[0], 'multi');
+    await test('SETASIDE-MULTI-05 three rows stay readable and reachable on iPhone SE', async () => {
+      const m = await page.evaluate(() => {
+        const rows_ = [...document.querySelectorAll('.wl-setaside-row')];
+        const btns = rows_.flatMap((r) => [...r.querySelectorAll('button')]);
+        const clipped = (el) => el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1;
+        const title = document.getElementById('wl-setaside-title').getBoundingClientRect();
+        return {
+          rows: rows_.length,
+          titleTop: Math.round(title.top),
+          titleVisible: title.top >= 0 && title.bottom <= innerHeight,
+          clipped: btns.filter(clipped).map((b) => b.textContent.trim()),
+          minH: Math.min(...btns.map((b) => b.getBoundingClientRect().height)),
+          sideways: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+          reachable: document.documentElement.scrollHeight >= innerHeight,
+        };
+      });
+      eq(m.rows, 3);
+      ok(m.titleVisible, 'the heading must still be in view, was at ' + m.titleTop);
+      eq(m.clipped.length, 0, 'clipped: ' + JSON.stringify(m.clipped));
+      ok(m.minH >= 44, 'smallest control was ' + m.minH + 'px');
+      notOk(m.sideways, 'the page must not scroll sideways');
+      /* the rows below the fold must be reachable by scrolling */
+      const canScroll = await page.evaluate(() => {
+        window.scrollTo(0, document.documentElement.scrollHeight);
+        const last = [...document.querySelectorAll('.wl-setaside-row')].pop().getBoundingClientRect();
+        return last.top >= 0 && last.bottom <= innerHeight + 1;
+      });
+      ok(canScroll, 'the last row must be reachable by scrolling');
+    });
+    await ctx.close();
+  }
+
+  {
+    const { ctx, page } = await open(DEVICES[1], 'multi');
+    await test('SETASIDE-MULTI-07 formatting stays valid across time zones and a bad timestamp', async () => {
+      const res = await page.evaluate(() => ({
+        /* the app's own formatter, exercised directly */
+        normal: cfQuarWhen(Date.UTC(2026, 0, 28, 23, 30)),
+        boundary: cfQuarWhen(Date.UTC(2026, 0, 28, 0, 1)),
+        zero: cfQuarWhen(0),
+        nan: cfQuarWhen(NaN),
+        text: cfQuarWhen('not a number'),
+        missing: cfQuarWhen(undefined),
+      }));
+      ok(res.normal && /\d/.test(res.normal), 'normal timestamp did not format: ' + res.normal);
+      ok(res.boundary && /\d/.test(res.boundary), 'day-boundary timestamp did not format: ' + res.boundary);
+      notOk(/Invalid Date/.test(res.normal + res.boundary), 'Invalid Date reached the athlete');
+      eq(res.zero, '', 'an absent timestamp must format as empty, not as 1970');
+      eq(res.nan, '');
+      eq(res.text, '');
+      eq(res.missing, '');
+      /* and the row copes: it says something honest rather than "Invalid Date" */
+      const fallback = await page.evaluate(() => {
+        const rows_ = [...document.querySelectorAll('.wl-setaside-row')];
+        return rows_.every((r) => !/Invalid Date|NaN/.test(r.textContent));
+      });
+      ok(fallback, 'a row rendered Invalid Date or NaN');
     });
     await ctx.close();
   }

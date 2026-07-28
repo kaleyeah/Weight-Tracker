@@ -7478,6 +7478,21 @@ cfBlockedHTML=function(kind){
     '<button class="wl-btn wl-btn-ghost wl-full" data-act="cf:disown" style="margin-bottom:10px">No — set it aside</button>'+
     '<button class="wl-btn wl-btn-ghost wl-full" data-act="cf:signout">Sign out</button></div>';};
 
+/* When a set-aside copy was made, in the athlete's own locale, to the minute.
+   toLocaleString rather than toLocaleDateString: same-day copies are the case
+   that matters. Falls back through progressively simpler formats rather than
+   throwing, and returns "" for an unusable timestamp so the caller can say
+   something honest instead of "Invalid Date". */
+function cfQuarWhen(createdAt){
+  var t=Number(createdAt);
+  if(!isFinite(t)||t<=0)return "";
+  var d=new Date(t);
+  if(isNaN(d.getTime()))return "";
+  try{return d.toLocaleString(undefined,{dateStyle:"medium",timeStyle:"short"});}catch(e){}
+  try{return d.toLocaleString();}catch(e){}
+  try{return d.toLocaleDateString();}catch(e){}
+  return "";}
+
 /* ---- signed-out quarantine recovery: inventory + export + delete ---- */
 function cfQuarList(){
   var out=[];try{
@@ -7513,11 +7528,22 @@ pbLoginHTML=function(){
   var extra='<section class="wl-setaside" aria-labelledby="wl-setaside-title">'+
     '<h2 id="wl-setaside-title" class="wl-setaside-title">Data set aside on this device</h2>';
   q.forEach(function(m){
-    var dt=m.createdAt?new Date(m.createdAt).toLocaleDateString():"";
+    /* Date AND TIME. A date alone cannot tell two copies made on the same day
+       apart, and the only thing distinguishing them was the internal stamp
+       inside the button attributes — an implementation distinction, not one the
+       athlete can see. Deleting the wrong copy of your own health history is
+       not a recoverable mistake (Architect SETASIDE-MULTI). */
+    var when=cfQuarWhen(m.createdAt);
     extra+='<div class="wl-setaside-row">'+
-      '<span class="wl-setaside-date">'+esc(dt)+'</span>'+
-      '<button class="wl-btn wl-btn-primary wl-setaside-save" data-act="cf:qexport:'+esc(m.stamp)+'">Save a copy</button>'+
-      '<button class="wl-btn wl-btn-ghost wl-setaside-del" data-act="cf:qdelete:'+esc(m.stamp)+'">Delete</button></div>';});
+      '<span class="wl-setaside-date">'+esc(when?("Saved "+when):"Saved earlier")+'</span>'+
+      /* The visible label stays short; the ACCESSIBLE name carries which copy,
+         so a screen-reader user is not offered several identical "Save a copy"
+         buttons. No stamp, account id or build code reaches athlete-facing
+         text. */
+      '<button class="wl-btn wl-btn-primary wl-setaside-save" data-act="cf:qexport:'+esc(m.stamp)+'"'+
+        ' aria-label="'+esc(when?("Save a copy — "+when):"Save a copy")+'">Save a copy</button>'+
+      '<button class="wl-btn wl-btn-ghost wl-setaside-del" data-act="cf:qdelete:'+esc(m.stamp)+'"'+
+        ' aria-label="'+esc(when?("Delete set-aside copy — "+when):"Delete set-aside copy")+'">Delete</button></div>';});
   extra+='</section>';
 
   /* ABOVE the login form, not after it (Architect FINDING-003, Option 1).
