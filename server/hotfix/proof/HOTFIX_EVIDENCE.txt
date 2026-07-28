@@ -1,0 +1,34 @@
+HOTFIX-001 evidence — deployed hook (b929852) vs corrected (HEAD)
+
+                                    DEPLOYED                  CORRECTED
+  ----------------------------------------------------------------------------
+  A. dropped-response replay
+     identical retries replayed     0/12                      12/12
+     identical retries REFUSED      12/12                     0/12
+     refusal reason                 idempotency key reused with a different request-
+  B. key-reuse protection (must NOT weaken)
+     different request -> status    409                       409
+     different request -> error     idempotency key reused with a different requestidempotency key reused with a different request
+     same content, keys reordered   409                       200
+  C. route contract (must be identical)
+     200 body keys                  newRev,ok,subsystem       newRev,ok,subsystem
+     409 conflict body keys         conflict,ok,payload,serverRev,subsystemconflict,ok,payload,serverRev,subsystem
+     invalid subsystem              400 invalid subsystem     400 invalid subsystem
+     missing key                    400                       400
+     unauthenticated                401                       401
+  D. payload semantics (must be identical)
+     stored content == sent content true                      true
+     stored content identical acrosstrue                      
+  E. size cap (must be unmoved)
+     exactly 256 KiB                200                       200
+     256 KiB + 1 byte               413 payload too large     413 payload too large
+     reported maxBytes              262144                    262144
+
+  verdicts
+   PASS  the defect is real
+   PASS  the correction fixes it
+   PASS  key-reuse protection retained
+   PASS  reordered content now accepted
+   PASS  route contract unchanged
+   PASS  payload semantics unchanged
+   PASS  size cap unmoved
