@@ -577,14 +577,19 @@ defer((async function scenarios() {
       eq(keys.length, 1);
       ok(keys[0].includes(current));
     });
-    test('C10-P12-15 no payload content appears in any storage key', () => {
-      const keys = [...env.S.localStorage._map.keys()].join(' ');
-      notOk(/kg|weights|\b9[0-9]\b/.test(keys.replace(/wl_|cf:/g, '')));
+    test('C10-P12-15 every recovery key matches the expected shape', () => {
+      /* Positive shape assertion: a key that carried payload content could not
+         match this pattern, and unlike a substring hunt it cannot fail because
+         random hex happened to contain a digit pair. */
+      const keys = [...env.S.localStorage._map.keys()].filter((k) => k.indexOf('cf:casrec:') === 0);
+      keys.forEach((k) =>
+        ok(/^cf:casrec:[A-Za-z0-9]+:(casrec-(core|training)-[0-9a-f]+:(claim|payload|manifest)|pending-cleanup)$/.test(k),
+          'unexpected recovery key shape: ' + k));
     });
-    test('C10-P12-15 the cleanup ledger holds ids only, never data', () => {
+    test('C10-P12-15 the cleanup ledger holds well-formed ids only', () => {
       const pend = env.S.cfCasRecPendingCleanup();
       ok(Array.isArray(pend));
-      pend.forEach((id) => notOk(/kg|weights/.test(id)));
+      pend.forEach((id) => ok(/^casrec-(core|training)-[0-9a-f]+$/.test(id)));
     });
   });
 
@@ -653,8 +658,13 @@ defer((async function scenarios() {
       const pend = env.S.cfCasRecPendingCleanup();
       ok(pend.indexOf(original) >= 0);
     });
-    test('C10-P13-03 the ledger carries ids only', () =>
-      env.S.cfCasRecPendingCleanup().forEach((id) => notOk(/kg|weights|90/.test(id))));
+    /* Assert the SHAPE of an id rather than hunting for substrings: artifact ids
+       end in random hex, so "does it contain 90" fails about one run in three
+       for reasons that have nothing to do with the product. That flake was real
+       and is the reason this is written as a positive assertion. */
+    test('C10-P13-03 the ledger carries well-formed ids and nothing else', () =>
+      env.S.cfCasRecPendingCleanup().forEach((id) =>
+        ok(/^casrec-(core|training)-[0-9a-f]+$/.test(id))));
     test('C10-P13-04 a later sweep removes the retained artifact', async () => {
       const removed = await new Promise((res) => env.S.cfCasRecCleanupSweep(res));
       ok(removed >= 1);

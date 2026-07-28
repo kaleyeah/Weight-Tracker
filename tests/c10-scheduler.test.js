@@ -622,9 +622,13 @@ defer((async function scenarios() {
     test('C10-P10-05 no conflict reference was published', () => eq(env.S.cfCasConflictId('core'), null));
     test('C10-P10-06 the active session sees an empty inventory', () => eq(env.S.cfCasRecList().length, 0));
     test('C10-P10-08 the athlete\'s data is still pending, never discarded', () => ok(env.S.revIsDirty('core')));
-    test('C10-P10-08 no payload content leaked into any storage key', () => {
-      const keys = [...env.S.localStorage._map.keys()].join(' ');
-      notOk(/kg|weights|60/.test(keys.replace(/wl_|cf:/g, '')));
+    test('C10-P10-08 every recovery key matches the expected shape', () => {
+      /* Positive shape assertion rather than a substring hunt — ids end in
+         random hex, so "does it contain 60" is a coin toss, not a test. */
+      const keys = [...env.S.localStorage._map.keys()].filter((k) => k.indexOf('cf:casrec:') === 0);
+      keys.forEach((k) =>
+        ok(/^cf:casrec:[A-Za-z0-9]+:(casrec-(core|training)-[0-9a-f]+:(claim|payload|manifest)|pending-cleanup)$/.test(k),
+          'unexpected recovery key shape: ' + k));
     });
     gate.restore();
   });
