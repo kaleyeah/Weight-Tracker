@@ -1,0 +1,5 @@
+WITH the fix           first 200 | I8b refused 0/12 | I8d different-> 409 | I8e reordered-> 200
+
+I8b would have caught it: true
+I8d still enforced      : true
+I8e now correct         : true
