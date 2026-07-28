@@ -34,6 +34,8 @@ function read(env, id, expected) {
   });
 }
 const store = (env) => env.S.localStorage._map;
+const purge = (env, id) => new Promise((res) =>
+  env.S.cfCasRecPurge(id, (removed, reason) => res({ removed, reason })));
 /* The writer takes its account scope from the authenticated session, so every
    scenario must sign in first. signIn() is how a test switches accounts. */
 function signIn(env, uid) {
@@ -242,7 +244,7 @@ async function scenarios() {
       signIn(env, 'userB');
       eq(env.S.cfCasRecList().length, 0);
     });
-    const purged = env.S.cfCasRecPurge(idA);
+    const purged = (await purge(env, idA)).removed;
     test('C10-P3-03 B cannot purge A\'s artifact', () => {
       notOk(purged);            /* and is told nothing was removed, not "done" */
       eq(store(env).get(`cf:casrec:userA:${idA}:payload`), aBytes);
@@ -332,7 +334,7 @@ async function scenarios() {
     /* Public purge is current-account scoped and owns no token; the
        losing-writer path is exercised properly in the C10-P4 overlap group. */
     const strangerAccount = signIn(t2, 'userB');
-    const purgedByStranger = strangerAccount.S.cfCasRecPurge(id);
+    const purgedByStranger = (await purge(strangerAccount, id)).removed;
     signIn(t2, 'userA');
     test('another account purging removes nothing', () => notOk(purgedByStranger));
     test('the winning payload survives', () =>
@@ -387,10 +389,22 @@ async function scenarios() {
        masqueraded as a production one. */
     const subtle = env.S.crypto.subtle;
     const real = subtle.digest.bind(subtle);
-    let gate = null;
-    subtle.digest = (alg, data) => (gate ? gate.then(() => real(alg, data)) : real(alg, data));
+    let gate = null; let holdIndex = null; let calls = 0;
+    subtle.digest = (alg, data) => {
+      const n = ++calls;
+      const gated = gate && (holdIndex === null || holdIndex === n);
+      return gated ? gate.then(() => real(alg, data)) : real(alg, data);
+    };
     return {
-      hold() { let open; gate = new Promise((r) => { open = r; }); return () => { const g = open; gate = null; g(); }; },
+      /* hold() parks every digest; hold(n) parks only the nth call, which is how
+         the tests reach the window between initial hashing and final
+         whole-artifact verification. */
+      hold(n) {
+        let open; holdIndex = n === undefined ? null : n;
+        gate = new Promise((r) => { open = r; });
+        return () => { const g = open; gate = null; holdIndex = null; g(); };
+      },
+      calls: () => calls,
       restore() { subtle.digest = real; },
     };
   }
@@ -511,9 +525,133 @@ async function scenarios() {
     test('no global key builder is exposed', () => eq(typeof env.S.cfCasRecKeys, 'undefined'));
     test('write takes an id and no scope', () => eq(env.S.cfCasRecWrite.length, 5));
     test('read takes an id and no scope', () => eq(env.S.cfCasRecRead.length, 3));
-    test('purge takes an id and no scope', () => eq(env.S.cfCasRecPurge.length, 1));
+    test('purge takes an id and a callback, no scope', () => eq(env.S.cfCasRecPurge.length, 2));
     test('list takes nothing', () => eq(env.S.cfCasRecList.length, 0));
     test('scope is reported, never accepted', () => eq(env.S.cfCasRecScope(), 'userA'));
+  });
+
+
+  /* ====== C10-P5: purge shares the lock; success means verified ========= */
+
+  await group('C10-P5-01/02/04 — purge waits for the writer instead of racing it', async () => {
+    const t1 = authed('userA'); const t2 = authed('userA');
+    t2.S.localStorage = t1.S.localStorage; t2.S.navigator = t1.S.navigator;
+    const id = 'purge-race';
+    const gate = pausableDigest(t1);
+    const release = gate.hold();
+    const w = begin(t1, id, PAY);                       /* writer parks in the digest */
+    await new Promise((r) => setTimeout(r, 5));
+    test('the writer is parked mid-digest', () => notOk(w.state.done));
+
+    let purgeDone = false;
+    const p = purge(t2, id).then((r) => { purgeDone = true; return r; });
+    await new Promise((r) => setTimeout(r, 5));
+    test('C10-P5-01 purge queues on the same lock rather than deleting', () => notOk(purgeDone));
+
+    release();
+    const wr = await w.p;
+    const pr = await p;
+    test('C10-P5-04 the writer reports success only for a real artifact', () => {
+      if (wr.ok) {
+        /* it published before the purge ran; the purge then removed it */
+        ok(pr.removed);
+      } else {
+        ok(['drift', 'final-missing', 'final-unverified', 'storage'].includes(wr.out));
+      }
+    });
+    test('C10-P5-02 there is never a manifest without its payload', () => {
+      const man = t1.S.localStorage.getItem(`cf:casrec:userA:${id}:manifest`);
+      const pay = t1.S.localStorage.getItem(`cf:casrec:userA:${id}:payload`);
+      notOk(man !== null && pay === null);
+    });
+    gate.restore();
+  });
+
+  await group('C10-P5-03 — a completed purge removes the manifest first', async () => {
+    const env = authed('userA');
+    const id = env.S.cfCasRecNewId('core');
+    await write(env, id, PAY);
+    const order = [];
+    const realRemove = env.S.localStorage.removeItem;
+    env.S.localStorage.removeItem = function (k) { order.push(String(k)); return realRemove.call(this, k); };
+    const r = await purge(env, id);
+    env.S.localStorage.removeItem = realRemove;
+    test('it reports that it removed something', () => ok(r.removed));
+    test('C10-P5-03 the manifest goes first, so the artifact stops being actionable at once', () =>
+      eq(order[0], `cf:casrec:userA:${id}:manifest`));
+    test('payload and claim follow', () => {
+      ok(order.includes(`cf:casrec:userA:${id}:payload`));
+      ok(order.includes(`cf:casrec:userA:${id}:claim`));
+    });
+    test('and nothing remains', () => eq(env.S.cfCasRecList().length, 0));
+  });
+
+  await group('C10-P5-05/06 — success requires the STORED pair to verify', async () => {
+    const env = authed('userA');
+    const id = 'final-verify';
+    const gate = pausableDigest(env);
+    const release = gate.hold(1);                        /* park the FIRST digest only */
+    const w = begin(env, id, PAY);
+    await new Promise((r) => setTimeout(r, 5));
+    /* Same-origin mutation while the writer is hashing: the bytes it verified
+       are no longer the bytes on disk. */
+    store(env).set(`cf:casrec:userA:${id}:payload`, '{"someone":"else"}');
+    release();
+    const r = await w.p;
+    test('C10-P5-06 the write fails rather than reporting a false success', () => notOk(r.ok));
+    test('the reason names final verification', () => eq(r.out, 'final-unverified'));
+    test('C10-P5-08 nothing actionable is left behind', () => {
+      notOk(store(env).has(`cf:casrec:userA:${id}:manifest`));
+    });
+    test('C10-P5-05 final verification really did run a second digest', () => ok(gate.calls() >= 2));
+    gate.restore();
+  });
+
+  await group('C10-P5-07 — a manifest altered before final verification fails the write', async () => {
+    const env = authed('userA');
+    const id = 'final-manifest';
+    const gate = pausableDigest(env);
+    const release = gate.hold(2);                        /* park the FINAL verification digest */
+    const w = begin(env, id, PAY);
+    await new Promise((r) => setTimeout(r, 5));
+    /* The manifest is published by now; corrupt it before it is checked. */
+    const raw = store(env).get(`cf:casrec:userA:${id}:manifest`);
+    test('the manifest was published before final verification', () => ok(raw));
+    const bent = JSON.parse(raw); bent.serverRev = 99;
+    store(env).set(`cf:casrec:userA:${id}:manifest`, JSON.stringify(bent));
+    release();
+    const r = await w.p;
+    test('C10-P5-07 the write reports failure', () => {
+      notOk(r.ok);
+      ok(['final-unverified', 'final-moved', 'final-missing'].includes(r.out));
+    });
+    test('C10-P5-08 no actionable artifact survives', () =>
+      notOk(store(env).has(`cf:casrec:userA:${id}:manifest`)));
+    gate.restore();
+  });
+
+  await group('C10-P5-09/10 — cleanup honours the same contract', async () => {
+    const env = authed('userA');
+    const id = env.S.cfCasRecNewId('core');
+    await write(env, id, PAY);
+    const noLock = signIn(createEnv({ locks: false }), 'userA');
+    noLock.S.localStorage = env.S.localStorage;
+    const r = await purge(noLock, id);
+    test('C10-P5-10 purge without Web Locks refuses', () => notOk(r.removed));
+    test('C10-P5-10 and says why rather than claiming deletion', () => eq(r.reason, 'no-lock'));
+    test('C10-P5-10 the artifact is untouched', () =>
+      ok(store(env).has(`cf:casrec:userA:${id}:manifest`)));
+    const gone = await purge(env, id);
+    test('C10-P5-09 a locked purge does remove it', () => ok(gone.removed));
+    const again = await purge(env, id);
+    test('C10-P5-09 purging an absent artifact says absent, not removed', () => {
+      notOk(again.removed); eq(again.reason, 'absent');
+    });
+    test('C10-P5-09 an unauthenticated purge addresses nothing', async () => {
+      env.S.localStorage.removeItem('wl_pb');
+      const r2 = await purge(env, id);
+      notOk(r2.removed); eq(r2.reason, 'unauthenticated');
+    });
   });
 
 }

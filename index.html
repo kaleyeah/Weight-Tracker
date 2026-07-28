@@ -8316,8 +8316,10 @@ var cfCasRecStore=(function(){
 
   /* Cleanup against the CAPTURED keys, never the live session's, and only when
      the claim still carries our token. A loser removes its own mess and
-     nothing else. */
-  function purgeCaptured(ctx){
+     nothing else.
+     CONTRACT: callers must already hold this artifact's lock. Re-acquiring it
+     here would deadlock against the writer that is calling us. */
+  function purgeCapturedLocked(ctx){
     if(!ctx||!ctx.keys)return false;
     try{
       if(localStorage.getItem(ctx.keys.claim)!==ctx.token)return false;
@@ -8347,20 +8349,50 @@ var cfCasRecStore=(function(){
     if(pay0!==null){done(false,"exists");return;}
     try{localStorage.setItem(K.claim,ctx.token);}catch(e){done(false,"storage");return;}
     var want=String(payloadStr);
-    try{localStorage.setItem(K.payload,want);}catch(e){purgeCaptured(ctx);done(false,"storage");return;}
+    try{localStorage.setItem(K.payload,want);}catch(e){purgeCapturedLocked(ctx);done(false,"storage");return;}
     var back=null;
     try{back=localStorage.getItem(K.payload);}catch(e){back=null;}
-    if(back===null||back!==want){purgeCaptured(ctx);done(false,"readback");return;}
+    if(back===null||back!==want){purgeCapturedLocked(ctx);done(false,"readback");return;}
     sha256Hex(back,function(hex){
       /* The digest was asynchronous: the account may have changed underneath. */
-      if(drifted(ctx)){purgeCaptured(ctx);done(false,"drift");return;}
-      if(!cfCasHashValid(hex)){purgeCaptured(ctx);done(false,"digest");return;}
+      if(drifted(ctx)){purgeCapturedLocked(ctx);done(false,"drift");return;}
+      if(!cfCasHashValid(hex)){purgeCapturedLocked(ctx);done(false,"digest");return;}
       var man={kind:"cas-conflict",id:String(ctx.id),sub:sub,serverRev:serverRev,account:ctx.owner,
                keys:["payload"],sizes:{payload:cfCasUtf8Bytes(back)},hash:hex};
-      if(!cfCasRecValid(man,ctx.id,{payload:back})){purgeCaptured(ctx);done(false,"invalid");return;}
+      if(!cfCasRecValid(man,ctx.id,{payload:back})){purgeCapturedLocked(ctx);done(false,"invalid");return;}
       try{localStorage.setItem(K.manifest,JSON.stringify(man));}      /* manifest LAST */
-      catch(e){purgeCaptured(ctx);done(false,"storage");return;}
-      done(true,man);});}
+      catch(e){purgeCapturedLocked(ctx);done(false,"storage");return;}
+
+      /* FINAL WHOLE-ARTIFACT VERIFICATION (review C10-P5-02). Success must mean
+         "a future reader will find a verifiable artifact", not "we constructed
+         a manifest". Between the first read-back and now, same-origin script,
+         a storage anomaly or a later maintenance error could have moved the
+         bytes underneath us — so read the pair back and verify them as a unit
+         before telling anyone this recovery copy exists. The conflict layer
+         must never infer a verified recovery from manifest construction. */
+      var payFinal=null;
+      try{payFinal=localStorage.getItem(K.payload);}
+      catch(e){purgeCapturedLocked(ctx);done(false,"storage");return;}
+      if(payFinal===null){purgeCapturedLocked(ctx);done(false,"final-missing");return;}
+      sha256Hex(payFinal,function(finalHex){
+        if(drifted(ctx)){purgeCapturedLocked(ctx);done(false,"drift");return;}
+        /* Re-read BOTH after hashing, not before. An earlier version read the
+           manifest first and verified against that copy, which left the whole
+           hashing window open: a manifest altered while the digest ran was
+           checked in its pre-alteration form. Reading both afterwards, and
+           confirming the payload has not moved since it was hashed, closes the
+           window from both sides. Found by test C10-P5-07 failing. */
+        var manRaw=null,payAgain=null;
+        try{manRaw=localStorage.getItem(K.manifest);payAgain=localStorage.getItem(K.payload);}
+        catch(e){purgeCapturedLocked(ctx);done(false,"storage");return;}
+        if(manRaw===null||payAgain===null){purgeCapturedLocked(ctx);done(false,"final-missing");return;}
+        if(payAgain!==payFinal){purgeCapturedLocked(ctx);done(false,"final-moved");return;}
+        var manFinal=null;try{manFinal=JSON.parse(manRaw);}catch(e){manFinal=null;}
+        if(!manFinal){purgeCapturedLocked(ctx);done(false,"final-unparseable");return;}
+        var expect={account:ctx.owner,sub:sub,serverRev:serverRev,rec:ctx.id};
+        if(!cfCasRecVerified(manFinal,ctx.id,{payload:payFinal},expect,finalHex)){
+          purgeCapturedLocked(ctx);done(false,"final-unverified");return;}
+        done(true,manFinal);});});}
 
   return {
     newId:newId,
@@ -8402,21 +8434,43 @@ var cfCasRecStore=(function(){
       }catch(e){}
       return out;},
 
-    /* Public purge: current account only, and it reports what it actually did.
-       "we deleted your recovery copy" and "we could not see it" must not share
-       a return value. */
-    purge:function(id){
+    /* Public purge. ASYNCHRONOUS AND LOCKED (review C10-P5-01): deletion mutates
+       the same keys a writer publishes, so it must take the same exclusive lock.
+       Without it this interleaving was possible — writer takes the lock, writes
+       and reads back the payload, waits on the digest; purge deletes the payload
+       unlocked; the writer publishes its manifest and reports SUCCESS. The
+       artifact then has a manifest and no payload, and a conflict layer has been
+       told a recovery copy exists that does not.
+
+       A synchronous boolean cannot honestly represent completion of a
+       cross-context locked operation, so this returns via callback:
+         cb(removed, reason) — removed is what was ACTUALLY removed.
+       Without Web Locks it refuses rather than pretending deletion happened. */
+    purge:function(id,cb){
+      cb=cb||function(){};
       var sc=scopeNow();
-      if(!sc)return false;
-      var K=keysFor(sc,id);
-      try{
-        var had=localStorage.getItem(K.manifest)!==null||localStorage.getItem(K.payload)!==null||
-                localStorage.getItem(K.claim)!==null;
-        localStorage.removeItem(K.manifest);
-        localStorage.removeItem(K.payload);
-        localStorage.removeItem(K.claim);
-        return had;
-      }catch(e){return false;}},
+      if(!sc){cb(false,"unauthenticated");return;}
+      var lock="cf-cas-recovery:"+sc+":"+id;
+      withLock(lock,function(release){
+        /* Re-evaluate the owner inside the lock: it may have changed while we
+           queued behind a writer. */
+        var scNow=scopeNow();
+        if(scNow!==sc){release();cb(false,"drift");return;}
+        var K=keysFor(scNow,id),removed=false;
+        try{
+          var hadMan=localStorage.getItem(K.manifest)!==null;
+          var hadPay=localStorage.getItem(K.payload)!==null;
+          var hadClaim=localStorage.getItem(K.claim)!==null;
+          /* Manifest FIRST: the artifact stops being actionable the instant it
+             goes, so a crash mid-purge leaves something inert, not something
+             half-usable. */
+          localStorage.removeItem(K.manifest);
+          localStorage.removeItem(K.payload);
+          localStorage.removeItem(K.claim);
+          removed=hadMan||hadPay||hadClaim;
+        }catch(e){release();cb(false,"storage");return;}
+        release();cb(removed,removed?null:"absent");
+      },function(){cb(false,"no-lock");});},
 
     scope:scopeNow
   };
@@ -8427,7 +8481,7 @@ function cfCasRecNewId(sub){return cfCasRecStore.newId(sub);}
 function cfCasRecWrite(id,sub,serverRev,payloadStr,cb){return cfCasRecStore.write(id,sub,serverRev,payloadStr,cb);}
 function cfCasRecRead(id,expected,cb){return cfCasRecStore.read(id,expected,cb);}
 function cfCasRecList(){return cfCasRecStore.list();}
-function cfCasRecPurge(id){return cfCasRecStore.purge(id);}
+function cfCasRecPurge(id,cb){return cfCasRecStore.purge(id,cb);}
 function cfCasRecScope(){return cfCasRecStore.scope();}
 
 </script>
