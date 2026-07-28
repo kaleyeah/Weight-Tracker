@@ -8321,10 +8321,16 @@ function cfCasRecPurge(id,token){
   var K=cfCasRecKeys(id);
   try{
     if(token&&localStorage.getItem(K.claim)!==token)return false;   /* not ours: leave it alone */
+    /* Report whether anything was ACTUALLY removed. Returning true after
+       deleting nothing would tell a caller in another account's session that
+       an artifact is gone when it was never reachable — the caller would then
+       believe the copy no longer exists. */
+    var had=localStorage.getItem(K.manifest)!==null||localStorage.getItem(K.payload)!==null||
+            localStorage.getItem(K.claim)!==null;
     localStorage.removeItem(K.manifest);
     localStorage.removeItem(K.payload);
     localStorage.removeItem(K.claim);
-    return true;
+    return had;
   }catch(e){return false;}}
 
 /* cb(ok, manifestOrReason). The account is taken from the trusted session, not

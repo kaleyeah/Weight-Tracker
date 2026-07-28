@@ -244,7 +244,7 @@ async function scenarios() {
     });
     const purged = env.S.cfCasRecPurge(idA);
     test('C10-P3-03 B cannot purge A\'s artifact', () => {
-      void purged;
+      notOk(purged);            /* and is told nothing was removed, not "done" */
       eq(store(env).get(`cf:casrec:userA:${idA}:payload`), aBytes);
       ok(store(env).has(`cf:casrec:userA:${idA}:manifest`));
     });
