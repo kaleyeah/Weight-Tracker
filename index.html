@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-28.346 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-28.347 · coach report: skipped sets say "skipped", cardio tiles labeled Zone 2+ · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -851,7 +851,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-28.346-pb";
+var APP_BUILD="2026-07-28.347-pb";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -3154,18 +3154,27 @@ function lrModel(offset){
       /* keep each working set's ORIGINAL slot index — a skipped opening set must
          not slide the remaining sets onto the wrong reverse-pyramid targets */
       var work=[];all.forEach(function(st,ix){if(lrIsWork(st))work.push({st:st,ix:ix});});
-      if(!work.length)return;
+      /* skipped sets stay VISIBLE (Griffin: "skipped needs to say skipped") but never
+         count as hard sets, tonnage, PRs or range stats; warm-ups stay hidden */
+      var anyRow=all.some(function(st){return st&&st.status!=="warmup";});
+      if(!anyRow)return;
       var key=en.exerciseId||en.name;
-      if(key&&!seenKey[key]){seenKey[key]=1;M.weekKeys.push(key);}
+      if(work.length&&key&&!seenKey[key]){seenKey[key]=1;M.weekKeys.push(key);}
       var px=lrPrescription(en,all.length,sRt);
       var hasR=(px.mode!=="none");
       if(px.mode==="rpt")M.anyRpt=true;
       if(px.assumed)M.anyAssumed=true;
       var lo=hasR?px.ranges[0].lo:null,hi=hasR?px.ranges[0].hi:null;
-      var ton=0,inR=0,bestW=null,bestWi=-1,bestE=null,bestEi=-1;
-      var rows=work.map(function(wk,k){
-        var st=wk.st;
-        var g=hasR?(px.ranges[wk.ix]||px.ranges[px.ranges.length-1]):null;
+      var ton=0,inR=0,workN=0,bestW=null,bestWi=-1,bestE=null,bestEi=-1;
+      var rows=[];
+      all.forEach(function(st,ix){
+        if(!st||st.status==="warmup")return;
+        var g=hasR?(px.ranges[ix]||px.ranges[px.ranges.length-1]):null;
+        if(!lrIsWork(st)){
+          rows.push({i:rows.length+1,skipped:true,w:null,r:null,rir:null,
+            lo:(g?g.lo:null),hi:(g?g.hi:null),t:null,out:false,pr:null});
+          return;}
+        var k=rows.length;workN++;
         var w=num(st.weight),r=num(st.reps),rir=num(st.rir);
         ton+=lrSetTon(st);
         var out=false;
@@ -3175,9 +3184,9 @@ function lrModel(offset){
           var e=e1rm(w,r);
           if(e!=null&&(bestE==null||e>bestE)){bestE=e;bestEi=k;}}
         if(rir!=null){ses.rirSum+=rir;ses.rirN++;}
-        return {i:k+1,w:w,r:r,rir:rir,lo:(g?g.lo:null),hi:(g?g.hi:null),
-          t:(g?lrRangePos(r,g.lo,g.hi):null),out:out,pr:null};});
-      var pr=prByName[en.name]||null;
+        rows.push({i:k+1,w:w,r:r,rir:rir,lo:(g?g.lo:null),hi:(g?g.hi:null),
+          t:(g?lrRangePos(r,g.lo,g.hi):null),out:out,pr:null});});
+      var pr=(workN?prByName[en.name]:null)||null;
       if(pr){
         var pi=(pr.type==="weight")?bestWi:bestEi;
         if(pi>=0&&rows[pi])rows[pi].pr=(pr.type==="weight")?"PR":"e1RM PR";
@@ -3190,10 +3199,10 @@ function lrModel(offset){
       var ee={name:en.name||"Exercise",muscle:en.muscle||"other",
         mLabel:muscleInfo(en.muscle||"other").label,
         lo:lo,hi:hi,hasR:hasR,rxMode:px.mode,ranges:px.ranges,assumed:px.assumed,
-        ton:ton,inR:inR,n:rows.length,rows:rows,joint:jLabel};
-      if(jLabel)M.pain.push({ex:ee.name,label:jLabel,dateLabel:ses.dateLabel,sets:rows.length});
-      ses.ton+=ton;ses.sets+=rows.length;
-      if(hasR){ses.inR+=inR;ses.rngN+=rows.length;}
+        ton:ton,inR:inR,n:workN,rows:rows,joint:jLabel};
+      if(jLabel)M.pain.push({ex:ee.name,label:jLabel,dateLabel:ses.dateLabel,sets:workN});
+      ses.ton+=ton;ses.sets+=workN;
+      if(hasR){ses.inR+=inR;ses.rngN+=workN;}
       ses.ex.push(ee);});
     ses.avgRir=ses.rirN?(ses.rirSum/ses.rirN):null;
     return ses;}).filter(function(ses){return ses.ex.length>0;});
@@ -3368,6 +3377,14 @@ function srExerciseHTML(x,first){
   h+='<div class="ex-scheme"><span class="ptag'+(x.mode==="rpt"?" rpt":"")+'">'+(x.mode==="rpt"?"RPT":"PO")+'</span>'+srEsc(sch)+(x.assumed?'<span class="dag">&dagger;</span>':'')+'</div>';
   if(first)h+='<div class="setgrid sethead"><span>Set</span><span>Weight &times; Reps</span><span style="text-align:center">Target</span><span style="text-align:center">Range</span><span style="text-align:right">RIR</span></div>';
   (x.sets||[]).forEach(function(st,i){
+    if(st.skipped){
+      h+='<div class="setgrid setrow'+((!first&&i===0)?' pad':'')+'">'+
+        '<span class="set-n">'+srInt(st.n)+'</span>'+
+        '<span class="set-wr" style="color:#6C7686;font-style:italic;font-weight:500">skipped</span>'+
+        '<span class="set-tgt">'+((st.lo!=null&&st.hi!=null)?srRangeTxt({lo:st.lo,hi:st.hi}):SRDASH)+'</span>'+
+        '<span class="set-rng" style="color:#6C7686">'+SRDASH+'</span>'+
+        '<span class="set-rir">'+SRDASH+'</span></div>';
+      return;}
     var wr=(st.w!=null?srW(st.w):"BW")+"&times;"+srInt(st.r)+(st.pr?'<span class="pr">'+srEsc(st.pr)+'</span>':'');
     h+='<div class="setgrid setrow'+((!first&&i===0)?' pad':'')+'">'+
       '<span class="set-n">'+srInt(st.n)+'</span>'+
@@ -3627,7 +3644,7 @@ function srInput(offset){
     return {dow:dow,cls:(missN===0?"ok":(dISO===_tI?"prog":(missN<4?"part":"miss")))};});
   var totals=[
     {label:"Calories",v:tot.calories||null},{label:"Steps",v:tot.steps||null},{label:"Weigh-ins",v:wv.length},
-    {label:"Cardio min",v:ts.cardioZ2Mins||null},{label:"Lifting min",v:ts.liftMins||null},{label:"Cardio sessions",v:ts.cardioZ2Sessions||null}];
+    {label:"Cardio min (Zone 2+)",v:ts.cardioZ2Mins||null},{label:"Lifting min",v:ts.liftMins||null},{label:"Cardio sessions (Zone 2+)",v:ts.cardioZ2Sessions||null}];
   /* Weekly Macros: totals vs a goal pro-rated to the days elapsed in the
      displayed week — the same window rule as the app card; fiber rides along
      with no goal, so it prints its total without a bar */
@@ -3664,7 +3681,7 @@ function srInput(offset){
       c(cc,function(v){return String(v);},(tCarb!=null&&cc!=null)?((cc>tCarb&&calOverD)?"bad":"good"):"")]};});
   var sessions=M.sessions.map(function(sn){return {name:sn.name,dateLabel:sn.dateLabel,mins:sn.mins,rpe:sn.rpe,ton:sn.ton,note:sn.notes,
     ex:sn.ex.map(function(e){return {name:e.name,mode:e.rxMode,assumed:e.assumed,ranges:e.ranges||[],
-      sets:e.rows.map(function(r){return {n:r.i,w:r.w,r:r.r,rir:r.rir,lo:r.lo,hi:r.hi,pr:r.pr};})};})};});
+      sets:e.rows.map(function(r){return {n:r.i,skipped:!!r.skipped,w:r.w,r:r.r,rir:r.rir,lo:r.lo,hi:r.hi,pr:r.pr};})};})};});
   return {
     who:M.who,plan:M.plan,units:M.units,
     weekTitle:"Week of "+M.ws.toLocaleDateString(undefined,{month:"long",day:"numeric"}),
