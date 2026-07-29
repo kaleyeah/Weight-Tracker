@@ -217,3 +217,74 @@ Per the Architect's approved plan, watch for:
 - `compose.yaml.pre-cas-backup` — the original single-mount container definition.
 - `pocketbase migrate down` removes `coreRev`, `trainingRev`, `cf_commit_log` and **only** `idx_cf_appdata_user`; production's `idx_88qok6ts7v` is preserved by design (`migration.sh` M2g, confirmed by the Architect).
 - Deleting the two files in `pb_hooks` and restarting renders the kit inert while leaving the schema in place.
+
+---
+
+# HOTFIX-001 — canonical idempotency hash (2026-07-29)
+
+**Authorised by:** Product Architect (APPROVED FOR PRODUCTION DEPLOYMENT) and the
+Product Owner (explicit, 2026-07-29). Ledger left intact per both rulings.
+
+**Deployed:** `pb_hooks/cf_cas.pb.js` and `pb_hooks/cf_cas_shared.js` only.
+No schema, migration, rule or data change.
+
+| Step | Result |
+| --- | --- |
+| H1 backup | `pre-hotfix001-20260729-065210.zip`, 31,978,596 B, download verified HTTP 200 |
+| H2 rollback copies | `pb_hooks/.rollback/*.prev`, 9268 B and 4152 B, both non-empty |
+| H3 pre-deploy state | both athlete rows captured with SHA-256 of `data`/`training`; ledger 0 rows |
+| H4 deploy | md5 on server matches approved files exactly; no other file touched |
+| H5 restart | **see caveat 1** — hook reloaded by PocketBase's own `pb_hooks` watcher; `docker restart` was NOT run |
+| H6 hook loaded | proven behaviourally: V11a 401, V11b our own validator string, V11c 256 KiB |
+| H7 I1–I8 | **28 passed, 0 failed**, 1 not run (see caveat 3) |
+| H7 V0–V15 | **20 passed, 0 failed** (V15 see caveat 2) |
+| teardown | probe user, appdata row and ledger rows all verified absent |
+| H9 | this record |
+
+**The defect is fixed in production.** Twelve byte-identical multi-key retries
+replayed 12/12 (I8b). Against the previous hook the same request was refused
+11–12 times out of 12. I8d still rejects a genuinely different request, so
+key-reuse protection is unweakened; I8e now treats reordered keys as the same
+request.
+
+## Caveats — all three recorded rather than resolved
+
+**1. No container restart was performed.** `docker restart` failed with
+`permission denied` on the daemon socket (`griffingoodman` is not in the docker
+group; `sudo` needs a password). The new hook is demonstrably live — PocketBase
+v0.39.8 watches `pb_hooks` and reloaded on write, confirmed behaviourally by
+I8b passing where it would previously fail. An explicit restart at the Product
+Owner's convenience would remove any doubt about process state; it is not
+required for correctness of the fix.
+
+**2. V15 could not run as designed.** No integrity baseline was captured with
+`_sentinel.py` before deploying, so V15 was recorded via `ACCEPT_NO_SENTINEL=YES`
+with its own caveat text. An equivalent baseline WAS captured in H3 (SHA-256 per
+row). It is also confounded: see caveat 4.
+
+**3. I5d (cross-user key independence) was NOT run.** It needs a second
+disposable production account; `probe-account.sh` is deliberately limited to one
+hard-coded address and `fixtures.sh` is guarded against production. Not run, not
+assumed. I1–I5c, I6–I8 all passed.
+
+**4. One athlete row changed during the window — from live use, not from this
+deployment.** `huhguz7atzdq546` moved `coreRev` 45 → 48 → 53 with a current
+`updated` timestamp, then held steady across three reads.
+
+Proven not to be deployment damage:
+- **zero** `cf_commit_log` rows existed for either athlete at any point; all 7
+  ledger rows created during verification belonged to the probe user
+  (`9xesv8ntklri0l5`). The CAS route writes a ledger row on every commit, so it
+  never wrote either athlete's row.
+- this hotfix changes only the CAS commit handler's hash derivation; it cannot
+  affect the legacy `PATCH` bridge, which is what the deployed Lineage A client
+  uses.
+- the writes are the athlete's own client syncing normally, and the bridge
+  incremented revisions exactly as designed.
+
+This also means "athlete rows unchanged" is not a usable gate while an athlete is
+actively using the app. The usable gate is "unchanged **by the deployment**",
+which the ledger evidence establishes.
+
+**Rollback was not triggered.** No I, V, integrity or route check failed. The
+`.prev` files remain in place for one-command reversion.
