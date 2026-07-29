@@ -41,3 +41,4 @@ Thumbs.db
 # NOTE: index.html IS the deployable app and is intentionally tracked.
 # The `Authorization: "Bearer " + c.token` in it is app code using a
 # user-supplied token at runtime — not an embedded secret.
+.build/

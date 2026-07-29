@@ -22,9 +22,17 @@ const { test, group, eq, ok, notOk, report } = require('./harness');
 const ROOT = path.join(__dirname, '..');
 const INJECTOR = path.join(ROOT, 'deployment-path', 'inject-commit10.mjs');
 const INJECTION = path.join(ROOT, 'deployment-path', 'injections', 'commit10-client.json');
-/* the generator's .347 output, i.e. the input this step consumes */
-const PORTED = process.env.CF_PORTED
-  || path.join(os.homedir(), '..', 'griffin', 'projects', 'compound', 'Weight-Tracker-main', 'pb-cutover.html');
+/* The generator's .347 output, i.e. the input this step consumes. After a
+   build-release run the file no longer sits in the sister repo tree — the
+   build QUARANTINES it (DEPLOY-RC-V2-02), which broke the original default
+   here. The quarantined copy is the same bytes under an honest name, so it is
+   a legitimate test input; sha verification below still gates it. */
+const CANDIDATES = [
+  process.env.CF_PORTED,
+  path.join(ROOT, '.build', 'intermediate', 'pb-cutover.NOT-A-RELEASE.html'),
+  path.join(os.homedir(), '..', 'griffin', 'projects', 'compound', 'Weight-Tracker-main', 'pb-cutover.html'),
+].filter(Boolean);
+const PORTED = CANDIDATES.find((p_) => fs.existsSync(p_)) || CANDIDATES[CANDIDATES.length - 1];
 const RC = path.join(ROOT, 'index.html');
 
 const sha = (p) => crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex');
@@ -194,6 +202,45 @@ if (!havePorted) {
       ok(s.includes('HARDENING — COMMIT 10'), 'and Commit 10 must NOT have been dropped');
       ok(s.lastIndexOf('scheduleCloudPush=function') > s.indexOf('HARDENING — COMMIT 10'),
         'and CAS must still own the scheduler');
+    });
+  });
+
+  group('DEPLOY-RC-V2 — one authoritative build command', () => {
+    const BUILDER = path.join(ROOT, 'deployment-path', 'build-release.mjs');
+    const COMPOUND = process.env.CF_COMPOUND || path.dirname(path.dirname(PORTED));
+    const runBuild = () => {
+      try {
+        const out = execFileSync(process.execPath, [BUILDER, '--compound=' + COMPOUND],
+          { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+        return { code: 0, out };
+      } catch (e) {
+        return { code: e.status === undefined ? -1 : e.status, out: (e.stdout || '') + (e.stderr || '') };
+      }
+    };
+
+    test('DEPLOY-RC-V2-01 one command produces the release artifact and manifest', () => {
+      const r = runBuild();
+      eq(r.code, 0, r.out);
+      const man = JSON.parse(fs.readFileSync(path.join(ROOT, '.build', 'release', 'manifest.json'), 'utf8'));
+      eq(man.releaseSha256, sha(path.join(ROOT, '.build', 'release', 'index.html')),
+        'the manifest must describe the artifact beside it');
+      eq(man.releaseSha256, sha(RC), 'and that artifact must be the reviewed candidate');
+      eq(man.releaseBuild, inj.release);
+      ok(man.sourceCommit && man.injectionSha256 && man.command, 'manifest must carry provenance');
+    });
+
+    test('DEPLOY-RC-V2-02 the intermediate is quarantined, not deployable-looking', () => {
+      const q = path.join(ROOT, '.build', 'intermediate');
+      const files = fs.readdirSync(q);
+      ok(files.some((f) => /NOT-A-RELEASE/.test(f)),
+        'the intermediate name must say what it is: ' + files.join(', '));
+      ok(files.includes('README.txt'), 'and carry the sidecar warning');
+      const readme = fs.readFileSync(path.join(q, 'README.txt'), 'utf8');
+      ok(/NOT A RELEASE/.test(readme));
+      /* the generator's own output must no longer sit in the sister repo tree,
+         where the historical deploy ritual picked files up from */
+      notOk(fs.existsSync(path.join(COMPOUND, 'Weight-Tracker-main', 'pb-cutover.html')),
+        'pb-cutover.html must not remain in the sister repo working tree after a build');
     });
   });
 
