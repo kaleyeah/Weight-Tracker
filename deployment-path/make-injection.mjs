@@ -18,9 +18,11 @@
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 
-const [, , portedPath, rcPath] = process.argv;
-if (!portedPath || !rcPath) {
-  console.error('usage: make-injection.mjs <ported-347.html> <reviewed-rc.html>');
+const [, , portedPath, rcPath, sourcePath, sourceCommit] = process.argv;
+if (!portedPath || !rcPath || !sourcePath || !sourceCommit) {
+  console.error('usage: make-injection.mjs <ported-347.html> <reviewed-rc.html> <unported-source.html> <source-commit>');
+  console.error('  The source identity is recorded so the build can enforce it DIRECTLY');
+  console.error('  (Architect DEPLOY-BUILD-02), rather than only via the intermediate hash.');
   process.exit(2);
 }
 const sha = (s) => crypto.createHash('sha256').update(s, 'utf8').digest('hex');
@@ -88,6 +90,14 @@ for (const [tag, i1, i2, j1, j2] of ops) {
 const release = (rc.match(/APP_BUILD="([^"]*)"/) || [])[1] || '';
 const out = {
   release,
+  /* The expected SOURCE identity, enforced by build-release before the
+     generator runs. compatibleSourceCommits is the explicit policy for a
+     different commit whose source file is byte-identical — empty means none. */
+  expectedSource: {
+    commit: sourceCommit,
+    sha256: sha(fs.readFileSync(sourcePath, 'utf8')),
+    compatibleSourceCommits: [],
+  },
   generatedFrom: { portedSha: sha(ported), rcSha: sha(rc) },
   opCount: built.length,
   ops: built,

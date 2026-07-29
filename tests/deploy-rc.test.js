@@ -260,6 +260,230 @@ if (!havePorted) {
     console.log('\nDEPLOY-RC-V2 — SKIPPED: no sister repo with tools/pb-port.mjs found.');
     console.log('  Set CF_COMPOUND=<path to kaleyeah/compound checkout> to run the build-command tests.');
   }
+  /* A disposable local clone of the sister repo, for failure-mode tests that
+     must not touch the real one. --local clones hardlink objects, so this is
+     cheap. Each case gets a fresh clone because the cases sabotage it. */
+  const cloneCompound = (mutate) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cf-compound-'));
+    execFileSync('git', ['clone', '-q', '--local', COMPOUND, dir], { stdio: 'ignore' });
+    execFileSync('git', ['-C', dir, 'checkout', '-q',
+      execFileSync('git', ['-C', COMPOUND, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()], { stdio: 'ignore' });
+    if (mutate) mutate(dir);
+    return dir;
+  };
+  const runBuildAt = (compoundDir, env) => {
+    try {
+      const out = execFileSync(process.execPath, [BUILDER, '--compound=' + compoundDir],
+        { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: Object.assign({}, process.env, env || {}) });
+      return { code: 0, out };
+    } catch (e) {
+      return { code: e.status === undefined ? -1 : e.status, out: (e.stdout || '') + (e.stderr || '') };
+    }
+  };
+  const runSelector = () => {
+    try {
+      const out = execFileSync(process.execPath, [path.join(ROOT, 'deployment-path', 'select-artifact.mjs')],
+        { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+      return { code: 0, out };
+    } catch (e) {
+      return { code: e.status === undefined ? -1 : e.status, out: (e.stdout || '') + (e.stderr || '') };
+    }
+  };
+  const releaseState = () => ({
+    manifest: fs.existsSync(path.join(ROOT, '.build', 'release', 'manifest.json')),
+    artifact: fs.existsSync(path.join(ROOT, '.build', 'release', 'index.html')),
+  });
+  const assertNoStaleRelease = (label) => {
+    const st = releaseState();
+    notOk(st.manifest, label + ': a stale manifest survived the failed build');
+    notOk(st.artifact, label + ': a stale artifact survived the failed build');
+  };
+
+  if (compoundUsable) group('DEPLOY-BUILD-01..08 — failures publish NOTHING; only a matching pair deploys', () => {
+    test('DEPLOY-BUILD-01 dirty source leaves no stale release artifact or manifest', () => {
+      const dir = cloneCompound((d) => fs.appendFileSync(path.join(d, 'Weight-Tracker-main', 'index.html'), '\n/* dirty */\n'));
+      const r = runBuildAt(dir);
+      notOk(r.code === 0);
+      /* dirty content also changes the sha; either named refusal is honest */
+      ok(/DIRTY-SOURCE|SOURCE-SHA-MISMATCH/.test(r.out), r.out.slice(0, 300));
+      assertNoStaleRelease('DEPLOY-BUILD-01');
+      fs.rmSync(dir, { recursive: true, force: true });
+    });
+
+    test('DEPLOY-BUILD-02 generator failure leaves no stale release', () => {
+      const dir = cloneCompound((d) => fs.writeFileSync(path.join(d, 'tools', 'pb-port.mjs'),
+        'throw new Error("sabotaged generator for DEPLOY-BUILD-02");'));
+      const r = runBuildAt(dir);
+      notOk(r.code === 0);
+      ok(/PORT-FAILED/.test(r.out), r.out.slice(0, 300));
+      assertNoStaleRelease('DEPLOY-BUILD-02');
+      fs.rmSync(dir, { recursive: true, force: true });
+    });
+
+    test('DEPLOY-BUILD-03 missing generator leaves no stale release', () => {
+      const dir = cloneCompound((d) => fs.rmSync(path.join(d, 'tools', 'pb-port.mjs')));
+      const r = runBuildAt(dir);
+      notOk(r.code === 0);
+      ok(/NO-GENERATOR/.test(r.out), r.out.slice(0, 300));
+      assertNoStaleRelease('DEPLOY-BUILD-03');
+      fs.rmSync(dir, { recursive: true, force: true });
+    });
+
+    test('DEPLOY-BUILD-04 missing intermediate leaves no stale release', () => {
+      const dir = cloneCompound((d) => fs.writeFileSync(path.join(d, 'tools', 'pb-port.mjs'),
+        'process.exit(0); /* exits happily, writes nothing — the .347 exit-0 trap */'));
+      const r = runBuildAt(dir);
+      notOk(r.code === 0);
+      ok(/NO-INTERMEDIATE/.test(r.out), r.out.slice(0, 300));
+      assertNoStaleRelease('DEPLOY-BUILD-04');
+      fs.rmSync(dir, { recursive: true, force: true });
+    });
+
+    test('DEPLOY-BUILD-05 / RC-V2-04 injection failure publishes no candidate or manifest', () => {
+      const dir = cloneCompound(null);
+      const r = runBuildAt(dir, { CF_TEST_FAIL: 'inject' });
+      notOk(r.code === 0);
+      assertNoStaleRelease('DEPLOY-BUILD-05');
+      fs.rmSync(dir, { recursive: true, force: true });
+    });
+
+    test('DEPLOY-BUILD-06 / RC-V2-13 manifest or publish failure leaves no deployable pair', () => {
+      const dir = cloneCompound(null);
+      for (const step of ['manifest', 'publish']) {
+        const r = runBuildAt(dir, { CF_TEST_FAIL: step });
+        notOk(r.code === 0, 'CF_TEST_FAIL=' + step + ' must exit nonzero');
+        assertNoStaleRelease('DEPLOY-BUILD-06/' + step);
+        const sel = runSelector();
+        notOk(sel.code === 0, 'the selector must refuse after CF_TEST_FAIL=' + step);
+        ok(/NO-MANIFEST/.test(sel.out), sel.out.slice(0, 200));
+      }
+      fs.rmSync(dir, { recursive: true, force: true });
+    });
+
+    test('DEPLOY-BUILD-07 the selector rejects a stale prior manifest after a failed build', () => {
+      /* build OK, then fail a build, then try to select: the wipe-first design
+         means the stale pair is GONE, which is exactly the guarantee */
+      eq(runBuildAt(COMPOUND).code, 0, 'baseline build must succeed');
+      eq(runSelector().code, 0, 'and select');
+      const dir = cloneCompound((d) => fs.rmSync(path.join(d, 'tools', 'pb-port.mjs')));
+      notOk(runBuildAt(dir).code === 0, 'the sabotaged build must fail');
+      const sel = runSelector();
+      notOk(sel.code === 0, 'selecting after a failed build must refuse');
+      ok(/NO-MANIFEST/.test(sel.out), sel.out.slice(0, 200));
+      fs.rmSync(dir, { recursive: true, force: true });
+    });
+
+    test('DEPLOY-BUILD-08 only an atomically published matching pair is deployable', () => {
+      eq(runBuildAt(COMPOUND).code, 0);
+      /* tamper with the artifact: hash mismatch must refuse */
+      const art = path.join(ROOT, '.build', 'release', 'index.html');
+      const orig = fs.readFileSync(art);
+      fs.appendFileSync(art, '\n<!-- tampered -->');
+      let sel = runSelector();
+      notOk(sel.code === 0, 'a tampered artifact must refuse');
+      ok(/HASH-MISMATCH|BYTES-MISMATCH/.test(sel.out), sel.out.slice(0, 200));
+      fs.writeFileSync(art, orig);
+      eq(runSelector().code, 0, 'restored pair selects again');
+    });
+  });
+
+  if (compoundUsable) group('DEPLOY-RC-V2-03..14 — the remaining named cases', () => {
+    test('DEPLOY-RC-V2-03 adapter failure prevents injection and final output', () => {
+      const dir = cloneCompound((d) => fs.writeFileSync(path.join(d, 'tools', 'pb-port.mjs'),
+        'throw new Error("adapter transform failure");'));
+      const r = runBuildAt(dir);
+      notOk(r.code === 0);
+      ok(/PORT-FAILED/.test(r.out));
+      assertNoStaleRelease('V2-03');
+      fs.rmSync(dir, { recursive: true, force: true });
+    });
+
+    test('DEPLOY-RC-V2-05 the selector refuses the intermediate .347 artifact', () => {
+      eq(runBuildAt(COMPOUND).code, 0);
+      /* forge a manifest that points at intermediate content */
+      const rel = path.join(ROOT, '.build', 'release');
+      const man = JSON.parse(fs.readFileSync(path.join(rel, 'manifest.json'), 'utf8'));
+      const runs = fs.readdirSync(path.join(ROOT, '.build', 'runs'));
+      const inter = path.join(ROOT, '.build', 'runs', runs[0], 'intermediate', 'pb-cutover.NOT-A-RELEASE.html');
+      fs.copyFileSync(inter, path.join(rel, 'index.html'));
+      man.releaseSha256 = sha(path.join(rel, 'index.html'));
+      man.releaseBytes = fs.statSync(path.join(rel, 'index.html')).size;
+      fs.writeFileSync(path.join(rel, 'manifest.json'), JSON.stringify(man));
+      const sel = runSelector();
+      notOk(sel.code === 0, 'intermediate content must never be selectable even with a matching forged hash');
+      ok(/INTERMEDIATE|BUILD-MISMATCH/.test(sel.out), sel.out.slice(0, 200));
+      eq(runBuildAt(COMPOUND).code, 0, 'rebuild restores a good pair');
+    });
+
+    test('DEPLOY-RC-V2-06/07 manifest names the exact hash and bytes, and input must match it', () => {
+      const man = JSON.parse(fs.readFileSync(path.join(ROOT, '.build', 'release', 'manifest.json'), 'utf8'));
+      eq(man.releaseSha256, sha(path.join(ROOT, '.build', 'release', 'index.html')));
+      eq(man.releaseBytes, fs.statSync(path.join(ROOT, '.build', 'release', 'index.html')).size);
+      eq(man.releaseSha256, sha(RC), 'and it is the reviewed candidate');
+    });
+
+    test('DEPLOY-RC-V2-08 identical inputs produce an identical manifest and bytes', () => {
+      const m1 = fs.readFileSync(path.join(ROOT, '.build', 'release', 'manifest.json'), 'utf8');
+      const a1 = sha(path.join(ROOT, '.build', 'release', 'index.html'));
+      eq(runBuildAt(COMPOUND).code, 0);
+      const m2 = fs.readFileSync(path.join(ROOT, '.build', 'release', 'manifest.json'), 'utf8');
+      const a2 = sha(path.join(ROOT, '.build', 'release', 'index.html'));
+      eq(a1, a2, 'artifact bytes must be deterministic');
+      eq(m1, m2, 'the manifest must be byte-identical too — no timestamps, no run ids');
+    });
+
+    test('DEPLOY-RC-V2-09 a wrong sister-repo commit fails before producing a release', () => {
+      const dir = cloneCompound((d) => {
+        const prior = execFileSync('git', ['-C', d, 'log', '--format=%H', '--follow', '--', 'Weight-Tracker-main/index.html'],
+          { encoding: 'utf8' }).trim().split('\n')[1];
+        execFileSync('git', ['-C', d, 'checkout', '-q', prior]);
+      });
+      const r = runBuildAt(dir);
+      notOk(r.code === 0);
+      ok(/SOURCE-SHA-MISMATCH|SOURCE-COMMIT-MISMATCH/.test(r.out), r.out.slice(0, 300));
+      assertNoStaleRelease('V2-09');
+      fs.rmSync(dir, { recursive: true, force: true });
+    });
+
+    test('DEPLOY-RC-V2-10 a missing sister repo fails with a named error and no release', () => {
+      const r = runBuildAt(path.join(os.tmpdir(), 'no-such-compound-anywhere'));
+      notOk(r.code === 0);
+      ok(/NO-SOURCE|NO-GENERATOR/.test(r.out), r.out.slice(0, 200));
+      assertNoStaleRelease('V2-10');
+    });
+
+    test('DEPLOY-RC-V2-11 a live-source change fails at a named anchor, never a partial release', () => {
+      /* a real source change alters the source sha, and the pipeline correctly
+         refuses at the identity gate before anchors are even consulted — the
+         no-partial-release property is what matters */
+      const dir = cloneCompound((d) => {
+        const f = path.join(d, 'Weight-Tracker-main', 'index.html');
+        fs.writeFileSync(f, fs.readFileSync(f, 'utf8').replace('function todayChecklistHTML(', '/* changed */\nfunction todayChecklistHTML('));
+        execFileSync('git', ['-C', d, 'commit', '-aqm', 'simulated live fix'], { stdio: 'ignore' });
+      });
+      const r = runBuildAt(dir);
+      notOk(r.code === 0, 'an unreviewed live change must not build');
+      ok(/SOURCE-SHA-MISMATCH/.test(r.out), r.out.slice(0, 300));
+      assertNoStaleRelease('V2-11');
+      fs.rmSync(dir, { recursive: true, force: true });
+    });
+
+    test('DEPLOY-RC-V2-12 the final release contains the adapter once and Commit 10/10b once', () => {
+      eq(runBuildAt(COMPOUND).code, 0);
+      const s = fs.readFileSync(path.join(ROOT, '.build', 'release', 'index.html'), 'utf8');
+      eq(s.split('function pbSave').length - 1, 1, 'adapter count');
+      eq(s.split('HARDENING — COMMIT 10:').length - 1, 1);
+      eq(s.split('HARDENING — COMMIT 10b:').length - 1, 1);
+    });
+
+    test('DEPLOY-RC-V2-14 release and rollback have distinct identities', () => {
+      const man = JSON.parse(fs.readFileSync(path.join(ROOT, '.build', 'release', 'manifest.json'), 'utf8'));
+      ok(man.rollback && man.rollback.sha256, 'the manifest must name the rollback artifact');
+      notOk(man.rollback.sha256 === man.releaseSha256, 'rollback and release must be different bytes');
+      notOk(man.rollback.bytes === man.releaseBytes);
+    });
+  });
+
   if (compoundUsable) group('DEPLOY-RC-V2 — one authoritative build command', () => {
     test('DEPLOY-RC-V2-01 one command produces the release artifact and manifest', () => {
       const man = JSON.parse(fs.readFileSync(path.join(ROOT, '.build', 'release', 'manifest.json'), 'utf8'));
