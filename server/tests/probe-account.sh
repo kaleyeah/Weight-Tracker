@@ -27,6 +27,10 @@
 # Usage:
 #   BASE=<url> ADMIN_EMAIL=.. ADMIN_PASS=.. bash probe-account.sh create
 #   BASE=<url> ADMIN_EMAIL=.. ADMIN_PASS=.. bash probe-account.sh teardown
+#
+#   Set PROBE_EXPECT_APPDATA=YES on teardown when the probe was used for
+#   idempotency verification (I1-I8), which commits on purpose. Leave it unset
+#   for read-only deployment probes, where an appdata row IS a finding.
 set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; . "$DIR/_lib.sh"
 BASE="${BASE:?set BASE}"
@@ -77,8 +81,19 @@ teardown)
     RID=$(cf_curl "$ATOK" -sS --max-time 30 -G "$BASE/api/collections/appdata/records" --data-urlencode "filter=user=\"$ID\"" \
       | python3 -c 'import sys,json;i=json.load(sys.stdin).get("items",[]);print(i[0]["id"] if i else "")')
     if [ -n "$RID" ]; then
-      echo "NOTE     $PROBE has an appdata row ($RID) — the gate probes are supposed to write nothing."
-      echo "         Record this: it means something on the route reached the write path."
+      # Whether this row is expected depends on what the probe was used FOR, and
+      # the old wording asserted the read-only case unconditionally — so an
+      # idempotency run, which commits on purpose, printed a warning that read
+      # like a defect. Say which situation this is (Architect production review,
+      # 2026-07-29 §6).
+      if [ "${PROBE_EXPECT_APPDATA:-}" = "YES" ]; then
+        echo "NOTE     $PROBE has an appdata row ($RID) — EXPECTED for idempotency"
+        echo "         verification (I1-I8 commit deliberately). Removing it now."
+      else
+        echo "NOTE     $PROBE has an appdata row ($RID) — NOT expected for a read-only"
+        echo "         deployment probe, whose checks are rejected by our validators before"
+        echo "         any database access. Record this: something reached the write path."
+      fi
       cf_req DELETE "/api/collections/appdata/records/$RID" "$ATOK"
       case "$CF_STATUS" in 200|204) :;; *) echo "FAIL     appdata delete -> HTTP $CF_STATUS"; RC=1;; esac
     fi

@@ -199,6 +199,42 @@ BASE=https://rack.tail6fa16c.ts.net ADMIN_EMAIL=<superuser> ADMIN_PASS=<pw> \
 python3 _sentinel.py destroy /tmp/cf-preflight.sentinel.json
 ```
 
+### Deploying while an athlete may be writing (amendment, 2026-07-29)
+
+HOTFIX-001 exposed a gap in the V15 model. The sentinel assumes exact equality
+of existing rows across the deployment, which is only true if nobody is using
+the app. During that deployment an athlete's client wrote eight times through
+the legacy bridge — `coreRev` 45 → 53 — so an exact-equality check would have
+reported a failure where the system was in fact healthy.
+
+**"Athlete rows unchanged" is not a usable gate while an athlete is active.**
+The usable gate is *"unchanged by the deployment"*. Use one of these:
+
+**Preferred — quiesce.** Arrange a short window in which no athlete client is
+writing, capture the sentinel, deploy, and require **exact** sentinel equality.
+Simplest to reason about, and the only model that gives an unqualified pass.
+
+**When quiescence is not practical — capture and attribute.** Capture the
+sentinel anyway, then classify every observed row change:
+
+- **revision and timestamp movement** — does it look like ordinary client
+  activity, or a jump inconsistent with use?
+- **route/ledger attribution** — the CAS route writes a `cf_commit_log` row for
+  every commit. A row that changed with **no** ledger entry for that user did
+  not change via the route. This is the strongest single signal.
+- **blast-radius reasoning** — does the deployed change even touch the path that
+  wrote the row? A commit-handler change cannot alter the legacy `PATCH` bridge.
+- **server request logs** where available.
+
+Record the classification in the cutover log. Do **not** record an unqualified
+pass when quiescence was not achieved; state which rows moved and why they were
+attributed to athlete activity.
+
+`ACCEPT_NO_SENTINEL=YES` remains what it says it is — a caveat path, not a pass.
+Capture the sentinel **before** deploying; it cannot be reconstructed afterwards.
+
+---
+
 **Credentials never appear in process arguments.** `/proc/<pid>/cmdline` is world-readable, so a superuser token passed as `curl -H "Authorization: …"` would be visible to every local user for the life of the request. The kit now puts the header in a 0600 curl config file read with `-K`, hands the sentinel its token on **stdin**, and passes passwords to helper processes through the environment. Verified by rig checks S10a–c (Product Architect requirement, 2026-07-27).
 
 `verify-deployment.sh` is **read-only and safe against production** — every request is a GET, a superuser auth, or a probe rejected before any database access. It is the one script here that does not refuse to run against the production hostname, because verifying production is its job. It asserts schema, index shapes, ledger rules, and that the route actually executes our code; full check list in `STAGING_RESULTS.md` §12.3.
