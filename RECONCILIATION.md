@@ -1,7 +1,8 @@
 # Lineage A ↔ B reconciliation — findings from the CAS side
 
 Response to `LINEAGE_A_MANIFEST.md`. Written 2026-07-28 from the Lineage B
-(CAS) chat. **Everything below is checked against git in this repo**, not
+(CAS) chat; **updated 2026-07-29 against `kaleyeah/compound@71acce4`** (manifest
+revision: freeze line moved to `.347`). **Everything below is checked against git in this repo**, not
 recalled or assumed.
 
 The manifest asked Lineage B to determine the fork point and plan the merge.
@@ -47,8 +48,8 @@ Verified by presence in B's `index.html`:
 | `shareOrDownloadMulti` | ✅ | .339 |
 | `MP-CALC` / `MP-VIEW` | ❌ | .343 only |
 
-So this is **not** "rebase A's whole feature set onto B". Lineage A is **four
-commits ahead of the fork**:
+So this is **not** "rebase A's whole feature set onto B". Lineage A is **eight
+commits ahead of the fork** (four at the time of writing, four more since):
 
 | Build | Commit | What |
 | --- | --- | --- |
@@ -56,15 +57,23 @@ commits ahead of the fork**:
 | .341 | `fd2f5e5` | week-over-week comparison sign/offset fix |
 | .342 | `3ae7d2d` | persist RPT `progression` + `setRanges` on saved sessions |
 | .343 | `c380c62` | MP Evidence report — `MP-CALC` (~77 fns) + `MP-VIEW` |
+| .344 | `9c21231` | ONE simple coach report replaces all three styles; **`MP-VIEW` + Ledger/Dashboard removed, −88 KB**; `MP-CALC` retained |
+| .345 | `e1516c1` | coach export bundles the week's CSV in one share sheet |
+| .346 | `9f86af6` | coach report v2 — Summary clone, real progress photos prefetched for iOS share |
+| .347 | `e29ccc0` | skipped sets stay visible and say "skipped"; cardio tiles labelled **FREEZE LINE** |
 
 Lineage B is 125 commits ahead on the sync/hardening side.
 
-**And .343 is partly self-cancelling:** the manifest says the in-flight `.344`
-removes `MP-VIEW` and both report templates, keeping only `MP-CALC`. If `.344`
-ships first, the merge is effectively **three commits plus one calc module**.
+**Lineage A is now frozen at `.347`** (2026-07-29), critical bug fixes excepted.
+The target has stopped moving, which is what makes a clean reconciliation
+possible.
 
-**Recommendation:** wait for `.344`, then cherry-pick `.340→.344` onto B. Do not
-port `.343`'s view layer only to delete it.
+**`.343`'s view layer never needs porting at all.** `.344` deleted `MP-VIEW` and
+both report templates (−88 KB), keeping only the `MP-CALC` engine. Cherry-picking
+`.340→.347` in order lands the final state directly; the intermediate churn can
+be squashed or skipped.
+
+**Recommendation:** port `.340→.347` onto B as one reviewed change, not eight.
 
 ## 3. CAS revisions on production are NOT stale
 
@@ -135,13 +144,44 @@ actually called.
 
 ---
 
-## 5. Payload shape — no conflict found
+## 5. Payload shape — verified identical, no conflict
 
 The manifest warns that `data`/`training` gained fields B may not know
 (`data.glp`, `data.skips`, `food[d].fiber`, per-entry `progression`/`setRanges`,
 `settings.startDate`).
 
-B's CAS layer does not whitelist payload keys:
+**Checked directly: the two lineages send exactly the same field set.**
+
+```
+A (.347): bodyfat food glp nightlyLog nightlySummary notes presets scriptVer
+          settings skips sleep statuses steps waist weeklySummary weights workouts
+B       : (identical)
+```
+
+Nothing since `.339` changed `payload()`. The manifest's own note agrees —
+"nothing since `.343` changed the `data`/`training` JSON shapes" — and the check
+extends that back to the fork.
+
+**The `.346` photo work does not reach sync.** `state._srPhotoCache` holds
+downscaled JPEG data URIs, and `payload()` is a whitelist that excludes it. The
+Lineage A author documented this in-code: *"payload() whitelists what persists,
+so the cache never reaches localStorage or sync."* Verified. My earlier caution
+about the 256 KiB cap therefore applies only to genuine data growth, not to the
+report photos.
+
+**B does not strip fields on the wire either.** `cfNormalize()` *is* a
+whitelist, but every caller uses it only for equality and baselines
+(`cfCanon(cfNormalize(...))`) — never to construct what is saved or sent. What
+goes over the wire is `payload()` verbatim.
+
+**One real gap, and it is graceful.** `.342` persists `progression`/`setRanges`
+*inside* `liftSessions` entries. B's `loadTraining()` copies `liftSessions`
+wholesale, so existing entries survive a round trip intact — but B will not
+*write* those fields for new sessions until `.342` is ported. Old data is
+preserved, new data is thinner. That is an argument for porting `.342`
+specifically, not a data-loss risk.
+
+For completeness, B's CAS layer also does not whitelist keys:
 
 ```js
 function cfCasPayloadFor(sub){
@@ -167,8 +207,8 @@ Concrete, cheap, and each currently unverified:
    their `updated` timestamps** — confirms the bridge really has been tracking
    every write, rather than relying on the argument in §3.
 2. **Measure real payload size** for both athletes against the 256 KiB cap.
-3. **Confirm `.344` scope** before porting `.343` — avoid porting `MP-VIEW`
-   into B and deleting it a day later.
+3. ~~Confirm `.344` scope before porting `.343`~~ — **resolved**: `.344` removed
+   `MP-VIEW` and both templates. Port `.340→.347`; never port `MP-VIEW`.
 4. **Decide the deploy ritual.** A ships via `tools/pb-port.mjs` → CRLF →
    Pages. B has no deploy path at all. Post-merge there must be one, and B's
    client must either absorb the adapter's behaviour or the port must be re-run
@@ -182,8 +222,9 @@ The manifest proposes: B's CAS plumbing wins the sync layer, A's features win
 the product surface, rebase A onto B.
 
 I agree, amended by §2: **there is no large feature rebase to do.** B is a
-descendant of `.339`. The work is cherry-picking `.340→.344` — four or five
-commits — onto B, then retiring A's direct-PATCH sync in the same release.
+descendant of `.339`. The work is porting `.340→.347` — eight commits, of which
+one deletes much of another — onto B, then retiring A's direct-PATCH sync in the
+same release.
 
 The remaining risk is not feature loss. It is that **B's client has never been
 deployed to anyone**, so its first contact with real athlete data is also its
@@ -203,3 +244,18 @@ git show origin/main:index.html | grep -c 'cf/appdata/commit'              # →
 grep -n 'onRecordUpdateRequest' -A6 server/pb_hooks/cf_cas.pb.js           # → the rev bridge
 grep -c 'state.glp\|fiber\|skips' index.html                               # → present in B
 ```
+
+
+---
+
+## 8. Two manifest claims not yet folded in (as of `71acce4`)
+
+The `.347` manifest revision still carries two statements this analysis
+contradicts. Flagging so they are not planned against:
+
+1. *"CAS revs on production are presumably stale."* — the legacy bridge keeps
+   them current (§3).
+2. *"Fork point … likely around the PocketBase cutover era (≤ 2026-07-21, build
+   ≤ .283)."* — it is `66108ea`, build `.339`, 2026-07-27 (§2).
+
+Both are checkable in one command each; the appendix has them.
