@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-28.345 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-28.346 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -851,7 +851,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-28.345-pb";
+var APP_BUILD="2026-07-28.346-pb";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -2409,6 +2409,10 @@ function sumStat(label,v,unit){
   if(label==="")return '<div class="wl-stat" style="visibility:hidden"></div>';
   var disp=v==null?"—":(Math.abs(v)>=1000?Math.round(v).toLocaleString():(v%1===0?String(v):String(r1(v))));
   return '<div class="wl-stat"><div class="wl-stat-label">'+label+'</div><div class="wl-stat-val">'+disp+'<span>'+(v!=null&&unit?" "+unit:"")+'</span></div></div>';}
+/* shared goal-coloring rules — the Summary cards and the exported coach report
+   must judge a number identically, so these live at module level for both */
+function acol(has,red){return has?(red?"bad":"good"):"";}
+function gcol(v,goal,over,buf){if(goal==null||v==null)return "";if(over)return v<=goal?"good":(v<=goal+buf?"warn":"bad");return v>=goal?"good":(v>=goal-buf?"warn":"bad");}
 function view_summary(){
   var days=weekDays(state.weekOffset).map(dayRow);
   var s=weekStartFor(state.weekOffset),e=new Date(s);e.setDate(s.getDate()+6);
@@ -2465,8 +2469,6 @@ function view_summary(){
   h+='<div class="wl-card"><div class="wl-card-head"><span>Weekly Macros'+((_elapsed>0&&_elapsed<7)?' <em>'+_elapsed+' of 7 days so far</em>':'')+'</span></div>'+_macH+'</div>';
   var avgCal=avg("calories"),avgStep=avg("steps"),avgProt=avg("protein"),avgFat=avg("fat"),avgCarb=avg("carbs");
   var calOverGoal=(tCal!=null&&avgCal!=null&&avgCal>tCal);
-  function acol(has,red){return has?(red?"bad":"good"):"";}
-  function gcol(v,goal,over,buf){if(goal==null||v==null)return "";if(over)return v<=goal?"good":(v<=goal+buf?"warn":"bad");return v>=goal?"good":(v>=goal-buf?"warn":"bad");}
   h+='<div class="wl-card"><div class="wl-card-head"><span>Weekly Averages <em>per logged day</em></span></div><div class="wl-statrow" style="grid-template-columns:repeat(3,1fr)">'+
     avgStatF("Calories",fnum(avgCal),tCal!=null?"goal "+fnum(tCal):"",gcol(avgCal,tCal,true,100))+
     avgStatF("Steps",fnum(avgStep),tStep!=null?"goal "+fnum(tStep):"",gcol(avgStep,tStep,false,0))+
@@ -2491,7 +2493,7 @@ function view_summary(){
       cl(mv(cc,function(v){return v;}),(tCarb!=null&&cc!=null)?((cc>tCarb&&calOverD)?"bad":"good"):"")+
       '</tr>';});
   h+='</tbody></table><button class="wl-btn wl-btn-primary wl-full" style="margin-top:14px" data-act="sum:exportweek">Export this week</button><div class="wl-hint" style="margin-top:8px">Two files: a readable progress report you can open on your phone, plus the CSV — every logged metric, training, and notes.</div>';
-  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:14px" data-act="sum:coachreport">Export coach report</button><div class="wl-hint" style="margin-top:8px">The one-page report plus the week’s CSV, in one share.</div></div>';
+  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:14px" data-act="sum:coachreport">Export coach report</button><div class="wl-hint" style="margin-top:8px">The whole week as your coach sees it — photos, summary, and every workout — plus the CSV, in one share.</div></div>';
   h+='<div class="wl-card"><button class="wl-btn wl-btn-primary wl-full" data-act="go" data-view="diary">'+I.camera+'Food Diary</button><div class="wl-hint" style="margin-top:8px">A visual collage of your meal photos by day, with each day\u2019s calories and macros.</div></div>';
   return h+'</div>';}
 function csvCell(v){v=(v==null?"":String(v));return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
@@ -3302,359 +3304,457 @@ function lrBwGood(M){
 
 
 /* ============================================================
-   COACH REPORT — the one lifting export (2026-07).
-   Replaces the Ledger, the Coach's Dashboard and the Muscle
-   Preservation document. Griffin's verdict on all three:
-   overcomplicated. One page — big numbers, one line per exercise,
-   plain words. The honest math still runs underneath (lrModel:
-   best-set e1RM, per-set reverse-pyramid judging, analyzeSession
-   PR detection, weekly bodyweight averages) — it just doesn't
-   narrate itself. Nothing is fabricated: an unlogged input prints
-   an em dash or one plain sentence, never a substitute.
+   COACH REPORT v2 — "a scrolling capture of the Summary page"
+   (2026-07, replaces the tile report). The export reads like the
+   app itself: progress photos up top, then the Summary tab's own
+   cards — weekly-average hero, check-in chips, weekly totals,
+   macros incl. fiber, averages with goal coloring, activity,
+   daily totals — then one card per lifting session with the
+   workout screen's own visual language: RPT/PO progression chips
+   and the per-set target icons (trend-up above range, bullseye
+   in range, trend-down below), exactly as setTargetIcon draws
+   them. The honest math still runs underneath (lrModel, per-set
+   reverse-pyramid targets via lrPrescription, analyzeSession PR
+   detection); nothing is fabricated — an unlogged input prints
+   an em dash, never a substitute.
    Everything between SR-VIEW-START and SR-VIEW-END is pure: no
    DOM, no `state`, no Date.now(). tools/mp-formulas.test.mjs
    extracts it verbatim and renders it under node — the tested
    characters are the shipped characters. srInput() below is the
-   only impure part: it snapshots `state` into the plain object
-   the renderer eats.
+   impure part: it snapshots `state` (numbers computed with the
+   SAME helpers view_summary uses, so the report always matches
+   the Summary tab) into the plain object the renderer eats.
+   Photos arrive pre-shrunk from the srPhotoPrefetch cache — the
+   renderer never touches IndexedDB.
    ============================================================ */
 /* SR-VIEW-START */
 var SRDASH="—";
 function srEsc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");}
 function srFin(n){return typeof n==="number"&&isFinite(n);}
 function srInt(n){if(!srFin(n))return SRDASH;n=Math.round(n);var neg=n<0,s=String(Math.abs(n)),o="";while(s.length>3){o=","+s.slice(-3)+o;s=s.slice(0,-3);}return (neg?"−":"")+s+o;}
-function srD1(n){return srFin(n)?(Math.round(n*10)/10).toFixed(1):SRDASH;}
 /* weights can be fractional (2.5 kg plates): print the decimal only when real */
 function srW(n){if(!srFin(n))return SRDASH;var r=Math.round(n*10)/10;return r===Math.round(r)?srInt(r):String(r);}
-/* plain numeral for SVG coordinates — never a dash, never NaN */
-function srC(n){return srFin(n)?String(Math.round(n*100)/100):"0";}
+/* one decimal at most, printed the way the app's r1() displays it (184.2, 184) */
+function srR1(n){return srFin(n)?String(Math.round(n*10)/10):SRDASH;}
 function srRangeTxt(g){return srInt(g.lo)+"–"+srInt(g.hi);}
-function srCap(s){return s?s.charAt(0).toUpperCase()+s.slice(1):s;}
+/* the set-target verdict icons, copied character-for-character from the app's
+   I.trend / I.trenddn / I.target so the report speaks the workout screen's own
+   visual language (setTargetIcon): green trend-up 18px above the range, red
+   trend-down 18px below it, amber bullseye 17px inside it */
+var SR_ICON_UP='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 7-8.5 8.5-5-5L2 17"/><path d="M16 7h6v6"/></svg>';
+var SR_ICON_DN='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 17-8.5-8.5-5 5L2 7"/><path d="M16 17h6v-6"/></svg>';
+var SR_ICON_TGT='<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="0.6" fill="currentColor"/></svg>';
+/* same thresholds as setTargetIcon's range branch: below the bottom of the
+   set's OWN range first, then above the top, else inside */
+function srSetIconHTML(r,lo,hi){
+  if(!srFin(r)||(lo==null&&hi==null))return "";
+  if(lo!=null&&r<lo)return '<span class="tgt" style="color:#ef4444">'+SR_ICON_DN+'</span>';
+  if(hi!=null&&r>hi)return '<span class="tgt" style="color:#22c55e">'+SR_ICON_UP+'</span>';
+  return '<span class="tgt" style="color:#eab308">'+SR_ICON_TGT+'</span>';}
 /* the prescription at a glance: the whole ladder for reverse pyramid,
-   sets × range for one shared range, nothing when nothing was set */
-function srScheme(x){
-  if(x.mode==="rpt"&&x.ranges&&x.ranges.length)return "RPT "+x.ranges.map(srRangeTxt).join(" / ");
+   sets × range for one shared range, nothing when nothing was set
+   (the RPT/PO chip carries the progression name, so no prefix here) */
+function srSchemeTxt(x){
+  if(x.mode==="rpt"&&x.ranges&&x.ranges.length)return x.ranges.map(srRangeTxt).join(" / ");
   if(x.mode==="single"&&x.ranges&&x.ranges.length)return srInt(x.sets.length)+" × "+srRangeTxt(x.ranges[0]);
   return "";}
-/* one line per exercise: 130×8, 120×10, 110×11 — a PR tag rides its set */
-function srSetsHTML(x){
-  return x.sets.map(function(st){
-    return (st.w!=null?srW(st.w):"BW")+"×"+srInt(st.r)+(st.pr?'<span class="pr">PR</span>':"");
-  }).join(", ");}
-function srTile(k,v,s,good,wide){
-  return '<div class="tile'+(wide?' wide':'')+'"><div class="tK">'+srEsc(k)+'</div>'+
-    '<div class="tV">'+v+'</div><div class="tS'+(good?' good':'')+'">'+s+'</div></div>';}
-function srTilesHTML(inp){
-  var u=srEsc(inp.units);
-  var h='<div class="tiles">';
-  var wv=(inp.bwAvg!=null)?(srD1(inp.bwAvg)+'<s>'+u+'</s>'):SRDASH;
-  var wsb,wg=false;
-  if(inp.bwChg!=null){wsb=(inp.bwChg<0?"&#8595; ":inp.bwChg>0?"&#8593; ":"")+srD1(Math.abs(inp.bwChg))+" "+u+" vs last week";wg=!!inp.bwGood;}
-  else wsb=(inp.bwAvg!=null)?"no weigh-ins last week to compare":"no weigh-ins this week";
-  h+=srTile("Weight",wv,wsb,wg);
-  var n=(inp.sessDays||[]).length;
-  h+=srTile("Sessions",srInt(n)+((inp.sessGoal!=null)?('<s>of '+srInt(inp.sessGoal)+'</s>'):""),
-    n?srEsc(inp.sessDays.join(" · ")):"none this week",(inp.sessGoal!=null&&n>=inp.sessGoal));
-  h+=srTile("Hard sets",srInt(inp.hardSets),
-    inp.hardSets?("across "+srInt(inp.exCount)+" exercise"+(inp.exCount===1?"":"s")):"no working sets",false);
-  var p=inp.protein;
-  if(p&&p.logged){
-    var pg=(p.target!=null&&p.avg>=p.target);
-    h+=srTile("Protein",srInt(p.avg)+'<s>g/day</s>',
-      (p.target!=null)?("target "+srInt(p.target)+" — "+(pg?"hit":"short")):(srInt(p.logged)+" day"+(p.logged===1?"":"s")+" logged"),pg);}
-  else h+=srTile("Protein",SRDASH,"not logged this week",false);
-  var st=inp.steps;
-  if(st&&st.logged){
-    var sg=(st.goal!=null&&st.over===st.logged);
-    h+=srTile("Steps",srInt(st.avg)+'<s>/day</s>',
-      (st.goal!=null)?(srInt(st.over)+" of "+srInt(st.logged)+" days over "+srInt(st.goal)):(srInt(st.logged)+" day"+(st.logged===1?"":"s")+" logged"),sg);}
-  else h+=srTile("Steps",SRDASH,"not logged this week",false);
-  var r=inp.rir;
-  if(r&&r.avg!=null)
-    h+=srTile("Avg RIR",srD1(r.avg),
-      r.fail?(srInt(r.fail)+" set"+(r.fail===1?"":"s")+" to failure"):"no sets to failure",false);
-  else h+=srTile("Avg RIR",SRDASH,"not recorded",false);
-  var he=inp.hero;
-  if(he&&he.e!=null)
-    h+=srTile(he.name+" e1RM",srInt(he.e)+'<s>'+u+'</s>',
-      (he.chg!=null&&he.weeks>1)?((he.chg>=0?"+":"−")+srW(Math.abs(he.chg))+" "+u+" in "+srInt(he.weeks)+" weeks"):"best-set estimate",
-      (he.chg!=null&&he.chg>0),true);
-  else h+=srTile("Top lift e1RM",SRDASH,"no lifts logged yet",false,true);
+/* one exercise: name, progression chip + prescription, then the set grid.
+   Target ranges arrive PER SET, already resolved against the reverse-pyramid
+   slot the set was logged in, so a skipped opener never slides the ladder.
+   A PR tag rides its set. */
+function srExerciseHTML(x,first){
+  var h='<div class="ex"><div class="ex-name">'+srEsc(x.name)+'</div>';
+  var sch=srSchemeTxt(x);
+  h+='<div class="ex-scheme"><span class="ptag'+(x.mode==="rpt"?" rpt":"")+'">'+(x.mode==="rpt"?"RPT":"PO")+'</span>'+srEsc(sch)+(x.assumed?'<span class="dag">&dagger;</span>':'')+'</div>';
+  if(first)h+='<div class="setgrid sethead"><span>Set</span><span>Weight &times; Reps</span><span style="text-align:center">Target</span><span style="text-align:center">Range</span><span style="text-align:right">RIR</span></div>';
+  (x.sets||[]).forEach(function(st,i){
+    var wr=(st.w!=null?srW(st.w):"BW")+"&times;"+srInt(st.r)+(st.pr?'<span class="pr">'+srEsc(st.pr)+'</span>':'');
+    h+='<div class="setgrid setrow'+((!first&&i===0)?' pad':'')+'">'+
+      '<span class="set-n">'+srInt(st.n)+'</span>'+
+      '<span class="set-wr">'+wr+'</span>'+
+      '<span class="set-tgt">'+((st.lo!=null&&st.hi!=null)?srRangeTxt({lo:st.lo,hi:st.hi}):SRDASH)+'</span>'+
+      '<span class="set-rng">'+srSetIconHTML(st.r,st.lo,st.hi)+'</span>'+
+      '<span class="set-rir">'+(st.rir!=null?srInt(st.rir):SRDASH)+'</span></div>';});
   return h+'</div>';}
-function srSparkSVG(pts){
-  if(!pts||!pts.length)return "";
-  var L=4,R=176,T=8,B=36,n=pts.length;
-  var mn=null,mx=null;
-  pts.forEach(function(v){if(!srFin(v))return;if(mn==null||v<mn)mn=v;if(mx==null||v>mx)mx=v;});
-  if(mn==null)return "";
-  if(mx-mn<1e-9){mn-=1;mx+=1;}
-  function X(i){return n===1?(L+R)/2:L+i*(R-L)/(n-1);}
-  function Y(v){return B-(v-mn)/(mx-mn)*(B-T);}
-  var s='<svg viewBox="0 0 180 44" role="img" aria-label="Trend over '+srInt(n)+' training week'+(n===1?'':'s')+'">';
-  if(n>1)s+='<polyline class="spLn" points="'+pts.map(function(v,i){return srC(X(i))+","+srC(Y(v));}).join(" ")+'"/>';
-  s+='<circle class="spDot" cx="'+srC(X(n-1))+'" cy="'+srC(Y(pts[n-1]))+'" r="3.5"/>';
-  return s+'</svg>';}
-/* the one chart: strength on top, bodyweight underneath, same week axis */
-function srStackSVG(c,units){
-  if(!c||!c.pts||!c.pts.length)return "";
-  var pts=c.pts,n=pts.length,L=50,R=610;
-  function X(i){return n===1?(L+R)/2:L+i*(R-L)/(n-1);}
-  var ep=[],bp=[];
-  pts.forEach(function(p,i){if(srFin(p.e))ep.push({i:i,v:p.e});if(srFin(p.bw))bp.push({i:i,v:p.bw});});
-  if(!ep.length)return "";
-  var eLo=null,eHi=null;
-  ep.forEach(function(p){if(eLo==null||p.v<eLo)eLo=p.v;if(eHi==null||p.v>eHi)eHi=p.v;});
-  if(eHi-eLo<1e-9){eLo-=1;eHi+=1;}
-  var hasBw=bp.length>1,bLo=null,bHi=null;
-  if(hasBw){bp.forEach(function(p){if(bLo==null||p.v<bLo)bLo=p.v;if(bHi==null||p.v>bHi)bHi=p.v;});
-    if(bHi-bLo<1e-9){bLo-=1;bHi+=1;}}
-  function EY(v){return 120-(v-eLo)/(eHi-eLo)*96;}
-  function BY(v){return 176+(bHi-v)/(bHi-bLo)*74;}
-  var axY=hasBw?276:150,H=hasBw?296:176;
-  var s='<svg viewBox="0 0 640 '+H+'" role="img" aria-label="'+srEsc(c.name+" strength and bodyweight, week by week")+'">';
-  s+='<text class="gLbl" x="50" y="14">'+srEsc(String(c.name).toUpperCase())+' — STRENGTH</text>';
-  s+='<g class="gGrid"><line x1="50" y1="120" x2="610" y2="120"/><line x1="50" y1="70" x2="610" y2="70"/></g>';
-  if(ep.length>1)s+='<polyline class="lnS" points="'+ep.map(function(p){return srC(X(p.i))+","+srC(EY(p.v));}).join(" ")+'"/>';
-  s+='<g class="dS">'+ep.map(function(p,k){return '<circle cx="'+srC(X(p.i))+'" cy="'+srC(EY(p.v))+'" r="'+((k===0||k===ep.length-1)?4:3)+'"/>';}).join("")+'</g>';
-  s+='<text class="gVal" x="50" y="136" text-anchor="start">'+srInt(ep[0].v)+' '+srEsc(units)+'</text>';
-  if(ep.length>1)s+='<text class="gVal" x="610" y="16" text-anchor="end">'+srInt(ep[ep.length-1].v)+' '+srEsc(units)+'</text>';
-  if(hasBw){
-    s+='<text class="gLbl" x="50" y="168" fill="#B0740B">BODYWEIGHT — WEEKLY AVERAGE</text>';
-    s+='<g class="gGrid"><line x1="50" y1="215" x2="610" y2="215"/></g>';
-    s+='<polyline class="lnW" points="'+bp.map(function(p){return srC(X(p.i))+","+srC(BY(p.v));}).join(" ")+'"/>';
-    s+='<g class="dW">'+bp.map(function(p,k){return '<circle cx="'+srC(X(p.i))+'" cy="'+srC(BY(p.v))+'" r="'+((k===0||k===bp.length-1)?4:3)+'"/>';}).join("")+'</g>';
-    s+='<text class="gValA" x="56" y="'+srC(Math.max(160,BY(bp[0].v)-9))+'" text-anchor="start">'+srD1(bp[0].v)+'</text>';
-    s+='<text class="gValA" x="610" y="'+srC(Math.min(268,BY(bp[bp.length-1].v)+17))+'" text-anchor="end">'+srD1(bp[bp.length-1].v)+'</text>';}
-  s+='<line class="gAx" x1="50" y1="'+axY+'" x2="610" y2="'+axY+'"/>';
-  s+='<g class="gTx" text-anchor="middle">'+pts.map(function(p,i){return '<text x="'+srC(X(i))+'" y="'+(axY+14)+'">'+srEsc(p.label)+'</text>';}).join("")+'</g>';
-  return s+'</svg>';}
-/* the caption under the chart: one plain sentence, only what the data shows */
-function srTakeaway(inp){
-  if(!inp.rel)return "Not enough weigh-ins across these weeks to read strength against bodyweight yet.";
-  var r=inp.rel,u=inp.units,e=r.ePct;
-  var sTxt=(e==null)?"Strength held":(e>1?("Strength up "+srInt(Math.abs(e))+"%"):(e<-1?("Strength down "+srInt(Math.abs(e))+"%"):"Strength held"));
-  var bTxt=(r.bwChg==null)?"weight was not tracked":(r.bwChg<0?("weight is down "+srD1(Math.abs(r.bwChg))+" "+u):(r.bwChg>0?("weight is up "+srD1(r.bwChg)+" "+u):"weight held steady"));
-  var tail=".";
-  if(e!=null&&r.bwChg!=null){
-    if(inp.planMode==="lose"&&e>1&&r.bwChg<0)tail=" — exactly what you want in a cut.";
-    else if(inp.planMode==="lose"&&e>=-1&&r.bwChg<0)tail=" — holding strength while the weight comes off is a win.";
-    else if(e<-1)tail=" — worth keeping an eye on over the next few weeks.";}
-  return sTxt+" while "+bTxt+tail;}
-function srSessionsHTML(inp){
-  var h='<div class="sec"><div class="secH">This week’s workouts <span class="r">weight × reps</span></div>';
-  if(!inp.sessions.length)return h+'<p class="none">No lifting sessions logged this week.</p></div>';
+/* the silhouette drawn in a photo slot whose pose was not taken this week */
+var SR_SILH='<svg viewBox="0 0 100 150" aria-hidden="true"><g fill="#2E3949"><circle cx="52" cy="18" r="12"/><path d="M44 34 C50 31 58 32 60 36 L62 66 C63 76 61 84 60 88 L63 138 L51 138 L50 100 L47 138 L37 138 L42 88 C40 80 40 70 42 60 Z"/></g></svg>';
+/* progress photos: real embedded images per pose; a missing pose keeps its slot
+   with the silhouette and a "not taken" label. `empty` marks a week with no
+   photos at all (dashed slots, no silhouette). Photos arrive as data URIs in
+   the input — this renderer never reads storage. */
+function srPhotosHTML(ph){
+  if(!ph||!ph.slots||!ph.slots.length)return "";
+  var h='<div class="wl-card"><div class="wl-card-head"><span>Progress Photos</span>'+(ph.count?'<span class="wl-count">'+srEsc(ph.count)+'</span>':'')+'</div>';
+  h+='<div class="ph-row" style="grid-template-columns:repeat('+srInt(ph.slots.length)+',1fr)">';
+  ph.slots.forEach(function(sl){
+    if(sl.dataUri)h+='<div class="ph-slot"><img src="'+srEsc(sl.dataUri)+'" alt="'+srEsc(sl.pose)+' progress photo"><span class="ph-pose">'+srEsc(sl.pose)+'</span></div>';
+    else if(ph.empty)h+='<div class="ph-slot empty"><span class="ph-pose">'+srEsc(sl.pose)+' &middot; not taken</span></div>';
+    else h+='<div class="ph-slot">'+SR_SILH+'<span class="ph-pose">'+srEsc(sl.pose)+' &middot; not taken</span></div>';});
+  h+='</div>';
+  if(ph.caption)h+='<div class="wl-hint">'+srEsc(ph.caption)+'</div>';
+  return h+'</div>';}
+/* the Summary tab's weekly-average hero, change pill included */
+function srHeroHTML(inp){
+  var u=srEsc(inp.units),he=inp.hero;
+  var h='<div class="wl-card wl-hero">';
+  if(!he||he.avg==null)return h+'<div class="wl-hint" style="margin-top:0">No weigh-ins logged this week.</div></div>';
+  h+='<div class="wl-hero-top"><div><div class="wl-mini-label">Weekly Average</div><div class="wl-bignum">'+srR1(he.avg)+'<span class="wl-unit">'+u+'</span></div></div>';
+  if(he.dir==="maintained")h+='<span class="wl-change">Maintained</span>';
+  else if(he.dir==="lost")h+='<span class="wl-change good">&#8595; Lost '+srR1(Math.abs(he.chg))+' '+u+'</span>';
+  else if(he.dir==="gained")h+='<span class="wl-change bad">&#8593; Gained '+srR1(Math.abs(he.chg))+' '+u+'</span>';
+  h+='</div>';
+  if(he.prev!=null)h+='<div class="wl-hero-sub">vs last week&rsquo;s average of '+srR1(he.prev)+' '+u+'</div>';
+  else h+='<div class="wl-hero-sub">no weigh-ins last week to compare</div>';
+  return h+'</div>';}
+function srChipsHTML(inp){
+  var h='<div class="wl-card"><div class="wl-card-head"><span>Completed Check-ins</span></div><div class="wl-cichips">';
+  (inp.chips||[]).forEach(function(c){h+='<span class="wl-cichip '+srEsc(c.cls)+'">'+srEsc(c.dow)+'</span>';});
+  return h+'</div><div class="wl-legend"><span><i style="background:var(--good)"></i>Completed</span><span><i style="background:var(--accent)"></i>Partial</span><span><i style="background:var(--bad)"></i>Missed</span></div></div>';}
+function srTotalsHTML(inp){
+  var h='<div class="wl-card"><div class="wl-card-head"><span>Weekly Totals</span></div><div class="wl-statrow">';
+  (inp.totals||[]).forEach(function(t){h+='<div class="wl-stat"><div class="wl-stat-label">'+srEsc(t.label)+'</div><div class="wl-stat-val">'+(t.v!=null?srInt(t.v):SRDASH)+'</div></div>';});
+  return h+'</div></div>';}
+/* the Summary tab's Weekly Macros bars, fiber included — pct and done are
+   computed upstream with the same pro-rating rule the app card uses; a row
+   with no goal shows its total without a bar, exactly like the app */
+function srMacrosHTML(inp){
+  var m=inp.macros;if(!m)return "";
+  var h='<div class="wl-card"><div class="wl-card-head"><span>Weekly Macros</span>'+(m.note?'<span class="wl-count">'+srEsc(m.note)+'</span>':'')+'</div>';
+  (m.rows||[]).forEach(function(r){
+    var vTxt=srInt(r.val)+(r.goal!=null?' / '+srInt(r.goal):'')+(r.unit?' '+srEsc(r.unit):'')+(r.done?' &#10003;':'');
+    h+='<div class="wl-goalrow"><div class="wl-goalrow-top"><span>'+srEsc(r.label)+'</span><span class="wl-goalrow-val'+(r.done?' done':'')+'">'+vTxt+'</span></div>';
+    if(r.goal!=null)h+='<div class="wl-goalbar"><div class="wl-goalbar-fill'+(r.done?' done':'')+'" style="width:'+srInt(r.pct)+'%"></div></div>';
+    h+='</div>';});
+  return h+'</div>';}
+/* Weekly Averages tiles: display strings and good/warn/bad classes arrive
+   pre-computed by the SAME fnum/gcol helpers the Summary tab uses */
+function srAvgsHTML(inp){
+  var h='<div class="wl-card"><div class="wl-card-head"><span>Weekly Averages</span><span class="wl-count">Per logged day</span></div><div class="wl-statrow">';
+  (inp.averages||[]).forEach(function(a){
+    h+='<div class="wl-stat"><div class="wl-stat-label">'+srEsc(a.label)+'</div><div class="wl-stat-val'+(a.cls?' '+srEsc(a.cls):'')+'">'+srEsc(a.disp)+'</div><div class="wl-stat-sub">'+(a.sub?srEsc(a.sub):'&nbsp;')+'</div></div>';});
+  return h+'</div></div>';}
+function srActivityHTML(inp){
+  var h='<div class="wl-card"><div class="wl-card-head"><span>Weekly Activity</span></div><div class="wl-statrow">';
+  (inp.activity||[]).forEach(function(a){h+='<div class="wl-stat"><div class="wl-stat-label">'+srEsc(a.label)+'</div><div class="wl-stat-val" style="color:'+srEsc(a.color)+'">'+srInt(a.n)+'</div></div>';});
+  return h+'</div></div>';}
+/* the Daily Totals table, one row per day — cell text and coloring classes are
+   pre-computed upstream with view_summary's own formatting and gcol rules */
+function srDailyHTML(inp){
+  var dl=inp.daily;if(!dl)return "";
+  var h='<div class="wl-card" style="padding:14px 12px"><div class="wl-card-head" style="padding:0 4px"><span>Daily Totals</span>'+(dl.label?'<span class="wl-count">'+srEsc(dl.label)+'</span>':'')+'</div>';
+  h+='<table class="wl-byday-grid"><thead><tr><th>Day</th><th>Sleep</th><th>Wt</th><th>Steps</th><th>Cal</th><th>P</th><th>F</th><th>C</th></tr></thead><tbody>';
+  (dl.rows||[]).forEach(function(r){
+    h+='<tr><td>'+srEsc(r.dow)+'</td>';
+    (r.cells||[]).forEach(function(c){h+='<td class="'+srEsc(c.cls||"")+'">'+(c.d!=null?srEsc(c.d):'<span class="mut">–</span>')+'</td>';});
+    h+='</tr>';});
+  return h+'</tbody></table></div>';}
+/* one card per lifting session: day chip, duration · session RPE · total lifted,
+   then each exercise with its progression chip and set grid, then the note */
+function srWorkoutsHTML(inp){
+  var h='<div class="secLbl">This week&rsquo;s workouts</div>';
+  if(!(inp.sessions||[]).length)return h+'<div class="wl-card"><div class="wl-hint" style="margin-top:0">No lifting sessions logged this week.</div></div>';
   inp.sessions.forEach(function(s){
-    h+='<div class="ses"><div class="sesTop"><span class="sesD">'+srEsc(s.dateLabel)+'</span>'+
-      '<span class="sesN">'+srEsc(s.name)+'</span>'+
-      (s.mins!=null?('<span class="sesDur num">'+srInt(s.mins)+' min</span>'):"")+'</div><div class="exList">';
-    s.ex.forEach(function(x){
-      var sch=srScheme(x);
-      h+='<div class="exRow"><span class="exN">'+srEsc(x.name)+'</span>'+
-        '<span class="exSets">'+srSetsHTML(x)+'</span>'+
-        (sch?('<span class="exScheme">'+srEsc(sch)+'</span>'):"")+'</div>';});
-    if(s.note)h+='<div class="sesNote"><em>Note</em>'+srEsc(s.note)+'</div>';
-    h+='</div></div>';});
-  return h+'</div>';}
-function srProgressHTML(inp){
-  var weeks=0;
-  if(inp.chart)weeks=inp.chart.pts.length;
-  (inp.sparks||[]).forEach(function(sp){if(sp.n>weeks)weeks=sp.n;});
-  var h='<div class="sec"><div class="secH">Progress'+(weeks>1?(' <span class="r">last '+srInt(weeks)+' weeks</span>'):'')+'</div>';
-  if(inp.thinDays!=null)h+='<p class="thin">Only '+srInt(inp.thinDays)+' day'+(inp.thinDays===1?'':'s')+' logged — trends firm up around 4 weeks.</p>';
-  if(inp.sparks&&inp.sparks.length){
-    h+='<div class="sparks">';
-    inp.sparks.forEach(function(sp){
-      h+='<div class="sp"><div class="spN">'+srEsc(sp.name)+'</div>'+
-        '<div class="spRow"><span class="spV">'+srInt(sp.cur)+'<s> '+srEsc(inp.units)+'</s></span>'+
-        ((sp.pct!=null&&sp.n>1)?('<span class="spD'+(sp.pct<0?' dn':'')+'">'+(sp.pct<0?'−':'+')+srInt(Math.abs(sp.pct))+'%</span>'):'')+'</div>'+
-        '<div class="spSub">best-set estimate (e1RM)</div>'+srSparkSVG(sp.pts)+'</div>';});
-    h+='</div>';}
-  if(inp.chart&&inp.chart.pts.length>1){
-    h+='<div class="hero"><div class="heroT">Strength vs bodyweight'+(inp.planMode==="lose"?" — the picture that matters in a cut":"")+'</div>'+
-      srStackSVG(inp.chart,inp.units);
-    var tk=srTakeaway(inp);
-    if(tk)h+='<div class="takeaway">'+srEsc(tk)+'</div>';
-    h+='</div>';}
-  if(!(inp.sparks&&inp.sparks.length)&&!(inp.chart&&inp.chart.pts.length>1))
-    h+='<p class="none">Nothing to chart yet — log a few sessions and this fills in.</p>';
-  return h+'</div>';}
-function srMentionsHTML(inp){
-  var u=srEsc(inp.units),rows=[];
-  (inp.prs||[]).forEach(function(p){
-    var b="<b>"+srEsc(p.ex)+" "+srW(p.w)+" × "+srInt(p.r)+"</b> on "+srEsc(p.dateLabel)+" — ";
-    if(p.type==="weight")b+="heaviest set on record."+(p.prevW!=null?(" Previous best was "+srW(p.prevW)+" "+u+"."):"");
-    else b+="new best-set estimate"+(p.e!=null?(" ("+srInt(p.e)+" "+u+")"):"")+"."+(p.prevE!=null?(" Previous best was "+srInt(p.prevE)+"."):"");
-    rows.push('<div class="wmRow"><span class="wmTag pr2">PR</span><span class="wmB">'+b+'</span></div>');});
-  (inp.pain||[]).forEach(function(p){
-    rows.push('<div class="wmRow"><span class="wmTag watch">Watch</span><span class="wmB"><b>'+
-      srEsc(p.label)+' during '+srEsc(p.ex)+'</b> on '+srEsc(p.dateLabel)+
-      '. If it shows up again, back the weight off for a week and see how it feels.</span></div>');});
-  var good=[],p2=inp.protein;
-  if(p2&&p2.target!=null&&p2.logged>0&&p2.avg>=p2.target)good.push("protein averaged over target");
-  if(inp.sessGoal!=null&&(inp.sessDays||[]).length>=inp.sessGoal)good.push("every planned session done");
-  if((inp.sessDays||[]).length&&!(inp.pain||[]).length)good.push("no aches reported");
-  if(good.length)rows.push('<div class="wmRow"><span class="wmTag good">Good</span><span class="wmB">'+
-    srEsc(srCap(good.join(", ")+"."))+'</span></div>');
-  if(!rows.length)return "";
-  return '<div class="sec"><div class="secH">Worth mentioning</div><div class="wm">'+rows.join("")+'</div></div>';}
-var SRMARK='<svg viewBox="0 0 17 20" aria-hidden="true" style="width:15px;height:18px;flex:none"><rect x="0" y="11" width="4" height="8" rx="1" fill="#14171B"/><rect x="6" y="8" width="4" height="11" rx="1" fill="#14171B"/><rect x="12" y="1" width="4" height="18" rx="1" fill="#E09B1F"/></svg>';
+    h+='<div class="wl-card"><div class="wl-card-head"><span>'+srEsc(s.name)+'</span><span class="wl-count">'+srEsc(s.dateLabel)+'</span></div>';
+    var meta=[];
+    if(s.mins!=null)meta.push(srInt(s.mins)+' min');
+    if(s.rpe!=null)meta.push('session RPE '+srR1(s.rpe));
+    if(s.ton)meta.push(srInt(s.ton)+' '+srEsc(inp.units)+' lifted');
+    if(meta.length)h+='<div class="sess-meta">'+meta.join(' &middot; ')+'</div>';
+    (s.ex||[]).forEach(function(x,xi){h+=srExerciseHTML(x,xi===0);});
+    if(s.note)h+='<div class="sess-note"><em>Note</em>'+srEsc(s.note)+'</div>';
+    h+='</div>';});
+  return h;}
+var SRMARK='<svg viewBox="0 0 17 20" aria-hidden="true" style="width:16px;height:19px;flex:none"><rect x="0" y="11" width="4" height="8" rx="1" fill="#6E7BE8"/><rect x="6" y="8" width="4" height="11" rx="1" fill="#9AA4F0"/><rect x="12" y="1" width="4" height="18" rx="1" fill="#F5B944"/></svg>';
 var SRCSS=[
-":root{--ink:#14171B;--ink2:#4C5460;--ink3:#8A929E;--paper:#FBFAF7;--rule:#E2DED5;--green:#1F7A58;--greenBg:#E4F2EB;--red:#B23D26;--sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,system-ui,sans-serif;--mono:ui-monospace,'SF Mono','Cascadia Code','Segoe UI Mono',Menlo,Consolas,monospace}",
+":root{--bg:#0B0F16;--bg2:#10151E;--card:#151B26;--card2:#1B2230;--line:#222A38;--line2:#2E3949;--text:#EDF1F7;--muted:#8892A4;--faint:#5F6B7E;--accent:#F5B944;--accent-dim:rgba(245,181,68,.14);--good:#5CD6A0;--bad:#F26D5B;--sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,system-ui,sans-serif;--mono:ui-monospace,'SF Mono','Cascadia Code','Segoe UI Mono',Menlo,Consolas,monospace}",
 "*{box-sizing:border-box}html,body{margin:0;padding:0}",
-"body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%}",
-"p,h1,h2,h3{margin:0}svg{display:block;width:100%;height:auto}",
+"body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:16px;line-height:1.45;-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%}",
+"p,h1,h2,h3{margin:0}",
 ".num{font-family:var(--mono);font-variant-numeric:tabular-nums;font-feature-settings:'tnum' 1}",
-".pg{max-width:640px;margin:0 auto;padding:0 20px 40px}",
-".mast{padding:26px 0 14px;border-bottom:2.5px solid var(--ink)}",
-".mastTop{display:flex;align-items:center;gap:9px}",
-".word{font-size:13px;font-weight:800;letter-spacing:.3em}",
-".stamp{margin-left:auto;font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--ink3);text-transform:uppercase}",
-"h1{font-size:24px;font-weight:800;letter-spacing:-.015em;margin-top:16px}",
-".ident{display:flex;flex-wrap:wrap;gap:5px 10px;align-items:center;font-size:13px;color:var(--ink2);font-weight:600;margin-top:6px}",
-".ident .sep{color:var(--rule)}",
-".plan{font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;background:#F7EDD6;color:#7A5008;padding:3px 8px;border-radius:3px}",
-".tiles{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--rule);border-bottom:1px solid var(--rule)}",
-".tile{background:var(--paper);padding:16px 14px 14px}",
-".tile.wide{grid-column:1/-1}",
-".tK{font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3)}",
-".tV{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:28px;font-weight:600;letter-spacing:-.03em;margin-top:4px;line-height:1.1}",
-".tV s{text-decoration:none;font-size:12px;color:var(--ink3);margin-left:2px;font-weight:500}",
-".tS{font-size:12px;color:var(--ink2);margin-top:3px}",
-".tS.good{color:var(--green);font-weight:600}",
-".sec{margin-top:32px}",
-".secH{font-size:11px;font-weight:800;letter-spacing:.2em;text-transform:uppercase;color:var(--ink);border-bottom:1.5px solid var(--ink);padding-bottom:6px;margin-bottom:4px;display:flex;align-items:baseline}",
-".secH .r{margin-left:auto;font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.03em;color:var(--ink3);text-transform:none}",
-".ses{padding:16px 0 4px;border-bottom:1px solid var(--rule)}",
-".ses:last-child{border-bottom:none}",
-".sesTop{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px}",
-".sesD{font-size:10px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:#B0740B}",
-".sesN{font-size:17px;font-weight:800}",
-".sesDur{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--ink3)}",
-".exList{margin-top:10px}",
-".exRow{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px;padding:7px 0;border-top:1px solid var(--rule)}",
-".exN{font-size:14px;font-weight:700;flex:none;overflow-wrap:anywhere}",
-".exSets{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:13.5px;color:var(--ink)}",
-".exScheme{font-family:var(--mono);font-size:11px;color:var(--ink3)}",
-".pr{display:inline-block;font-family:var(--sans);font-size:9px;font-weight:800;letter-spacing:.1em;background:var(--greenBg);color:var(--green);padding:1px 6px;border-radius:3px;vertical-align:2px;margin-left:4px}",
-".sesNote{font-size:13px;color:var(--ink2);padding:8px 0 10px;border-top:1px solid var(--rule)}",
-".sesNote em{font-style:normal;font-size:9.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);margin-right:7px}",
-".none,.thin{font-size:13px;color:var(--ink2);padding:12px 0}",
-".sparks{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:14px}",
-"@media(max-width:479px){.sparks{grid-template-columns:1fr;gap:0}}",
-".sp{border-top:1px solid var(--rule);padding-top:8px}",
-"@media(min-width:480px){.sp{border-top:none}}",
-".spN{font-size:12.5px;font-weight:700;overflow-wrap:anywhere}",
-".spRow{display:flex;align-items:baseline;gap:8px;margin-top:2px}",
-".spV{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:19px;font-weight:600}",
-".spV s{text-decoration:none;font-size:10.5px;color:var(--ink3);font-weight:500}",
-".spD{font-family:var(--mono);font-size:11.5px;font-weight:700;color:var(--green)}",
-".spD.dn{color:var(--red)}",
-".spSub{font-size:11px;color:var(--ink3);margin-top:1px}",
-".sp svg{margin-top:6px;max-width:190px}",
-".spLn{fill:none;stroke:var(--ink);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}",
-".spDot{fill:var(--green)}",
-".hero{margin-top:26px;border-top:1px solid var(--rule);padding-top:16px}",
-".heroT{font-size:12.5px;font-weight:700;color:var(--ink2);margin-bottom:8px}",
-".gGrid{stroke:var(--rule);stroke-width:1}.gAx{stroke:#C9C3B6;stroke-width:1}",
-".gTx{font-family:var(--mono);font-size:9.5px;fill:#8A929E}",
-".gVal{font-family:var(--mono);font-size:10.5px;font-weight:700;fill:#14171B}",
-".gValA{font-family:var(--mono);font-size:10.5px;font-weight:700;fill:#B0740B}",
-".gLbl{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:10px;font-weight:700;fill:#4C5460;letter-spacing:.04em}",
-".lnS{fill:none;stroke:#14171B;stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round}",
-".lnW{fill:none;stroke:#B0740B;stroke-width:2;stroke-dasharray:5 4;stroke-linejoin:round;stroke-linecap:round}",
-".dS{fill:#14171B}",
-".dW{fill:#FBFAF7;stroke:#B0740B;stroke-width:1.6}",
-".takeaway{margin-top:12px;background:var(--greenBg);border:1px solid #BFE3D3;border-radius:10px;padding:12px 14px;font-size:14.5px;line-height:1.5;color:#1A5940;font-weight:600}",
-".wm{margin-top:4px}",
-".wmRow{display:flex;gap:11px;padding:11px 0;border-bottom:1px solid var(--rule);align-items:baseline}",
-".wmRow:last-child{border-bottom:none}",
-".wmTag{flex:none;width:60px;font-size:9.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}",
-".wmTag.pr2{color:var(--green)}",
-".wmTag.watch{color:var(--red)}",
-".wmTag.good{color:var(--ink3)}",
-".wmB{font-size:13.5px;line-height:1.5;color:var(--ink2);overflow-wrap:anywhere}",
-".wmB b{color:var(--ink)}",
-".foot{margin-top:34px;border-top:2.5px solid var(--ink);padding-top:12px;font-size:12px;line-height:1.6;color:var(--ink3)}",
-".foot .hon{color:var(--ink2)}",
-"@media print{body{background:#fff;font-size:10.5pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}",
-".pg{max-width:none;padding:0}",
-".ses,.sec,.hero,.wmRow,.sp{break-inside:avoid;page-break-inside:avoid}",
-".takeaway,.pr,.plan{-webkit-print-color-adjust:exact;print-color-adjust:exact}}"
+".pg{max-width:430px;margin:0 auto;padding:20px 14px 44px;display:flex;flex-direction:column;gap:14px}",
+".hdr{padding:2px 2px 4px}",
+".brandrow{display:flex;align-items:center;gap:8px}",
+".brandword{font-weight:900;letter-spacing:.2em;font-size:16px;color:var(--accent)}",
+".stamp{margin-left:auto;font-family:var(--mono);font-size:10px;letter-spacing:.07em;color:var(--faint);text-transform:uppercase}",
+".hdr h1{font-size:26px;font-weight:800;letter-spacing:-.01em;margin-top:14px}",
+".ident{display:flex;flex-wrap:wrap;gap:5px 9px;align-items:center;font-size:13px;color:var(--muted);font-weight:600;margin-top:7px}",
+".ident .sep{color:var(--line2)}",
+".plan{font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;background:var(--accent-dim);color:var(--accent);padding:3px 9px;border-radius:6px}",
+".wl-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px}",
+".wl-card-head{display:flex;align-items:center;justify-content:space-between;font-weight:700;font-size:16px;margin-bottom:12px}",
+".wl-count{font-family:var(--mono);font-size:11px;color:var(--muted);background:var(--bg2);padding:3px 9px;border-radius:7px;font-weight:500;letter-spacing:.02em;text-transform:uppercase}",
+".wl-hint{font-size:12px;color:var(--muted);line-height:1.45;margin-top:10px}",
+".ph-row{display:grid;gap:9px}",
+".ph-slot{background:var(--bg2);border:1px solid var(--line);border-radius:12px;overflow:hidden;position:relative;aspect-ratio:3/4;display:flex;align-items:center;justify-content:center}",
+".ph-slot img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}",
+".ph-slot svg{width:58%;height:auto;display:block}",
+".ph-pose{position:absolute;left:0;right:0;bottom:0;text-align:center;font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);background:rgba(11,15,22,.72);padding:4px 0}",
+".ph-slot.empty{border-style:dashed;border-color:var(--line2)}",
+".ph-slot.empty .ph-pose{background:none;color:var(--faint)}",
+".wl-hero{background:linear-gradient(150deg,var(--card2),var(--card))}",
+".wl-hero-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px}",
+".wl-mini-label{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--faint);font-weight:600}",
+".wl-bignum{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:42px;font-weight:600;line-height:1.1;letter-spacing:-.02em;margin-top:6px}",
+".wl-unit{font-size:16px;color:var(--muted);margin-left:6px;font-weight:500;font-family:var(--sans)}",
+".wl-change{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;font-family:var(--mono);padding:7px 12px;border-radius:999px;margin-top:4px;color:var(--muted);background:var(--bg2)}",
+".wl-change.good{color:var(--good);background:rgba(92,214,160,.12)}",
+".wl-change.bad{color:var(--bad);background:rgba(242,109,91,.12)}",
+".wl-hero-sub{font-size:12.5px;color:var(--muted);margin-top:4px}",
+".wl-cichips{display:flex;flex-wrap:wrap;gap:7px}",
+".wl-cichip{font-size:12px;font-weight:700;border-radius:9px;padding:7px 0;width:44px;text-align:center;border:1px solid var(--line);color:var(--muted);font-family:var(--sans)}",
+".wl-cichip.ok{color:var(--good);border-color:var(--good);background:rgba(92,214,160,.12)}",
+".wl-cichip.prog{color:var(--text);border-color:var(--text)}",
+".wl-cichip.part{color:var(--accent);border-color:var(--accent);background:rgba(245,181,68,.12)}",
+".wl-cichip.miss{color:var(--bad);border-color:var(--bad);background:rgba(242,109,91,.12)}",
+".wl-cichip.fut{color:var(--faint);opacity:.5}",
+".wl-legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;justify-content:center}",
+".wl-legend span{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)}",
+".wl-legend i{width:9px;height:9px;border-radius:50%;display:inline-block}",
+".wl-statrow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}",
+".wl-stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px 6px;text-align:center}",
+".wl-stat-label{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);font-weight:600}",
+".wl-stat-val{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:16px;font-weight:600;margin-top:4px}",
+".wl-stat-val.good{color:var(--good)}",
+".wl-stat-val.warn{color:var(--accent)}",
+".wl-stat-val.bad{color:var(--bad)}",
+".wl-stat-sub{font-size:10px;color:var(--faint);margin-top:3px}",
+".wl-goalrow{margin:12px 0}",
+".wl-goalrow:first-of-type{margin-top:2px}",
+".wl-goalrow:last-of-type{margin-bottom:2px}",
+".wl-goalrow-top{display:flex;justify-content:space-between;align-items:baseline;font-size:14px;margin-bottom:5px}",
+".wl-goalrow-val{color:var(--faint);font-weight:700;font-size:13px;font-family:var(--mono);font-variant-numeric:tabular-nums}",
+".wl-goalrow-val.done{color:var(--good)}",
+".wl-goalbar{height:7px;background:var(--bg2);border-radius:4px;overflow:hidden}",
+".wl-goalbar-fill{height:100%;background:var(--accent);border-radius:4px}",
+".wl-goalbar-fill.done{background:var(--good)}",
+".wl-byday-grid{width:100%;border-collapse:collapse;font-family:var(--mono);font-variant-numeric:tabular-nums}",
+".wl-byday-grid th,.wl-byday-grid td{padding:6px 2px;text-align:right;font-size:11px;white-space:nowrap}",
+".wl-byday-grid th{font-family:var(--sans);font-size:9px;text-transform:uppercase;letter-spacing:.03em;color:var(--faint);font-weight:700;border-bottom:1px solid var(--line2)}",
+".wl-byday-grid td:first-child,.wl-byday-grid th:first-child{text-align:left;font-family:var(--sans);font-weight:700;font-size:11.5px;color:var(--text)}",
+".wl-byday-grid tbody tr{border-bottom:1px solid var(--line)}",
+".wl-byday-grid tbody tr:last-child{border-bottom:none}",
+".wl-byday-grid td.good{color:var(--good)}",
+".wl-byday-grid td.warn{color:var(--accent)}",
+".wl-byday-grid td.bad{color:var(--bad)}",
+".mut{color:var(--faint)}",
+".sess-meta{font-size:12.5px;color:var(--muted);margin:-6px 0 4px;font-family:var(--mono);font-variant-numeric:tabular-nums}",
+".ex{margin-top:14px}",
+".ex:first-of-type{margin-top:8px}",
+".ex-name{font-weight:700;font-size:14.5px;overflow-wrap:anywhere}",
+".ex-scheme{font-family:var(--mono);font-size:11px;color:var(--faint);margin-top:2px}",
+".setgrid{display:grid;grid-template-columns:24px 1fr 52px 30px 30px;align-items:center;gap:6px}",
+".sethead{margin-top:4px;margin-bottom:0}",
+".sethead span{font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}",
+".setrow{padding:3px 0;border-top:1px solid var(--line)}",
+".setrow.pad{margin-top:7px}",
+".set-n{font-family:var(--mono);font-size:11px;color:var(--faint)}",
+".set-wr{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:13px;color:var(--text)}",
+".set-tgt{font-family:var(--mono);font-size:11.5px;color:var(--muted);text-align:center}",
+".set-rng{text-align:center}",
+".set-rir{font-family:var(--mono);font-size:12px;color:var(--muted);text-align:right;padding-right:2px}",
+".tgt{display:inline-flex;align-items:center;justify-content:center}",
+".ptag{display:inline-flex;align-items:center;font-size:9.5px;line-height:1;font-weight:800;letter-spacing:.04em;padding:4px 7px;border-radius:6px;color:var(--muted);border:1px solid var(--line);margin-right:7px;vertical-align:1px}",
+".ptag.rpt{color:var(--accent);border-color:var(--accent)}",
+".pr{display:inline-block;font-family:var(--sans);font-size:9px;font-weight:800;letter-spacing:.1em;background:rgba(92,214,160,.16);color:var(--good);padding:1px 6px;border-radius:5px;margin-left:6px;vertical-align:1px}",
+".dag{color:var(--faint);margin-left:4px}",
+".sess-note{font-size:13px;color:var(--muted);padding-top:10px;margin-top:12px;border-top:1px solid var(--line)}",
+".sess-note em{font-style:normal;font-size:9.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-right:7px}",
+".secLbl{font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);padding:8px 2px 0}",
+".foot{font-size:12px;line-height:1.6;color:var(--faint);padding:6px 2px 0}",
+"@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.wl-card,.wl-stat{break-inside:avoid;page-break-inside:avoid}}"
 ];
 function srReportHTML(inp){
   var who=inp.who||"Athlete";
   var h='<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n';
-  h+='<title>'+srEsc("Compound — Weekly report — "+who+" — "+(inp.range||""))+'</title>\n';
+  h+='<title>'+srEsc("Compound — Coach report — "+who+" — "+(inp.range||""))+'</title>\n';
   h+='<meta name="viewport" content="width=device-width, initial-scale=1">\n';
   h+='<style>'+SRCSS.join("")+'</style>\n</head>\n<body>\n<div class="pg">\n';
-  h+='<div class="mast"><div class="mastTop">'+SRMARK+'<span class="word">COMPOUND</span>'+
-    '<span class="stamp">Weekly report</span></div>'+
+  h+='<div class="hdr"><div class="brandrow">'+SRMARK+'<span class="brandword">COMPOUND</span>'+
+    '<span class="stamp">Coach report</span></div>'+
     '<h1>'+srEsc(inp.weekTitle||"This week")+'</h1>'+
     '<div class="ident"><span>'+srEsc(who)+'</span><span class="sep">·</span>'+
     '<span class="plan">'+srEsc(inp.plan||"")+'</span><span class="sep">·</span>'+
-    '<span class="num" style="font-weight:500">'+srEsc(inp.range||"")+'</span></div></div>\n';
-  h+=srTilesHTML(inp)+"\n";
-  h+=srSessionsHTML(inp)+"\n";
-  h+=srProgressHTML(inp)+"\n";
-  h+=srMentionsHTML(inp)+"\n";
-  h+='<div class="foot"><p class="hon">Strength figures are estimated from your best set each week — read them as direction, not decimal points.</p>'+
-    '<p style="margin-top:8px">COMPOUND · exported '+srEsc(inp.today||"")+' · '+srEsc(who)+' · weights in '+srEsc(inp.units||"lbs")+'</p></div>\n';
+    '<span class="num" style="font-weight:500">'+srEsc(inp.range||"")+'</span>'+
+    (inp.exported?('<span class="sep">·</span><span class="num" style="font-weight:500;color:var(--faint)">exported '+srEsc(inp.exported)+'</span>'):'')+
+    '</div></div>\n';
+  h+=srPhotosHTML(inp.photos)+"\n";
+  h+=srHeroHTML(inp)+"\n";
+  h+=srChipsHTML(inp)+"\n";
+  h+=srTotalsHTML(inp)+"\n";
+  h+=srMacrosHTML(inp)+"\n";
+  h+=srAvgsHTML(inp)+"\n";
+  h+=srActivityHTML(inp)+"\n";
+  h+=srDailyHTML(inp)+"\n";
+  h+=srWorkoutsHTML(inp)+"\n";
+  h+='<div class="foot"><p>&ldquo;Range&rdquo; shows where each set landed against its rep target &middot; RIR is reps left in the tank when the set ended.</p>'+
+    (inp.assumed?'<p style="margin-top:6px">&dagger; target read from the routine as it stands today &mdash; the session predates stored targets.</p>':'')+
+    '<p style="margin-top:6px">COMPOUND · exported '+srEsc(inp.today||"")+' · '+srEsc(who)+' · weights in '+srEsc(inp.units||"lbs")+'</p></div>\n';
   return h+'</div>\n</body>\n</html>\n';}
 /* SR-VIEW-END */
 
-/* the ONLY impure part: snapshot state (via lrModel) into the renderer's input */
+/* the ONLY impure part: snapshot state into the renderer's input. The summary
+   numbers are computed with the SAME helpers and the SAME rules view_summary
+   uses (weekDays/dayRow, weekTrainingStats, dayMissing, fnum/minToHM, gcol/acol,
+   the Weekly Macros pro-rating), so the report always matches the Summary tab
+   for the displayed week. Workouts come from lrModel: per-set reverse-pyramid
+   targets via lrPrescription, PRs via analyzeSession, tonnage per session. */
 function srInput(offset){
   var M=lrModel(offset);
-  var rows=weekDays(offset).map(dayRow);
-  /* protein and steps come from the same daily rows the Summary table shows */
-  var pLog=rows.filter(function(r){return r.protein!=null;});
-  var pT=num(state.settings.targetProtein);
-  var protein=pLog.length?{avg:pLog.reduce(function(a,r){return a+r.protein;},0)/pLog.length,
-    target:pT,logged:pLog.length}:null;
-  var sLog=rows.filter(function(r){return r.steps!=null;});
-  var sG=num(state.settings.stepsGoal);
-  var steps=sLog.length?{avg:sLog.reduce(function(a,r){return a+r.steps;},0)/sLog.length,
-    goal:sG,logged:sLog.length,over:(sG!=null?sLog.filter(function(r){return r.steps>=sG;}).length:null)}:null;
-  /* thin-data note: days from the first lifting log ever to the week's end */
-  var first=null;
-  for(var k in M.hist){var m=M.hist[k];if(m.first&&(first==null||m.first<first))first=m.first;}
-  var thin=null;
-  if(first){var span=Math.round((parseISO(M.endISO).getTime()-parseISO(first).getTime())/86400000)+1;
-    if(span>0&&span<28)thin=span;}
+  var days=weekDays(offset).map(dayRow);
+  var s=weekStartFor(offset);
+  var u=state.settings.units;
+  var _tI=todayISO();
+  var mkeys=["steps","calories","protein","fat","carbs"];var tot={},cnt={};
+  mkeys.forEach(function(k){tot[k]=0;cnt[k]=0;days.forEach(function(r){if(r[k]!=null){tot[k]+=r[k];cnt[k]++;}});});
+  function avg(k){return cnt[k]?tot[k]/cnt[k]:null;}
+  var wv=days.filter(function(r){return r.weight!=null;}).map(function(r){return r.weight;});
+  var slv=days.map(function(r){return num(state.sleep[r.date]);}).filter(function(x){return x!=null;});
+  var slAvg=slv.length?Math.round(slv.reduce(function(a,b){return a+b;},0)/slv.length):null;
+  var ts=weekTrainingStats(s);
+  var tCal=num(state.settings.targetCalories),tStep=num(state.settings.stepsGoal),tProt=num(state.settings.targetProtein),tFat=num(state.settings.targetFat),tCarb=num(state.settings.targetCarbs),tSleep=sleepGoalMin();
+  /* hero: same previous-week direction rule as the Summary card, offset-1 */
+  var _prevWv=weekDays(offset-1).map(dayRow).filter(function(r){return r.weight!=null;}).map(function(r){return r.weight;});
+  var _thisAvg=wv.length?wv.reduce(function(a,b){return a+b;},0)/wv.length:null;
+  var _lastAvg=_prevWv.length?_prevWv.reduce(function(a,b){return a+b;},0)/_prevWv.length:null;
+  var _wChg=(_thisAvg!=null&&_lastAvg!=null)?_thisAvg-_lastAvg:null;
   var hero=null;
-  if(M.hero){
-    var hp=M.heroPts;
-    var he=hp.length?hp[hp.length-1].e:(M.hero.m.bestE?M.hero.m.bestE.e:null);
-    hero={name:M.hero.m.name,e:he,chg:(hp.length>1?(hp[hp.length-1].e-hp[0].e):null),weeks:hp.length};}
-  var sparks=M.progItems.filter(function(it){return it.pts&&it.pts.length;}).slice(0,6).map(function(it){
-    var pts=it.pts.slice(-6).map(function(p){return p.e;});
-    return {name:it.name,cur:pts[pts.length-1],n:pts.length,pts:pts,
-      pct:(pts.length>1&&pts[0]>0)?((pts[pts.length-1]-pts[0])/pts[0]*100):null};});
+  if(_thisAvg!=null){var _mThr=(u==="kg"?0.1:0.2);
+    hero={avg:_thisAvg,prev:_lastAvg,chg:_wChg,
+      dir:(_wChg==null?null:(Math.abs(_wChg)<_mThr?"maintained":(_wChg<0?"lost":"gained")))};}
+  var chips=days.map(function(r){var dISO=r.date;var dow=parseISO(dISO).toLocaleDateString(undefined,{weekday:"short"});
+    if(dISO>_tI)return {dow:dow,cls:"fut"};
+    var missN=dayMissing(dISO).length;
+    return {dow:dow,cls:(missN===0?"ok":(dISO===_tI?"prog":(missN<4?"part":"miss")))};});
+  var totals=[
+    {label:"Calories",v:tot.calories||null},{label:"Steps",v:tot.steps||null},{label:"Weigh-ins",v:wv.length},
+    {label:"Cardio min",v:ts.cardioZ2Mins||null},{label:"Lifting min",v:ts.liftMins||null},{label:"Cardio sessions",v:ts.cardioZ2Sessions||null}];
+  /* Weekly Macros: totals vs a goal pro-rated to the days elapsed in the
+     displayed week — the same window rule as the app card; fiber rides along
+     with no goal, so it prints its total without a bar */
+  var _elapsedDays=days.filter(function(r){return r.date<=_tI;});
+  var _elapsed=_elapsedDays.length;
+  function _macTot(k){var t=0;_elapsedDays.forEach(function(r){if(r[k]!=null)t+=r[k];});return t;}
+  var macRows=[];
+  [["Calories","calories",tCal,""],["Protein","protein",tProt,"g"],["Carbs","carbs",tCarb,"g"],["Fat","fat",tFat,"g"],["Fiber","fiber",null,"g"]].forEach(function(m){
+    var v=Math.round(_macTot(m[1])||0),daily=m[2];
+    if(daily!=null&&_elapsed>0){var goal=Math.round(daily*_elapsed);
+      macRows.push({label:m[0],val:v,goal:goal,unit:m[3],pct:(goal>0?Math.min(100,Math.round(v/goal*100)):0),done:(goal>0&&v>=goal)});}
+    else macRows.push({label:m[0],val:v,goal:null,unit:m[3],pct:0,done:false});});
+  var avgCal=avg("calories"),avgStep=avg("steps"),avgProt=avg("protein"),avgFat=avg("fat"),avgCarb=avg("carbs");
+  var calOverGoal=(tCal!=null&&avgCal!=null&&avgCal>tCal);
+  var averages=[
+    {label:"Calories",disp:fnum(avgCal),sub:(tCal!=null?"goal "+fnum(tCal):""),cls:gcol(avgCal,tCal,true,100)},
+    {label:"Steps",disp:fnum(avgStep),sub:(tStep!=null?"goal "+fnum(tStep):""),cls:gcol(avgStep,tStep,false,0)},
+    {label:"Sleep",disp:(slAvg!=null?minToHM(slAvg):"—"),sub:(tSleep!=null?"goal "+minToHM(tSleep):""),cls:gcol(slAvg,tSleep,false,30)},
+    {label:"Protein",disp:(avgProt!=null?fnum(avgProt)+"g":"—"),sub:(tProt!=null?"goal "+tProt+"g":""),cls:gcol(avgProt,tProt,false,10)},
+    {label:"Fat",disp:(avgFat!=null?fnum(avgFat)+"g":"—"),sub:(tFat!=null?"goal "+tFat+"g":""),cls:acol(tFat!=null&&avgFat!=null,avgFat>tFat&&calOverGoal)},
+    {label:"Carbs",disp:(avgCarb!=null?fnum(avgCarb)+"g":"—"),sub:(tCarb!=null?"goal "+tCarb+"g":""),cls:acol(tCarb!=null&&avgCarb!=null,avgCarb>tCarb&&calOverGoal)}];
+  var cardioN=ts.cardioSessions||0,liftN=ts.liftSessions||0,recN=0;
+  for(var _wi=0;_wi<7;_wi++){normActs(toISO(addDays(s,_wi))).forEach(function(a){if(a.cat==="rest")recN++;});}
+  var activity=[{label:"Cardio",n:cardioN,color:"#3b82f6"},{label:"Weight Training",n:liftN,color:"#22c55e"},{label:"Recovery",n:recN,color:"#6b7280"}];
+  var dailyRows=days.map(function(r){var sl=num(state.sleep[r.date]);var cal=r.calories,pp=r.protein,ff=r.fat,cc=r.carbs,st=r.steps,wt=r.weight;var calOverD=(tCal!=null&&cal!=null&&cal>tCal);
+    function c(v,fm,cls){return v==null?{d:null,cls:""}:{d:fm(v),cls:(cls||"")};}
+    return {dow:r.dow.slice(0,3),cells:[
+      c(sl,function(v){return minToHM(v);},gcol(sl,tSleep,false,30)),
+      c(wt,function(v){return String(r1(v));},""),
+      c(st,function(v){return Math.round(v).toLocaleString();},gcol(st,tStep,false,0)),
+      c(cal,function(v){return Math.round(v).toLocaleString();},gcol(cal,tCal,true,100)),
+      c(pp,function(v){return String(v);},gcol(pp,tProt,false,10)),
+      c(ff,function(v){return String(v);},(tFat!=null&&ff!=null)?((ff>tFat&&calOverD)?"bad":"good"):""),
+      c(cc,function(v){return String(v);},(tCarb!=null&&cc!=null)?((cc>tCarb&&calOverD)?"bad":"good"):"")]};});
+  var sessions=M.sessions.map(function(sn){return {name:sn.name,dateLabel:sn.dateLabel,mins:sn.mins,rpe:sn.rpe,ton:sn.ton,note:sn.notes,
+    ex:sn.ex.map(function(e){return {name:e.name,mode:e.rxMode,assumed:e.assumed,ranges:e.ranges||[],
+      sets:e.rows.map(function(r){return {n:r.i,w:r.w,r:r.r,rir:r.rir,lo:r.lo,hi:r.hi,pr:r.pr};})};})};});
   return {
-    who:M.who,plan:M.plan,units:M.units,planMode:strategyMode(),
+    who:M.who,plan:M.plan,units:M.units,
     weekTitle:"Week of "+M.ws.toLocaleDateString(undefined,{month:"long",day:"numeric"}),
-    range:M.range,today:M.today,
-    bwAvg:M.bwAvg,bwChg:M.bwChg,bwGood:lrBwGood(M),
-    sessGoal:num(state.settings.liftSessGoal),
-    sessDays:M.sessions.map(function(s){return s.dateLabel.split(" ")[0];}),
-    hardSets:M.setCount,exCount:M.weekKeys.length,
-    protein:protein,steps:steps,
-    rir:(M.rirN?{avg:M.avgRir,fail:M.failSets}:null),
-    hero:hero,
-    sessions:M.sessions.map(function(s){return {dateLabel:s.dateLabel,name:s.name,mins:s.mins,note:s.notes,
-      ex:s.ex.map(function(e){return {name:e.name,mode:e.rxMode,ranges:e.ranges||[],
-        sets:e.rows.map(function(r){return {w:r.w,r:r.r,pr:r.pr};})};})};}),
-    sparks:sparks,
-    chart:(M.hero&&M.heroPts.length?{name:M.hero.m.name,
-      pts:M.heroPts.map(function(p){return {label:p.label,e:p.e,bw:p.bw};})}:null),
-    rel:(M.rel?{ePct:M.rel.ePct,eChg:M.rel.eChg,bwChg:M.rel.bwChg}:null),
-    prs:M.prs.map(function(p){return {ex:p.ex,type:p.type,w:p.w,r:p.r,e:p.e,prevW:p.prevW,prevE:p.prevE,dateLabel:p.dateLabel};}),
-    pain:M.pain.map(function(p){return {ex:p.ex,label:p.label,dateLabel:p.dateLabel};}),
-    thinDays:thin};}
+    range:M.range,today:M.today,exported:fmtShort(new Date()),
+    photos:srPhotoInput(offset),
+    hero:hero,chips:chips,totals:totals,
+    macros:{note:((_elapsed>0&&_elapsed<7)?(_elapsed+" of 7 days so far"):"7 of 7 days"),rows:macRows},
+    averages:averages,activity:activity,
+    daily:{label:fmtShort(M.ws)+" – "+fmtShort(M.we),rows:dailyRows},
+    sessions:sessions,assumed:!!M.anyAssumed};}
+/* ---- progress photos for the report: prefetch, cache, never block the tap ----
+   iOS requires transient user activation for navigator.share — awaiting slow
+   async work (IndexedDB reads + canvas re-encoding) between the tap and share()
+   voids it and the share sheet silently never opens. So the export tap NEVER
+   touches storage: while the user is looking at Summary, srPhotoPrefetch()
+   builds the displayed week's photos as small data URIs (canvas, ≤430px wide,
+   JPEG q0.8) into state._srPhotoCache (a plain in-memory field — payload()
+   whitelists what persists, so the cache never reaches localStorage or sync).
+   Invalidation: every photo write (idbAdd / idbDelete / idbClearAll) calls
+   srPhotoInvalidate(), and a week change misses the cache key, which re-runs
+   the prefetch on the next Summary render. A generation counter makes an
+   in-flight prefetch that raced a photo write throw its result away. */
+function srShrinkPhoto(blob){return new Promise(function(res){
+  try{var url=URL.createObjectURL(blob);var img=new Image();
+    img.onload=function(){try{
+      var w=Math.min(430,img.width||430);
+      var hgt=Math.max(1,Math.round((img.height||1)*w/(img.width||1)));
+      var cv=document.createElement("canvas");cv.width=w;cv.height=hgt;
+      cv.getContext("2d").drawImage(img,0,0,w,hgt);
+      var du=cv.toDataURL("image/jpeg",0.8);
+      URL.revokeObjectURL(url);res(du);
+    }catch(e){URL.revokeObjectURL(url);res(null);}};
+    img.onerror=function(){URL.revokeObjectURL(url);res(null);};
+    img.src=url;
+  }catch(e){res(null);}});}
+var _srPhotoJob=null,_srPhotoGen=0;
+function srPhotoInvalidate(){_srPhotoGen++;_srPhotoJob=null;state._srPhotoCache=null;}
+function srPhotoPrefetch(){
+  var wkISO=toISO(weekStartFor(state.weekOffset||0));
+  var c=state._srPhotoCache;
+  if(c&&c.week===wkISO)return;
+  if(_srPhotoJob===wkISO)return;
+  if(typeof indexedDB==="undefined"){state._srPhotoCache={week:wkISO,photos:[]};return;}
+  _srPhotoJob=wkISO;var gen=_srPhotoGen;
+  idbAll().then(function(all){
+    var progs=all.filter(function(p){return p.kind==="progress"&&(p.week||p.date)===wkISO;});
+    return Promise.all(POSES.map(function(ps){
+      var found=progs.filter(function(p){return p.pose===ps[0];})[0]||null;
+      if(!found)return Promise.resolve(null);
+      return srShrinkPhoto(found.blob).then(function(du){
+        return du?{pose:ps[0],dataUri:du,date:(found.ts?toISO(new Date(found.ts)):wkISO)}:null;});
+    }));
+  }).then(function(list){
+    if(gen!==_srPhotoGen||_srPhotoJob!==wkISO)return;
+    _srPhotoJob=null;
+    state._srPhotoCache={week:wkISO,photos:list.filter(function(x){return !!x;})};
+  }).catch(function(){
+    if(gen!==_srPhotoGen||_srPhotoJob!==wkISO)return;
+    _srPhotoJob=null;state._srPhotoCache={week:wkISO,photos:[]};});}
+/* the report's photo card input, read SYNCHRONOUSLY from the cache. A missing
+   or stale cache exports placeholder slots with an honest caption rather than
+   breaking the share. */
+function srPhotoInput(offset){
+  var wkISO=toISO(weekStartFor(offset));
+  var c=state._srPhotoCache;
+  var slots=POSES.map(function(ps){return {pose:ps[1],dataUri:null};});
+  if(!c||c.week!==wkISO)
+    return {count:null,slots:slots,empty:true,caption:"photos not loaded — reopen Summary and try again"};
+  var have=0,latest=null;
+  slots=POSES.map(function(ps){
+    var p=(c.photos||[]).filter(function(x){return x.pose===ps[0]&&x.dataUri;})[0]||null;
+    if(p){have++;if(latest==null||(p.date||"")>latest)latest=p.date||null;}
+    return {pose:ps[1],dataUri:(p?p.dataUri:null)};});
+  if(!have)return {count:null,slots:slots,empty:true,
+    caption:"No photos this week — they’ll appear here when added on the Progress tab."};
+  var cap=[],count=null,d=latest?parseISO(latest):null;
+  if(d){count=d.toLocaleDateString(undefined,{weekday:"short"})+" "+fmtShort(d);
+    cap.push("Taken "+d.toLocaleDateString(undefined,{weekday:"long"})+" "+fmtShort(d));
+    var w=null;for(var i=0;i<state.weights.length;i++){if(state.weights[i].date===latest){w=num(state.weights[i].weight);break;}}
+    if(w!=null)cap.push(r1(w)+" "+state.settings.units);}
+  var missing=POSES.filter(function(ps){
+    return !(c.photos||[]).some(function(x){return x.pose===ps[0]&&x.dataUri;});
+  }).map(function(ps){return ps[1].toLowerCase();});
+  if(missing.length)cap.push(missing.join(", ")+" not taken this week");
+  return {count:count,slots:slots,empty:false,caption:cap.join(" · ")};}
 /* one tap: build the displayed week's report and hand it straight to the share sheet */
 function srExport(){
   /* Coach export = the report AND the week's CSV in one share sheet — the CSV's
-     Cardio / Weight Training / Activity Notes columns exist for the coach too. */
+     Cardio / Weight Training / Activity Notes columns exist for the coach too.
+     Everything here is synchronous on purpose (see the prefetch note above). */
   var files;
   try{
     var off=state.weekOffset||0;var base=toISO(weekStartFor(off));
@@ -5779,11 +5879,11 @@ function idb(){return new Promise(function(res,rej){
     r2.onsuccess=function(){photoDB=r2.result;res(photoDB);};
     r2.onerror=function(){rej(r2.error);};};
   r.onerror=function(){rej(r.error);};});}
-function idbAdd(rec){wkPhotoKey=null;return idb().then(function(db){return new Promise(function(res,rej){var tx=db.transaction("photos","readwrite");tx.objectStore("photos").put(rec);tx.oncomplete=function(){res();};tx.onerror=function(){rej(tx.error);};});});}
+function idbAdd(rec){wkPhotoKey=null;srPhotoInvalidate();return idb().then(function(db){return new Promise(function(res,rej){var tx=db.transaction("photos","readwrite");tx.objectStore("photos").put(rec);tx.oncomplete=function(){res();};tx.onerror=function(){rej(tx.error);};});});}
 function idbByDate(date){return idb().then(function(db){return new Promise(function(res,rej){var out=[];var tx=db.transaction("photos","readonly");var rq=tx.objectStore("photos").index("date").openCursor(IDBKeyRange.only(date));rq.onsuccess=function(){var c=rq.result;if(c){out.push(c.value);c.continue();}else res(out.sort(function(a,b){return a.ts-b.ts;}));};rq.onerror=function(){rej(rq.error);};});});}
 function idbAll(){return idb().then(function(db){return new Promise(function(res,rej){var out=[];var tx=db.transaction("photos","readonly");var rq=tx.objectStore("photos").openCursor();rq.onsuccess=function(){var c=rq.result;if(c){out.push(c.value);c.continue();}else res(out);};rq.onerror=function(){rej(rq.error);};});});}
-function idbDelete(id){wkPhotoKey=null;return idb().then(function(db){return new Promise(function(res,rej){var tx=db.transaction("photos","readwrite");tx.objectStore("photos").delete(id);tx.oncomplete=function(){res();};tx.onerror=function(){rej(tx.error);};});});}
-function idbClearAll(){return idb().then(function(db){return new Promise(function(res){var tx=db.transaction("photos","readwrite");tx.objectStore("photos").clear();tx.oncomplete=function(){res();};tx.onerror=function(){res();};});}).catch(function(){});}
+function idbDelete(id){wkPhotoKey=null;srPhotoInvalidate();return idb().then(function(db){return new Promise(function(res,rej){var tx=db.transaction("photos","readwrite");tx.objectStore("photos").delete(id);tx.oncomplete=function(){res();};tx.onerror=function(){rej(tx.error);};});});}
+function idbClearAll(){srPhotoInvalidate();return idb().then(function(db){return new Promise(function(res){var tx=db.transaction("photos","readwrite");tx.objectStore("photos").clear();tx.oncomplete=function(){res();};tx.onerror=function(){res();};});}).catch(function(){});}
 function processImage(file){return new Promise(function(res){
   try{var url=URL.createObjectURL(file);var img=new Image();
     img.onload=function(){URL.revokeObjectURL(url);var max=1600;var scale=Math.min(1,max/Math.max(img.width,img.height));
@@ -7043,6 +7143,9 @@ function render(){
   if(document.getElementById("wl-photostrip"))renderPhotosStrip(state.selDate);
   if(state.view==="diary")renderDiary();
   if(state.view==="photos")renderProgressPhotos();
+  /* warm the coach-report photo cache while Summary is on screen, so the export
+     tap can stay synchronous (iOS share-sheet activation — see srPhotoPrefetch) */
+  if(state.view==="summary")srPhotoPrefetch();
   if(document.getElementById("wl-pbk-count"))refreshPbkCount();
 }
 
