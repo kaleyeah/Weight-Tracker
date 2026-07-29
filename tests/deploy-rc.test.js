@@ -205,10 +205,31 @@ if (!havePorted) {
     });
   });
 
-  group('DEPLOY-RC-V2 — one authoritative build command', () => {
-    const BUILDER = path.join(ROOT, 'deployment-path', 'build-release.mjs');
-    const COMPOUND = process.env.CF_COMPOUND || path.dirname(path.dirname(PORTED));
-    const runBuild = () => {
+  /* The V2 tests need the actual sister repo (source + pb-port.mjs), not just
+     a ported artifact. Deriving its path from PORTED was wrong the moment the
+     default PORTED became the quarantined copy under .build/ — the dirname
+     walk then produced .build/Weight-Tracker-main, which does not exist, and
+     the suite failed as NO-SOURCE instead of skipping. Resolve it properly and
+     skip with a message when it is not available. */
+  const BUILDER = path.join(ROOT, 'deployment-path', 'build-release.mjs');
+  const COMPOUND_CANDIDATES = [
+    process.env.CF_COMPOUND,
+    path.join(os.homedir(), 'projects', 'compound'),
+  ].filter(Boolean);
+  const COMPOUND = COMPOUND_CANDIDATES.find((c) =>
+    fs.existsSync(path.join(c, 'tools', 'pb-port.mjs'))
+    && fs.existsSync(path.join(c, 'Weight-Tracker-main', 'index.html')));
+
+  /* A structurally valid sister repo can still be at the WRONG COMMIT — the
+     stale clone at ~/projects/compound is exactly that, and under run-all it
+     made the builder refuse with INTERMEDIATE-MISMATCH, which the suite then
+     scored as a failure while also stomping .build. Probe once: a clean
+     refusal on stale input is the machinery WORKING, so assert the refusal was
+     clean and skip the rest, rather than failing eleven ways or weakening the
+     builder. Any other failure mode is real. */
+  let compoundUsable = false;
+  if (COMPOUND) {
+    const probe = (() => {
       try {
         const out = execFileSync(process.execPath, [BUILDER, '--compound=' + COMPOUND],
           { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
@@ -216,11 +237,31 @@ if (!havePorted) {
       } catch (e) {
         return { code: e.status === undefined ? -1 : e.status, out: (e.stdout || '') + (e.stderr || '') };
       }
-    };
-
+    })();
+    if (probe.code === 0) {
+      compoundUsable = true;
+    } else if (/INTERMEDIATE-MISMATCH|DIRTY-SOURCE/.test(probe.out)) {
+      group('DEPLOY-RC-V2 — stale sister repo: refusal verified, build tests skipped', () => {
+        test('DEPLOY-RC-V2-00 the builder refuses stale input cleanly', () => {
+          notOk(probe.code === 0);
+          notOk(fs.existsSync(path.join(ROOT, '.build', 'release', 'manifest.json')),
+            'a refused build must not leave a release manifest behind');
+        });
+      });
+      console.log('  (set CF_COMPOUND to a checkout at the recorded source commit for the full V2 tests)');
+    } else {
+      group('DEPLOY-RC-V2 — one authoritative build command', () => {
+        test('DEPLOY-RC-V2-01 one command produces the release artifact and manifest', () => {
+          eq(probe.code, 0, probe.out);   /* a real failure, surfaced as itself */
+        });
+      });
+    }
+  } else {
+    console.log('\nDEPLOY-RC-V2 — SKIPPED: no sister repo with tools/pb-port.mjs found.');
+    console.log('  Set CF_COMPOUND=<path to kaleyeah/compound checkout> to run the build-command tests.');
+  }
+  if (compoundUsable) group('DEPLOY-RC-V2 — one authoritative build command', () => {
     test('DEPLOY-RC-V2-01 one command produces the release artifact and manifest', () => {
-      const r = runBuild();
-      eq(r.code, 0, r.out);
       const man = JSON.parse(fs.readFileSync(path.join(ROOT, '.build', 'release', 'manifest.json'), 'utf8'));
       eq(man.releaseSha256, sha(path.join(ROOT, '.build', 'release', 'index.html')),
         'the manifest must describe the artifact beside it');
