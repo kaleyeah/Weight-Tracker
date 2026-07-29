@@ -240,7 +240,7 @@ if (!havePorted) {
     })();
     if (probe.code === 0) {
       compoundUsable = true;
-    } else if (/INTERMEDIATE-MISMATCH|DIRTY-SOURCE/.test(probe.out)) {
+    } else if (/INTERMEDIATE-MISMATCH|DIRTY-SOURCE|SOURCE-SHA-MISMATCH|SOURCE-COMMIT-MISMATCH|UNVERIFIED-COMMIT/.test(probe.out)) {
       group('DEPLOY-RC-V2 — stale sister repo: refusal verified, build tests skipped', () => {
         test('DEPLOY-RC-V2-00 the builder refuses stale input cleanly', () => {
           notOk(probe.code === 0);
