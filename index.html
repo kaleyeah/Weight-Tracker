@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Weight Tracker · build 2026-07-28.344 · deploy this file as index.html -->
+<!-- Weight Tracker · build 2026-07-28.345 · deploy this file as index.html -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -851,7 +851,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-28.344-pb";
+var APP_BUILD="2026-07-28.345-pb";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -2491,7 +2491,7 @@ function view_summary(){
       cl(mv(cc,function(v){return v;}),(tCarb!=null&&cc!=null)?((cc>tCarb&&calOverD)?"bad":"good"):"")+
       '</tr>';});
   h+='</tbody></table><button class="wl-btn wl-btn-primary wl-full" style="margin-top:14px" data-act="sum:exportweek">Export this week</button><div class="wl-hint" style="margin-top:8px">Two files: a readable progress report you can open on your phone, plus the CSV — every logged metric, training, and notes.</div>';
-  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:14px" data-act="sum:coachreport">Export coach report</button><div class="wl-hint" style="margin-top:8px">One file for your coach: this week’s numbers, every workout on one line per exercise, and how your lifts are trending.</div></div>';
+  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:14px" data-act="sum:coachreport">Export coach report</button><div class="wl-hint" style="margin-top:8px">The one-page report plus the week’s CSV, in one share.</div></div>';
   h+='<div class="wl-card"><button class="wl-btn wl-btn-primary wl-full" data-act="go" data-view="diary">'+I.camera+'Food Diary</button><div class="wl-hint" style="margin-top:8px">A visual collage of your meal photos by day, with each day\u2019s calories and macros.</div></div>';
   return h+'</div>';}
 function csvCell(v){v=(v==null?"":String(v));return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
@@ -3653,10 +3653,15 @@ function srInput(offset){
     thinDays:thin};}
 /* one tap: build the displayed week's report and hand it straight to the share sheet */
 function srExport(){
+  /* Coach export = the report AND the week's CSV in one share sheet — the CSV's
+     Cardio / Weight Training / Activity Notes columns exist for the coach too. */
   var files;
   try{
-    files=[{name:"coach-report-"+toISO(weekStartFor(state.weekOffset||0))+".html",
-      mime:"text/html;charset=utf-8",text:srReportHTML(srInput(state.weekOffset||0))}];
+    var off=state.weekOffset||0;var base=toISO(weekStartFor(off));
+    files=[{name:"coach-report-"+base+".html",
+      mime:"text/html;charset=utf-8",text:srReportHTML(srInput(off))},
+      {name:"weight-summary-"+base+".csv",
+      mime:"text/csv",text:csvFor(weekDays(off).map(dayRow),"Weekly")}];
   }catch(e){toast("Couldn’t build the report");return;}
   shareOrDownloadMulti(files);}
 
