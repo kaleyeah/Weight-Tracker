@@ -19,7 +19,7 @@ They are not:
 
 ```
 origin  git@github.com:kaleyeah/Weight-Tracker
-  origin/main                                    → Lineage A, build 2026-07-28.343-pb  (c380c62)
+  origin/main                                    → Lineage A, build 2026-07-28.347-pb  (e29ccc0)
   claude/compound-fitness-roles-workflow-aala7o   → Lineage B, build 2026-07-27.342-pb-c1h
 ```
 
