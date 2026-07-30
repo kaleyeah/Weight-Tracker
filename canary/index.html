@@ -945,7 +945,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-29.348-pb-c10";
+var APP_BUILD="2026-07-30.349-pb-c10";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -10148,11 +10148,23 @@ applyImport=function(text){
       toast("Data restored"+(d.training?"":" (this backup has no training data)"));
     },{label:"Replace",danger:false});});};
 
-/* ---- final render gate + reveal: the boot guard's decision point ---- */
+/* ---- final render gate + reveal: the boot guard's decision point ----
+   The gate must paint the confirmation overlay too. "No — set it aside" runs
+   through askConfirm, which queues state.pendingConfirm and calls render() to
+   draw the dialog — but this gate replaces #app and returns, and
+   confirmOverlayHTML() is otherwise only appended by the main app render and
+   the login render. So the dialog could never appear and the button did
+   nothing, forever: found on a real iPhone during the day-one canary smoke,
+   with the athlete stuck at the gate and the only working control being an
+   unsafe "Yes — this is mine". Every confirm-driven action reachable from
+   this screen was dead the same way. The confirm:yes/no handlers are bound at
+   document level, so painting the overlay is the whole fix.
+   (The earlier gate at ~9765 has the same shape but is unreachable: render
+   was reassigned again below it, and _cfRender captured the pre-gate render.) */
 render=function(){
   var b=cfAccountBlocked();
   if(b){var el=document.getElementById("app")||document.body;
-    try{el.innerHTML=cfBlockedHTML(b);}catch(e){}
+    try{el.innerHTML=cfBlockedHTML(b)+confirmOverlayHTML();}catch(e){}
     try{document.documentElement.style.visibility="";}catch(e){}
     return;}
   _cfRender();
@@ -13089,6 +13101,37 @@ try{cfCasPaint();}catch(e){}
 /* Reconstruct the workflow from what is STORED, once, after load. This is what
    makes a failed preservation survive a restart and a stale session error not. */
 try{cfCasRestoreWorkflow();}catch(e){}
+
+/* ============================================================
+   HARDENING — FIX-003b: the claim path gets the confirmation it never had
+
+   The Architect's day-one ruling requires (GATE-09..16) that "Yes — this is
+   mine" paint a visible confirmation before unknown pre-sign-in data is
+   adopted into a real account. Their premise was that FIX-003 had broken this
+   path too. It had not: `cf:claim` called cfClaimLocal() DIRECTLY, with no
+   askConfirm anywhere in the chain, so it was never affected — and never
+   confirmed either. Adding the confirmation is therefore a NEW behaviour, not
+   a repair, adopted because it is the right one: claiming is the unsafe
+   direction, and it was the only control that responded while the athlete sat
+   trapped at the gate on a real phone.
+
+   Wrapping cfClaimLocal is enough — the gate's click handler is its only
+   caller — and the dialog can now actually be seen because FIX-003 makes the
+   gate render the confirmation overlay.
+
+   The pendingConfirm guard gives one dialog and one claim under rapid double
+   activation: the second tap finds a confirmation already open and returns
+   instead of re-queueing it.
+   ============================================================ */
+(function(){
+  var _cfClaimUnconfirmed=cfClaimLocal;
+  cfClaimLocal=function(){
+    try{ if(state&&state.pendingConfirm)return; }catch(e){}
+    askConfirm("Add this device’s existing data to your account? It becomes part of your history and is uploaded when you sync.",
+      function(){ try{_cfClaimUnconfirmed();}catch(e){} },
+      {label:"Yes, add it",danger:false});
+  };
+})();
 
 </script>
 </body>
