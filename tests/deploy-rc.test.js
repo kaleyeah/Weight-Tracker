@@ -612,6 +612,61 @@ if (!havePorted) {
     });
   });
 
+  group('DEPLOY-UNLOCK — the audited stale-lock recovery command (Architect V2-03 runbook tooling)', () => {
+    const LOCK = path.join(ROOT, '.build', '.build-lock');
+    const UNLOCK = path.join(ROOT, 'deployment-path', 'unlock-build.mjs');
+    const AUDIT = path.join(TMP, 'unlock-audit.log');
+    const runUnlock = (extra) => {
+      try {
+        const out = execFileSync(process.execPath, [UNLOCK, ...(extra || [])],
+          { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+            env: Object.assign({}, process.env, { CF_UNLOCK_AUDIT: AUDIT }) });
+        return { code: 0, out };
+      } catch (e) {
+        return { code: e.status === undefined ? -1 : e.status, out: (e.stdout || '') + (e.stderr || '') };
+      }
+    };
+
+    test('DEPLOY-UNLOCK-01 without confirmation it displays metadata and removes NOTHING — even facing the pid-reuse shape', () => {
+      fs.mkdirSync(path.join(ROOT, '.build'), { recursive: true });
+      /* the pid-reuse shape: the recorded pid is ALIVE (this test process),
+         but the operator knows the builder is gone. Liveness lies here —
+         exactly the case automatic recovery must never touch. */
+      fs.writeFileSync(LOCK, JSON.stringify({ pid: process.pid, token: 'reused-pid-token', startedAt: 'long ago' }));
+      const r = runUnlock();
+      notOk(r.code === 0, 'display-only mode must exit nonzero');
+      ok(/IS RUNNING/.test(r.out), 'it must report the pid as live: ' + r.out.slice(0, 300));
+      ok(r.out.includes('reused-pid-token'), 'it must display the token the operator has to echo');
+      ok(fs.existsSync(LOCK), 'display mode removed the lock');
+      notOk(fs.existsSync(AUDIT), 'nothing was removed, so nothing may be audited');
+    });
+
+    test('DEPLOY-UNLOCK-02 a wrong confirmation refuses; the exact token removes and AUDITS', () => {
+      const r1 = runUnlock(['--confirm=wrong-token']);
+      notOk(r1.code === 0);
+      ok(/CONFIRM-MISMATCH/.test(r1.out), r1.out.slice(0, 200));
+      ok(fs.existsSync(LOCK), 'a mismatched confirmation removed the lock');
+      const r2 = runUnlock(['--confirm=reused-pid-token']);
+      eq(r2.code, 0, r2.out);
+      notOk(fs.existsSync(LOCK), 'the confirmed removal must remove the lock');
+      const audit = fs.readFileSync(AUDIT, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+      eq(audit.length, 1, 'exactly one removal, exactly one audit record');
+      ok(audit[0].lockContent.includes('reused-pid-token'), 'the audit must preserve the removed lock\'s content');
+      ok(audit[0].removedAt && audit[0].operator, 'the audit must say when and who');
+    });
+
+    test('DEPLOY-UNLOCK-03 a malformed lock needs the literal MALFORMED confirmation', () => {
+      fs.writeFileSync(LOCK, 'garbage {{{ not json');
+      const r1 = runUnlock(['--confirm=garbage']);
+      notOk(r1.code === 0, 'guessing must not remove a malformed lock');
+      const r2 = runUnlock(['--confirm=MALFORMED']);
+      eq(r2.code, 0, r2.out);
+      notOk(fs.existsSync(LOCK));
+      eq(fs.readFileSync(AUDIT, 'utf8').trim().split('\n').length, 2, 'the second removal appended, not replaced');
+      fs.rmSync(AUDIT, { force: true });
+    });
+  });
+
   if (compoundUsable) group('DEPLOY-LOCK — single-flight build enforcement (V1 cases, retained)', () => {
     const LOCK = path.join(ROOT, '.build', '.build-lock');
 
