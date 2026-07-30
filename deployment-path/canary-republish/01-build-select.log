@@ -1,0 +1,21 @@
+== CANARY REPUBLISH — Architect §8 sequence, 2026-07-30T05:13:28Z ==
+
+-- steps 1-2: authoritative single-flight build, RELEASE.expected.json verified --
+RELEASE BUILD OK
+  artifact  .build/release/index.html
+  sha256    0958b4e456789bde830517a5fe034941c6b9c6992a310dad87e524b9f9aeb418
+  build     2026-07-30.349-pb-c10
+  bytes     1189661
+  manifest  .build/release/manifest.json
+  source    71acce49eb871f92eb28e720e141c7ae25152ef8 (exact)
+  intermediate quarantined in .build/runs/2026-07-30T05-13-28-174Z-249257/intermediate
+   RELEASE.expected.json:
+     build  2026-07-30.349-pb-c10
+     sha256 0958b4e456789bde830517a5fe034941c6b9c6992a310dad87e524b9f9aeb418
+     bytes  1189661
+
+-- steps 3-4: manifest-verifying selector --
+SELECTED /home/griffin/projects/Weight-Tracker/.build/release/index.html
+  sha256 0958b4e456789bde830517a5fe034941c6b9c6992a310dad87e524b9f9aeb418
+  bytes  1189661
+  build  2026-07-30.349-pb-c10

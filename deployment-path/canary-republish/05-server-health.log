@@ -1,0 +1,9 @@
+== STEP 10: HOTFIX-001 and server health, 2026-07-30T05:19:04Z ==
+  /api/health -> 200 API is healthy.
+  commit route unauthenticated -> 401 (401 = registered and guarded)
+  athlete rows (pre-canary baseline for day one):
+    huhguz7atzdq546 coreRev=85 trainingRev=10 updated=2026-07-30 05:06:30.938Z
+    asxx3sejhxjycgo coreRev=0 trainingRev=0 updated=2026-07-21 20:39:25.681Z
+0
+  HOTFIX-001: canonical-hash replay verified live on production 2026-07-30 by the
+              I5d run (I5d-2/4/5), accepted by the Architect; hook unchanged since.

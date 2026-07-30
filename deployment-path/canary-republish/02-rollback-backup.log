@@ -1,0 +1,7 @@
+-- step 5: back up the current /canary/ .348 artifact and hash --
+   served /canary/ before republish:
+9e45a225a5ea663c23e88340916689ac77fc8d0796ef48f342b06195adab4256  /tmp/claude-1002/-home-griffin-projects-Weight-Tracker/587d837d-7fe0-4a76-910c-0f558e5ebb78/scratchpad/republish/rollback/canary-348-served.html
+   bytes: 1187105
+   build: APP_BUILD=2026-07-29.348-pb-c10
+   origin/main:canary/index.html -> 9e45a225a5ea663c23e88340916689ac77fc8d0796ef48f342b06195adab4256 -
+   off-repo rollback copy: ~/cf-cutover/canary-348-rollback-20260730.html

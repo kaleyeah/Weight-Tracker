@@ -1,0 +1,7 @@
+-- step 6 (staged): publish .349 to /canary/ ONLY --
+   worktree at origin/main: 448ad0d6bb4f1393334468ce9c38e46c1eefcbc1
+   root index.html before: bb41dab4d851c73036714ba2299ad3f5cc6c1f54e10c432a4b74bf996e2a568a
+   canary/index.html staged: 0958b4e456789bde830517a5fe034941c6b9c6992a310dad87e524b9f9aeb418
+   root index.html after:  bb41dab4d851c73036714ba2299ad3f5cc6c1f54e10c432a4b74bf996e2a568a
+   ROOT UNTOUCHED (verified)
+M  canary/index.html
