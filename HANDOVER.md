@@ -1,5 +1,42 @@
 # Compound Fitness — project handover
 
+> ## READ THIS FIRST — direction changed 2026-07-30
+>
+> **Where to edit the app the athletes actually use:**
+> `~/projects/compound-app` (branch `main`, file `index.html`, build `.400`).
+> That checkout IS the live app, served at
+> `https://kaleyeah.github.io/Weight-Tracker/`. Edit, commit, push to `main`,
+> it deploys. Number builds `.401`, `.402`, … — `.348`–`.353` were consumed by
+> canary experiments and must never be reused.
+>
+> `~/projects/Weight-Tracker` (branch `integration/commit10-lineage-a`) is the
+> ENGINEERING repo — docs, tests, the CAS work. Its `index.html` is the parked
+> Commit 10 candidate, **not** the live app. Editing it does nothing for the
+> athletes.
+>
+> **The Product Owner's decisions, 2026-07-30:**
+>
+> 1. **Sync is being simplified.** Compare-and-swap conflict resolution is
+>    heavier than this product needs: one person, one phone. The intended model
+>    is single-device sign-in — save locally, upload when connected, and don't
+>    let two clients write at once. The CAS server kit stays deployed (it works,
+>    removing it is its own risk) but nothing new gets built on it.
+> 2. **The canary is retired.** `/canary/` is removed and returns 404. It earned
+>    its keep: on real hardware it found the ownership gate that could not paint
+>    its own confirmation dialog, a successful upload reported as failed, and a
+>    409 proving a CAS client cannot commit while the legacy bridge advances the
+>    same account.
+> 3. **Next work is the native iOS shell + read-only HealthKit** —
+>    `shell/SHELL_SCOPE.md`. Blocked on confirming a Mac with Xcode exists;
+>    an Apple Developer account is needed and not yet purchased.
+> 4. **Process is lighter.** Keep the Product Architect loop for anything
+>    touching the server or capable of losing data. Client and UI changes do not
+>    need a review package. Much of 2026-07-30's review churn was cleanup of
+>    engineering mistakes, not product risk.
+>
+> Everything below this banner predates that change. Where it conflicts, the
+> banner wins.
+
 Written 2026-07-28 for a fresh conversation picking up this work. Everything
 here is checked against the repo, not recalled.
 

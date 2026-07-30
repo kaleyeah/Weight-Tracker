@@ -1,95 +1,151 @@
 # Compound Fitness — Project Status
 
-**Last Updated:** 2026-07-27
+**Last Updated:** 2026-07-30
 
-**Status:** Active
+**Status:** Direction changed 2026-07-30 — canary retired, sync being simplified, next work is the iOS shell + HealthKit. See the banner in HANDOVER.md.
 
-> **Standing instruction (Product Owner, 2026-07-25):** every completed task ends with a ChatGPT (Product Architect) review package — built and delivered automatically, without being asked. A package = zip with `00-PROMPT.md` (copy-paste prompt), the diff/artifacts, reproducible test output generated inside the archive, and current docs.
+> **Standing instruction, AMENDED by the Product Owner 2026-07-30:** the
+> Architect review package is required for changes that touch the server or can
+> lose data. Client and UI changes no longer need one. The original blanket rule
+> (every task, 2026-07-25) proved heavier than the product warranted. A package = zip with `00-PROMPT.md`
+> (copy-paste prompt), the diff/artifacts, reproducible test output generated
+> inside the archive, and current docs.
 
-> **Read this first.** This is the single source of truth for where the project stands right now. Both humans and AI should read it at the start of every session before doing anything else. Update it whenever a major milestone completes or the current focus shifts — keep it short and current, not a history log (that's `CHANGELOG.md`).
+> **Read this first**, then `HANDOVER.md` for the architecture traps and the
+> safety rules. This file is where the project stands *right now* — keep it short
+> and current. History belongs in `CHANGELOG.md` and `PROJECT_HISTORY.md`.
 
 ---
 
 ## Snapshot
 
-Compound Fitness is a coaching platform (not a tracker) built as **one backend + one PWA + thin native wrappers**. The **athlete app is ~90–95% complete** and running on a self-hosted PocketBase backend. Current focus is **live-app safety & architecture hardening** — making the athlete app safe enough to be the foundation for Phase 2. No coach-facing features exist yet.
+Compound Fitness is a coaching platform (not a tracker) built as **one backend +
+one PWA + thin native wrappers**, holding real health data for two real athletes.
+The athlete app is ~90–95% complete. Phase 1 hardening is done; **Commit 10 (the
+CAS client) is in canary**, and the canary is stopped on day one pending a
+ruling.
 
-- **Current phase:** Phase 1 (Athlete App) + **hardening brief (M1–M10)** → Phase 2 (Native Shell).
-- **Hardening progress:** the emergency client hardening is at **Commit 1e** (five review rounds, each verdict fully implemented). 1d's verdict found four remaining races/defects — all fixed in 1e: revision- and session-conditional adoption (the recovery-wait overwrite race), coach preflight outcome enforcement, an immutable coach request context (the A→B→A hole), and phase-aware quarantine cleanup that can never roll back a committed recovery set. The 1e verdict passed all four 1d fixes and found two final blockers — both closed in **1f**: the destructive-operation guard is generalized (restore, import and logout-wipe now capture owner/session/revisions before the async safety copy and re-verify before acting — the same protection server adoption got in 1e), and quarantine boot-cleanup is content-conditional and stamp-isolated (a pending job deletes a value only while it still byte-matches that stamp's own quarantined copy, so newer data can never be erased; manifests are read back, parsed and length-verified before they count). The 1g verdict: **READY-FOR-STAGING** — both final blockers verified closed; the three non-blocking hardening notes (read-failure fails closed, defensive comps check, checklist count sentence) are already applied in build `.339-pb-c1g2`; dead superseded declarations are deferred to M7 as the Architect directed. The Architect confirmed the verdict carried over to `.339-pb-c1g2`; after the feature merges, the `.341` review found one integration defect (reopen vs. in-flight recap), closed in **Commit 1h** (per-day recap generation token; 277 tests; checklist grown to 75 cases) — awaiting the focused confirmation of `.342-pb-c1h`. Previously: the 1f verdict approved the destructive-guard architecture and both cleanup contracts, leaving two precise blockers — closed in **1g**: the destructive context now carries the COMPLETE raw workout string (the length+prefix "fingerprint" could miss same-length edits; exact comparison per the Architect's preferred option), and manifest validation enforces the exact {core, training, workout} component set (no subsets/duplicates/unknown keys/invalid sizes) at both phase-2 commit and export. M5–M10 + record-level sync design not started.
-- **Backend:** self-hosted PocketBase (cutover 2026-07-21).
-- **Latest internal build:** `2026-07-27.342-pb-c1h` (Commits 1→1h + the Product Owner's merged feature builds `.332`–`.339`: fiber, CSV export rework + BOM + totals, reopen completed day, Weekly Macros card, Progress Card). **277 tests pass.** The `.341` merge review verified the features don't reopen the write freeze but found ONE deterministic defect — reopening a completed day while a Coach recap regeneration was in flight let the late result silently restore the deleted recap. **Commit 1h closes it**: a per-day recap generation token is captured in the Coach request context and bumped first thing by `reopenDay()`, so every existing ctxOk() checkpoint invalidates the late result (ordinary mid-poll edits still merge — explicitly preserved and tested). Staging checklist expanded 67 → **75 cases** (new N section for the merged features). **The Architect's focused confirmation (2026-07-27) ruled: "VERDICT CARRIES OVER TO .342 — STAGING MAY PROCEED (75 CASES)"** — the implementation, boundary preservation, and all four test groups were verified faithful; both observations (global busy-state UI, in-memory generation) were explicitly non-blocking.
-- **🚀 PRODUCTION APPROVED (Product Architect, 2026-07-27).** Both staging gates are green — server kit Phase 1 (172 assertions, 0 failures, `server/STAGING_RESULTS.md`) and the 75-case client checklist Phase 2 (39 verified, 0 failures, `tests/CHECKLIST_RESULTS.md`). The Architect's ruling: **CLIENT STAGING APPROVED**; the five conflict-UI cases (A6, C4, C5, F5, K1) **FORMALLY DEFERRED TO COMMIT 10** as acceptance criteria for the CAS client; the set-aside family (H3 + 8 dependents) to be **automated with an independent manifest reader** plus one manual production-readiness confirmation; and overall **APPROVED FOR PRODUCTION DEPLOYMENT** subject to four operational prerequisites. *"At this point, there are no remaining architectural blockers for the .342-pb-c1h release. The remaining work is operational execution rather than product architecture."* **Nothing has been deployed to production — that needs the Product Owner's explicit go-ahead.** The runbook is `server/DEPLOYMENT.md` Step 7.
-- **Gate review (2026-07-27): APPROVED WITH ONE REQUIRED CHANGE** — the V15 existing-`appdata` integrity sentinel, now implemented (`server/tests/_sentinel.py`, rig 46 assertions / 0 failures). The Architect also settled the probe-account question (create a disposable production account, run the probes, delete immediately, verify user + ledger absence — `server/tests/probe-account.sh`), added duplicate-owner detection to the rollback triggers and 409-spike monitoring to the bridge window, and confirmed the rollback asymmetry. **🚀 DEPLOYED TO PRODUCTION 2026-07-27 — gate VERIFIED, 20 checks, 0 failures.** The CAS server kit is live on `rack.tail6fa16c.ts.net`. Both athlete rows came through byte-for-byte unchanged (V15 with content hashes); the disposable probe account was removed with verified absence and the integrity baseline destroyed. Two deviations, both approved in-session: the container had no `pb_hooks`/`pb_migrations` mounts, so two bind mounts were added and the container recreated, and `--migrationsDir` was made explicit rather than left to a default. Full record: `server/PRODUCTION_CUTOVER_RESULTS.md`. **Lockdown (P7) has NOT run and must not until the CAS client ships — the legacy-write bridge is active by design.** Previously: **APPROVED FOR PRODUCTION CUTOVER (Product Architect, 2026-07-27)** — architecture, server gate, client staging and operational hardening all approved, to be executed exactly as documented in `server/DEPLOYMENT.md` Step 7. **Not started: it needs the Product Owner's explicit go-ahead in-session.** Previously — **gate review round 2 (2026-07-27): APPROVED PENDING TWO SECURITY HARDENINGS** — credentials out of process arguments (11 `curl` call sites, the sentinel's token, and four account-password sites now use a 0600 curl config, stdin, and the environment respectively), safe sentinel-file handling (atomic, 0600, symlink-refusing, permissions verified, verified deletion), and hash mode made mandatory for production. All three are done: **59 rig assertions + the full 172-assertion staging suite re-run, 0 failures.** **The package is back with the Architect for final confirmation before the cutover may run.**
-- **🎉 CLIENT VERDICT: READY-FOR-STAGING** (Product Architect, 2026-07-25, after 7 review rounds), **confirmed to carry over to build `.339-pb-c1g2`**. After the Product Owner's feature merges and the Commit 1h fix, the Architect confirmed build `.342-pb-c1h`: **staging may proceed — 75 cases.** Nothing blocks the run except Tailnet access: it executes via the local Claude Code session (`server/LOCAL_AGENT_BRIEF.md`). This is *not* production approval — the staging checklist must still be executed and the server-kit staging gate is separate.
+### What is actually running
+
+| Where | Build | State |
+| --- | --- | --- |
+| Production PocketBase (`rack.tail6fa16c.ts.net`) | CAS server kit + HOTFIX-001 | **live** since 2026-07-29 |
+| Root client — what both athletes use | `2026-07-28.347-pb` (Lineage A) | **frozen**, cutover not authorized |
+| `/canary/` | `2026-07-30.349-pb-c10` | published, **halted** on day one |
+| Release candidate | `2026-07-30.353-pb-c10`, sha `f8cd8352…`, 1,207,162 bytes | **awaiting Architect review**, not published |
+
+**There are two client lineages** (see `RECONCILIATION.md`). Lineage A is
+`origin/main` — what the athletes run, syncing by writing PocketBase records
+directly, never calling the CAS route. Lineage B is the Commit 10 work on
+`integration/commit10-lineage-a` and has never been deployed to anyone. HOTFIX-001
+is therefore **latent, not live-costing**: the deployed client never touches the
+defective route, but it becomes live the moment B ships.
+
+**P7 lockdown has NOT run and must not** until the CAS client ships — the
+legacy-write bridge is active by design.
+
+### Current focus — the canary stop
+
+The canary was authorized, published with all 12 pre-publication gates green, and
+opened by the Product Owner on a real iPhone. **The 48-hour window never
+started.** Two findings stopped it, and rounds FIX-003 through FIX-007 have been
+spent on them:
+
+1. **FIX-003 — the ownership gate could not paint its own confirm dialog.**
+   "No — set it aside" did nothing; the only responsive control was the unsafe
+   one. Fixed and covered by `ownership-gate.browser.test.js`. Caught exactly
+   where a canary is supposed to catch it: real hardware, real athlete.
+2. **The red status dot — CLOSED OFF, NOT REPRODUCED.** This is the honest
+   position and it is stated plainly in `deployment-path/STATUS_MODEL.md`. Four
+   review rounds have closed every path that could produce it, but the original
+   cause was never reproduced on the device. FIX-004 (a successful upload
+   reporting failure) was approved *narrowly* and explicitly refused as the
+   explanation. FIX-005 gave statuses **owners**; FIX-006 made the real shipping
+   producers use the registry rather than only the tests; FIX-007 made success
+   clear only its own source and made the registry visually authoritative.
+   `cfDiag()` — a payload-free snapshot — exists so the next canary session is
+   diagnosed from data instead of guesswork.
+
+### Test suites
+
+- **971 assertions** across 22 string suites — `node tests/run-all.js`.
+  `deploy-rc.test.js` reports 0 there because it is environment-gated; with
+  `CF_COMPOUND` set it is **65 assertions**, and that is the authoritative
+  pipeline evidence.
+- **294 assertions** across **14 browser suites** in `tests/browser/`
+  (Playwright at `~/staging-cas/node_modules`, not in `run-all.js`). Five need a
+  real PocketBase, spun up disposable and empty by `tests/browser/pbserver.js`;
+  suites skip cleanly if `~/staging-cas/bin/pocketbase` is absent.
 
 ---
 
 ## ✅ Complete
 
-**Athlete app (~90–95%)**
-- Weight tracking, progress photos, trend charts, progress summaries, daily recaps
-- Workout logging with RPT intelligence (next-set prediction, per-exercise progression, rest timer)
-- Cardio logging, nutrition/macro tracking, meal planning, food photos
-- Weekly goals
-- AI coach ("Coach Max") with expressive check-ins
-- GLP-1 & Peptides: dose/symptom logging, injection site rotation, overdue tracking, 3 progress charts
-- Apple Health import (weight, body fat, waist, steps, sleep, calories)
+**Athlete app (~90–95%)** — weight/photos/trends/recaps; workout logging with RPT
+intelligence; cardio; nutrition, macros and meal planning; weekly goals; Coach
+Max; GLP-1 & peptides; Apple Health import.
 
-**Platform / backend**
-- Self-hosted PocketBase: real logins, password change, "keep me signed in", photo + health sync
-- Retired GitHub-PAT storage path (security)
-- Data-safety guard: expired sessions never destroy unsynced local data
+**Platform** — self-hosted PocketBase (cutover 2026-07-21); real logins, password
+change, photo + health sync; GitHub-PAT storage path retired; expired sessions
+never destroy unsynced local data.
 
-**⚠️ NOT under Complete — see Blocked.** The M1–M4 first pass is written but **unshipped and incomplete**; it must not be read as delivered work. Listed here only to record what the v1 attempt covered:
-- M1 (attempted): photos are account-scoped (ownerId gates display/upload/delete/reconcile); legacy photos quarantined, never auto-attributed
-- M2: photo listing paginates; deletion is never inferred from an incomplete enumeration (the 501-record bug)
-- M3: monotonic revisions replace the dirty boolean — an in-flight push can no longer mark a newer edit clean
-- M4: dirty local data is never silently replaced on login/boot/pull; recovery snapshots + three-way conflict choice defaulting to keep-local
-- Dev-only test harness: 60 **baseline** tests against the current unremediated source (`node tests/run-all.js`) + browser checklist. These validate today's behaviour — including one branch that must be removed — not the remediation.
+**Hardening line** — Commits 1 → 1h, seven Architect review rounds, verdict
+**READY-FOR-STAGING**, then the 75-case staging checklist executed with 0
+failures (`tests/CHECKLIST_RESULTS.md`).
 
-**Foundation / docs**
-- Product Bible set: Vision, Product History, Product Bible, Roles & Workflow, Technical Architecture, Roadmap, Feature Spec template
-- Decision log (`DECISIONS.md`) and product changelog (`CHANGELOG.md`)
-- Living-document policy adopted (Last Updated + Status; Git as version history)
+**CAS server kit** — staging-validated (172 assertions), deployed to production
+2026-07-27 with the gate verified (20 checks, 0 failures), both athlete rows
+byte-identical (`server/PRODUCTION_CUTOVER_RESULTS.md`).
 
----
+**HOTFIX-001** — unstable idempotency hash over a Go map; deployed and verified
+2026-07-29. Measured 11–12 of 12 identical retries refused before, 0 after.
 
-## 🚧 In Progress
+**Commit 10 evidence gates** — all closed and approved: matrices, manifest
+recovery, route contract, multi-context, harness, manual set-aside, client UX
+fixes, release pipeline, cache/service-worker, and the single-flight build lock.
 
-- **Commit 1b review verdict: CHANGES REQUIRED** (16 items) — worst findings: my global pbSave gate silently broke Coach Max + Apple Health inbox clearing, and signed-out edits never advanced revisions (resurrecting adopt-over-dirty). **Commit 1c implements all 16**: narrowed write policy (snapshots frozen; health/coachreq allowlisted against an existing row), revisions advance regardless of auth, owner-stamping gated (unknown+meaningful ⇒ claim screen pauses reconciliation, no auto-claim), mismatch screen no longer exports, pre-init boot guard, snapshot ownership propagated to every caller, quarantine verified before deletion, normalization wired into cfInputs/baselines/emptiness and corrected to the real GLP shape + dynamic defaults, empty/empty cleans the migration dirty state, training has its own emptiness rule, export carries training, executable integration harness (42 tests running the full script).
-- **Commit 1 review verdict: CHANGES REQUIRED** — the decision table was fixed but the runtime write path was still open (`save()` → blind `cloudPush()`), plus cross-account first paint, auto-claim, and snapshot validation gaps. **Commit 1b closes all 15 required changes**: `pbSave` gated shut until CAS, schedulers inert, timers cancelled, Save button rewired, render ownership-gated, quarantine screen for unowned data, symmetric normalization, per-field snapshot validation, import protected, dirty-training pull blocked. 116 tests pass.
-- **M1–M4 remediation** — review verdict on the first pass: **do not ship**. All 12 findings verified. Plan **approved with amendments**; `REMEDIATION_PLAN_V2.md` is the authorized plan (15 pre-coding items) and supersedes v1. One v1 claim was wrong and is corrected: the legacy dirty flag **is** read (line 5326) — the defect is that only exact `"1"` survives as dirty, while missing/malformed/wrongly-cleared state becomes clean. New hazard confirmed: duplicate `appdata` rows. (Historical note — the remediation has since been implemented through Commit 1d.)
-- **Compound Knowledge Module** — the Architect's build package + Max Rogers Codex installed at `features/knowledge/`. The required pre-coding plan is written (`features/knowledge/implementation/00-FIRST-RESPONSE.md`): standalone single-file module + dev-time Codex index + deterministic engine (no LLM in v1), read-only by design, app integration explicitly sequenced after the hardening line ships. **Awaiting Architect approval of the plan; no module code written.**
-- **Native Bridge Architecture** — `NATIVE_BRIDGE_ARCHITECTURE.md` drafted; **Status: Proposed**, awaiting review before implementation.
-- **Athlete app polish/automation** — remaining 5–10% is polish and automation, not new manual features.
+**I5d** — executed on production 2026-07-30: 11 passed, 0 failed, disposable
+accounts torn down with verified absence, athletes byte-identical
+(`server/I5D_RESULTS.md`).
 
 ---
 
 ## ⛔ Blocked / Awaiting Decision
 
-- ✅ **RESOLVED — staging is done and approved.** The 75-case checklist ran on a real staging PocketBase in a real browser (0 failures) and the Architect has approved production. What remains is **operational execution, awaiting the Product Owner's go-ahead** — nothing is deployed to production yet.
-- **Upward sync is deliberately frozen in this build** until server CAS deploys — edits stay local with a visible pending state and an export path (now including training). Coach Max recaps run only when core is clean; while dirty they pause with an honest message. Apple Health import still clears its inbox (allowlisted operational write).
-- ✅ **RESOLVED — CAS server kit staging-validated and approved.** Round 3 went green (172 assertions, 0 failures) after four defects were fixed across three rounds; the Architect approved it for staging and then for production. Deployment ran through a local Claude Code session (`server/LOCAL_AGENT_BRIEF.md`).
-- ✅ **RESOLVED — browser validation ran** on the local staging instance (Chromium 151 via Playwright, `tests/CHECKLIST_RESULTS.md`).
-- **Phase 2 native build** is gated on **architecture review of the bridge proposal** (ADR-004, ADR-005 are `Proposed`, not `Accepted`).
-- **Native background health ingestion must not be built** against the current whole-snapshot `appdata.data` model — the record-level sync design (M-design) has to be approved first.
+- **Architect ruling on `.353-pb-c10`** and on republishing `/canary/` to restart
+  day one from CANARY-01. Package delivered:
+  `cf-canary-day1-status-v4-20260730.zip`. **Nothing republishes until it is
+  accepted** — per pre-publication gate 5, a changed artifact hash returns for
+  review rather than being substituted silently.
+- **Root deployment** needs Architect release authorization *and* the Product
+  Owner's explicit go-ahead. Neither has been given.
+- **Phase 2 native build** is gated on architecture review of the bridge proposal
+  (ADR-004, ADR-005 are `Proposed`, not `Accepted`).
+- **Native background health ingestion must not be built** against the current
+  whole-snapshot `appdata.data` model — the record-level sync design needs
+  approval first.
+- **Compound Knowledge Module** — plan written
+  (`features/knowledge/implementation/00-FIRST-RESPONSE.md`), awaiting Architect
+  approval. No module code written.
 
 ---
 
 ## ➡️ Next Up
 
-1. ✅ **Server kit staging deployment — DONE.** v0.39.8; Phase 1 green in Round 3 (`server/STAGING_RESULTS.md`).
-2. ✅ **`tests/MANUAL_CHECKLIST_COMMIT1.md` on staging — DONE.** 75 cases, 0 failures (`tests/CHECKLIST_RESULTS.md`).
-3. 🔨 **COMMIT 10 (CAS CLIENT) — Architect spec received, APPROVED TO BUILD.** Full WHAT specification at `features/commit10/spec/`; the pre-coding plan (HOW) was reviewed and returned **APPROVED TO IMPLEMENT WITH REQUIRED CLARIFICATIONS**; Revision 2 of the plan folds in all six rulings and **implementation is now authorized** (`features/commit10/implementation/00-PRE-CODING-PLAN.md`). **No implementation code written yet.** The rulings: recovery artifacts must satisfy an explicit contract (a new single-subsystem `cas-conflict` artifact kind, because pairing a server `core` payload with a local `training` one would be a misleading hybrid); SHA-256 idempotency keys; a subsystem-specific resolution context so an unrelated Training edit cannot abort a Health adoption; conflicts persist as captured with freshness checked at the point of destructive action; first-row creation needs positive authenticated no-row proof; and a 409 whose recovery write fails must not produce an actionable conflict card. Twelve new C10-PLAN tests are release blockers alongside the existing criteria. Scope: CAS route client for core+training, recovery-first conflict UX with keep-local default, coalesced 3s-debounced pushes, honest per-subsystem status, the five deferred cases, and the independent manifest reader — all release blockers. Explicitly excluded: lockdown, bridge removal, any server change, semantic merge, record-level sync.
-4. ✅ **PRODUCTION CUTOVER — DONE 2026-07-27, gate VERIFIED.** Now in the **bridge window**: server enforces CAS, clients still write the legacy way, revisions kept truthful by the bridge. Next is **Commit 10 (CAS client)**, then lockdown (P7). Follow `server/DEPLOYMENT.md` Step 7 (P0 backup → P1 pre-flight on a copy → P2 apply → **P3 `tests/verify-deployment.sh`, the only accepted gate** → P4 bridge window → P5 rollback → P6 monitoring → P7 lockdown). One decision is needed up front: whether to create a temporary disposable `cf_test_prod@staging.invalid` account so P3 can prove the handler executes, or to waive it with `ACCEPT_ROUTE_PROBE_ONLY=YES` and record the caveat (P3).
-5. **Commit 10 (CAS client) gate — carried forward.** Its acceptance criteria now include the five deferred checklist cases (A6, C4, C5, F5, K1) and an **independent manifest reader** for H3 + 8 dependents (`tests/CHECKLIST_RESULTS.md` §9). Neither blocks the `.342` production deployment.
-6. Remediation commits 2–8, 11 (client-only); 9–10 need the server work and the version.
-7. **M5–M7**: training sync protection, Backup V2, remove the vestigial GitHub layer.
-8. **M8–M10**: internal boundaries, product-logic defects (lean-bulk/maintenance forecasting, recent-pace window, test control disabled in production), config/security cleanup.
-9. **Record-level synchronization design** for review — required before any native background health ingestion.
-10. Then Phase 2 (Native Shell), once the bridge proposal is accepted.
+1. Architect ruling on `.353` → republish `/canary/`, restart day one from
+   CANARY-01 including the on-device Cancel step.
+2. Run the 48-hour canary window on a real iPhone.
+3. Final cutover package → Architect release authorization → PO root-deployment
+   authorization → root cutover.
+4. Lockdown (P7) once the CAS client is live and the bridge can be removed.
+5. Remediation commits 2–8, 11 (client-only); 9–10 need the server work.
+6. **M5–M7**: training sync protection, Backup V2, remove the vestigial GitHub
+   layer. **M8–M10**: internal boundaries, product-logic defects,
+   config/security cleanup.
+7. Record-level synchronization design for review.
+8. Phase 2 (Native Shell), once the bridge proposal is accepted.
 
-Full phase detail: see `ROADMAP.md`.
+Full phase detail: `ROADMAP.md`.
 
 ---
 
@@ -98,15 +154,19 @@ Full phase detail: see `ROADMAP.md`.
 | Order | Doc | Purpose |
 | ----- | --- | ------- |
 | 1 | `STATUS.md` (this file) | Where the project is right now |
-| 2 | `VISION.md` | Why the platform exists; north star |
-| 3 | `PRODUCT_BIBLE.md` | Core principles & the feature litmus test |
-| 4 | `PROJECT_HISTORY.md` | How we got here; key decisions in prose |
-| 5 | `ROLES_AND_WORKFLOW.md` | Who does what; the 5-step feature process |
-| 6 | `ROADMAP.md` | The five phases |
-| 7 | `TECHNICAL_ARCHITECTURE.md` | System-level architecture |
-| 8 | `NATIVE_BRIDGE_ARCHITECTURE.md` | PWA↔native boundary (proposed) |
-| 9 | `DECISIONS.md` | Architectural decision log (read before reversing anything) |
-| 10 | `CHANGELOG.md` | Product evolution over time |
-| 11 | `REMEDIATION_PLAN_V2.md` | **Authorized** M1–M4 remediation plan (supersedes v1) |
-| — | `REMEDIATION_PLAN.md` | v1, superseded — kept for the correction record |
+| 2 | `HANDOVER.md` | Project brief: architecture traps, branch state, safety rules, recurring failure classes |
+| 3 | `RECONCILIATION.md` | The two client lineages — read before reasoning about what is deployed |
+| 4 | `VISION.md` | Why the platform exists; north star |
+| 5 | `PRODUCT_BIBLE.md` | Core principles & the feature litmus test |
+| 6 | `PROJECT_HISTORY.md` | How we got here; key decisions in prose |
+| 7 | `ROLES_AND_WORKFLOW.md` | Who does what; the 5-step feature process |
+| 8 | `ROADMAP.md` | The five phases |
+| 9 | `TECHNICAL_ARCHITECTURE.md` | System-level architecture |
+| 10 | `NATIVE_BRIDGE_ARCHITECTURE.md` | PWA↔native boundary (proposed) |
+| 11 | `DECISIONS.md` | Architectural decision log (read before reversing anything) |
+| 12 | `CHANGELOG.md` | Product evolution over time |
+| — | `deployment-path/STATUS_MODEL.md` | The status ownership/projection model and the open question |
+| — | `deployment-path/CANARY_DAY1_STOP.md` | Why the canary window never started |
+| — | `deployment-path/PUBLISHED.json` | What is actually published, vs `RELEASE.expected.json` |
+| — | `REMEDIATION_PLAN_V2.md` | **Authorized** M1–M4 remediation plan (supersedes v1) |
 | — | `FEATURE_SPECIFICATION_TEMPLATE.md` | Template for new feature specs |
