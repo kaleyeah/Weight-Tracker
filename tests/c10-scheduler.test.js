@@ -297,12 +297,22 @@ defer((async function scenarios() {
     release();
     await settle(); await settle();          /* first response applied, rerun not yet run */
     const sent = JSON.parse(commits(env)[0].body);
-    test('the wire payload is the one that was captured, not the newer edit', () =>
-      notOk(JSON.stringify(sent.payload).includes('999')));
+    /* Assert on VALUES, not on a substring of the serialised payload: the
+       payload carries GLP symptom ids shaped `sym-<ms timestamp>-<random>`, and
+       a plausible timestamp contains a given 3-digit run ~0.34% of the time.
+       That is what made C10-P8-16 fail once in ~300 runs with nothing wrong;
+       this assertion had the identical failure mode. */
+    const sentWeights = (sent.payload && sent.payload.weights) || [];
+    test('the wire payload is the one that was captured, not the newer edit', () => {
+      notOk(sentWeights.some((w) => w && (w.kg === 999 || w.d === '2026-08-02')),
+        'the newer edit must not be on the wire: ' + JSON.stringify(sentWeights));
+      ok(sentWeights.length > 0, 'and the captured edit must be');
+    });
     test('the key describes the same bytes that were sent', () => {
       const canon = env.S.cfCanon(sent.payload);
       ok(canon.length > 0);
-      notOk(canon.includes('999'));
+      notOk((JSON.parse(canon).weights || []).some((w) => w && w.kg === 999),
+        'the canonical form must match what was sent');
     });
     /* The response may acknowledge ONLY the revision its own request captured.
        Asserting after the rerun would prove nothing — by then the newer edit
@@ -453,8 +463,21 @@ defer((async function scenarios() {
     } });
     env.S.state.weights.push({ d: '2026-08-10', kg: 78 });
     env.S.save();
-    await pump(env, 2);
-    /* a newer edit arrives while the retry is pending */
+    /* Advance only until the 500 has been handled and the retry is ARMED —
+       `pump(env, 2)` ran the retry timer too, so the newer edit below arrived
+       after the retry had already been sent and the operation had finished.
+       bodies[1] therefore could not have contained the newer edit no matter
+       what the client did: the test asserted a property it could not observe.
+       Caught 2026-07-30 by planting the defect (a retry that re-reads live
+       state) and watching this test still pass. */
+    env.runTimers();
+    await settle();
+    const armed = env.S.CF_CAS_OP.core && env.S.CF_CAS_OP.core.phase;
+    test('C10-P8-15 precondition: the retry is armed and NOT yet sent', () => {
+      eq(armed, 'waiting-retry', 'expected a pending retry, saw phase=' + JSON.stringify(armed));
+      eq(commits(env).length, 1, 'exactly the failed attempt so far');
+    });
+    /* a newer edit arrives while the retry is genuinely pending */
     env.S.state.weights.push({ d: '2026-08-11', kg: 888 });
     env.S.save();
     await pump(env, 6);
@@ -462,8 +485,29 @@ defer((async function scenarios() {
     test('C10-P8-15 the retry reused the identical idempotency key', () =>
       eq(bodies[0].idempotencyKey, bodies[1].idempotencyKey));
     test('C10-P8-15 and the identical expectedRev', () => eq(bodies[0].expectedRev, bodies[1].expectedRev));
-    test('C10-P8-16 the retry did not smuggle the newer edit into the old identity', () =>
-      notOk(JSON.stringify(bodies[1].payload).includes('888')));
+    /* The requirement is that the retry re-sends the CAPTURED bytes, so compare
+       the payloads directly and name the newer edit explicitly.
+
+       The original assertion grepped the whole serialised payload for the
+       substring "888". But the payload carries GLP symptom ids shaped
+       `sym-<13-digit ms timestamp>-<random>`, and a plausible ms timestamp
+       contains "888" about 0.34% of the time (measured) — so this test failed
+       roughly one run in 300 with no defect present at all, and passed 107
+       consecutive re-runs while I hunted it. Caught 2026-07-30 by the
+       verify-before-commit gate; the false positive is demonstrated in the
+       canary package's evidence.
+
+       A substring grep over a serialised structure is a claim about bytes when
+       the requirement is about VALUES — the same vacuous/fragile-assertion
+       class this project keeps finding. */
+    test('C10-P8-16 the retry re-sent the captured bytes, not the newer edit', () => {
+      eq(JSON.stringify(bodies[1].payload), JSON.stringify(bodies[0].payload),
+        'a retry must re-send the identical captured payload');
+      const w = (bodies[1].payload && bodies[1].payload.weights) || [];
+      notOk(w.some((x) => x && (x.kg === 888 || x.d === '2026-08-11')),
+        'the newer edit must not appear in the retried request: ' + JSON.stringify(w));
+      ok(w.some((x) => x && x.d === '2026-08-10'), 'and the captured edit must still be there');
+    });
   });
 
   await group('C10-P8-18 — nothing fails silently', async () => {

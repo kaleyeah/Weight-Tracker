@@ -1,0 +1,4 @@
+timestamp: 1785388812345
+contains the newer edit (kg 888)? false
+OLD assertion JSON.stringify(payload).includes("888"): true   <-- fires with no defect present
+measured rate over 200000 plausible timestamps: 0.34%
