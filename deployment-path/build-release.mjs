@@ -168,6 +168,37 @@ if (!EXPECT_SRC || !EXPECT_SRC.commit || !EXPECT_SRC.sha256) {
   die('NO-SOURCE-SPEC', 'injection does not declare the expected source identity — regenerate with make-injection.mjs');
 }
 
+/* ---- the INTENDED release, recorded independently of the injection -------
+   Every expectation above comes out of the injection itself, so the injection
+   was self-certifying: revert it to a .348 copy and the build succeeded, quietly
+   emitting the OLD client for the selector to hand over as "the release".
+   FIX003-PIPE-06 planted exactly that and watched it report success.
+
+   RELEASE.expected.json is the second opinion. It is committed, reviewed, and
+   changed in the SAME commit as the injection whenever the release changes —
+   which is the point: two files must agree, and disagreement is fatal here
+   rather than silent. Checked before any work, and again on the produced bytes
+   below. */
+const EXPECTED_FILE = path.join(HERE, 'RELEASE.expected.json');
+let EXPECTED = null;
+if (fs.existsSync(EXPECTED_FILE)) {
+  try { EXPECTED = JSON.parse(fs.readFileSync(EXPECTED_FILE, 'utf8')); }
+  catch (e) { die('BAD-RELEASE-EXPECTATION', `${EXPECTED_FILE}: ${e.message}`); }
+  if (!EXPECTED.sha256 || !EXPECTED.build) {
+    die('BAD-RELEASE-EXPECTATION', 'RELEASE.expected.json must declare build and sha256');
+  }
+  if (inj.release !== EXPECTED.build || inj.generatedFrom.rcSha !== EXPECTED.sha256) {
+    die('RELEASE-EXPECTATION-MISMATCH',
+      `the injection on disk produces ${inj.release} (${inj.generatedFrom.rcSha}),\n`
+      + `        but the intended release is ${EXPECTED.build} (${EXPECTED.sha256}).\n`
+      + '        Either the injection is stale/reverted, or the expectation was not updated.\n'
+      + '        Regenerate the injection from the reviewed candidate, or update\n'
+      + '        RELEASE.expected.json in the same reviewed commit. Refusing to build.');
+  }
+} else {
+  console.log('  (no RELEASE.expected.json — building whatever the injection declares)');
+}
+
 const args = Object.fromEntries(process.argv.slice(2)
   .filter((a) => a.startsWith('--'))
   .map((a) => { const i = a.indexOf('='); return i < 0 ? [a.slice(2), true] : [a.slice(2, i), a.slice(i + 1)]; }));
@@ -250,6 +281,17 @@ const releaseSha = shaFile(artifact);
 if (releaseSha !== EXPECT_RELEASE) die('RELEASE-MISMATCH', `${releaseSha} != ${EXPECT_RELEASE}`);
 const build = (fs.readFileSync(artifact, 'utf8').match(/APP_BUILD="([^"]*)"/) || [])[1];
 if (build !== RELEASE_BUILD) die('BUILD-MISMATCH', `${build} != ${RELEASE_BUILD}`);
+/* second opinion, on the produced bytes rather than the declaration */
+if (EXPECTED) {
+  if (releaseSha !== EXPECTED.sha256 || build !== EXPECTED.build) {
+    die('RELEASE-EXPECTATION-MISMATCH',
+      `produced ${build} (${releaseSha}), intended ${EXPECTED.build} (${EXPECTED.sha256})`);
+  }
+  if (EXPECTED.bytes && fs.statSync(artifact).size !== EXPECTED.bytes) {
+    die('RELEASE-EXPECTATION-MISMATCH',
+      `produced ${fs.statSync(artifact).size} bytes, intended ${EXPECTED.bytes}`);
+  }
+}
 
 let builderCommit = '(unknown)';
 try { builderCommit = execFileSync('git', ['-C', REPO, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(); } catch (e) { /* keep */ }

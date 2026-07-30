@@ -799,6 +799,164 @@ if (!havePorted) {
     });
   });
 
+  if (compoundUsable) group('FIX003-PIPE-01..08 — the provenance the manifest CLAIMS is the provenance it HAS', () => {
+    /* The Architect blocked canary republication because the .349 manifest
+       "cannot" be real: it names the same intermediate as .348, and identical
+       intermediate + identical injection cannot yield different output. The
+       premise is half right. The intermediate IS unchanged and must be — it is
+       the ported .347, frozen Lineage A. What changed is the INJECTION, and the
+       manifest's injection identity is the regenerated one, not the .348 one.
+
+       Reading a hash and believing a story about it is what got us here, so
+       these tests machine-check the binding instead: every identity the
+       manifest asserts is recomputed from the files on disk, the stale
+       injection is proven to be REFUSED rather than silently accepted, and the
+       build is proven deterministic. */
+    const APPROVED_SHA = '0958b4e456789bde830517a5fe034941c6b9c6992a310dad87e524b9f9aeb418';
+    const APPROVED_BUILD = '2026-07-30.349-pb-c10';
+    const OLD_348_INJECTIONS = [
+      'c2c55f6cbb2faaa8acb2d36a3e8ef7894eff77f800b3083cb6202979b7e59fd5',
+      'dceef82d0260ded45728d4c117d2c505980edf3bf3d2e7ddf921c2de151a033d',
+    ];
+    const RELEASE = path.join(ROOT, '.build', 'release');
+    const manifest = () => JSON.parse(fs.readFileSync(path.join(RELEASE, 'manifest.json'), 'utf8'));
+
+    test('FIX003-PIPE-01 the authoritative build emits the EXACT approved .349 bytes', () => {
+      const r = runBuildAt(COMPOUND);
+      eq(r.code, 0, r.out);
+      const art = path.join(RELEASE, 'index.html');
+      eq(sha(art), APPROVED_SHA, 'the built artifact must be the approved candidate');
+      const m = manifest();
+      eq(m.releaseSha256, APPROVED_SHA);
+      eq(m.releaseBuild, APPROVED_BUILD);
+      eq(m.releaseBytes, fs.statSync(art).size);
+      eq(sha(RC), APPROVED_SHA, 'and the reviewed source must be those same bytes');
+    });
+
+    test('FIX003-PIPE-02 the injection identity is the REGENERATED one, not a .348 leftover', () => {
+      const injSha = sha(INJECTION);
+      const inj_ = JSON.parse(fs.readFileSync(INJECTION, 'utf8'));
+      notOk(OLD_348_INJECTIONS.includes(injSha),
+        'the injection on disk is a recorded .348 identity — genuinely stale: ' + injSha);
+      eq(inj_.release, APPROVED_BUILD, 'the injection must declare the release it produces');
+      eq(inj_.generatedFrom.rcSha, APPROVED_SHA,
+        'and record the exact candidate it was derived from');
+      /* the premise under test: the intermediate is UNCHANGED by design */
+      eq(inj_.generatedFrom.portedSha, manifest().intermediateSha256,
+        'the injection and the manifest must agree on the ported intermediate');
+    });
+
+    test('FIX003-PIPE-03 the manifest names the injection file that is actually on disk', () => {
+      eq(manifest().injectionSha256, sha(INJECTION),
+        'the manifest\'s injectionSha256 must be the hash of injections/commit10-client.json');
+    });
+
+    test('FIX003-PIPE-04 the manifest binds source, builder and tools to what is on disk', () => {
+      const m = manifest();
+      const srcSha = sha(path.join(COMPOUND, 'Weight-Tracker-main', 'index.html'));
+      const srcCommit = execFileSync('git', ['-C', COMPOUND, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+      eq(m.sourceCommit, srcCommit, 'source commit must be the sister repo HEAD actually used');
+      const inj_ = JSON.parse(fs.readFileSync(INJECTION, 'utf8'));
+      eq(inj_.expectedSource.sha256, srcSha, 'the injection must pin the exact source bytes');
+      const head = execFileSync('git', ['-C', ROOT, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+      eq(m.builderCommit, head,
+        'builderCommit must be THIS repo state — a manifest built at an older HEAD is stale evidence');
+      /* the tool identities that produced it, recomputed here */
+      console.log('    FIX003-PIPE-04 tool hashes at HEAD ' + head + ':');
+      ['deployment-path/build-release.mjs', 'deployment-path/inject-commit10.mjs',
+       'deployment-path/select-artifact.mjs', 'deployment-path/make-injection.mjs',
+       'deployment-path/injections/commit10-client.json'].forEach((f) => {
+        console.log('      ' + sha(path.join(ROOT, f)) + '  ' + f);
+      });
+    });
+
+    test('FIX003-PIPE-05 the selector accepts ONLY the exact .349 artifact', () => {
+      const sel = runSelector();
+      eq(sel.code, 0, sel.out);
+      const rec = JSON.parse(fs.readFileSync(path.join(RELEASE, 'SELECTED.json'), 'utf8'));
+      eq(rec.sha256, APPROVED_SHA);
+      eq(rec.build, APPROVED_BUILD);
+      /* and it refuses a substituted artifact of the right name but wrong bytes */
+      const art = path.join(RELEASE, 'index.html');
+      const keep = fs.readFileSync(art);
+      try {
+        fs.writeFileSync(art, Buffer.concat([keep, Buffer.from('\n<!-- tampered -->\n')]));
+        const bad = runSelector();
+        notOk(bad.code === 0, 'a tampered artifact must be refused');
+        ok(/HASH-MISMATCH|BYTES-MISMATCH/.test(bad.out), bad.out.slice(0, 200));
+      } finally { fs.writeFileSync(art, keep); }
+      eq(runSelector().code, 0, 'and the restored artifact selects again');
+    });
+
+    test('FIX003-PIPE-06 a stale .348 injection CANNOT report success for .349', () => {
+      /* the Architect's worry, made falsifiable: put a real .348 injection back
+         and prove the pipeline refuses rather than quietly emitting something */
+      const stash = INJECTION + '.pipe06';
+      fs.renameSync(INJECTION, stash);
+      try {
+        const old348 = execFileSync('git', ['-C', ROOT, 'show',
+          '78374fc:deployment-path/injections/commit10-client.json'], { encoding: 'utf8' });
+        fs.writeFileSync(INJECTION, old348);
+        eq(sha(INJECTION), OLD_348_INJECTIONS[1], 'precondition: the stale .348 injection is in place');
+        const r = runBuildAt(COMPOUND);
+        notOk(r.code === 0, 'a stale injection must not produce a successful .349 build');
+        ok(/RELEASE-EXPECTATION-MISMATCH/.test(r.out),
+          'and must refuse by name — the injection is self-certifying, so only the '
+          + 'independent RELEASE.expected.json can catch this: ' + r.out.slice(-400));
+        ok(/2026-07-29\.348-pb-c10/.test(r.out) && /2026-07-30\.349-pb-c10/.test(r.out),
+          'the refusal must name BOTH what it found and what was intended');
+        assertNoStaleRelease('FIX003-PIPE-06');
+      } finally {
+        fs.rmSync(INJECTION, { force: true });
+        fs.renameSync(stash, INJECTION);
+      }
+      /* the real injection restored, the pipeline works again */
+      eq(runBuildAt(COMPOUND).code, 0, 'the restored injection must build');
+      eq(sha(path.join(RELEASE, 'index.html')), APPROVED_SHA);
+    });
+
+    test('FIX003-PIPE-06b the expectation file itself is load-bearing, not decoration', () => {
+      /* a wrong expectation must stop a build that would otherwise succeed */
+      const EXP = path.join(ROOT, 'deployment-path', 'RELEASE.expected.json');
+      const keep = fs.readFileSync(EXP, 'utf8');
+      try {
+        const bad = JSON.parse(keep);
+        bad.sha256 = 'f'.repeat(64);
+        fs.writeFileSync(EXP, JSON.stringify(bad, null, 1));
+        const r = runBuildAt(COMPOUND);
+        notOk(r.code === 0, 'a mismatched expectation must refuse');
+        ok(/RELEASE-EXPECTATION-MISMATCH/.test(r.out), r.out.slice(-300));
+        assertNoStaleRelease('FIX003-PIPE-06b');
+      } finally { fs.writeFileSync(EXP, keep); }
+      eq(runBuildAt(COMPOUND).code, 0, 'and the correct expectation builds again');
+      eq(sha(path.join(RELEASE, 'index.html')), APPROVED_SHA);
+    });
+
+    test('FIX003-PIPE-07 repeated builds are deterministic, manifest included', () => {
+      const m1 = fs.readFileSync(path.join(RELEASE, 'manifest.json'), 'utf8');
+      const a1 = sha(path.join(RELEASE, 'index.html'));
+      eq(runBuildAt(COMPOUND).code, 0);
+      const m2 = fs.readFileSync(path.join(RELEASE, 'manifest.json'), 'utf8');
+      const a2 = sha(path.join(RELEASE, 'index.html'));
+      eq(a2, a1, 'two builds must produce identical artifacts');
+      eq(m2, m1, 'and byte-identical manifests (no timestamps, no run ids)');
+      eq(a2, APPROVED_SHA);
+    });
+
+    test('FIX003-PIPE-08 this build-only correction changed neither root nor the halted canary', () => {
+      /* the published branch as this checkout sees it; the live served bytes are
+         recorded separately in the package's curl transcript */
+      const rootSha = crypto.createHash('sha256').update(
+        execFileSync('git', ['-C', ROOT, 'show', 'origin/main:index.html'], { encoding: 'buffer', maxBuffer: 64 * 1024 * 1024 })).digest('hex');
+      const canarySha = crypto.createHash('sha256').update(
+        execFileSync('git', ['-C', ROOT, 'show', 'origin/main:canary/index.html'], { encoding: 'buffer', maxBuffer: 64 * 1024 * 1024 })).digest('hex');
+      eq(rootSha, 'bb41dab4d851c73036714ba2299ad3f5cc6c1f54e10c432a4b74bf996e2a568a',
+        'the production root must still be the exact .347 artifact');
+      eq(canarySha, '9e45a225a5ea663c23e88340916689ac77fc8d0796ef48f342b06195adab4256',
+        'and /canary/ must still be the halted .348 — nothing republished');
+    });
+  });
+
   try { fs.rmSync(TMP, { recursive: true, force: true }); } catch (e) { /* best effort */ }
   report();
 }
