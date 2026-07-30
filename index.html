@@ -949,7 +949,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-30.352-pb-c10";
+var APP_BUILD="2026-07-30.353-pb-c10";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -8053,7 +8053,7 @@ function cloudPush(manual){
     pushing=false;
     if(ok){
       markDirty(false);setLastSync();
-      try{cfStatusTransportOk({manual:manual});cfCasConvergeFrom("save");}catch(e){setSync("ok");}
+      try{cfStatusOperationOk(manual?"legacy-manual":"cas-network");cfCasConvergeFrom("save");}catch(e){}
       if(manual)toast("Saved to your server");return;}
     cfStatusTransportFailure(err,{manual:(typeof manual!=="undefined")&&!!manual});
     if(manual)toast(err==="offline"?"No connection":err==="auth"?"Please log in again":"Save failed");});}
@@ -8075,7 +8075,7 @@ function trainingPull(cb){
 function cloudTest(){
   setSync("syncing");
   cloudGet(function(d,err){
-    if(err){setSync(err==="offline"?"offline":"error",err==="auth"?"session expired":"");
+    if(err){cfStatusTransportFailure(err,{manual:(typeof manual!=="undefined")&&!!manual});
       toast(err==="offline"?"No connection":err==="auth"?"Please log in again":"Failed");return;}
     var n=(d.weights||[]).length,fd=Object.keys(d.food||{}).length;
     setLastSync();setSync("ok","server has "+n+" weigh-ins, "+fd+" food days");
@@ -9575,7 +9575,7 @@ pbDoLogin=function(){
           setLastSync();render();
           toast("Welcome back"+(state.settings.name?(", "+state.settings.name):""));
           photoSync(function(r){if(r&&r.downloaded)toast(r.downloaded+" photo"+(r.downloaded===1?"":"s")+" restored");});});}
-      if(err||!d){setSync(err==="offline"?"offline":"error");finish();return;}
+      if(err||!d){cfStatusTransportFailure(err,{manual:(typeof manual!=="undefined")&&!!manual});finish();return;}
       cfReconcile(d,"login",function(){finish();});});},remember);};
 
 /* Status dot opens the upload action when something is pending. */
@@ -9701,7 +9701,7 @@ cfUploadNow=function(){
     if(cfCanon(ln)===cfCanon(sn)){
       cfBaselineSet(cfCanon(sn));syncFpSet(syncFingerprint(d));revClean("core");cfClearPending();
       setLastSync();
-      try{cfStatusTransportOk({manual:true});cfCasConvergeFrom("manual-upload");}catch(e){setSync("ok");}
+      try{cfStatusOperationOk("legacy-manual");cfCasConvergeFrom("manual-upload");}catch(e){}
       toast("Already up to date");return;}
     /* Architect ruling: a user-confirmed blind overwrite is still
        last-writer-wins. Confirmation changes intent, not concurrency safety.
@@ -10125,7 +10125,7 @@ pbDoLogin=function(){
           setLastSync();render();
           toast("Welcome back"+(state.settings.name?(", "+state.settings.name):""));
           photoSync(function(r){if(r&&r.downloaded)toast(r.downloaded+" photo"+(r.downloaded===1?"":"s")+" restored");});}); }
-      if(err||!d){setSync(err==="offline"?"offline":"error");finish();return;}
+      if(err||!d){cfStatusTransportFailure(err,{manual:(typeof manual!=="undefined")&&!!manual});finish();return;}
       cfReconcile(d,"login",function(){finish();});});},remember);};
 
 recRestore=function(id,cb){
@@ -13257,11 +13257,12 @@ function cfStatusTop(){
    directly (saving/syncing) are progress, not causes, and clear themselves. */
 function cfStatusProject(){
   try{
+    CF_STATUS_PROJECTING=true;
     var top=cfStatusTop();
     if(top){setSync(top.sev==="warn"?"warn":"error",top.msg);return;}
     if(syncState&&(syncState.s==="saving"||syncState.s==="syncing"))return;
     setSync("ok","");
-  }catch(e){}}
+  }catch(e){}finally{CF_STATUS_PROJECTING=false;}}
 
 function cfStatusSet(source,msg){
   if(CF_STATUS_ORDER.indexOf(source)<0)return;   /* unknown sources cannot own status */
@@ -13372,12 +13373,15 @@ function cfStatusTransportFailure(err,opts){
     cfStatusSet("cas-network",CF_NETWORK_MSG);
   }catch(e){setSync(err==="offline"?"offline":"error","");}}
 
-/* A proven-successful transport operation clears only what it owns. */
-function cfStatusTransportOk(opts){
+/* STATUS-V4-01: a success clears EXACTLY ONE named source — its own.
+   The previous helper cleared cas-network unconditionally and legacy-manual as
+   well when the operation was manual, so a successful manual reconcile silently
+   declared an independently failed CAS request recovered. It had not. My own
+   test planted only an unrelated photo warning, so the defect passed. */
+function cfStatusOperationOk(source){
   try{
-    cfStatusClearSource("cas-network");
-    if(opts&&opts.manual)cfStatusClearSource("legacy-manual");
-    cfStatusProject();
+    if(CF_STATUS_ORDER.indexOf(source)<0)return;   /* unknown sources own nothing */
+    cfStatusClearSource(source);
   }catch(e){}}
 
 /* Reauthentication is the only thing that clears `auth`. */
@@ -13393,6 +13397,30 @@ var CF_CONVERGE_LAST=null;
 function cfCasConvergeFrom(reason){
   CF_CONVERGE_LAST=reason||"unknown";
   cfStatusConverge();}
+
+/* ---- STATUS-V4-02: owned causes stay visually authoritative --------------
+   The registry held the truth and then handed it to the legacy syncState — but
+   dozens of shipping paths still call setSync("ok") when THEIR operation
+   finishes. A successful unrelated pull could therefore paint "Synced" over a
+   live auth failure until the next projection: the cause survived in memory
+   while the athlete was told everything was fine. That is still
+   last-writer-wins, just one layer down.
+
+   So the final projection is centralised here. A terminal write cannot lower
+   the displayed state below the top live cause; transient progress
+   (saving/syncing) is still allowed to show, and when it ends the next terminal
+   write restores the top cause. cfStatusProject() sets a re-entrancy flag so it
+   can write the projection it just computed. */
+var CF_STATUS_PROJECTING=false;
+var _fix007SetSync=setSync;
+setSync=function(state_,msg){
+  try{
+    if(!CF_STATUS_PROJECTING&&state_!=="saving"&&state_!=="syncing"){
+      var top=cfStatusTop();
+      if(top)return _fix007SetSync(top.sev==="warn"?"warn":"error",top.msg);
+    }
+  }catch(e){}
+  return _fix007SetSync(state_,msg);};
 
 /* ---- payload-free diagnostic snapshot (Architect §6) ---------------------
    The Product Owner's red status could not be diagnosed from the outside: I

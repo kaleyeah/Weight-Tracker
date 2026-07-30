@@ -50,6 +50,7 @@ location.replace('/index.html');
   page.on('pageerror', (e) => errors.push(String(e)));
 
   const login = async () => {
+    await page.waitForFunction(() => !!document.getElementById('wl-pb-email'), null, { timeout: 15000 });
     await page.evaluate((c) => {
       document.getElementById('wl-pb-email').value = c.email;
       document.getElementById('wl-pb-pass').value = c.pass;
@@ -72,6 +73,12 @@ location.replace('/index.html');
     CF_CAS_BLOCK.core = null; CF_CAS_BLOCK.training = null;
     CF_CAS_ATTEMPT.core = 0; CF_CAS_ATTEMPT.training = 0;
     revClean('core'); revClean('training');
+    /* cfCasRun refuses to schedule while the ownership gate is up, and the
+       logout/login cycles in these tests can leave the device "unclaimed" —
+       which showed up as a commit that was never attempted at all
+       (cfDiag: attempted 0, opPhase null). Stamp ownership as part of
+       returning to a known state. */
+    try { cfOwnerStampVerified(); } catch (e) {}
     cfStatusProject();
   });
 
@@ -379,6 +386,140 @@ location.replace('/index.html');
     ok(s_.sources.indexOf('auth') >= 0, 'auth untouched');
     ok(s_.sources.indexOf('photo-reconcile') >= 0, 'photo untouched');
     eq(s_.top, 'auth', 'and the projection is unchanged by repetition (V3-29)');
+  });
+
+  section('STATUS-V4-01..13 — a success clears only its own source, and cannot hide another');
+
+  await test('STATUS-V4-02 a real successful commit clears cas-network but preserves legacy-manual', async () => {
+    /* self-contained: inheriting another case's failure made this depend on
+       test order, which is how the previous run timed out here */
+    await clearAll();
+    await page.route('**/api/cf/appdata/commit', (r) => r.abort());
+    await page.evaluate(() => { CF_CAS_ATTEMPT.core = 2; state.weights.push({ d: '2026-09-02', kg: 75.0 }); save(); });
+    await page.waitForFunction(() => cfStatusHas('cas-network'), null, { timeout: 20000 }).catch(() => {});
+    ok(await page.evaluate(() => cfStatusHas('cas-network')), 'precondition: a real network failure is live');
+    await page.unroute('**/api/cf/appdata/commit');
+    await page.evaluate(() => {
+      CF_CAS_BLOCK.core = null; CF_CAS_ATTEMPT.core = 0;
+      cfStatusSet('legacy-manual', 'a manual restore failed');
+      state.weights.push({ d: '2026-09-03', kg: 74.9 }); save();
+    });
+    await page.waitForFunction(() => cfCasStatusFor('core') === 'synced' && !isDirty(), null, { timeout: 25000 });
+    await page.waitForTimeout(200);
+    const s_ = await st();
+    notOk(s_.sources.indexOf('cas-network') >= 0, 'the commit clears the network source it owns');
+    ok(s_.sources.indexOf('legacy-manual') >= 0, 'and leaves the manual failure alone');
+  });
+
+  await test('STATUS-V4-03/04/05 each success clears exactly one source', async () => {
+    /* auth: real sign-in */
+    await page.evaluate(() => { CF_STATUS = {}; cfStatusSet('auth', 'Sign in to sync.'); cfStatusSet('cas-network', 'net'); cfStatusSet('photo-reconcile', 'photo'); });
+    await page.evaluate(() => { try { pbForceLogout(); } catch (e) {} });
+    await page.waitForTimeout(300);
+    await page.evaluate(() => { try { render(); } catch (e) {} });
+    await login();
+    let s_ = await st();
+    notOk(s_.sources.indexOf('auth') >= 0, 'V4-03: sign-in clears auth');
+    ok(s_.sources.indexOf('cas-network') >= 0 && s_.sources.indexOf('photo-reconcile') >= 0,
+      'V4-05: and nothing else: ' + JSON.stringify(s_.sources));
+    /* photo: real completion path */
+    await page.evaluate(() => cfPhotoStatusComplete());
+    s_ = await st();
+    notOk(s_.sources.indexOf('photo-reconcile') >= 0, 'V4-04: photo completion clears photo');
+    ok(s_.sources.indexOf('cas-network') >= 0, 'V4-05: and only photo');
+  });
+
+  await test('STATUS-V4-06..09 a live cause survives an unrelated success VISUALLY, not just in memory', async () => {
+    /* the presentation race: the cause stayed in CF_STATUS while the legacy
+       detail said "Synced" until something happened to re-project it */
+    await page.evaluate(() => { CF_STATUS = {}; cfStatusSet('auth', 'Sign in to sync.'); });
+    const seen = await page.evaluate(() => {
+      const before = { state: syncState.s, msg: syncState.msg };
+      setSync('ok', '');                       /* an unrelated terminal success */
+      const after = { state: syncState.s, msg: syncState.msg, label: syncLabel(), dot: syncDotClass() };
+      return { before: before, after: after, detail: syncStatusHTML() };
+    });
+    eq(seen.after.state, 'error', 'a terminal ok must not lower the state below a live red cause');
+    ok(/Sign in to sync/.test(seen.after.msg), 'the owned message must still be shown: ' + JSON.stringify(seen.after.msg));
+    ok(/Sign in to sync/.test(seen.detail), 'and the settings detail must agree (V4-11)');
+    notOk(/Connected/.test(seen.detail) && !/Sign in/.test(seen.detail), 'never a bare "Connected"');
+  });
+
+  await test('STATUS-V4-10 transient syncing may show, and the cause returns afterwards', async () => {
+    const seq = await page.evaluate(() => {
+      const out = [];
+      setSync('syncing', '');                  /* progress is allowed through */
+      out.push({ phase: 'during', state: syncState.s });
+      setSync('ok', '');                       /* the operation completes */
+      out.push({ phase: 'after', state: syncState.s, msg: syncState.msg });
+      return out;
+    });
+    eq(seq[0].state, 'syncing', 'transient progress is not suppressed');
+    eq(seq[1].state, 'error', 'and the live cause is restored when it ends');
+    ok(/Sign in to sync/.test(seq[1].msg), seq[1].msg);
+  });
+
+  await test('STATUS-V4-12 with NO live source, a success may legitimately show Synced', async () => {
+    await page.evaluate(() => { CF_STATUS = {}; cfPending = null; revClean('core'); revClean('training'); cfStatusProject(); });
+    const s_ = await page.evaluate(() => { setSync('ok', ''); return { state: syncState.s, label: syncLabel() }; });
+    eq(s_.state, 'ok', 'nothing live means Synced is the truth');
+    eq(s_.label, 'Synced');
+  });
+
+  await test('STATUS-V4-13 bootstrap convergence clears stale pending and reveals the next cause', async () => {
+    /* the closest automated model of the Product Owner's actual iPhone shape:
+       a stale pending marker, no commit this session, a successful bootstrap
+       that establishes baselines, and an unrelated warning underneath */
+    await page.evaluate(() => {
+      CF_STATUS = {}; cfPending = null;
+      CF_CAS_BLOCK.core = null; CF_CAS_BLOCK.training = null;
+      revClean('core'); revClean('training');
+      cfSetPending('push');                       /* stale: nothing was ever sent */
+      cfPhotoStatusIncomplete();                  /* an unrelated live warning */
+      cfCasSetBaseline('core', cfCanon(cfCasPayloadFor('core')));
+      cfCasSetBaseline('training', cfCanon(cfCasPayloadFor('training')));
+      cfCasConvergeFrom('bootstrap');
+    });
+    const s_ = await st();
+    notOk(s_.sources.indexOf('cas-pending') >= 0, 'the stale pending marker clears on proof');
+    eq(s_.top, 'photo-reconcile', 'and the next live cause is revealed, not hidden');
+    eq(s_.sev, 'warn');
+    ok(/Photo sync/.test(s_.msg), s_.msg);
+  });
+
+  /* LAST in the section: this case writes the server row directly to create a
+     genuinely successful manual operation, which leaves the client's revision
+     view out of step — running it earlier made the following cases time out. */
+  await test('STATUS-V4-01 a real successful manual upload preserves a LIVE cas-network', async () => {
+    /* the exact hole the Architect found: my earlier test planted only a photo
+       warning here, so a helper that also cleared cas-network passed. */
+    await clearAll();
+    await page.route('**/api/cf/appdata/commit', (r) => r.abort());
+    await page.evaluate(() => { CF_CAS_ATTEMPT.core = 2; state.weights.push({ d: '2026-09-01', kg: 75.1 }); save(); });
+    await page.waitForFunction(() => cfStatusHas('cas-network'), null, { timeout: 20000 }).catch(() => {});
+    const pre = await page.evaluate(() => ({ has: cfStatusHas('cas-network'), diag: cfDiag() }));
+    ok(pre.has, 'precondition: a REAL network failure is live — ' + JSON.stringify({
+      signedIn: pre.diag.signedIn, blocked: pre.diag.blocked, verdict: pre.diag.accountVerdict,
+      core: pre.diag.core, sources: pre.diag.statusSources }));
+    await page.unroute('**/api/cf/appdata/commit');
+    /* cfUploadNow only takes its SUCCESS branch when device and server already
+       agree — after a failed commit they do not. Make the server match by
+       writing the client's current payload directly, so the manual operation
+       genuinely succeeds while the network failure stays live. */
+    const localPayload = await page.evaluate(() => payload());
+    const rec = await server.api('GET',
+      '/api/collections/appdata/records?perPage=1&filter=' + encodeURIComponent('user="' + server.user.id + '"'),
+      server.adminToken);
+    const rid = rec.body && rec.body.items && rec.body.items[0] && rec.body.items[0].id;
+    ok(rid, 'precondition: the athlete row exists');
+    await server.api('PATCH', '/api/collections/appdata/records/' + rid, server.adminToken, { data: localPayload });
+    await page.evaluate(() => cfStatusSet('legacy-manual', 'a manual upload failed'));
+    await page.evaluate(() => { try { cfUploadNow(); } catch (e) {} });
+    await page.waitForFunction(() => !cfStatusHas('legacy-manual'), null, { timeout: 20000 }).catch(() => {});
+    const s_ = await st();
+    notOk(s_.sources.indexOf('legacy-manual') >= 0, 'the manual success clears its own source');
+    ok(s_.sources.indexOf('cas-network') >= 0,
+      'but a manual reconcile does NOT prove a failed CAS request recovered: ' + JSON.stringify(s_.sources));
   });
 
   section('DIAG-V2-01..08 — the diagnostic leaks nothing');
