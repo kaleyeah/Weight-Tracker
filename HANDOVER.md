@@ -157,13 +157,14 @@ fixes, release pipeline (DEPLOY-RC/BUILD/PKG/COPY), cache/service-worker
 further single-flight review unless it changes; carry it and its evidence into
 the final cutover package.
 
-Everything left requires the Product Owner first:
+Remaining, in order (PO authorized both I5d and the canary on 2026-07-30):
 
-1. PO authorisation + execution of **I5d** (TWO disposable `cf_test_*`
-   accounts, per the Architect).
-2. PO authorisation of the **canary** (consenting athlete = Griffin, briefed;
-   canary plan goes to the Architect before anything is published).
-3. Real-iPhone canary smoke.
+1. ~~**I5d**~~ — EXECUTED on production 2026-07-30: 11 passed, 0 failed, both
+   disposable accounts torn down with verified absence, athletes byte-identical
+   before/after. See `server/I5D_RESULTS.md`.
+2. **Canary** — PO-authorized; `deployment-path/CANARY_PLAN.md` is with the
+   Architect. Nothing publishes until the Architect approves the plan.
+3. Real-iPhone canary smoke (inside the canary window).
 4. Final cutover package → Architect release authorization → PO
    root-deployment authorization.
 

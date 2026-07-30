@@ -39,8 +39,15 @@ MODE="${1:?usage: probe-account.sh create|teardown}"
 trap 'rm -rf "$CF_TMP"' EXIT
 
 # Hard-coded and disposable by construction. This script can never be pointed at
-# a real athlete account, whatever it is handed.
-PROBE="cf_test_prod@staging.invalid"
+# a real athlete account, whatever it is handed. PROBE_SLOT selects between the
+# TWO fixed addresses (Architect single-flight review §9 / I5d requirement:
+# cross-user key independence needs a second disposable production account,
+# PO-authorized 2026-07-30). Still a closed whitelist — never a free address.
+case "${PROBE_SLOT:-1}" in
+  1) PROBE="cf_test_prod@staging.invalid";  CREDS=".probe-creds.env";;
+  2) PROBE="cf_test_prod2@staging.invalid"; CREDS=".probe-creds-2.env";;
+  *) echo "REFUSED: PROBE_SLOT must be 1 or 2 (a closed whitelist, not a parameter)"; exit 2;;
+esac
 
 ATOK=$(cf_admin_token "$ADMIN_EMAIL" "$ADMIN_PASS")
 [ -n "$ATOK" ] || { echo "FATAL: superuser auth failed"; exit 1; }
@@ -59,14 +66,14 @@ create)
     echo "FAIL: create $PROBE -> HTTP $CF_STATUS: $(printf '%s' "$CF_BODY" | cf_redact | head -c 200)"; exit 1
   fi
   umask 077
-  cat > "$DIR/.probe-creds.env" <<EOF
+  cat > "$DIR/$CREDS" <<EOF
 PROBE_EMAIL=$PROBE
 PROBE_PASS=$PW
 EOF
   echo "created  $PROBE"
-  echo "Credentials written to tests/.probe-creds.env (mode 600, gitignored)."
+  echo "Credentials written to tests/$CREDS (mode 600, gitignored)."
   echo ""
-  echo "Next:  set -a; . ./.probe-creds.env; set +a   then run verify-deployment.sh"
+  echo "Next:  set -a; . ./$CREDS; set +a   then run verify-deployment.sh"
   echo "Then:  bash probe-account.sh teardown        — immediately afterwards, per the ruling"
   ;;
 
@@ -115,7 +122,7 @@ teardown)
     else echo "verified $PROBE removed (user + appdata + ledger all absent)"; fi
   fi
 
-  rm -f "$DIR/.probe-creds.env"
+  rm -f "$DIR/$CREDS"
   [ "$RC" = "0" ] && echo "PROBE TEARDOWN OK" || echo "PROBE TEARDOWN FAILED"
   exit $RC
   ;;
