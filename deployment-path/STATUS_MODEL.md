@@ -18,13 +18,24 @@ Two failures followed directly from that:
 
 Every status *cause* has a **source** that owns it:
 
-| Source | Severity | Meaning |
-| --- | --- | --- |
-| `auth` | red | the athlete must sign in to sync |
-| `cas-network` | red | the server could not be reached for a commit |
-| `cas-pending` | red | local work exists that is not uploaded |
-| `photo-reconcile` | amber | photo enumeration incomplete; nothing removed |
-| `legacy-manual` | red | a manual upload/restore path failed |
+Priority order, highest first (Architect STATUS-V3-02):
+
+| # | Source | Severity | Meaning | Athlete-facing wording |
+| --- | --- | --- | --- | --- |
+| 1 | `auth` | red | the session is not valid | "Sign in to sync." |
+| 2 | `cas-network` | red | a commit genuinely failed to reach the server | "Couldn't sync — changes are safe here." |
+| 3 | `legacy-manual` | red | an operator-initiated upload/restore failed | "Couldn't reach your server. Your changes are safe here." |
+| 4 | `cas-pending` | **amber** | local work is safe here and not synced yet | "Saved on this device. Waiting to sync." |
+| 5 | `photo-reconcile` | amber | photo enumeration incomplete; nothing removed | "Photo sync couldn't be fully checked. Nothing was removed." |
+
+Two corrections the Architect required and why they matter:
+
+- my first order put `photo-reconcile` ABOVE `legacy-manual`, so an amber
+  "couldn't check photos" could hide a red "your restore failed";
+- `cas-pending` was red. Ordinary pending is not a failure — the work is safe
+  on the device and sync is automatic. Red is now reserved for things that are
+  actually wrong, and "tap to upload" is gone because it instructed the athlete
+  to do what the app already does.
 
 Rules, all enforced by tests:
 
@@ -37,6 +48,14 @@ Rules, all enforced by tests:
    "everything is fine".
 4. Transient progress (`saving`, `syncing`) is not a cause and is left alone —
    it clears itself.
+
+## Rendering
+
+`warn` is a fully supported state, not a fallback: label "Attention needed",
+accent colour in the settings detail, `.wl-sync.warn` styling, an amber dot,
+and an accessible name that carries the live cause so the state is never
+conveyed by colour alone. Screenshots of all six states at iPhone width are in
+`evidence/screenshots/`.
 
 ## Convergence — two paths, one rule
 
@@ -56,6 +75,11 @@ only ever edited one subsystem would carry a permanent red.
 Convergence performs **no network request** and mutates **no snapshot**
 (STATUS-H-15). A completed pull on its own proves nothing and clears nothing
 (STATUS-H-12/13/14).
+
+It is invoked **by name** — `cfCasConvergeFrom(reason)` from commit, save,
+manual upload and bootstrap. The earlier version wrapped `setLastSync()`, which
+fires on any timestamp move: a photo-only success could have become the proof
+event for a CAS claim (STATUS-V3-26 now pins that shut).
 
 ## Photo reconciliation
 
