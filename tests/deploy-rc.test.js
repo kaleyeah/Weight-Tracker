@@ -27,12 +27,23 @@ const INJECTION = path.join(ROOT, 'deployment-path', 'injections', 'commit10-cli
    build QUARANTINES it (DEPLOY-RC-V2-02), which broke the original default
    here. The quarantined copy is the same bytes under an honest name, so it is
    a legitimate test input; sha verification below still gates it. */
-const CANDIDATES = [
-  process.env.CF_PORTED,
-  path.join(ROOT, '.build', 'intermediate', 'pb-cutover.NOT-A-RELEASE.html'),
-  path.join(os.homedir(), '..', 'griffin', 'projects', 'compound', 'Weight-Tracker-main', 'pb-cutover.html'),
-].filter(Boolean);
-const PORTED = CANDIDATES.find((p_) => fs.existsSync(p_)) || CANDIDATES[CANDIDATES.length - 1];
+/* Architect DEPLOY-PKG-01: no fallback to a stale global path, no dependency
+   on a prior manual build. The suite WIPES .build first, builds via the probe,
+   and discovers the quarantine from the run that build just created. A test
+   that passes because yesterday's directory is still on disk is the vacuous
+   pattern this project keeps finding — and it happened HERE: V2-02 passed
+   against the pre-rewrite .build/intermediate layout. */
+const currentRunIntermediate = () => {
+  const runs = path.join(ROOT, '.build', 'runs');
+  if (!fs.existsSync(runs)) return null;
+  const dirs = fs.readdirSync(runs);
+  if (dirs.length !== 1) return null;          /* the builder wipes runs/ at start */
+  const p_ = path.join(runs, dirs[0], 'intermediate', 'pb-cutover.NOT-A-RELEASE.html');
+  return fs.existsSync(p_) ? p_ : null;
+};
+/* wipe ALL build state before anything runs (DEPLOY-PKG-04) */
+fs.rmSync(path.join(ROOT, '.build'), { recursive: true, force: true });
+let PORTED = process.env.CF_PORTED || null;
 const RC = path.join(ROOT, 'index.html');
 
 const sha = (p) => crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex');
@@ -58,7 +69,26 @@ function run(portedFile, outFile, extra = []) {
    this happens. */
 const injOnDisk = fs.existsSync(INJECTION) ? JSON.parse(fs.readFileSync(INJECTION, 'utf8')) : null;
 const expectedPortedSha = injOnDisk && injOnDisk.generatedFrom && injOnDisk.generatedFrom.portedSha;
-const havePorted = fs.existsSync(PORTED)
+
+/* Resolve the sister repo and run the probe build FIRST, so the suite's input
+   is the output of the packaged builder — never leftovers. */
+const BUILDER0 = path.join(ROOT, 'deployment-path', 'build-release.mjs');
+const COMPOUND0_CANDIDATES = [process.env.CF_COMPOUND, path.join(os.homedir(), 'projects', 'compound')].filter(Boolean);
+const COMPOUND0 = COMPOUND0_CANDIDATES.find((c) =>
+  fs.existsSync(path.join(c, 'tools', 'pb-port.mjs'))
+  && fs.existsSync(path.join(c, 'Weight-Tracker-main', 'index.html')));
+let probe0 = null;
+if (!PORTED && COMPOUND0) {
+  try {
+    execFileSync(process.execPath, [BUILDER0, '--compound=' + COMPOUND0], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    probe0 = { code: 0, out: '' };
+  } catch (e) {
+    probe0 = { code: e.status === undefined ? -1 : e.status, out: (e.stdout || '') + (e.stderr || '') };
+  }
+  if (probe0.code === 0) PORTED = currentRunIntermediate();
+}
+
+const havePorted = PORTED && fs.existsSync(PORTED)
   && expectedPortedSha
   && sha(PORTED) === expectedPortedSha;
 
@@ -229,7 +259,7 @@ if (!havePorted) {
      builder. Any other failure mode is real. */
   let compoundUsable = false;
   if (COMPOUND) {
-    const probe = (() => {
+    const probe = probe0 !== null && COMPOUND === COMPOUND0 ? probe0 : (() => {
       try {
         const out = execFileSync(process.execPath, [BUILDER, '--compound=' + COMPOUND],
           { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
@@ -484,6 +514,74 @@ if (!havePorted) {
     });
   });
 
+  if (compoundUsable) group('DEPLOY-PKG / DEPLOY-COPY — the packaged source reproduces its own evidence', () => {
+    test('DEPLOY-PKG-02/03/04 no stale global intermediate exists, and the suite ran from a clean .build', () => {
+      /* .build was wiped before anything ran; the ONLY intermediate is inside
+         the current run. If the old global path exists, something recreated
+         the pre-rewrite layout and these results are suspect. */
+      notOk(fs.existsSync(path.join(ROOT, '.build', 'intermediate')),
+        'the pre-rewrite global intermediate path exists — stale-state hazard');
+      ok(PORTED.includes(path.join('.build', 'runs')),
+        'the suite input must come from the current run, got ' + PORTED);
+    });
+
+    test('DEPLOY-PKG-05 the evidence records the exact source hashes', () => {
+      const files = {
+        'deployment-path/build-release.mjs': null,
+        'deployment-path/select-artifact.mjs': null,
+        'deployment-path/inject-commit10.mjs': null,
+        'deployment-path/injections/commit10-client.json': null,
+        'tests/deploy-rc.test.js': null,
+      };
+      console.log('  SOURCE HASHES (DEPLOY-PKG-05):');
+      for (const f of Object.keys(files)) {
+        const h = sha(path.join(ROOT, f));
+        console.log('    ' + h + '  ' + f);
+        ok(h.length === 64, f);
+      }
+      let head = '(unknown)';
+      try { head = execFileSync('git', ['-C', ROOT, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(); } catch (e) { /* keep */ }
+      console.log('    repo HEAD: ' + head);
+    });
+
+    test('DEPLOY-COPY-01 a successful --copy-to produces exact bytes, atomically', () => {
+      eq(runBuildAt(COMPOUND).code, 0, 'baseline build');
+      const dest = path.join(TMP, 'deployed.html');
+      const r = (() => {
+        try {
+          const out = execFileSync(process.execPath,
+            [path.join(ROOT, 'deployment-path', 'select-artifact.mjs'), '--copy-to=' + dest],
+            { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+          return { code: 0, out };
+        } catch (e) { return { code: e.status === undefined ? -1 : e.status, out: (e.stdout || '') + (e.stderr || '') }; }
+      })();
+      eq(r.code, 0, r.out);
+      eq(sha(dest), sha(RC), 'the copied bytes must be the reviewed candidate');
+      const leftovers = fs.readdirSync(TMP).filter((f) => f.startsWith('.cf-copy-'));
+      eq(leftovers.length, 0, 'temp files left behind: ' + leftovers.join(', '));
+    });
+
+    test('DEPLOY-COPY-02 an injected copy failure leaves the existing destination unchanged', () => {
+      const dest = path.join(TMP, 'existing-deploy.html');
+      fs.writeFileSync(dest, 'THE PREVIOUS DEPLOY — must survive');
+      const before = sha(dest);
+      const r = (() => {
+        try {
+          const out = execFileSync(process.execPath,
+            [path.join(ROOT, 'deployment-path', 'select-artifact.mjs'), '--copy-to=' + dest],
+            { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+              env: Object.assign({}, process.env, { CF_TEST_FAIL_COPY: 'YES' }) });
+          return { code: 0, out };
+        } catch (e) { return { code: e.status === undefined ? -1 : e.status, out: (e.stdout || '') + (e.stderr || '') }; }
+      })();
+      notOk(r.code === 0, 'the injected failure must exit nonzero');
+      ok(/TEST-COPY-FAIL/.test(r.out), r.out.slice(0, 200));
+      eq(sha(dest), before, 'the destination was modified by a FAILED copy');
+      const leftovers = fs.readdirSync(TMP).filter((f) => f.startsWith('.cf-copy-'));
+      eq(leftovers.length, 0, 'the failed copy left its temp file behind');
+    });
+  });
+
   if (compoundUsable) group('DEPLOY-RC-V2 — one authoritative build command', () => {
     test('DEPLOY-RC-V2-01 one command produces the release artifact and manifest', () => {
       const man = JSON.parse(fs.readFileSync(path.join(ROOT, '.build', 'release', 'manifest.json'), 'utf8'));
@@ -495,7 +593,13 @@ if (!havePorted) {
     });
 
     test('DEPLOY-RC-V2-02 the intermediate is quarantined, not deployable-looking', () => {
-      const q = path.join(ROOT, '.build', 'intermediate');
+      /* the CURRENT run's quarantine, not a global directory — the global path
+         is the pre-rewrite layout, and this test passing against it was
+         exactly the stale-state defect the Architect caught */
+      const runs = path.join(ROOT, '.build', 'runs');
+      const dirs = fs.readdirSync(runs);
+      eq(dirs.length, 1, 'expected exactly one run after the build, saw ' + dirs.join(', '));
+      const q = path.join(runs, dirs[0], 'intermediate');
       const files = fs.readdirSync(q);
       ok(files.some((f) => /NOT-A-RELEASE/.test(f)),
         'the intermediate name must say what it is: ' + files.join(', '));

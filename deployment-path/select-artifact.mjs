@@ -73,9 +73,29 @@ const record = {
 fs.writeFileSync(path.join(RELEASE, 'SELECTED.json'), JSON.stringify(record, null, 1));
 
 if (args['copy-to']) {
+  /* Atomic, fail-clean (Architect DEPLOY-PKG-02). The previous version copied
+     straight onto the destination and verified afterwards — a crash mid-copy
+     could leave the destination half-overwritten with unverified bytes, which
+     for a deploy target means a torn client. Now: temp file in the SAME
+     directory (rename is only atomic within a filesystem), fsync, verify,
+     rename. On any failure the temp is removed and the destination is
+     untouched. */
   const dest = path.resolve(args['copy-to']);
-  fs.copyFileSync(artifactPath, dest);
-  if (sha(dest) !== actualSha) die('COPY-CORRUPT', 'the copied file does not match the verified artifact');
+  const tmp = path.join(path.dirname(dest), '.cf-copy-' + process.pid + '-' + path.basename(dest));
+  try {
+    fs.copyFileSync(artifactPath, tmp);
+    const fd = fs.openSync(tmp, 'r+');
+    try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+    if (process.env.CF_TEST_FAIL_COPY === 'YES') {
+      throw Object.assign(new Error('CF_TEST_FAIL_COPY=YES — injected failure after temp write'), { code: 'TEST' });
+    }
+    if (sha(tmp) !== actualSha) throw Object.assign(new Error('temp copy does not match the verified artifact'), { code: 'COPY-CORRUPT' });
+    if (fs.statSync(tmp).size !== actualBytes) throw Object.assign(new Error('temp copy byte count mismatch'), { code: 'COPY-CORRUPT' });
+    fs.renameSync(tmp, dest);
+  } catch (e) {
+    try { fs.rmSync(tmp, { force: true }); } catch (e2) { /* best effort */ }
+    die(e.code === 'TEST' ? 'TEST-COPY-FAIL' : (e.code || 'COPY-FAILED'), e.message + ' — destination untouched');
+  }
   console.log(`SELECTED ${artifactPath}`);
   console.log(`COPIED   ${dest}`);
 } else {
