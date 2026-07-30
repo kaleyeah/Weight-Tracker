@@ -13102,6 +13102,37 @@ try{cfCasPaint();}catch(e){}
    makes a failed preservation survive a restart and a stale session error not. */
 try{cfCasRestoreWorkflow();}catch(e){}
 
+/* ============================================================
+   HARDENING — FIX-003b: the claim path gets the confirmation it never had
+
+   The Architect's day-one ruling requires (GATE-09..16) that "Yes — this is
+   mine" paint a visible confirmation before unknown pre-sign-in data is
+   adopted into a real account. Their premise was that FIX-003 had broken this
+   path too. It had not: `cf:claim` called cfClaimLocal() DIRECTLY, with no
+   askConfirm anywhere in the chain, so it was never affected — and never
+   confirmed either. Adding the confirmation is therefore a NEW behaviour, not
+   a repair, adopted because it is the right one: claiming is the unsafe
+   direction, and it was the only control that responded while the athlete sat
+   trapped at the gate on a real phone.
+
+   Wrapping cfClaimLocal is enough — the gate's click handler is its only
+   caller — and the dialog can now actually be seen because FIX-003 makes the
+   gate render the confirmation overlay.
+
+   The pendingConfirm guard gives one dialog and one claim under rapid double
+   activation: the second tap finds a confirmation already open and returns
+   instead of re-queueing it.
+   ============================================================ */
+(function(){
+  var _cfClaimUnconfirmed=cfClaimLocal;
+  cfClaimLocal=function(){
+    try{ if(state&&state.pendingConfirm)return; }catch(e){}
+    askConfirm("Add this device’s existing data to your account? It becomes part of your history and is uploaded when you sync.",
+      function(){ try{_cfClaimUnconfirmed();}catch(e){} },
+      {label:"Yes, add it",danger:false});
+  };
+})();
+
 </script>
 </body>
 </html>

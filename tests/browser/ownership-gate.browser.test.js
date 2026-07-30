@@ -205,6 +205,150 @@ location.replace('/index.html');
     eq(unexpected.length, 0, unexpected.join('\n'));
   });
 
+  section('GATE-09..16 — the CLAIM path (Architect day-one ruling §2)');
+
+  /* A fresh context: GATE-06 already consumed the first gate by setting the
+     data aside. This one claims instead, with its own disposable account and
+     its own disposable data — never the Product Owner's canary data. */
+  const claimCtx = await ctx.browser().newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const cp = await claimCtx.newPage();
+  const claimErrors = [];
+  cp.on('pageerror', (e) => claimErrors.push(String(e)));
+  await cp.goto('http://127.0.0.1:' + PORT + '/seed', { waitUntil: 'load' });
+  await cp.waitForFunction(() => document.documentElement.style.visibility !== 'hidden', null, { timeout: 10000 });
+  await cp.evaluate(() => ['wl-applied-banner', 'wl-update-banner'].forEach((id) => {
+    const el = document.getElementById(id); if (el && el.remove) el.remove();
+  }));
+  await cp.evaluate((c) => {
+    const e = document.getElementById('wl-pb-email'); if (e) e.value = c.email;
+    const p = document.getElementById('wl-pb-pass'); if (p) p.value = c.pass;
+    try { pbDoLogin(); } catch (err) { /* asserted below */ }
+  }, { email: server.user.email, pass: pb.ATHLETE.pass });
+  await cp.waitForFunction(() => (typeof syncOn === 'function') && syncOn(), null, { timeout: 15000 });
+  await cp.waitForTimeout(500);
+
+  await test('GATE-09 tapping "Yes — this is mine" paints a visible confirmation dialog', async () => {
+    eq(await cp.evaluate(() => cfAccountBlocked()), 'unclaimed', 'precondition: gated');
+    eq(await cp.evaluate(() => document.querySelectorAll('.wl-confirm').length), 0, 'precondition: no dialog yet');
+    await cp.click('[data-act="cf:claim"]');
+    await cp.waitForSelector('.wl-confirm', { state: 'visible', timeout: 5000 });
+    const dlg = await cp.evaluate(() => {
+      const el = document.querySelector('.wl-confirm');
+      const r = el.getBoundingClientRect();
+      return { text: el.innerText, onscreen: r.width > 0 && r.height > 0,
+        label: (el.querySelector('[data-act="confirm:yes"]') || {}).innerText || null,
+        hasCancel: !!el.querySelector('[data-act="confirm:no"]') };
+    });
+    ok(dlg.onscreen, 'the dialog must occupy real screen area');
+    ok(/add this device/i.test(dlg.text), 'it must say what claiming does: ' + dlg.text);
+    eq(dlg.label, 'Yes, add it');
+    ok(dlg.hasCancel);
+  });
+
+  await test('GATE-13 rapid double activation yields ONE dialog and ONE claim', async () => {
+    /* fire both taps before any await, so they race the same way a fast
+       double-tap does; the guard must collapse them */
+    await cp.evaluate(() => {
+      const b = document.querySelector('[data-act="cf:claim"]');
+      b.click(); b.click(); b.click();
+    });
+    await cp.waitForTimeout(200);
+    eq(await cp.evaluate(() => document.querySelectorAll('.wl-confirm').length), 1,
+      'three activations must leave exactly one confirmation');
+    eq(await cp.evaluate(() => cfAccountBlocked()), 'unclaimed',
+      'and must not have claimed anything yet');
+  });
+
+  await test('GATE-14 a rerender while the dialog is open neither removes nor duplicates it', async () => {
+    await cp.evaluate(() => { render(); render(); });
+    await cp.waitForTimeout(150);
+    const st = await cp.evaluate(() => ({
+      dialogs: document.querySelectorAll('.wl-confirm').length,
+      visible: (() => { const el = document.querySelector('.wl-confirm');
+        if (!el) return false; const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; })(),
+      gateStillThere: /Is this your data\?/.test(document.body.innerText),
+    }));
+    eq(st.dialogs, 1, 'exactly one dialog must survive a repaint');
+    ok(st.visible, 'and it must still be visible');
+    ok(st.gateStillThere, 'with the gate still behind it');
+  });
+
+  await test('GATE-15 the dialog buttons are inside the iPhone viewport and tappable', async () => {
+    const box = await cp.evaluate(() => {
+      const y = document.querySelector('[data-act="confirm:yes"]');
+      const n = document.querySelector('[data-act="confirm:no"]');
+      const vh = window.innerHeight, vw = window.innerWidth;
+      const m = (el) => { const r = el.getBoundingClientRect();
+        return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, h: r.height, w: r.width }; };
+      return { yes: m(y), no: m(n), vh: vh, vw: vw,
+        /* the element the athlete's finger would actually hit */
+        hitYes: (() => { const r = y.getBoundingClientRect();
+          const el = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+          return !!(el && el.closest('[data-act="confirm:yes"]')); })() };
+    });
+    ok(box.yes.bottom <= box.vh && box.yes.top >= 0,
+      'the confirm button must be on screen: ' + JSON.stringify(box.yes) + ' vh=' + box.vh);
+    ok(box.no.bottom <= box.vh && box.no.top >= 0, 'and so must cancel');
+    ok(box.yes.h >= 40, 'the confirm button must be a real tap target, got ' + box.yes.h + 'px');
+    ok(box.hitYes, 'nothing may overlay the confirm button at its centre point');
+  });
+
+  await test('GATE-10 Cancel dismisses it, leaves the gate, and changes no ownership or data state', async () => {
+    const before = await cp.evaluate(() => ({
+      owner: localStorage.getItem('cf:lastOwner'),
+      live: localStorage.getItem('wl_v1'),
+      rev: localStorage.getItem('wl_rev'),
+    }));
+    await cp.click('[data-act="confirm:no"]');
+    await cp.waitForFunction(() => document.querySelectorAll('.wl-confirm').length === 0, null, { timeout: 5000 });
+    const after = await cp.evaluate(() => ({
+      owner: localStorage.getItem('cf:lastOwner'),
+      live: localStorage.getItem('wl_v1'),
+      rev: localStorage.getItem('wl_rev'),
+      blocked: cfAccountBlocked(),
+      gateVisible: /Is this your data\?/.test(document.body.innerText),
+      quar: Object.keys(localStorage).filter((k) => /^cf:quarantine:/.test(k)).length,
+    }));
+    eq(after.blocked, 'unclaimed', 'cancel must leave the athlete gated');
+    ok(after.gateVisible, 'and the gate must be repainted');
+    eq(after.owner, before.owner, 'cancel must not stamp ownership');
+    eq(after.live, before.live, 'cancel must not touch the data');
+    eq(after.rev, before.rev, 'cancel must not bump revisions');
+    eq(after.quar, 0, 'and must not create a set-aside artifact');
+  });
+
+  await test('GATE-11/12 confirming claims the data for THIS account and clears the gate', async () => {
+    await cp.click('[data-act="cf:claim"]');
+    await cp.waitForSelector('.wl-confirm', { state: 'visible', timeout: 5000 });
+    await cp.click('[data-act="confirm:yes"]');
+    await cp.waitForFunction(() => cfAccountBlocked() === '', null, { timeout: 10000 });
+    const st = await cp.evaluate(() => ({
+      blocked: cfAccountBlocked(),
+      owner: localStorage.getItem('cf:lastOwner'),
+      uid: pbUid(),
+      liveName: (window.state && state.settings && state.settings.name) || null,
+      liveWeights: (window.state && state.weights || []).length,
+      quar: Object.keys(localStorage).filter((k) => /^cf:quarantine:/.test(k)).length,
+      quarFlag: localStorage.getItem('cf:quarantined'),
+      dialogs: document.querySelectorAll('.wl-confirm').length,
+    }));
+    eq(st.blocked, '', 'the gate must clear after a claim');
+    eq(st.owner, st.uid, 'ownership must be stamped to the authenticated account (GATE-12)');
+    ok(st.uid && st.uid === server.user.id, 'and that account is the disposable test athlete');
+    eq(st.liveName, 'PRE-SIGNIN STRANGER', 'the claimed data must now BE this account\'s data');
+    eq(st.liveWeights, 1, 'including its rows');
+    eq(st.quar, 0, 'a claim must not fabricate a set-aside artifact (GATE-12)');
+    eq(st.quarFlag, null);
+    eq(st.dialogs, 0, 'and the dialog must be gone');
+  });
+
+  await test('GATE-16 no uncaught page error through the claim path', async () => {
+    const unexpected = claimErrors.filter((e) => !/pb\.test|ERR_|Failed to fetch|NetworkError/i.test(e));
+    eq(unexpected.length, 0, unexpected.join('\n'));
+  });
+
+  await claimCtx.close();
+
   await browser.close();
   web.close();
   await server.stop();
