@@ -514,7 +514,105 @@ if (!havePorted) {
     });
   });
 
-  if (compoundUsable) group('DEPLOY-LOCK — single-flight build enforcement', () => {
+  /* NEGATIVE CONTROLS (run 2026-07-30, sabotage → observed failures → restored
+     byte-identical). Every V2 test below fails under at least one:
+       1. releaseLock → unconditional rmSync (the V1 defect)  → V2-06
+       2. pidAlive → always false (live holders judged dead)  → V2-01.., V2-04.., V2-08, LOCK-01
+       3. loser rmSync(LOCK) before BUILD-IN-FLIGHT die       → V2-01.., V2-04.. (the V2-07 claim), V2-08, LOCK-01
+       4. pidAlive → always true (recovery impossible)        → V2-01.., V2-04.., V2-06, V2-11/12, LOCK-02
+     Note on V2-07: a contender that never acquired cannot run releaseLock at
+     all — the exit handler is registered only AFTER acquireLock() returns. The
+     assertion still guards the whole loser lifetime (control 3 proves it). */
+  if (compoundUsable) group('DEPLOY-LOCK-V2 — exclusive takeover, tokenized ownership', () => {
+    const LOCK = path.join(ROOT, '.build', '.build-lock');
+    const ORCH = path.join(__dirname, 'helpers', 'lock-orchestrator.mjs');
+    /* All concurrency runs inside the orchestrator child (see its header for
+       why), invoked SYNCHRONOUSLY — so every assertion here is synchronous and
+       visible to the harness. */
+    const orchestrate = (extra) => JSON.parse(execFileSync(process.execPath,
+      [ORCH, JSON.stringify(Object.assign({
+        builder: BUILDER, compound: COMPOUND, buildDir: path.join(ROOT, '.build'),
+      }, extra))],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'], timeout: 300000 }));
+    const deadPid = () => Number(execFileSync(process.execPath, ['-e', 'console.log(process.pid)'],
+      { encoding: 'utf8' }).trim());
+    const tails = (rs) => rs.map((r) => r.out.trim().split('\n').slice(-2).join(' | ')).join('\n---\n');
+
+    test('DEPLOY-LOCK-V2-01/02/03/05/10 three contenders on one dead holder: ONE winner, losers touch nothing', () => {
+      fs.rmSync(path.join(ROOT, '.build'), { recursive: true, force: true });
+      fs.mkdirSync(path.join(ROOT, '.build'), { recursive: true });
+      fs.writeFileSync(LOCK, JSON.stringify({ pid: deadPid(), token: 'stale-crashed-token', startedAt: 'crashed' }));
+      const o = orchestrate({ mode: 'contend', count: 3 });
+      const winners = o.results.filter((r) => r.code === 0 && /RELEASE BUILD OK/.test(r.out));
+      const losers = o.results.filter((r) => r.code !== 0);
+      eq(winners.length, 1, 'exactly one contender may build (V2-01/05):\n' + tails(o.results));
+      eq(losers.length, 2, 'both other contenders must lose');
+      ok(losers.every((r) => /BUILD-IN-FLIGHT/.test(r.out)),
+        'losers must refuse as BUILD-IN-FLIGHT (V2-02):\n' + tails(losers));
+      /* V2-03: the losers invalidated nothing — the winner's release selects */
+      eq(runSelector().code, 0, 'the surviving release must select cleanly (V2-03)');
+      /* V2-10: the winner released its own lock after publishing */
+      eq(o.lockAfterRaw, null, 'the winner must remove its own lock when done (V2-10)');
+      notOk(fs.existsSync(LOCK));
+    });
+
+    test('DEPLOY-LOCK-V2-04/07/09 a LIVE holder is never replaced or unlocked, regardless of recorded age', () => {
+      const o = orchestrate({ mode: 'live-holder', holdMs: 8000, ageLock: true });
+      const held = JSON.parse(o.holderLockRaw);
+      /* preconditions: the lock really was the live holder's, and really aged */
+      eq(held.pid, o.holderPid, 'precondition: the lock belongs to the spawned holder');
+      eq(held.startedAt, '1999-01-01T00:00:00.000Z', 'precondition: the lock was aged before the contender ran');
+      notOk(o.loser.code === 0, 'the contender must refuse against a live holder (V2-04)');
+      ok(/BUILD-IN-FLIGHT/.test(o.loser.out), o.loser.out.slice(-300));
+      ok(o.loser.out.includes('pid ' + held.pid), 'the refusal must attribute the live holder');
+      /* V2-09: age is irrelevant — the aged lock was still honoured (asserted
+         by the refusal above). V2-07: the loser's exit removed NOTHING. */
+      ok(o.lockAfterLoserRaw !== null, 'the loser (or its exit handler) removed the live holder\'s lock (V2-07)');
+      eq(JSON.parse(o.lockAfterLoserRaw).token, held.token, 'the loser replaced the live holder\'s lock');
+      /* and when the holder finally exits, it removes only its OWN lock */
+      eq(o.lockAfterHolderExitRaw, null, 'the holder must remove its own lock on exit');
+    });
+
+    test('DEPLOY-LOCK-V2-06 a superseded holder\'s exit handler leaves the newer owner\'s lock alone', () => {
+      const o = orchestrate({ mode: 'supersede', holdMs: 1500,
+        newLock: { pid: 999999999, token: 'newer-owner-token', startedAt: 'now' } });
+      ok(o.lockAfterHolderExitRaw !== null,
+        'the exiting superseded holder removed a lock it no longer owned');
+      eq(JSON.parse(o.lockAfterHolderExitRaw).token, 'newer-owner-token',
+        'the surviving lock must still be the newer owner\'s, untouched');
+      fs.rmSync(LOCK, { force: true });   /* planted lock, not a real owner's */
+    });
+
+    test('DEPLOY-LOCK-V2-08 a malformed lock recovers through the same exclusive path: ONE winner', () => {
+      fs.writeFileSync(LOCK, 'not json at all {{{');
+      const o = orchestrate({ mode: 'contend', count: 3 });
+      const winners = o.results.filter((r) => r.code === 0 && /RELEASE BUILD OK/.test(r.out));
+      eq(winners.length, 1, 'malformed recovery must still produce exactly one winner:\n' + tails(o.results));
+      ok(o.results.filter((r) => r.code !== 0).every((r) => /BUILD-IN-FLIGHT/.test(r.out)),
+        'losers must refuse, not crash:\n' + tails(o.results));
+      eq(o.lockAfterRaw, null, 'the winner released its lock');
+    });
+
+    test('DEPLOY-LOCK-V2-11/12 a SIGKILLed holder leaves an attributable lock and NO deployable pair; the next build recovers', () => {
+      fs.rmSync(path.join(ROOT, '.build'), { recursive: true, force: true });
+      const o = orchestrate({ mode: 'kill-holder', holdMs: 30000 });
+      eq(o.holderExit, 'SIGKILL', 'precondition: the holder died by signal, no exit handler ran');
+      ok(o.lockAfterKillRaw !== null, 'a crash must leave the lock behind for attributable recovery (V2-11)');
+      eq(JSON.parse(o.lockAfterKillRaw).pid, o.holderPid, 'and the lock must name the crashed pid');
+      notOk(fs.existsSync(path.join(ROOT, '.build', 'release', 'manifest.json')),
+        'a crashed holder must not have published anything');
+      const sel = runSelector();
+      notOk(sel.code === 0, 'nothing may be selectable after the crash');
+      ok(/NO-MANIFEST/.test(sel.out), sel.out.slice(0, 200));
+      /* V2-12: the next single build takes over the dead holder's lock and publishes */
+      const next = runBuildAt(COMPOUND);
+      eq(next.code, 0, 'recovery build failed: ' + next.out.slice(-300));
+      eq(runSelector().code, 0, 'and its release selects');
+      notOk(fs.existsSync(LOCK), 'and the recovered lock is released');
+    });
+  });
+
+  if (compoundUsable) group('DEPLOY-LOCK — single-flight build enforcement (V1 cases, retained)', () => {
     const LOCK = path.join(ROOT, '.build', '.build-lock');
 
     test('DEPLOY-LOCK-01 a second build refuses while one is in flight, deleting nothing', () => {

@@ -37,44 +37,116 @@ const sha = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
 const shaFile = (p) => sha(fs.readFileSync(p));
 const die = (code, msg) => { console.error(`FAIL [${code}] ${msg}`); process.exit(1); };
 
-/* ---- -1. SINGLE FLIGHT (Architect, pipeline review §4) -------------------
-   This command deletes the published release and all prior run directories at
-   start, so two concurrent invocations would interfere even though each fails
-   closed on its own. An O_EXCL lock file makes the second invocation REFUSE
-   rather than wait: a release build is deliberate, and queueing a second one
-   behind the first is never what anyone meant.
+/* ---- -1. SINGLE FLIGHT (Architect DEPLOY-LOCK-V2) ------------------------
+   The only CLAIM path is the atomic O_EXCL create. The V1 takeover renamed a
+   fresh lock onto the stale one — but rename replaces its destination, so two
+   contenders who both saw the same dead holder could BOTH proceed. And the V1
+   exit handler removed whatever lock existed, even a newer owner's.
 
-   The lock records pid + start time. A crashed build leaves the file behind;
-   staleness is decided by whether that pid is still alive — never by age, which
-   would let a slow legitimate build be stolen from. */
+   V2 rules, per the accepted pattern:
+   - every acquisition carries a cryptographically random ownership TOKEN;
+   - stale locks are never renamed over: they are REMOVED, and only under a
+     recovery mutex, only after re-reading that the content is byte-identical
+     to the stale content this contender captured, and only after re-verifying
+     the recorded pid is dead — then everyone loops back to O_EXCL create,
+     where exactly one contender can win;
+   - double-entry into recovery is safe by design: two removers of the SAME
+     stale bytes just race one unlink (the second gets ENOENT) and both fall
+     through to the create, which is exclusive. What the mutex prevents is the
+     dangerous interleave — verifying stale, the winner claiming, and THEN
+     unlinking the winner's new lock — because all unlinks re-verify content
+     under the mutex, and a claim changes the content;
+   - release verifies the lock still carries THIS process's token, under the
+     same mutex, before removing anything. A process that never acquired, or
+     was superseded, removes nothing;
+   - liveness of a holder is decided by pid, never by age. */
 const LOCK = path.join(BUILD, '.build-lock');
+const RMUTEX = path.join(BUILD, '.build-lock-recovery');
+const TOKEN = crypto.randomBytes(16).toString('hex');
 fs.mkdirSync(BUILD, { recursive: true });
-const acquireLock = () => {
-  try {
-    const fd = fs.openSync(LOCK, 'wx');                       /* atomic O_EXCL */
-    fs.writeFileSync(fd, JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() }));
-    fs.closeSync(fd);
-    return true;
-  } catch (e) {
-    if (e.code !== 'EEXIST') throw e;
-    let holder = null;
-    try { holder = JSON.parse(fs.readFileSync(LOCK, 'utf8')); } catch (e2) { holder = null; }
-    const alive = holder && holder.pid && (() => {
-      try { process.kill(holder.pid, 0); return true; } catch (e2) { return e2.code === 'EPERM'; }
-    })();
-    if (alive) die('BUILD-IN-FLIGHT',
-      `another release build is running (pid ${holder.pid}, started ${holder.startedAt}). ` +
-      'Refusing — only one invocation may publish .build/release/.');
-    /* holder is dead: the lock is a crash leftover. Take it over, atomically. */
-    const takeover = LOCK + '.takeover-' + process.pid;
-    fs.writeFileSync(takeover, JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() }));
-    fs.renameSync(takeover, LOCK);
-    return true;
+
+const sleepMs = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+const pidAlive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
+const readLockRaw = () => { try { return fs.readFileSync(LOCK, 'utf8'); } catch (e) { return null; } };
+const parseLock = (raw) => { if (raw === null) return null; try { return JSON.parse(raw); } catch (e) { return { malformed: true }; } };
+
+/* Serialises stale-lock REMOVAL only. Its own staleness (a recoverer that
+   crashed mid-recovery) is handled by dead-pid takeover with plain removal,
+   which is safe here precisely because double-entry into recovery is safe. */
+const withRecoveryMutex = (fn) => {
+  const deadline = Date.now() + 10000;
+  for (;;) {
+    try {
+      fs.mkdirSync(RMUTEX);
+      fs.writeFileSync(path.join(RMUTEX, 'owner.json'), JSON.stringify({ pid: process.pid, token: TOKEN }));
+      break;
+    } catch (e) {
+      if (e.code !== 'EEXIST') throw e;
+      let o = null;
+      try { o = JSON.parse(fs.readFileSync(path.join(RMUTEX, 'owner.json'), 'utf8')); } catch (e2) { o = null; }
+      if (o && o.pid && pidAlive(o.pid)) {
+        if (Date.now() > deadline) die('RECOVERY-BUSY', 'another process has held the recovery mutex for >10s');
+        sleepMs(50); continue;
+      }
+      /* dead or contentless recoverer: force it and retry the mkdir */
+      try { fs.rmSync(RMUTEX, { recursive: true, force: true }); } catch (e2) { /* retry */ }
+    }
+  }
+  try { return fn(); } finally {
+    try { fs.rmSync(RMUTEX, { recursive: true, force: true }); } catch (e) { /* best effort */ }
   }
 };
+
+const acquireLock = () => {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    try {
+      const fd = fs.openSync(LOCK, 'wx');                     /* the ONLY claim path */
+      fs.writeFileSync(fd, JSON.stringify({ pid: process.pid, token: TOKEN, startedAt: new Date().toISOString() }));
+      fs.closeSync(fd);
+      return;
+    } catch (e) { if (e.code !== 'EEXIST') throw e; }
+
+    const raw = readLockRaw();
+    if (raw === null) continue;                                /* vanished between — retry the create */
+    const holder = parseLock(raw);
+    if (holder && !holder.malformed && holder.pid && pidAlive(holder.pid)) {
+      die('BUILD-IN-FLIGHT',
+        `another release build is running (pid ${holder.pid}, started ${holder.startedAt}). ` +
+        'Refusing — only one invocation may publish .build/release/.');
+    }
+    /* dead or malformed: verified removal, then back around to O_EXCL */
+    withRecoveryMutex(() => {
+      const now = readLockRaw();
+      if (now !== null && now === raw) {                       /* still the exact bytes we judged stale */
+        const h = parseLock(now);
+        if (!h || h.malformed || !h.pid || !pidAlive(h.pid)) fs.rmSync(LOCK, { force: true });
+      }
+    });
+    sleepMs(5 + Math.floor(Math.random() * 20));               /* decorrelate contenders */
+  }
+  die('LOCK-CONTENTION', 'could not acquire the build lock after 100 attempts');
+};
 acquireLock();
-const releaseLock = () => { try { fs.rmSync(LOCK, { force: true }); } catch (e) { /* best effort */ } };
+
+const releaseLock = () => {
+  try {
+    const cur = parseLock(readLockRaw());
+    if (!cur || cur.token !== TOKEN) return;                   /* not ours — never touch it */
+    withRecoveryMutex(() => {
+      const again = parseLock(readLockRaw());
+      if (again && again.token === TOKEN) fs.rmSync(LOCK, { force: true });
+    });
+  } catch (e) { /* never throw from an exit handler */ }
+};
 process.on('exit', releaseLock);
+
+/* test-only: hold the acquired lock, then exit WITHOUT building. Lets the
+   suite orchestrate real concurrent holders. Never reaches a manifest. */
+if (process.env.CF_TEST_HOLD_LOCK) {
+  fs.writeFileSync(path.join(BUILD, '.holding-' + process.pid), TOKEN);
+  sleepMs(Number(process.env.CF_TEST_HOLD_LOCK) || 500);
+  die('TEST-INJECTED-FAILURE', 'CF_TEST_HOLD_LOCK — held the lock, built nothing');
+}
 
 /* ---- 0. INVALIDATE THE PUBLISHED RELEASE, before anything can fail ------ */
 fs.rmSync(RELEASE, { recursive: true, force: true });
