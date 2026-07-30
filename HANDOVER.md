@@ -111,13 +111,16 @@ the commit route throw on every request during an earlier round.
 | `fix/export-charset-utf8`, `fix/setaside-above-login`, `fix/client-manual-gate` | superseded — already merged into the working branch | historical |
 | `main` | far behind | not used |
 
-### What is deployed
+### What is deployed (updated 2026-07-30)
 
-- **Production PocketBase runs the CAS server kit** (deployed at an earlier
-  cutover, evidence in `server/PRODUCTION_CUTOVER_RESULTS.md`).
-- **Nothing from Commit 10 is deployed.** No client release has been made from
-  this work.
-- **HOTFIX-001 is not deployed.** Production still runs the defective hook.
+- **Production PocketBase runs the CAS server kit + HOTFIX-001** (hotfix
+  deployed and verified 2026-07-29; record in
+  `server/PRODUCTION_CUTOVER_RESULTS.md`).
+- **The client release candidate exists but is NOT deployed:** build
+  `2026-07-29.348-pb-c10`, sha `9e45a225…`, produced only by
+  `deployment-path/build-release.mjs` and consumed only via
+  `select-artifact.mjs`. Branch: `integration/commit10-lineage-a`.
+- Production clients run `2026-07-28.347-pb` (Lineage A, frozen).
 
 ### Test suites
 
@@ -141,14 +144,18 @@ temp dir from `server/pb_hooks` + `server/pb_migrations`, on 127.0.0.1, and
 destroys it afterwards. It needs `~/staging-cas/bin/pocketbase`. Suites skip
 cleanly if that binary is absent.
 
-### Outstanding
+### Outstanding (updated 2026-07-30)
 
-1. **HOTFIX-001** — a prerequisite for shipping Lineage B, **not** a live
-   athlete-facing cost (see §0). Needs the Architect's approval, then the PO's
-   authorisation.
-2. Architect rulings on `C10-MC-01..20` and `MV-01..13` (sent, never ruled on —
-   one review came back as a duplicate of the previous one).
-3. Final consolidated Commit 10 package and release ruling.
+All engineering evidence gates are closed and approved: matrices, manifest
+recovery, route contract, multi-context, harness, manual set-aside, client UX
+fixes, release pipeline (build/select with DEPLOY-RC/BUILD/PKG/COPY tests), and
+cache/service-worker (CSW-V2). Per the Architect, before cutover:
+
+1. Architect's ruling on the deploy-pkg corrections package (delivered).
+2. PO authorisation + execution of **I5d** (second disposable `cf_test_*` account).
+3. PO authorisation of the **canary** (consenting athlete = Griffin, briefed).
+4. Real-iPhone canary smoke.
+5. Final cutover package and the Architect's release authorization.
 
 ---
 
