@@ -144,18 +144,28 @@ temp dir from `server/pb_hooks` + `server/pb_migrations`, on 127.0.0.1, and
 destroys it afterwards. It needs `~/staging-cas/bin/pocketbase`. Suites skip
 cleanly if that binary is absent.
 
-### Outstanding (updated 2026-07-30)
+### Outstanding (updated 2026-07-30, post single-flight V2 ruling)
 
-All engineering evidence gates are closed and approved: matrices, manifest
+**All engineering evidence gates are closed and approved**, including the last
+one: single-flight build enforcement (Architect: "CORRECTIONS APPROVED —
+SINGLE-FLIGHT RELEASE-BUILD GATE COMPLETE"). That covers: matrices, manifest
 recovery, route contract, multi-context, harness, manual set-aside, client UX
-fixes, release pipeline (build/select with DEPLOY-RC/BUILD/PKG/COPY tests), and
-cache/service-worker (CSW-V2). Per the Architect, before cutover:
+fixes, release pipeline (DEPLOY-RC/BUILD/PKG/COPY), cache/service-worker
+(CSW-V2), and the build lock (DEPLOY-LOCK-V2-01..12 + DEPLOY-UNLOCK-01..03,
+46 pipeline assertions, four negative controls). The lock implementation
+(`build-release.mjs` "-1. SINGLE FLIGHT" section, `unlock-build.mjs`) needs no
+further single-flight review unless it changes; carry it and its evidence into
+the final cutover package.
 
-1. Architect's ruling on the deploy-pkg corrections package (delivered).
-2. PO authorisation + execution of **I5d** (second disposable `cf_test_*` account).
-3. PO authorisation of the **canary** (consenting athlete = Griffin, briefed).
-4. Real-iPhone canary smoke.
-5. Final cutover package and the Architect's release authorization.
+Everything left requires the Product Owner first:
+
+1. PO authorisation + execution of **I5d** (TWO disposable `cf_test_*`
+   accounts, per the Architect).
+2. PO authorisation of the **canary** (consenting athlete = Griffin, briefed;
+   canary plan goes to the Architect before anything is published).
+3. Real-iPhone canary smoke.
+4. Final cutover package → Architect release authorization → PO
+   root-deployment authorization.
 
 ---
 
