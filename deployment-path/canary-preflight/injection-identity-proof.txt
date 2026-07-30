@@ -1,0 +1,17 @@
+INJECTION IDENTITY, traced through git — is 2be8d8e8 the stale .348 injection?
+
+commit     release recorded           sha256 of the injection file
+3b305d2    2026-07-29.348-pb-c10      c2c55f6cbb2faaa8acb2d36a3e8ef7894eff77f800b3083cb6202979b7e59fd5
+78374fc    2026-07-29.348-pb-c10      dceef82d0260ded45728d4c117d2c505980edf3bf3d2e7ddf921c2de151a033d
+a4a5750    2026-07-30.349-pb-c10      cae88f1f5a006a838fa89d2bea31b239713a7b799450e070deec9c5c31ba927a
+8760e8e    2026-07-30.349-pb-c10      2be8d8e883c383d888f64bd4931e54738a7765f18e224f62c2f2cfbfdb2cf635
+
+The two .348 injection identities were c2c55f6c… and dceef82d…
+The manifest's 2be8d8e8… is the CURRENT injection, regenerated for .349:
+  release       2026-07-30.349-pb-c10
+  ops           8
+  portedSha     bb41dab4d851c73036714ba2299ad3f5cc6c1f54e10c432a4b74bf996e2a568a (the frozen .347 intermediate — unchanged BY DESIGN)
+  rcSha         0958b4e456789bde830517a5fe034941c6b9c6992a310dad87e524b9f9aeb418 (= the approved .349 hash)
+
+So: same intermediate + DIFFERENT injection -> different output. No contradiction.
+The intermediate is the ported .347 and must never change; the injection is what carries FIX-003/003b.
