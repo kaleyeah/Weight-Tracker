@@ -91,7 +91,11 @@ location.replace('/index.html');
     legacyMsg: (window.syncState || {}).msg || '',
     pending: window.cfPending,
   }));
-  const NOT_UPLOADED = /aren.t uploaded yet/;
+  /* The approved pending wording (Architect STATUS-V3-02): ordinary pending
+     means the work is SAFE HERE and has not synced yet — it is not a failure
+     and no longer instructs the athlete to upload manually. */
+  const PENDING_WORDS = /Saved on this device\. Waiting to sync\./;
+  const NOT_UPLOADED = PENDING_WORDS;
 
   section('STATUS-H-01..02 — a successful upload clears the "not uploaded" alarm');
 
@@ -213,7 +217,11 @@ location.replace('/index.html');
   });
 
   await test('STATUS-H-08 a successful commit does NOT clear auth or an unrelated failure source', async () => {
-    for (const src of ['auth', 'cas-network', 'legacy-manual']) {
+    /* cas-network is deliberately NOT in this list: the ruling requires a
+       successful commit to clear it ("successful retry or proven recovery
+       clears cas-network"), and STATUS-V3-04 asserts exactly that below. What
+       must SURVIVE a commit is a cause the commit did not disprove. */
+    for (const src of ['auth', 'legacy-manual']) {
       await resetSurface();
       await page.evaluate((s_) => { cfStatusSet(s_, 'unrelated ' + s_); cfSetPending('push'); }, src);
       await page.evaluate(() => { state.weights.push({ d: '2026-08-05', kg: 79.9 }); save(); });
@@ -254,7 +262,7 @@ location.replace('/index.html');
     });
     ok(await page.evaluate(() => cfStatusHas('cas-pending')), 'precondition: the stale marker is up');
     const commitsBefore = commits.length;
-    await page.evaluate(() => { setLastSync(); });          /* a pull completing */
+    await page.evaluate(() => { cfCasConvergeFrom('bootstrap'); });   /* a named completion */
     await page.waitForTimeout(200);
     notOk(await page.evaluate(() => cfStatusHas('cas-pending')),
       'proven agreement must clear the stale marker');
@@ -266,7 +274,7 @@ location.replace('/index.html');
       CF_STATUS = {}; revClean('core'); revClean('training');
       cfCasSetBaseline('core', 'A-DIFFERENT-CANONICAL-FORM');
       cfSetPending('push');
-      setLastSync();
+      cfCasConvergeFrom('bootstrap');
     });
     await page.waitForTimeout(150);
     ok(await page.evaluate(() => cfStatusHas('cas-pending')),
@@ -280,7 +288,7 @@ location.replace('/index.html');
       cfCasSetBaseline('training', cfCanon(cfCasPayloadFor('training')));
       revBump('core');                      /* unsent local work */
       cfSetPending('push');
-      setLastSync();
+      cfCasConvergeFrom('bootstrap');
     });
     await page.waitForTimeout(150);
     ok(await page.evaluate(() => cfStatusHas('cas-pending')), 'dirty work must keep the warning');
@@ -294,7 +302,7 @@ location.replace('/index.html');
       cfCasSetBaseline('training', cfCanon(cfCasPayloadFor('training')));
       CF_CAS_BLOCK.core = 'recovery';
       cfSetPending('push');
-      setLastSync();
+      cfCasConvergeFrom('bootstrap');
       const out = { pending: cfStatusHas('cas-pending'), block: CF_CAS_BLOCK.core };
       CF_CAS_BLOCK.core = null;
       return out;
@@ -312,7 +320,7 @@ location.replace('/index.html');
       cfCasSetBaseline('core', cfCanon(cfCasPayloadFor('core')));
       cfCasSetBaseline('training', cfCanon(cfCasPayloadFor('training')));
       cfSetPending('push');
-      setLastSync();
+      cfCasConvergeFrom('bootstrap');
     });
     await page.waitForTimeout(600);
     page.off('request', onReq);

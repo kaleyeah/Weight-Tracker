@@ -1,7 +1,7 @@
 {
  "_why": "The release the deploy ritual INTENDS to produce, recorded independently of the injection. build-release.mjs derived its expectation from inj.generatedFrom.rcSha \u2014 i.e. from the very file under suspicion \u2014 so a stale or reverted injection was self-certifying: the build succeeded and quietly emitted the OLD client, and the selector then handed it over as 'the release'. Found 2026-07-30 by FIX003-PIPE-06, which put a real .348 injection back and watched the build report success. Changing the release now takes TWO edits in one reviewed commit: the injection and this file.",
- "build": "2026-07-30.351-pb-c10",
- "sha256": "fb0e32230375e3edafc954ba9114c08f9917b18ad2d4dd97d71095a47d3a3908",
- "bytes": 1200545,
- "approvedBy": "AWAITING Product Architect review \u2014 FIX-005 (source-owned status, pull convergence, photo severity)"
+ "build": "2026-07-30.352-pb-c10",
+ "sha256": "9e7ee78da6704e4fed5c44304485c185a65cfa8afbd227f505fc618c8c05b82c",
+ "bytes": 1205531,
+ "approvedBy": "AWAITING Product Architect review \u2014 FIX-006 (real producers own status, priority/severity, warn rendering, named convergence)"
 }

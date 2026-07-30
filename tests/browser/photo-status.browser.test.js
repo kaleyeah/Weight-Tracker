@@ -155,11 +155,20 @@ location.replace('/index.html');
     }));
     eq(withPhoto.core, 'synced', 'the photo warning must not disturb core status');
     eq(withPhoto.training, 'synced', 'nor training status');
-    /* and a real pending upload still outranks it */
+    /* pending outranks the photo warning — but BOTH are amber now: the ruling
+       made ordinary pending a warning, not a failure, because "safe here, not
+       synced yet" is not something going wrong. This assertion used to demand a
+       red dot and was left behind by that decision. A genuinely RED source is
+       checked separately below. */
     await page.evaluate(() => { cfSetPending('push'); });
     const both = await st();
-    eq(both.top, 'cas-pending', 'a real upload problem must outrank a photo warning');
-    eq(both.dot, 'bad');
+    eq(both.top, 'cas-pending', 'pending outranks a photo warning');
+    eq(both.sev, 'warn', 'and ordinary pending is amber, not a failure');
+    await page.evaluate(() => cfStatusSet('cas-network', 'Couldn’t sync — changes are safe here.'));
+    const red = await st();
+    eq(red.top, 'cas-network', 'a real failure outranks both amber causes');
+    eq(red.dot, 'bad', 'and it is red');
+    await page.evaluate(() => cfStatusClearSource('cas-network'));
     await page.evaluate(() => { cfClearPending(); });
     const after = await st();
     eq(after.top, 'photo-reconcile', 'and clearing it reveals the photo warning again');

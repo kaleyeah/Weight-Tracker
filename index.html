@@ -191,6 +191,10 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 .wl-sync.ok{color:var(--good);border-color:rgba(92,214,160,.4);}
 .wl-sync.saving,.wl-sync.syncing{color:var(--accent);border-color:rgba(245,181,68,.4);}
 .wl-sync.offline,.wl-sync.error{color:var(--bad);border-color:rgba(242,109,91,.4);}
+/* the warning state is its own thing, not a fallback: amber, distinguishable
+   from both "fine" and "failed" without relying on colour alone (the label
+   says "Attention needed" and the accessible name carries the message) */
+.wl-sync.warn{color:var(--accent);border-color:rgba(245,181,68,.45);}
 .wl-synctime{font-size:9px;font-family:var(--mono);color:var(--faint);}
 .wl-verchip{font-size:9px;font-family:var(--mono);color:var(--faint);letter-spacing:.02em;}
 .wl-ptr{position:fixed;top:calc(env(safe-area-inset-top,0px) + 8px);left:50%;transform:translateX(-50%) translateY(0);width:34px;height:34px;border-radius:50%;background:var(--card2);border:1px solid var(--line2);display:flex;align-items:center;justify-content:center;opacity:0;z-index:60;pointer-events:none;}
@@ -945,7 +949,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-30.351-pb-c10";
+var APP_BUILD="2026-07-30.352-pb-c10";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -1235,15 +1239,15 @@ function setLastSync(){try{localStorage.setItem(LAST_KEY,String(Date.now()));}ca
 function getLastSync(){var v=+localStorage.getItem(LAST_KEY);return v>0?v:null;}
 function fmtClock(ts){return new Date(ts).toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"});}
 function lastSyncText(){var t=getLastSync();return t?("synced "+fmtClock(t)):"";}
-function syncLabel(){return {ok:"Synced",saving:"Saving…",syncing:"Syncing…",offline:"Offline",error:"Sync error"}[syncState.s]||"";}
-function syncDotClass(){var s=syncState.s;return s==="ok"?"good":(s==="saving"||s==="syncing")?"warn":(s==="offline"||s==="error")?"bad":"idle";}
+function syncLabel(){return {ok:"Synced",saving:"Saving…",syncing:"Syncing…",offline:"Offline",error:"Sync error",warn:"Attention needed"}[syncState.s]||"";}
+function syncDotClass(){var s=syncState.s;return s==="ok"?"good":(s==="saving"||s==="syncing"||s==="warn")?"warn":(s==="offline"||s==="error")?"bad":"idle";}
 function setSync(s,msg){syncState={s:s,msg:msg||""};
   var el=document.getElementById("wl-sync");if(el){el.className="wl-sync "+s;el.textContent=syncLabel();}
   var sd=document.getElementById("wl-sdot");if(sd)sd.className="wl-sdot "+syncDotClass();
   var tt=document.getElementById("wl-synctime");if(tt)tt.textContent=lastSyncText();
   var st=document.getElementById("wl-sync-status");if(st)st.innerHTML=syncStatusHTML();}
 function syncStatusHTML(){if(!syncOn())return '<span style="color:var(--faint)">Not connected. Add your repo and token, then Test.</span>';
-  var m={ok:"var(--good)",saving:"var(--accent)",syncing:"var(--accent)",offline:"var(--bad)",error:"var(--bad)",idle:"var(--muted)"}[syncState.s]||"var(--muted)";
+  var m={ok:"var(--good)",saving:"var(--accent)",syncing:"var(--accent)",offline:"var(--bad)",error:"var(--bad)",warn:"var(--accent)",idle:"var(--muted)"}[syncState.s]||"var(--muted)";
   return '<span style="color:'+m+'">'+(syncLabel()||"Connected")+'</span>'+(syncState.msg?' <span style="color:var(--faint)">· '+esc(syncState.msg)+'</span>':'')+(getLastSync()?' <span style="color:var(--faint)">· '+lastSyncText()+'</span>':'');}
 function b64enc(str){return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g,function(_,h){return String.fromCharCode(parseInt(h,16));}));}
 function b64dec(b64){b64=(b64||"").replace(/\s/g,"");if(!b64)return "";return decodeURIComponent(Array.prototype.map.call(atob(b64),function(c){return "%"+("00"+c.charCodeAt(0).toString(16)).slice(-2);}).join(""));}
@@ -8047,8 +8051,11 @@ function cloudPush(manual){
   pushing=true;setSync("saving");resyncAllActivityTags();
   pbSave({data:payload()},function(ok,err){
     pushing=false;
-    if(ok){markDirty(false);setLastSync();setSync("ok");if(manual)toast("Saved to your server");return;}
-    setSync(err==="offline"?"offline":"error",err==="auth"?"session expired — log in again":"");
+    if(ok){
+      markDirty(false);setLastSync();
+      try{cfStatusTransportOk({manual:manual});cfCasConvergeFrom("save");}catch(e){setSync("ok");}
+      if(manual)toast("Saved to your server");return;}
+    cfStatusTransportFailure(err,{manual:(typeof manual!=="undefined")&&!!manual});
     if(manual)toast(err==="offline"?"No connection":err==="auth"?"Please log in again":"Save failed");});}
 
 function trainingPush(){
@@ -8931,7 +8938,7 @@ cloudPush=function(manual){
         if(manual)toast("Saved — sending your newest changes");}
       return;}
     /* a failed push leaves the track dirty; nothing is marked clean */
-    setSync(err==="offline"?"offline":"error",err==="auth"?"session expired — log in again":"");
+    cfStatusTransportFailure(err,{manual:(typeof manual!=="undefined")&&!!manual});
     if(manual)toast(err==="offline"?"No connection":err==="auth"?"Please log in again":"Save failed");});};
 
 /* Training gets its own revision track (its conflict handling lands in M5). */
@@ -9084,7 +9091,7 @@ autoSync=function(){
   if(!revIsDirty("training"))trainingPull(function(){if(state.view==="train")render();});
   setSync("syncing");
   cloudGet(function(d,err){
-    if(err){setSync(err==="offline"?"offline":"error",err==="auth"?"session expired — log in again":"");return;}
+    if(err){cfStatusTransportFailure(err,{manual:(typeof manual!=="undefined")&&!!manual});return;}
     var decision=syncDecide({localDirty:isDirty(),localHasData:localHasData(),
       serverHasData:!cloudEmpty(d),serverFp:syncFingerprint(d),lastAgreedFp:syncFpGet()});
     if(decision==="seed"||decision==="push"){cloudPush();return;}
@@ -9096,7 +9103,7 @@ autoSync=function(){
 cloudPull=function(manual,done){
   setSync("syncing");
   cloudGet(function(d,err){
-    if(err){setSync(err==="offline"?"offline":"error",err==="auth"?"session expired — log in again":"");
+    if(err){cfStatusTransportFailure(err,{manual:(typeof manual!=="undefined")&&!!manual});
       if(manual)toast(err==="offline"?"No connection":err==="auth"?"Please log in again":"Couldn't refresh");done&&done();return;}
     var decision=syncDecide({localDirty:isDirty(),localHasData:localHasData(),
       serverHasData:!cloudEmpty(d),serverFp:syncFingerprint(d),lastAgreedFp:syncFpGet()});
@@ -9111,7 +9118,7 @@ function syncReplaceWithServer(){
     function(){
       setSync("syncing");
       cloudGet(function(d,err){
-        if(err){setSync("error");toast("Couldn't reach the server");return;}
+        if(err){cfStatusTransportFailure(err,{manual:true});toast("Couldn't reach the server");return;}
         applyCloudSafe(d,"explicit-replace",function(){setLastSync();setSync("ok");render();toast("This device now matches the server");});});},
     {label:"Replace this device",danger:true});}
 
@@ -9471,14 +9478,14 @@ autoSync=function(){
   if(!revIsDirty("training"))trainingPull(function(){if(state.view==="train")render();});
   setSync("syncing");
   cloudGet(function(d,err){
-    if(err){setSync(err==="offline"?"offline":"error",err==="auth"?"session expired — log in again":"");return;}
+    if(err){cfStatusTransportFailure(err,{manual:(typeof manual!=="undefined")&&!!manual});return;}
     cfOwnerStampVerified();
     cfReconcile(d,"boot");});};
 
 cloudPull=function(manual,done){
   setSync("syncing");
   cloudGet(function(d,err){
-    if(err){setSync(err==="offline"?"offline":"error",err==="auth"?"session expired — log in again":"");
+    if(err){cfStatusTransportFailure(err,{manual:(typeof manual!=="undefined")&&!!manual});
       if(manual)toast(err==="offline"?"No connection":err==="auth"?"Please log in again":"Couldn’t refresh");done&&done();return;}
     cfOwnerStampVerified();
     cfReconcile(d,"refresh",function(dec){
@@ -9492,7 +9499,7 @@ syncReplaceWithServer=function(){
   askConfirm("Replace this device with the online copy? Anything on this device that hasn’t been uploaded will be replaced. A previous copy is saved first.",
     function(){setSync("syncing");
       cloudGet(function(d,err){
-        if(err){setSync("error");toast("Couldn’t reach the server");return;}
+        if(err){cfStatusTransportFailure(err,{manual:true});toast("Couldn’t reach the server");return;}
         applyCloudSafe(d,"explicit-replace",function(ok){
           if(ok){cfClearPending();setLastSync();setSync("ok");try{render();}catch(e){}toast("This device now matches your online copy");}});});},
     {label:"Replace this device",danger:true});};
@@ -9546,6 +9553,9 @@ pbDoLogin=function(){
     if(!ok){pbLoginState.err=(why==="bad")?"That email and password don’t match.":(why==="offline")?"Can’t reach the server. Is Tailscale on?":"Something went wrong. Try again.";
       pbRenderLogin();return;}
     pbLoginState.err="";
+    /* STATUS-V3-02: reauthentication is the ONLY thing that clears `auth`, and
+       it clears nothing else — a network or manual failure survives a sign-in. */
+    try{cfStatusAuthOk();}catch(e){}
     try{phAccountChanged();phRefreshOrphanCount();}catch(e){}
     var verdict=cfAccountVerdict();
     if(verdict==="mismatch"){
@@ -9679,17 +9689,29 @@ cfUploadNow=function(){
   if(cfAccountVerdict()!=="ok"){toast("This device holds another account’s data — not uploading");return;}
   setSync("syncing");
   cloudGet(function(d,err){
-    if(err){setSync(err==="offline"?"offline":"error");toast(err==="offline"?"No connection":"Couldn’t reach the server");return;}
+    if(err){
+      /* STATUS-V3-01: the ACTIVE manual upload path. My first attempt wired a
+         SUPERSEDED cloudPush — the append-and-override trap this codebase warns
+         about — so the real operator-initiated failure never reached the
+         registry. This is the one the athlete's Sync button actually runs. */
+      cfStatusTransportFailure(err,{manual:true});
+      toast(err==="offline"?"No connection":"Couldn’t reach the server");return;}
     cfOwnerStampVerified();
     var ln=cfNormalize(payload()),sn=cfNormalize(d);
     if(cfCanon(ln)===cfCanon(sn)){
       cfBaselineSet(cfCanon(sn));syncFpSet(syncFingerprint(d));revClean("core");cfClearPending();
-      setLastSync();setSync("ok");toast("Already up to date");return;}
+      setLastSync();
+      try{cfStatusTransportOk({manual:true});cfCasConvergeFrom("manual-upload");}catch(e){setSync("ok");}
+      toast("Already up to date");return;}
     /* Architect ruling: a user-confirmed blind overwrite is still
        last-writer-wins. Confirmation changes intent, not concurrency safety.
        So there is no replace option here — only a truthful explanation and a
        way to get the data off the device. */
-    setSync("error","changes on this device aren’t uploaded yet");
+    /* This is ordinary pending, not a failure: the data is safe on the device
+       and upload is deliberately paused. It was painting red with the obsolete
+       "aren't uploaded yet" wording; it now uses the owned cas-pending source
+       and the approved safe-local wording (Architect STATUS-V3-02). */
+    try{cfSetPending("push");}catch(e){setSync("error","");}
     wlChoose("Your changes are still on this device",
       "Uploading is paused while we finish a safety fix on the server. Nothing has been lost — your data is here and will upload automatically once the fix is live. You can save a copy now if you’d like one off this device.",
       [{label:"Save a copy to my files",primary:true},{label:"OK"}],
@@ -9736,7 +9758,7 @@ function cfAccountBlocked(){
   if(v==="ok"||v==="unauthenticated")return "";
   /* unknown owner: safe to claim silently only if nothing meaningful is here */
   return coreHasMeaningfulState(payload())?"unclaimed":"";}
-function cfClaimLocal(){cfOwnerStampVerified();try{render();}catch(e){}
+function cfClaimLocal(){cfOwnerStampVerified();try{cfStatusAuthOk();}catch(e){}try{render();}catch(e){}
   toast("This device’s data is now linked to your account");}
 function cfDisownLocal(){
   /* Preserve, then clear. The blob is copied to a quarantine key so the new
@@ -10054,7 +10076,7 @@ autoSync=function(){
   if(!revIsDirty("training"))trainingPull(function(){if(state.view==="train")render();});
   setSync("syncing");
   cloudGet(function(d,err){
-    if(err){setSync(err==="offline"?"offline":"error",err==="auth"?"session expired — log in again":"");return;}
+    if(err){cfStatusTransportFailure(err,{manual:(typeof manual!=="undefined")&&!!manual});return;}
     cfReconcile(d,"boot");});};
 
 cloudPull=function(manual,done){
@@ -10062,7 +10084,7 @@ cloudPull=function(manual,done){
   if(blocked){try{render();}catch(e){}done&&done();return;}
   setSync("syncing");
   cloudGet(function(d,err){
-    if(err){setSync(err==="offline"?"offline":"error",err==="auth"?"session expired — log in again":"");
+    if(err){cfStatusTransportFailure(err,{manual:(typeof manual!=="undefined")&&!!manual});
       if(manual)toast(err==="offline"?"No connection":err==="auth"?"Please log in again":"Couldn’t refresh");done&&done();return;}
     cfOwnerMaybeStamp();
     cfReconcile(d,"refresh",function(dec){
@@ -10087,6 +10109,9 @@ pbDoLogin=function(){
     if(!ok){pbLoginState.err=(why==="bad")?"That email and password don’t match.":(why==="offline")?"Can’t reach the server. Is Tailscale on?":"Something went wrong. Try again.";
       pbRenderLogin();return;}
     pbLoginState.err="";
+    /* STATUS-V3-02: reauthentication is the ONLY thing that clears `auth`, and
+       it clears nothing else — a network or manual failure survives a sign-in. */
+    try{cfStatusAuthOk();}catch(e){}
     try{phAccountChanged();phRefreshOrphanCount();}catch(e){}
     var blocked=cfAccountBlocked();
     if(blocked){ /* claim/mismatch screen decides; reconciliation is PAUSED, no stamp */
@@ -11928,8 +11953,9 @@ function cfCasHandle(sub,op,status,body){
     cfCasSetServerRev(sub,body.newRev);
     cfCasSetBaseline(sub,op.canon);              /* this is now the agreed content */
     cfCasFinishOp(sub);
+    try{ if(!CF_CAS_BLOCK.core&&!CF_CAS_BLOCK.training)cfStatusClearSource("cas-network"); }catch(e){}
     if(acked.stillPending){cfCasSchedule(sub,0);return;}  /* an edit landed mid-flight */
-    cfCasSyncLegacyStatus();                     /* FIX-004: stop lying about it */
+    try{cfCasConvergeFrom("commit");}catch(e){}
     return;}
 
   if(d==="conflict"){cfCasOnConflict(sub,op,body);return;}   /* owns its own finish */
@@ -11937,7 +11963,12 @@ function cfCasHandle(sub,op,status,body){
   if(d==="retry"){
     var wait=cfCasRetryDelay(status,CF_CAS_ATTEMPT[sub]);
     CF_CAS_ATTEMPT[sub]=CF_CAS_ATTEMPT[sub]+1;
-    if(wait===null){cfCasSetBlock(sub,"failed",op.token);cfCasFinishOp(sub);return;}
+    if(wait===null){
+      cfCasSetBlock(sub,"failed",op.token);
+      /* retries exhausted on a 5xx or dead connection: a genuine network
+         failure, owned by cas-network and RED — distinct from ordinary pending */
+      try{cfStatusSet("cas-network",CF_NETWORK_MSG);}catch(e){}
+      cfCasFinishOp(sub);return;}
     /* Re-send the CAPTURED operation: same key, same bytes, same expectedRev. */
     CF_CAS_OP[sub].phase="waiting-retry";
     setTimeout(function(){
@@ -11948,6 +11979,7 @@ function cfCasHandle(sub,op,status,body){
   /* auth | update | oversize | contract | invariant: no automatic retry. Local
      data stays exactly where it is and stays exportable. */
   cfCasSetBlock(sub,(d==="contract")?"invariant":d,op.token);
+  try{ if(d==="auth")cfStatusSet("auth",CF_AUTH_MSG); }catch(e){}
   cfCasFinishOp(sub);}
 
 /* ---- 409 --------------------------------------------------------------- */
@@ -13076,10 +13108,20 @@ function cfCasPaintStatusControl(){
     var say=cfCasStatusControlText();
     var cue=el.querySelector(".cf-dot-cue");
     if(!say){
-      el.setAttribute("aria-label",CF_CAS_DOT_LEGACY);
+      /* No conflict centre — but a status source may still be live, and the
+         athlete must be able to learn that without seeing colour (Architect
+         STATUS-V3-21). The registry's own message becomes the accessible name;
+         with nothing live the control returns to its plain legacy name. */
+      var top=null;try{top=cfStatusTop();}catch(e){top=null;}
+      if(top&&top.msg){
+        el.setAttribute("aria-label",top.msg);
+        el.setAttribute("title",top.msg);
+      }else{
+        el.setAttribute("aria-label",CF_CAS_DOT_LEGACY);
+        el.removeAttribute("title");
+      }
       el.removeAttribute("aria-controls");
       el.removeAttribute("aria-expanded");
-      el.removeAttribute("title");
       if(cue&&cue.parentNode)cue.parentNode.removeChild(cue);
       return true;}
     el.setAttribute("aria-label",say);
@@ -13195,8 +13237,14 @@ try{cfCasRestoreWorkflow();}catch(e){}
    ============================================================ */
 
 /* highest priority first — the athlete sees the most serious live cause */
-var CF_STATUS_ORDER=["auth","cas-network","cas-pending","photo-reconcile","legacy-manual"];
-var CF_STATUS_SEV={auth:"bad","cas-network":"bad","cas-pending":"bad","photo-reconcile":"warn","legacy-manual":"bad"};
+/* Priority and severity per the Architect's STATUS-V3-02 ruling. My first order
+   put photo-reconcile ABOVE legacy-manual, so an amber "couldn't check photos"
+   could hide a red "your manual restore failed" — which contradicts the whole
+   point of showing the most serious live cause. And cas-pending was red: but
+   ordinary pending means "safely stored here, not synced yet", which is not a
+   failure at all. Red is now reserved for things that are actually wrong. */
+var CF_STATUS_ORDER=["auth","cas-network","legacy-manual","cas-pending","photo-reconcile"];
+var CF_STATUS_SEV={auth:"bad","cas-network":"bad","legacy-manual":"bad","cas-pending":"warn","photo-reconcile":"warn"};
 var CF_STATUS={};                       /* source -> {msg} for live causes only */
 
 function cfStatusTop(){
@@ -13238,7 +13286,13 @@ syncDotClass=function(){
   return _fix005Dot.apply(this,arguments);};
 
 /* ---- cas-pending becomes an owned source -------------------------------- */
-var CF_PENDING_MSG="changes on this device aren’t uploaded yet — tap to upload";
+/* "tap to upload" described a manual world. Sync is automatic: ordinary pending
+   means the work is safe on the device and has not gone up YET. The explicit
+   Sync control still exists for anyone who wants it, but the normal state must
+   not instruct the athlete to do something the app already does. */
+var CF_PENDING_MSG="Saved on this device. Waiting to sync.";
+var CF_NETWORK_MSG="Couldn’t sync — changes are safe here.";
+var CF_AUTH_MSG="Sign in to sync.";
 cfSetPending=function(kind){
   cfPending=kind;
   if(kind)cfStatusSet("cas-pending",CF_PENDING_MSG);
@@ -13289,18 +13343,10 @@ function cfStatusConverge(){
 /* FIX-004's helper delegates, so there is exactly one convergence rule */
 cfCasSyncLegacyStatus=function(){cfStatusConverge();};
 
-/* the bootstrap/pull side of the same rule: after any successful server
-   interaction records a fresh last-sync, re-test the proof */
-var _fix005LastSync=setLastSync;
-setLastSync=function(){
-  var r=_fix005LastSync.apply(this,arguments);
-  try{
-    if(cfStatusHas("cas-pending")&&cfStatusConverged()){
-      cfPending=null;cfStatusClearSource("cas-pending");
-      try{render();}catch(e){}
-    }
-  }catch(e){}
-  return r;};
+/* The setLastSync() wrapper that used to live here is GONE. It fired on any
+   timestamp update — including photo-only ones — so an unrelated success could
+   have become the proof event for a CAS claim. Convergence is now invoked from
+   named completions via cfCasConvergeFrom(reason). */
 
 /* ---- photo reconciliation is its own cause, at its own severity ----------
    Architect §5: "photo list incomplete" must not present as the global red
@@ -13311,6 +13357,42 @@ setLastSync=function(){
 var CF_PHOTO_WARN="Photo sync couldn’t be fully checked. Nothing was removed.";
 function cfPhotoStatusIncomplete(){cfStatusSet("photo-reconcile",CF_PHOTO_WARN);}
 function cfPhotoStatusComplete(){cfStatusClearSource("photo-reconcile");}
+
+/* ---- explicit classification AT the producer (Architect STATUS-V3-01) ----
+   Not a blanket setSync wrapper: every transport producer calls this by name
+   and says what kind of operation it was, and the classifier maps that to the
+   owning source. A session expiry is `auth`, an operator-initiated action that
+   fails is `legacy-manual`, everything else that reached the wire is
+   `cas-network`. Before this, all three collapsed into one global setSync and
+   the last writer won. */
+function cfStatusTransportFailure(err,opts){
+  try{
+    if(err==="auth"){cfStatusSet("auth","Session expired. Sign in to sync.");return;}
+    if(opts&&opts.manual){cfStatusSet("legacy-manual","Couldn’t reach your server. Your changes are safe here.");return;}
+    cfStatusSet("cas-network",CF_NETWORK_MSG);
+  }catch(e){setSync(err==="offline"?"offline":"error","");}}
+
+/* A proven-successful transport operation clears only what it owns. */
+function cfStatusTransportOk(opts){
+  try{
+    cfStatusClearSource("cas-network");
+    if(opts&&opts.manual)cfStatusClearSource("legacy-manual");
+    cfStatusProject();
+  }catch(e){}}
+
+/* Reauthentication is the only thing that clears `auth`. */
+function cfStatusAuthOk(){try{cfStatusClearSource("auth");}catch(e){}}
+
+/* ---- named convergence call sites (Architect §6) -------------------------
+   Wrapping setLastSync() was too weak a trigger: it is a timestamp helper used
+   by several flows, and a photo-only or unrelated timestamp update could have
+   become the semantic proof event. Convergence is now invoked BY NAME from the
+   completions that actually prove something, and carries the reason so the
+   diagnostic can say which one fired. */
+var CF_CONVERGE_LAST=null;
+function cfCasConvergeFrom(reason){
+  CF_CONVERGE_LAST=reason||"unknown";
+  cfStatusConverge();}
 
 /* ---- payload-free diagnostic snapshot (Architect §6) ---------------------
    The Product Owner's red status could not be diagnosed from the outside: I
