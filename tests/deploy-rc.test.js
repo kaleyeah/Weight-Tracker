@@ -943,17 +943,169 @@ if (!havePorted) {
       eq(a2, APPROVED_SHA);
     });
 
-    test('FIX003-PIPE-08 this build-only correction changed neither root nor the halted canary', () => {
-      /* the published branch as this checkout sees it; the live served bytes are
-         recorded separately in the package's curl transcript */
-      const rootSha = crypto.createHash('sha256').update(
-        execFileSync('git', ['-C', ROOT, 'show', 'origin/main:index.html'], { encoding: 'buffer', maxBuffer: 64 * 1024 * 1024 })).digest('hex');
-      const canarySha = crypto.createHash('sha256').update(
-        execFileSync('git', ['-C', ROOT, 'show', 'origin/main:canary/index.html'], { encoding: 'buffer', maxBuffer: 64 * 1024 * 1024 })).digest('hex');
-      eq(rootSha, 'bb41dab4d851c73036714ba2299ad3f5cc6c1f54e10c432a4b74bf996e2a568a',
-        'the production root must still be the exact .347 artifact');
-      eq(canarySha, '9e45a225a5ea663c23e88340916689ac77fc8d0796ef48f342b06195adab4256',
-        'and /canary/ must still be the halted .348 — nothing republished');
+    test('FIX003-PIPE-08 the published branch: root is still .347, /canary/ is the APPROVED candidate', () => {
+      /* Written during the provenance correction, when the invariant was "the
+         canary is still the halted .348". The canary has since been republished
+         with .349 under the Architect's §8 authorization, so pinning that old
+         hash would now fail for the RIGHT reason — which it did, once.
+
+         The durable invariant is the one that survives authorized releases:
+         root must not move until root cutover is authorized, and /canary/ must
+         be exactly the release the reviewed expectation names. An accidental
+         root deploy, or a canary carrying anything other than the approved
+         candidate, still fails here.
+
+         The published branch as this checkout sees it; live served bytes are
+         recorded separately in each package's curl transcript. */
+      const blobSha = (p_) => crypto.createHash('sha256').update(
+        execFileSync('git', ['-C', ROOT, 'show', 'origin/main:' + p_],
+          { encoding: 'buffer', maxBuffer: 64 * 1024 * 1024 })).digest('hex');
+      const expected = JSON.parse(fs.readFileSync(path.join(ROOT, 'deployment-path', 'RELEASE.expected.json'), 'utf8'));
+      eq(blobSha('index.html'), 'bb41dab4d851c73036714ba2299ad3f5cc6c1f54e10c432a4b74bf996e2a568a',
+        'the production root must still be the exact .347 artifact — root cutover is not authorized');
+      eq(blobSha('canary/index.html'), expected.sha256,
+        'and /canary/ must carry exactly the release RELEASE.expected.json names');
+    });
+  });
+
+  if (compoundUsable) group('RELEASE-EXPECT-01..10 — the intended release is MANDATORY, not advisory', () => {
+    /* Architect V3 §3: the expectation file was introduced as optional, with a
+       fallback to "build whatever the injection declares" — which is exactly the
+       self-certifying behaviour it exists to end. An optional integrity gate is
+       not a gate: deleting one file restored the defect silently. These tests
+       hold it mandatory, in the builder AND in the selector. */
+    const EXP = path.join(ROOT, 'deployment-path', 'RELEASE.expected.json');
+    const RELEASE = path.join(ROOT, '.build', 'release');
+    const APPROVED_SHA = '0958b4e456789bde830517a5fe034941c6b9c6992a310dad87e524b9f9aeb418';
+    const APPROVED_BUILD = '2026-07-30.349-pb-c10';
+    /* Every case mutates the expectation, so each restores it in a finally and
+       the group re-verifies a clean build at the end. */
+    const withExpectation = (mutate, fn) => {
+      const keep = fs.readFileSync(EXP, 'utf8');
+      try {
+        const next = mutate(JSON.parse(keep));
+        if (next === null) fs.rmSync(EXP, { force: true });
+        else fs.writeFileSync(EXP, typeof next === 'string' ? next : JSON.stringify(next, null, 1));
+        return fn();
+      } finally { fs.writeFileSync(EXP, keep); }
+    };
+
+    test('RELEASE-EXPECT-01 a MISSING expectation file fails the build', () => {
+      const r = withExpectation(() => null, () => runBuildAt(COMPOUND));
+      notOk(r.code === 0, 'a build with no intended release must refuse');
+      ok(/NO-RELEASE-EXPECTATION/.test(r.out), r.out.slice(-300));
+      assertNoStaleRelease('RELEASE-EXPECT-01');
+    });
+
+    test('RELEASE-EXPECT-02 a MALFORMED expectation file fails the build', () => {
+      const r = withExpectation(() => '{ this is not json', () => runBuildAt(COMPOUND));
+      notOk(r.code === 0);
+      ok(/BAD-RELEASE-EXPECTATION/.test(r.out), r.out.slice(-300));
+      assertNoStaleRelease('RELEASE-EXPECT-02');
+    });
+
+    test('RELEASE-EXPECT-03 a missing build, sha256 or bytes fails the build', () => {
+      ['build', 'sha256', 'bytes'].forEach((k) => {
+        const r = withExpectation((e) => { delete e[k]; return e; }, () => runBuildAt(COMPOUND));
+        notOk(r.code === 0, `omitting ${k} must refuse`);
+        ok(new RegExp('BAD-RELEASE-EXPECTATION').test(r.out) && r.out.includes(k),
+          `the refusal must name the missing field ${k}: ` + r.out.slice(-200));
+      });
+      /* and malformed values, not just absent ones */
+      const badSha = withExpectation((e) => { e.sha256 = 'nothex'; return e; }, () => runBuildAt(COMPOUND));
+      notOk(badSha.code === 0); ok(/64-character hex/.test(badSha.out), badSha.out.slice(-200));
+      const badBytes = withExpectation((e) => { e.bytes = -1; return e; }, () => runBuildAt(COMPOUND));
+      notOk(badBytes.code === 0); ok(/positive integer/.test(badBytes.out), badBytes.out.slice(-200));
+    });
+
+    test('RELEASE-EXPECT-04 a STALE INJECTION against the current expectation fails', () => {
+      const stash = INJECTION + '.re04';
+      fs.renameSync(INJECTION, stash);
+      try {
+        fs.writeFileSync(INJECTION, execFileSync('git', ['-C', ROOT, 'show',
+          '78374fc:deployment-path/injections/commit10-client.json'], { encoding: 'utf8' }));
+        const r = runBuildAt(COMPOUND);
+        notOk(r.code === 0, 'a stale injection must not build');
+        ok(/RELEASE-EXPECTATION-MISMATCH/.test(r.out), r.out.slice(-300));
+        assertNoStaleRelease('RELEASE-EXPECT-04');
+      } finally { fs.rmSync(INJECTION, { force: true }); fs.renameSync(stash, INJECTION); }
+    });
+
+    test('RELEASE-EXPECT-05 a STALE EXPECTATION against the current injection fails', () => {
+      /* the mirror image: the injection is right, the intended release was left behind */
+      const r = withExpectation((e) => {
+        e.build = '2026-07-29.348-pb-c10';
+        e.sha256 = '9e45a225a5ea663c23e88340916689ac77fc8d0796ef48f342b06195adab4256';
+        e.bytes = 1187105;
+        return e;
+      }, () => runBuildAt(COMPOUND));
+      notOk(r.code === 0, 'a stale expectation must refuse');
+      ok(/RELEASE-EXPECTATION-MISMATCH/.test(r.out), r.out.slice(-300));
+      ok(/348-pb-c10/.test(r.out) && /349-pb-c10/.test(r.out),
+        'the refusal must name both the intended and the produced release');
+      assertNoStaleRelease('RELEASE-EXPECT-05');
+    });
+
+    test('RELEASE-EXPECT-06/07 produced bytes and hash must match the expectation', () => {
+      /* bytes: right build and sha, wrong byte count -> the final gate catches it */
+      const rb = withExpectation((e) => { e.bytes = e.bytes + 1; return e; }, () => runBuildAt(COMPOUND));
+      notOk(rb.code === 0, 'a wrong expected byte count must refuse');
+      ok(/RELEASE-EXPECTATION-MISMATCH/.test(rb.out), rb.out.slice(-300));
+      /* hash: a valid-looking but wrong digest */
+      const rh = withExpectation((e) => { e.sha256 = 'a'.repeat(64); return e; }, () => runBuildAt(COMPOUND));
+      notOk(rh.code === 0, 'a wrong expected hash must refuse');
+      ok(/RELEASE-EXPECTATION-MISMATCH/.test(rh.out), rh.out.slice(-300));
+      assertNoStaleRelease('RELEASE-EXPECT-06/07');
+    });
+
+    test('RELEASE-EXPECT-08 the manifest records the expectation file identity', () => {
+      eq(runBuildAt(COMPOUND).code, 0, 'baseline build');
+      const man = JSON.parse(fs.readFileSync(path.join(RELEASE, 'manifest.json'), 'utf8'));
+      eq(man.expectationSha256, sha(EXP),
+        'the manifest must bind the exact reviewed expectation it was gated against');
+      eq(man.releaseSha256, APPROVED_SHA);
+    });
+
+    test('RELEASE-EXPECT-09 identical reviewed inputs rebuild deterministically', () => {
+      const m1 = fs.readFileSync(path.join(RELEASE, 'manifest.json'), 'utf8');
+      eq(runBuildAt(COMPOUND).code, 0);
+      const m2 = fs.readFileSync(path.join(RELEASE, 'manifest.json'), 'utf8');
+      eq(m2, m1, 'the manifest, expectation identity included, must be byte-identical');
+      eq(sha(path.join(RELEASE, 'index.html')), APPROVED_SHA);
+    });
+
+    test('RELEASE-EXPECT-10 the selector refuses an artifact lacking a valid expectation identity', () => {
+      /* (a) a manifest with no expectation identity at all — an artifact built
+             by the pre-gate builder */
+      const manPath = path.join(RELEASE, 'manifest.json');
+      const keep = fs.readFileSync(manPath, 'utf8');
+      try {
+        const m = JSON.parse(keep); delete m.expectationSha256;
+        fs.writeFileSync(manPath, JSON.stringify(m, null, 1));
+        const r = runSelector();
+        notOk(r.code === 0, 'an artifact with no expectation identity must not be selectable');
+        ok(/NO-EXPECTATION-IDENTITY/.test(r.out), r.out.slice(0, 300));
+      } finally { fs.writeFileSync(manPath, keep); }
+      /* (b) the expectation changed after the build — rebuild required */
+      const r2 = withExpectation((e) => { e.approvedBy = 'edited after the build'; return e; },
+        () => runSelector());
+      notOk(r2.code === 0, 'a changed expectation must force a rebuild');
+      ok(/EXPECTATION-CHANGED/.test(r2.out), r2.out.slice(0, 300));
+      /* (c) restored: the real pair selects */
+      const good = runSelector();
+      eq(good.code, 0, good.out);
+      const rec = JSON.parse(fs.readFileSync(path.join(RELEASE, 'SELECTED.json'), 'utf8'));
+      eq(rec.sha256, APPROVED_SHA);
+      eq(rec.build, APPROVED_BUILD);
+    });
+
+    test('RELEASE-EXPECT — the group left a clean, selectable, correct release behind', () => {
+      eq(runBuildAt(COMPOUND).code, 0);
+      eq(sha(path.join(RELEASE, 'index.html')), APPROVED_SHA);
+      eq(runSelector().code, 0);
+      eq(sha(EXP), sha(EXP), 'expectation restored');
+      const man = JSON.parse(fs.readFileSync(path.join(RELEASE, 'manifest.json'), 'utf8'));
+      eq(man.expectationSha256, sha(EXP));
     });
   });
 

@@ -180,23 +180,37 @@ if (!EXPECT_SRC || !EXPECT_SRC.commit || !EXPECT_SRC.sha256) {
    rather than silent. Checked before any work, and again on the produced bytes
    below. */
 const EXPECTED_FILE = path.join(HERE, 'RELEASE.expected.json');
+/* MANDATORY (Architect V3 ruling §3). It was optional when introduced, with a
+   fallback to "build whatever the injection declares" — which is precisely the
+   self-certifying behaviour the file exists to end. An optional integrity gate
+   is not a gate: deleting one file would have restored the defect silently. */
+if (!fs.existsSync(EXPECTED_FILE)) {
+  die('NO-RELEASE-EXPECTATION',
+    `${EXPECTED_FILE} is required. The intended release must be declared\n`
+    + '        independently of the injection, or a stale injection can certify itself.');
+}
 let EXPECTED = null;
-if (fs.existsSync(EXPECTED_FILE)) {
-  try { EXPECTED = JSON.parse(fs.readFileSync(EXPECTED_FILE, 'utf8')); }
-  catch (e) { die('BAD-RELEASE-EXPECTATION', `${EXPECTED_FILE}: ${e.message}`); }
-  if (!EXPECTED.sha256 || !EXPECTED.build) {
-    die('BAD-RELEASE-EXPECTATION', 'RELEASE.expected.json must declare build and sha256');
-  }
-  if (inj.release !== EXPECTED.build || inj.generatedFrom.rcSha !== EXPECTED.sha256) {
-    die('RELEASE-EXPECTATION-MISMATCH',
-      `the injection on disk produces ${inj.release} (${inj.generatedFrom.rcSha}),\n`
-      + `        but the intended release is ${EXPECTED.build} (${EXPECTED.sha256}).\n`
-      + '        Either the injection is stale/reverted, or the expectation was not updated.\n'
-      + '        Regenerate the injection from the reviewed candidate, or update\n'
-      + '        RELEASE.expected.json in the same reviewed commit. Refusing to build.');
-  }
-} else {
-  console.log('  (no RELEASE.expected.json — building whatever the injection declares)');
+try { EXPECTED = JSON.parse(fs.readFileSync(EXPECTED_FILE, 'utf8')); }
+catch (e) { die('BAD-RELEASE-EXPECTATION', `${EXPECTED_FILE}: ${e.message}`); }
+const missing = ['build', 'sha256', 'bytes'].filter((k) => !EXPECTED[k]);
+if (missing.length) {
+  die('BAD-RELEASE-EXPECTATION',
+    `RELEASE.expected.json must declare build, sha256 and bytes — missing: ${missing.join(', ')}`);
+}
+if (!/^[0-9a-f]{64}$/.test(String(EXPECTED.sha256))) {
+  die('BAD-RELEASE-EXPECTATION', `sha256 must be a 64-character hex digest, got "${EXPECTED.sha256}"`);
+}
+if (!Number.isInteger(EXPECTED.bytes) || EXPECTED.bytes <= 0) {
+  die('BAD-RELEASE-EXPECTATION', `bytes must be a positive integer, got ${JSON.stringify(EXPECTED.bytes)}`);
+}
+const EXPECTED_SHA = shaFile(EXPECTED_FILE);
+if (inj.release !== EXPECTED.build || inj.generatedFrom.rcSha !== EXPECTED.sha256) {
+  die('RELEASE-EXPECTATION-MISMATCH',
+    `the injection on disk produces ${inj.release} (${inj.generatedFrom.rcSha}),\n`
+    + `        but the intended release is ${EXPECTED.build} (${EXPECTED.sha256}).\n`
+    + '        Either the injection is stale/reverted, or the expectation was not updated.\n'
+    + '        Regenerate the injection from the reviewed candidate, or update\n'
+    + '        RELEASE.expected.json in the same reviewed commit. Refusing to build.');
 }
 
 const args = Object.fromEntries(process.argv.slice(2)
@@ -303,6 +317,10 @@ const manifest = {
   releaseBuild: RELEASE_BUILD,
   releaseSha256: releaseSha,
   releaseBytes: fs.statSync(artifact).size,
+  /* which reviewed expectation this build was gated against (Architect
+     RELEASE-EXPECT-08). The selector re-checks it, so an artifact built
+     without a valid expectation identity cannot reach deployment. */
+  expectationSha256: EXPECTED_SHA,
   artifact: 'index.html',
   sourceCommit: srcCommit,
   sourceSha256: srcSha,

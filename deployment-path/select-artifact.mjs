@@ -61,6 +61,32 @@ if (actualBytes !== man.releaseBytes) die('BYTES-MISMATCH', `artifact ${actualBy
 const build = (fs.readFileSync(artifactPath, 'utf8').match(/APP_BUILD="([^"]*)"/) || [])[1];
 if (build !== man.releaseBuild) die('BUILD-MISMATCH', `artifact build "${build}", manifest says "${man.releaseBuild}"`);
 
+/* The reviewed release expectation must have gated this build, and must still
+   describe it (Architect RELEASE-EXPECT-10). Without this, an artifact built
+   before the expectation existed — or against a since-changed one — could still
+   be selected for deployment, which reopens the self-certifying hole one level
+   further down the pipeline. */
+const EXPECTED_FILE = path.join(REPO, 'deployment-path', 'RELEASE.expected.json');
+if (!man.expectationSha256) {
+  die('NO-EXPECTATION-IDENTITY',
+    'this release was built without a recorded RELEASE.expected.json identity — rebuild with the current builder');
+}
+if (!fs.existsSync(EXPECTED_FILE)) die('NO-RELEASE-EXPECTATION', EXPECTED_FILE);
+if (sha(EXPECTED_FILE) !== man.expectationSha256) {
+  die('EXPECTATION-CHANGED',
+    'RELEASE.expected.json has changed since this artifact was built — rebuild so the\n'
+    + '         intended release and the artifact are gated by the same reviewed expectation');
+}
+let expected;
+try { expected = JSON.parse(fs.readFileSync(EXPECTED_FILE, 'utf8')); }
+catch (e) { die('BAD-RELEASE-EXPECTATION', e.message); }
+if (expected.sha256 !== actualSha || expected.build !== build
+    || (expected.bytes && expected.bytes !== actualBytes)) {
+  die('EXPECTATION-MISMATCH',
+    `the intended release is ${expected.build} (${expected.sha256}, ${expected.bytes} bytes),\n`
+    + `         but this artifact is ${build} (${actualSha}, ${actualBytes} bytes)`);
+}
+
 /* record exactly what was selected, beside the artifact */
 const record = {
   selected: man.artifact,
