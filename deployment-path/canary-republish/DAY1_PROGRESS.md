@@ -66,3 +66,43 @@ cannot be marked, and the 48-hour clock does not start.
 - his installed .347 app is untouched and still works;
 - the set-aside copy of the pre-sign-in data is preserved on the device;
 - rollback to the halted .348 is one command, artifact backed up off-repo.
+
+
+---
+
+## RESOLVED: the red dot was FIX-004, a real defect
+
+Diagnosed and reproduced 2026-07-30, after the PO reported that tapping **Test**
+turned the dot green while the server showed no write at all.
+
+`scheduleCloudPush()` sets `cfSetPending("push")` — the legacy "changes on this
+device aren't uploaded yet" marker, drawn RED — and schedules the CAS commit.
+**The CAS success path never cleared the marker**, and `syncDotClass()` falls
+through to the legacy state whenever the conflict centre has nothing to show.
+
+Reproduced on a disposable instance (`day1-repro-probe.js`): commit `200`,
+`newRev 1`, CAS `synced`, `dirty false` — dot still `bad`, message still
+"aren't uploaded yet", `cfPending` still `"push"`.
+
+Why the server never changed in his case: local and server already agreed after
+the pull, so there was genuinely nothing to upload. Tapping **Test** ran a
+legacy path that ends in `setSync("ok")`, clearing the false alarm. His data was
+never at risk at any point.
+
+**Day one therefore FAILS at CANARY-08** (pending -> syncing -> synced never
+reaches synced). The window did not start.
+
+Fixed by `cfCasSyncLegacyStatus()`, which clears the marker only when the whole
+CAS surface is settled and neither subsystem is locally dirty — so a blocked or
+unsent sibling keeps the honest warning. Covered permanently by
+`tests/browser/sync-status.browser.test.js` STATUS-H-01..05 with a negative
+control that exits 1.
+
+New candidate `2026-07-30.350-pb-c10` (`c3dc0321…`, 1,191,327 bytes) is with the
+Architect. **Nothing republished**: `/canary/` still serves `.349`, root `.347`.
+
+### Unresolved, reported not fixed
+
+On a clean account with no photos, the boot path sets a red legacy error
+"photo list incomplete — nothing removed" BEFORE any edit (seen in probe
+output). Not investigated, not assumed benign, raised with the Architect.
