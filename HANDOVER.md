@@ -162,8 +162,12 @@ Remaining, in order (PO authorized both I5d and the canary on 2026-07-30):
 1. ~~**I5d**~~ — EXECUTED on production 2026-07-30: 11 passed, 0 failed, both
    disposable accounts torn down with verified absence, athletes byte-identical
    before/after. See `server/I5D_RESULTS.md`.
-2. **Canary** — PO-authorized; `deployment-path/CANARY_PLAN.md` is with the
-   Architect. Nothing publishes until the Architect approves the plan.
+2. **Canary** — approved, published, and STOPPED on day one. The PO was
+   trapped on the ownership gate ("No — set it aside" did nothing) — FIX-003,
+   see `deployment-path/CANARY_DAY1_STOP.md`. The 48h window never started.
+   `/canary/` still serves the superseded `.348-pb-c10`, halted; root untouched
+   at `.347`. New candidate `2026-07-30.349-pb-c10` (`30336aee…`) is with the
+   Architect; nothing republishes until it is accepted.
 3. Real-iPhone canary smoke (inside the canary window).
 4. Final cutover package → Architect release authorization → PO
    root-deployment authorization.
