@@ -945,7 +945,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-30.349-pb-c10";
+var APP_BUILD="2026-07-30.350-pb-c10";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -11923,7 +11923,8 @@ function cfCasHandle(sub,op,status,body){
     cfCasSetServerRev(sub,body.newRev);
     cfCasSetBaseline(sub,op.canon);              /* this is now the agreed content */
     cfCasFinishOp(sub);
-    if(acked.stillPending)cfCasSchedule(sub,0);  /* an edit landed mid-flight */
+    if(acked.stillPending){cfCasSchedule(sub,0);return;}  /* an edit landed mid-flight */
+    cfCasSyncLegacyStatus();                     /* FIX-004: stop lying about it */
     return;}
 
   if(d==="conflict"){cfCasOnConflict(sub,op,body);return;}   /* owns its own finish */
@@ -12050,6 +12051,35 @@ function cfCasStatusFor(sub){
   if(revIsDirty(sub))return "pending";
   return "synced";}
 function cfCasCompactStatus(){return cfCasStatus(cfCasStatusFor("core"),cfCasStatusFor("training"));}
+
+/* ---- FIX-004: a successful upload must CLEAR the "not uploaded yet" state ---
+   scheduleCloudPush does two things on every edit: cfSetPending("push"), which
+   sets the LEGACY sync state to error with "changes on this device aren't
+   uploaded yet — tap to upload", and cfCasSchedule(), which does the real work.
+   The CAS success path acked revisions and set the baseline but never touched
+   the legacy marker — and syncDotClass() falls through to the legacy state
+   whenever the conflict centre has nothing to show. So after a completely
+   successful commit the athlete saw a RED dot claiming their data was not
+   uploaded. Found on the Product Owner's iPhone during the canary day-one
+   restart, 2026-07-30, and reproduced: commit 200 / newRev 1 / CAS "synced" /
+   dirty false, dot still "bad".
+
+   No data was ever at risk — the data was uploaded — but a status that cries
+   wolf in the alarming direction is worse than useless in a health app: it
+   teaches the athlete to ignore the one indicator that must be believed when a
+   real pending state appears.
+
+   Only clears when the WHOLE CAS surface is settled, so a still-pending or
+   blocked sibling subsystem keeps the honest warning. */
+function cfCasSyncLegacyStatus(){
+  try{
+    if(cfCasCompactStatus()!=="synced")return;   /* something really is outstanding */
+    if(revIsDirty("core")||revIsDirty("training"))return;
+    cfClearPending();
+    setLastSync();
+    setSync("ok");
+    try{render();}catch(e){}
+  }catch(e){/* status is cosmetic; never break a completed commit over it */}}
 var CF_CAS_STATUS_TEXT={
   update:"Update required — reload the app",
   conflict:"Sync needs your choice",

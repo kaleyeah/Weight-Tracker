@@ -1,0 +1,16 @@
+{
+ "_why": "What is ACTUALLY published where, as distinct from RELEASE.expected.json which records the release we INTEND to build next. The two legitimately differ whenever a new candidate is awaiting Architect review — which is exactly when a test that assumed they were equal starts failing for the wrong reason. Updated in the same commit as any publication.",
+ "root": {
+  "url": "https://kaleyeah.github.io/Weight-Tracker/",
+  "build": "2026-07-28.347-pb",
+  "sha256": "bb41dab4d851c73036714ba2299ad3f5cc6c1f54e10c432a4b74bf996e2a568a",
+  "note": "Lineage A, frozen. Root cutover is NOT authorized."
+ },
+ "canary": {
+  "url": "https://kaleyeah.github.io/Weight-Tracker/canary/",
+  "build": "2026-07-30.349-pb-c10",
+  "sha256": "0958b4e456789bde830517a5fe034941c6b9c6992a310dad87e524b9f9aeb418",
+  "publishedAt": "2026-07-30T05:15:55Z",
+  "note": "Architect-authorized republish (V3 review §8). Day one STOPPED by FIX-004; a .350 candidate awaits review and is NOT published."
+ }
+}

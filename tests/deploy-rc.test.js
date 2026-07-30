@@ -812,8 +812,16 @@ if (!havePorted) {
        manifest asserts is recomputed from the files on disk, the stale
        injection is proven to be REFUSED rather than silently accepted, and the
        build is proven deterministic. */
-    const APPROVED_SHA = '0958b4e456789bde830517a5fe034941c6b9c6992a310dad87e524b9f9aeb418';
-    const APPROVED_BUILD = '2026-07-30.349-pb-c10';
+    /* The approved identity comes from the REVIEWED EXPECTATION, never a literal.
+       These tests hard-coded .349 and all failed the moment FIX-004 produced a
+       .350 candidate — twelve red tests that were really one brittle constant.
+       The expectation file is the single place the intended release is declared;
+       reading it here means the pipeline tests follow the release instead of
+       having to be hand-edited (and mis-edited) on every candidate. */
+    const EXPECTED = JSON.parse(fs.readFileSync(
+      path.join(ROOT, 'deployment-path', 'RELEASE.expected.json'), 'utf8'));
+    const APPROVED_SHA = EXPECTED.sha256;
+    const APPROVED_BUILD = EXPECTED.build;
     const OLD_348_INJECTIONS = [
       'c2c55f6cbb2faaa8acb2d36a3e8ef7894eff77f800b3083cb6202979b7e59fd5',
       'dceef82d0260ded45728d4c117d2c505980edf3bf3d2e7ddf921c2de151a033d',
@@ -821,7 +829,7 @@ if (!havePorted) {
     const RELEASE = path.join(ROOT, '.build', 'release');
     const manifest = () => JSON.parse(fs.readFileSync(path.join(RELEASE, 'manifest.json'), 'utf8'));
 
-    test('FIX003-PIPE-01 the authoritative build emits the EXACT approved .349 bytes', () => {
+    test('FIX003-PIPE-01 the authoritative build emits the EXACT approved bytes', () => {
       const r = runBuildAt(COMPOUND);
       eq(r.code, 0, r.out);
       const art = path.join(RELEASE, 'index.html');
@@ -833,7 +841,7 @@ if (!havePorted) {
       eq(sha(RC), APPROVED_SHA, 'and the reviewed source must be those same bytes');
     });
 
-    test('FIX003-PIPE-02 the injection identity is the REGENERATED one, not a .348 leftover', () => {
+    test('FIX003-PIPE-02 the injection identity is the REGENERATED one, not an older leftover', () => {
       const injSha = sha(INJECTION);
       const inj_ = JSON.parse(fs.readFileSync(INJECTION, 'utf8'));
       notOk(OLD_348_INJECTIONS.includes(injSha),
@@ -870,7 +878,7 @@ if (!havePorted) {
       });
     });
 
-    test('FIX003-PIPE-05 the selector accepts ONLY the exact .349 artifact', () => {
+    test('FIX003-PIPE-05 the selector accepts ONLY the exact approved artifact', () => {
       const sel = runSelector();
       eq(sel.code, 0, sel.out);
       const rec = JSON.parse(fs.readFileSync(path.join(RELEASE, 'SELECTED.json'), 'utf8'));
@@ -888,7 +896,7 @@ if (!havePorted) {
       eq(runSelector().code, 0, 'and the restored artifact selects again');
     });
 
-    test('FIX003-PIPE-06 a stale .348 injection CANNOT report success for .349', () => {
+    test('FIX003-PIPE-06 a stale older injection CANNOT report success for the approved release', () => {
       /* the Architect's worry, made falsifiable: put a real .348 injection back
          and prove the pipeline refuses rather than quietly emitting something */
       const stash = INJECTION + '.pipe06';
@@ -903,8 +911,8 @@ if (!havePorted) {
         ok(/RELEASE-EXPECTATION-MISMATCH/.test(r.out),
           'and must refuse by name — the injection is self-certifying, so only the '
           + 'independent RELEASE.expected.json can catch this: ' + r.out.slice(-400));
-        ok(/2026-07-29\.348-pb-c10/.test(r.out) && /2026-07-30\.349-pb-c10/.test(r.out),
-          'the refusal must name BOTH what it found and what was intended');
+        ok(r.out.includes('2026-07-29.348-pb-c10') && r.out.includes(APPROVED_BUILD),
+          'the refusal must name BOTH what it found and what was intended: ' + r.out.slice(-300));
         assertNoStaleRelease('FIX003-PIPE-06');
       } finally {
         fs.rmSync(INJECTION, { force: true });
@@ -960,11 +968,16 @@ if (!havePorted) {
       const blobSha = (p_) => crypto.createHash('sha256').update(
         execFileSync('git', ['-C', ROOT, 'show', 'origin/main:' + p_],
           { encoding: 'buffer', maxBuffer: 64 * 1024 * 1024 })).digest('hex');
-      const expected = JSON.parse(fs.readFileSync(path.join(ROOT, 'deployment-path', 'RELEASE.expected.json'), 'utf8'));
-      eq(blobSha('index.html'), 'bb41dab4d851c73036714ba2299ad3f5cc6c1f54e10c432a4b74bf996e2a568a',
-        'the production root must still be the exact .347 artifact — root cutover is not authorized');
-      eq(blobSha('canary/index.html'), expected.sha256,
-        'and /canary/ must carry exactly the release RELEASE.expected.json names');
+      /* against PUBLISHED.json, not the expectation: the intended NEXT release
+         and the currently PUBLISHED one legitimately differ while a candidate
+         awaits review. Pinning this to the expectation made it fail the moment
+         FIX-004 produced .350 — for the wrong reason. */
+      const published = JSON.parse(fs.readFileSync(path.join(ROOT, 'deployment-path', 'PUBLISHED.json'), 'utf8'));
+      eq(blobSha('index.html'), published.root.sha256,
+        'the production root must still be the published .347 artifact — root cutover is not authorized');
+      eq(published.root.build, '2026-07-28.347-pb', 'and PUBLISHED.json must still say so');
+      eq(blobSha('canary/index.html'), published.canary.sha256,
+        'and /canary/ must carry exactly what PUBLISHED.json records as published');
     });
   });
 
@@ -976,8 +989,9 @@ if (!havePorted) {
        hold it mandatory, in the builder AND in the selector. */
     const EXP = path.join(ROOT, 'deployment-path', 'RELEASE.expected.json');
     const RELEASE = path.join(ROOT, '.build', 'release');
-    const APPROVED_SHA = '0958b4e456789bde830517a5fe034941c6b9c6992a310dad87e524b9f9aeb418';
-    const APPROVED_BUILD = '2026-07-30.349-pb-c10';
+    const EXPECTED_NOW = JSON.parse(fs.readFileSync(EXP, 'utf8'));
+    const APPROVED_SHA = EXPECTED_NOW.sha256;
+    const APPROVED_BUILD = EXPECTED_NOW.build;
     /* Every case mutates the expectation, so each restores it in a finally and
        the group re-verifies a clean build at the end. */
     const withExpectation = (mutate, fn) => {
@@ -1041,8 +1055,8 @@ if (!havePorted) {
       }, () => runBuildAt(COMPOUND));
       notOk(r.code === 0, 'a stale expectation must refuse');
       ok(/RELEASE-EXPECTATION-MISMATCH/.test(r.out), r.out.slice(-300));
-      ok(/348-pb-c10/.test(r.out) && /349-pb-c10/.test(r.out),
-        'the refusal must name both the intended and the produced release');
+      ok(r.out.includes('348-pb-c10') && r.out.includes(APPROVED_BUILD),
+        'the refusal must name both the intended and the produced release: ' + r.out.slice(-300));
       assertNoStaleRelease('RELEASE-EXPECT-05');
     });
 
