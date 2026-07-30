@@ -514,6 +514,39 @@ if (!havePorted) {
     });
   });
 
+  if (compoundUsable) group('DEPLOY-LOCK — single-flight build enforcement', () => {
+    const LOCK = path.join(ROOT, '.build', '.build-lock');
+
+    test('DEPLOY-LOCK-01 a second build refuses while one is in flight, deleting nothing', () => {
+      /* Simulate an in-flight build with a lock held by a LIVE pid — this test
+         process itself, which is as alive as a pid gets. Plant a fake active
+         run directory; the refusal must come BEFORE the wipe, so it survives. */
+      fs.mkdirSync(path.join(ROOT, '.build', 'runs', 'active-run', 'candidate'), { recursive: true });
+      fs.writeFileSync(path.join(ROOT, '.build', 'runs', 'active-run', 'candidate', 'work.txt'), 'in flight');
+      fs.writeFileSync(LOCK, JSON.stringify({ pid: process.pid, startedAt: 'test' }));
+      try {
+        const r = runBuildAt(COMPOUND);
+        notOk(r.code === 0, 'the second build must refuse');
+        ok(/BUILD-IN-FLIGHT/.test(r.out), r.out.slice(0, 200));
+        ok(fs.existsSync(path.join(ROOT, '.build', 'runs', 'active-run', 'candidate', 'work.txt')),
+          'the refusing build deleted the active build\'s run directory');
+        ok(fs.existsSync(LOCK), 'the refusing build removed the winner\'s lock');
+      } finally {
+        fs.rmSync(LOCK, { force: true });
+        fs.rmSync(path.join(ROOT, '.build', 'runs', 'active-run'), { recursive: true, force: true });
+      }
+    });
+
+    test('DEPLOY-LOCK-02 a crash-leftover lock (dead pid) is taken over, not fatal', () => {
+      /* A pid that provably exited: spawn a no-op child and wait for it. */
+      const child = execFileSync(process.execPath, ['-e', 'console.log(process.pid)'], { encoding: 'utf8' }).trim();
+      fs.writeFileSync(LOCK, JSON.stringify({ pid: Number(child), startedAt: 'crashed' }));
+      const r = runBuildAt(COMPOUND);
+      eq(r.code, 0, 'a stale lock must not block forever: ' + r.out.slice(0, 200));
+      notOk(fs.existsSync(LOCK), 'the lock must be released after a successful build');
+    });
+  });
+
   if (compoundUsable) group('DEPLOY-PKG / DEPLOY-COPY — the packaged source reproduces its own evidence', () => {
     test('DEPLOY-PKG-02/03/04 no stale global intermediate exists, and the suite ran from a clean .build', () => {
       /* .build was wiped before anything ran; the ONLY intermediate is inside

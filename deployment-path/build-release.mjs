@@ -37,6 +37,45 @@ const sha = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
 const shaFile = (p) => sha(fs.readFileSync(p));
 const die = (code, msg) => { console.error(`FAIL [${code}] ${msg}`); process.exit(1); };
 
+/* ---- -1. SINGLE FLIGHT (Architect, pipeline review §4) -------------------
+   This command deletes the published release and all prior run directories at
+   start, so two concurrent invocations would interfere even though each fails
+   closed on its own. An O_EXCL lock file makes the second invocation REFUSE
+   rather than wait: a release build is deliberate, and queueing a second one
+   behind the first is never what anyone meant.
+
+   The lock records pid + start time. A crashed build leaves the file behind;
+   staleness is decided by whether that pid is still alive — never by age, which
+   would let a slow legitimate build be stolen from. */
+const LOCK = path.join(BUILD, '.build-lock');
+fs.mkdirSync(BUILD, { recursive: true });
+const acquireLock = () => {
+  try {
+    const fd = fs.openSync(LOCK, 'wx');                       /* atomic O_EXCL */
+    fs.writeFileSync(fd, JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() }));
+    fs.closeSync(fd);
+    return true;
+  } catch (e) {
+    if (e.code !== 'EEXIST') throw e;
+    let holder = null;
+    try { holder = JSON.parse(fs.readFileSync(LOCK, 'utf8')); } catch (e2) { holder = null; }
+    const alive = holder && holder.pid && (() => {
+      try { process.kill(holder.pid, 0); return true; } catch (e2) { return e2.code === 'EPERM'; }
+    })();
+    if (alive) die('BUILD-IN-FLIGHT',
+      `another release build is running (pid ${holder.pid}, started ${holder.startedAt}). ` +
+      'Refusing — only one invocation may publish .build/release/.');
+    /* holder is dead: the lock is a crash leftover. Take it over, atomically. */
+    const takeover = LOCK + '.takeover-' + process.pid;
+    fs.writeFileSync(takeover, JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() }));
+    fs.renameSync(takeover, LOCK);
+    return true;
+  }
+};
+acquireLock();
+const releaseLock = () => { try { fs.rmSync(LOCK, { force: true }); } catch (e) { /* best effort */ } };
+process.on('exit', releaseLock);
+
 /* ---- 0. INVALIDATE THE PUBLISHED RELEASE, before anything can fail ------ */
 fs.rmSync(RELEASE, { recursive: true, force: true });
 const RUN = path.join(BUILD, 'runs',

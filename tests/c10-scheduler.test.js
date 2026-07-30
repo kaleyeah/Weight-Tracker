@@ -236,16 +236,31 @@ defer((async function scenarios() {
        assertion fails for the opposite of the reason it exists. Seen once in a
        full-suite run and not reproducible in 44 further runs, which is exactly
        how a timing assumption behaves. */
-    let announceParked = null;
+    let announceParked = null; let parkedMatch = null;
     subtle.digest = (a, d) => {
       const n = ++calls;
       const held = gate && (holdIndex === null || holdIndex === n);
-      if (held && announceParked) { const f = announceParked; announceParked = null; f(); }
+      if (held && announceParked) {
+        /* Discriminate WHOSE digest parked. The first parked() resolved on ANY
+           held digest — and boot's recovery-store sweep also digests,
+           asynchronously. Under runner load its digest could arrive first,
+           parked() resolved, the test's edit landed, and only THEN did the
+           core build capture — putting the edit into the captured payload and
+           failing the test for the opposite of the reason it exists. The
+           commit build's digest input is the identity string and starts with
+           "<sub>\n", so the caller can name the digest it means. */
+        let prefix = '';
+        try { prefix = Buffer.from(d).toString('utf8', 0, 32); } catch (e) { prefix = ''; }
+        if (!parkedMatch || parkedMatch(prefix)) {
+          const f = announceParked; announceParked = null; parkedMatch = null; f();
+        }
+      }
       return held ? gate.then(() => real(a, d)) : real(a, d);
     };
     return {
-      /* Await this instead of guessing. */
-      parked() { return new Promise((r) => { announceParked = r; }); },
+      /* Await this instead of guessing. Pass a matcher to name WHICH digest —
+         e.g. parked(s => s.startsWith('core\n')) for the core commit build. */
+      parked(match) { return new Promise((r) => { announceParked = r; parkedMatch = match || null; }); },
       /* hold() parks every digest; hold(n) parks only the nth. A commit uses
          digest #1 for its idempotency key and digest #2 for the recovery
          artifact, so the conflict-drift case must park #2 — parking after the
@@ -269,9 +284,10 @@ defer((async function scenarios() {
     env.S.state.weights.push({ d: '2026-08-01', kg: 70 });
     env.S.save();
     const release = gate.hold();
-    const parked = gate.parked();
+    const parked = gate.parked((pfx) => pfx.startsWith('core\n'));
     env.runTimers();                       /* build starts, parks in the digest */
-    await parked;                          /* proven parked, not assumed */
+    await parked;                          /* proven parked — and provably the CORE BUILD's digest,
+                                              not a boot-time sweep digest that also parks here */
     const revBefore = env.S.revLocal('core');
     /* the athlete edits while we hash — genuinely DURING, now that the parking
        is observed rather than waited out */
