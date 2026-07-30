@@ -1,0 +1,23 @@
+step 1/5  verify source identity
+step 2/5  pb-port.mjs --cutover
+step 3/5  verify intermediate identity
+step 4/5  inject Commit 10
+          Commit 10 injection: OK
+            ops applied:   8
+            input  sha256: bb41dab4d851c73036714ba2299ad3f5cc6c1f54e10c432a4b74bf996e2a568a
+            output sha256: 9e45a225a5ea663c23e88340916689ac77fc8d0796ef48f342b06195adab4256
+            output bytes:  1187105
+            release:       2026-07-29.348-pb-c10
+            adapter@898601 < commit10@1080264  (CAS overrides win)
+            wrote /home/griffin/projects/Weight-Tracker/.build/runs/2026-07-30T02-16-47-762Z-165314/candidate/index.html
+          
+step 5/5  manifest + atomic publish
+
+RELEASE BUILD OK
+  artifact  .build/release/index.html
+  sha256    9e45a225a5ea663c23e88340916689ac77fc8d0796ef48f342b06195adab4256
+  build     2026-07-29.348-pb-c10
+  bytes     1187105
+  manifest  .build/release/manifest.json
+  source    71acce49eb871f92eb28e720e141c7ae25152ef8 (exact)
+  intermediate quarantined in .build/runs/2026-07-30T02-16-47-762Z-165314/intermediate

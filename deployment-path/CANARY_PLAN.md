@@ -4,6 +4,17 @@ Product Owner authorization: given 2026-07-30 (Griffin, the PO, as the
 consenting athlete — briefed during the account walkthrough). Per the standing
 rule, **nothing is published until the Product Architect approves this plan.**
 
+> **RULING RECEIVED 2026-07-30 — APPROVED WITH REQUIREMENTS.** See
+> `reviews/PRODUCT_ARCHITECT_I5D_CANARY_REVIEW.md` (committed beside this
+> plan), which SUPERSEDES this document wherever they differ. The four
+> requested decisions: `/canary/` approved; minimum 48h AND one representative
+> usage cycle; second home-screen icon approved but **storage separation must
+> not be assumed**; smoke checklist replaced by the ruling's CANARY-01..40.
+> The ruling also adds 12 pre-publication gates (§5, evidence in
+> `canary-preflight/`) and corrects one claim below: canary local storage is
+> **not** to be described as disposable until server sync and export are
+> verified — the rollback section here predates that correction.
+
 ## Objective
 
 The release candidate `2026-07-29.348-pb-c10` (sha
@@ -65,10 +76,15 @@ thing this analysis does NOT cover").
 
 Delete the canary path from the Pages branch (or replace it with the `.347`
 artifact — recorded by hash in the build manifest). The root client is
-untouched throughout, so rollback affects only the canary URL. The athlete's
-data lives on the server; the canary's local storage is disposable. The
-installed root app continues working at all times. **No step ever asks the
-athlete to remove the root home-screen app.**
+untouched throughout, so rollback affects only the canary URL. The installed
+root app continues working at all times. **No step ever asks the athlete to
+remove the root home-screen app.**
+
+Per the Architect's §4 correction (which supersedes the original wording
+here): the canary's local storage is **not** treated as disposable until the
+athlete's pending data is verified synced or exported. Rollback order is
+therefore: stop using the canary → verify sync/export → remove/disable
+`/canary/` → verify root unchanged → only then remove the temporary icon.
 
 ## Success criteria (proposed, for the Architect to amend)
 

@@ -1,0 +1,9 @@
+== PRE-PUBLICATION GATES 6-9 (2026-07-30) ==
+GATE-7a /api/health -> 200 API is healthy.
+GATE-7b unauthenticated commit -> 401 (401=route registered and guarded): {'data': {}, 'message': 'The request requires valid record authorization token.', 'status': 401}
+GATE-8 appdata rows=2 distinct owners=2 -> NO DUPLICATE OWNER
+GATE-9 huhguz7atzdq546 data=23779 B training=29052 B (< 262144: YES)
+GATE-9 asxx3sejhxjycgo data=2 B training=2 B (< 262144: YES)
+GATE-6 HOTFIX-001 canonical replay: proven green ON PRODUCTION today by the
+       I5d run (I5d-2/4/5: multi-key byte-identical payloads, replay=true with
+       owner-correct results; evidence 04-i5d-run.txt, accepted by the Architect).
