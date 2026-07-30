@@ -50,6 +50,32 @@ migrate((app) => {
     createRule: "user = @request.auth.id", updateRule: "user = @request.auth.id",
     deleteRule: "user = @request.auth.id",
   }));
+
+  /* photos, because its ABSENCE was itself producing a false signal: the client
+     enumerates /api/collections/photos/records at boot, a 404 degraded to
+     "listing incomplete", and the app then correctly refused to infer any
+     deletion — surfacing a warning on a clean account that has no photos at
+     all. That artifact reached a canary package as a suspected product defect
+     before it was traced here. A fixture missing a collection the client always
+     talks to is not a neutral omission. */
+  app.save(new Collection({
+    type: "base", name: "photos",
+    fields: [
+      { name: "user", type: "relation", required: true, collectionId: users.id,
+        cascadeDelete: true, maxSelect: 1 },
+      { name: "kind", type: "text", max: 20 },
+      { name: "date", type: "text", max: 10 },
+      { name: "week", type: "text", max: 10 },
+      { name: "pose", type: "text", max: 20 },
+      { name: "meal", type: "text", max: 20 },
+      { name: "localId", type: "text", max: 64 },
+      { name: "ts", type: "text", max: 32 },
+      { name: "file", type: "file", maxSelect: 1, maxSize: 8000000 },
+    ],
+    listRule: "user = @request.auth.id", viewRule: "user = @request.auth.id",
+    createRule: "user = @request.auth.id", updateRule: "user = @request.auth.id",
+    deleteRule: "user = @request.auth.id",
+  }));
 }, (app) => { try { app.delete(app.findCollectionByNameOrId("appdata")); } catch (_) {} });
 `;
 

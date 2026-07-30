@@ -945,7 +945,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-07-30.350-pb-c10";
+var APP_BUILD="2026-07-30.351-pb-c10";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -8791,7 +8791,12 @@ photoSync=function(done){
     if(uploaded||downloaded||removed){
       try{wkPhotoKey=null;refreshWeekPhotos();}catch(e){}
       if(state.view==="photos"||state.view==="diary")render();}
-    if(incomplete)setSync("error","photo list incomplete — nothing removed");
+    /* FIX-005 / Architect §5: photo enumeration is its OWN cause at its own
+       severity — it must not present as the global red "core/training upload
+       failed". A complete enumeration (including a complete one that found
+       nothing) clears it; a successful CAS commit never does. */
+    if(incomplete){try{cfPhotoStatusIncomplete();}catch(e){setSync("error","photo list incomplete — nothing removed");}}
+    else {try{cfPhotoStatusComplete();}catch(e){}}
     done&&done({uploaded:uploaded,downloaded:downloaded,removed:removed,complete:!incomplete});}
 
   Promise.all([idbAll(),pbPhotoListAll()]).then(function(res){
@@ -13162,6 +13167,194 @@ try{cfCasRestoreWorkflow();}catch(e){}
       {label:"Yes, add it",danger:false});
   };
 })();
+
+/* ============================================================
+   HARDENING — FIX-005: status has OWNERS (Architect FIX004-STATUS-01/02)
+
+   FIX-004 cleared the stale "not uploaded yet" marker after a successful
+   commit, and the Architect approved that narrow behaviour — then correctly
+   refused to let it stand alone, for two reasons I had to accept:
+
+   1. It could not explain the Product Owner's actual iPhone stop. On his
+      device NO commit occurred: zero ledger rows, the server revision never
+      moved, the "synced" timestamp came from a pull. FIX-004 runs only from
+      the successful-commit path, so it cannot clear a marker raised when
+      nothing was ever sent. I had described that stop as diagnosed. It was
+      not, and the Architect was right to split the two scenarios.
+
+   2. `syncState` is ONE shared object that CAS pending, photo reconciliation,
+      auth, offline and the manual paths all write to. Clearing it wholesale on
+      CAS convergence would erase an unrelated warning — the photo-list one is
+      already reachable on a clean account.
+
+   So statuses now carry a SOURCE. Each source owns its own entry; the view is
+   a projection of the highest-priority live entry; clearing one reveals the
+   next rather than forcing a global "ok". Ownership is structural — never
+   inferred by matching message text, which would break the moment wording
+   changed.
+   ============================================================ */
+
+/* highest priority first — the athlete sees the most serious live cause */
+var CF_STATUS_ORDER=["auth","cas-network","cas-pending","photo-reconcile","legacy-manual"];
+var CF_STATUS_SEV={auth:"bad","cas-network":"bad","cas-pending":"bad","photo-reconcile":"warn","legacy-manual":"bad"};
+var CF_STATUS={};                       /* source -> {msg} for live causes only */
+
+function cfStatusTop(){
+  for(var i=0;i<CF_STATUS_ORDER.length;i++){
+    var k=CF_STATUS_ORDER[i];
+    if(CF_STATUS[k])return {source:k,sev:CF_STATUS_SEV[k]||"bad",msg:CF_STATUS[k].msg||""};}
+  return null;}
+
+/* Project the owned causes onto the legacy view. Transient states the app sets
+   directly (saving/syncing) are progress, not causes, and clear themselves. */
+function cfStatusProject(){
+  try{
+    var top=cfStatusTop();
+    if(top){setSync(top.sev==="warn"?"warn":"error",top.msg);return;}
+    if(syncState&&(syncState.s==="saving"||syncState.s==="syncing"))return;
+    setSync("ok","");
+  }catch(e){}}
+
+function cfStatusSet(source,msg){
+  if(CF_STATUS_ORDER.indexOf(source)<0)return;   /* unknown sources cannot own status */
+  CF_STATUS[source]={msg:msg||""};
+  cfStatusProject();}
+
+function cfStatusClearSource(source){
+  if(!CF_STATUS[source])return;
+  delete CF_STATUS[source];
+  cfStatusProject();}
+
+function cfStatusHas(source){return !!CF_STATUS[source];}
+
+/* the dot has to understand "warn" as well as "bad" */
+var _fix005Dot=syncDotClass;
+syncDotClass=function(){
+  try{
+    var sev=cfCasCentreSeverity();if(sev)return sev;      /* conflict centre still wins */
+    var top=cfStatusTop();
+    if(top)return top.sev==="warn"?"warn":"bad";
+  }catch(e){}
+  return _fix005Dot.apply(this,arguments);};
+
+/* ---- cas-pending becomes an owned source -------------------------------- */
+var CF_PENDING_MSG="changes on this device aren’t uploaded yet — tap to upload";
+cfSetPending=function(kind){
+  cfPending=kind;
+  if(kind)cfStatusSet("cas-pending",CF_PENDING_MSG);
+  else cfStatusClearSource("cas-pending");};
+cfClearPending=function(){
+  cfPending=null;
+  cfStatusClearSource("cas-pending");};
+
+/* ---- convergence: the ONE function both paths use ------------------------
+   Architect FIX004-STATUS-02: a stale pending marker must also clear when a
+   bootstrap/pull PROVES device and server already agree — but never merely
+   because a pull completed. Every condition below is a proof obligation, and
+   any one failing leaves the honest warning in place.
+
+   Agreement is proven against the recorded agreed content (the CAS baseline),
+   which both the commit and the adoption paths write. No network call is made
+   here, and no snapshot is ever mutated. */
+function cfStatusConverged(){
+  var subs=["core","training"];
+  for(var i=0;i<subs.length;i++){
+    var sub=subs[i];
+    if(CF_CAS_OP[sub])return false;                  /* something is in flight */
+    if(CF_CAS_BLOCK[sub])return false;               /* blocked: auth, failed, recovery... */
+    if(cfCasConflictId(sub))return false;            /* undecided conflict */
+    if(revIsDirty(sub))return false;                 /* unsent local work */
+    /* Agreement is only assertable where an agreed content exists. A subsystem
+       that has never been committed AND is not dirty has nothing outstanding —
+       demanding a baseline there would leave a permanent red on any athlete who
+       has only ever edited one of the two subsystems. Where a baseline DOES
+       exist it must match, which is the pull/bootstrap proof. */
+    var base=cfCasBaseline(sub);
+    if(!base)continue;
+    var local="";
+    try{local=cfCanon(cfCasPayloadFor(sub));}catch(e){return false;}
+    if(local!==base)return false;                    /* device and server differ */
+  }
+  return true;}
+
+/* Clears ONLY cas-pending, and only on proof. Safe to call often. */
+function cfStatusConverge(){
+  try{
+    if(!cfStatusHas("cas-pending"))return;
+    if(!cfStatusConverged())return;
+    cfPending=null;
+    cfStatusClearSource("cas-pending");
+  }catch(e){/* status is cosmetic; never break a completed operation over it */}}
+
+/* FIX-004's helper delegates, so there is exactly one convergence rule */
+cfCasSyncLegacyStatus=function(){cfStatusConverge();};
+
+/* the bootstrap/pull side of the same rule: after any successful server
+   interaction records a fresh last-sync, re-test the proof */
+var _fix005LastSync=setLastSync;
+setLastSync=function(){
+  var r=_fix005LastSync.apply(this,arguments);
+  try{
+    if(cfStatusHas("cas-pending")&&cfStatusConverged()){
+      cfPending=null;cfStatusClearSource("cas-pending");
+      try{render();}catch(e){}
+    }
+  }catch(e){}
+  return r;};
+
+/* ---- photo reconciliation is its own cause, at its own severity ----------
+   Architect §5: "photo list incomplete" must not present as the global red
+   upload failure. It means enumeration was incomplete and the app therefore
+   refused to infer any deletion — core and training sync may be perfectly
+   healthy. It stays visible until a later COMPLETE enumeration succeeds, and a
+   successful CAS commit must never erase it. */
+var CF_PHOTO_WARN="Photo sync couldn’t be fully checked. Nothing was removed.";
+function cfPhotoStatusIncomplete(){cfStatusSet("photo-reconcile",CF_PHOTO_WARN);}
+function cfPhotoStatusComplete(){cfStatusClearSource("photo-reconcile");}
+
+/* ---- payload-free diagnostic snapshot (Architect §6) ---------------------
+   The Product Owner's red status could not be diagnosed from the outside: I
+   had the server (unchanged) and a screenshot, and had to guess at the client.
+   This returns exactly the state the next canary attempt needs, and NOTHING
+   about the athlete's data — no weights, no notes, no payloads, no photo
+   contents. Canonical forms are reported only as lengths and a short digest
+   prefix, which cannot reconstruct health data but can prove agreement.
+
+   Read it from the console during a canary session:  cfDiag() */
+function cfDiag(){
+  function subInfo(sub){
+    var base=cfCasBaseline(sub),local="";
+    try{local=cfCanon(cfCasPayloadFor(sub));}catch(e){local="";}
+    return {
+      localRev:revLocal(sub),
+      attempted:(revTrack(sub)||{}).attempted,
+      acknowledged:(revTrack(sub)||{}).success,
+      serverRev:cfCasServerRev(sub),
+      dirty:revIsDirty(sub),
+      block:CF_CAS_BLOCK[sub]||null,
+      opPhase:CF_CAS_OP[sub]?CF_CAS_OP[sub].phase:null,
+      conflict:!!cfCasConflictId(sub),
+      status:cfCasStatusFor(sub),
+      baselineLen:base?base.length:0,
+      localLen:local.length,
+      agrees:!!base&&local===base};}
+  var top=cfStatusTop();
+  return {
+    build:APP_BUILD,
+    path:(location&&location.pathname)||"",
+    signedIn:(typeof syncOn==="function")?syncOn():null,
+    uid:(typeof pbUid==="function")?(pbUid()?"present":"none"):null,
+    cfPending:cfPending,
+    statusSources:Object.keys(CF_STATUS),
+    statusTop:top?{source:top.source,sev:top.sev}:null,
+    legacyState:(syncState||{}).s,
+    dot:(typeof syncDotClass==="function")?syncDotClass():null,
+    converged:cfStatusConverged(),
+    lastSync:(function(){try{return localStorage.getItem(LAST_KEY)||null;}catch(e){return null;}})(),
+    accountVerdict:(typeof cfAccountVerdict==="function")?cfAccountVerdict():null,
+    blocked:(typeof cfAccountBlocked==="function")?cfAccountBlocked():null,
+    core:subInfo("core"),
+    training:subInfo("training")};}
 
 </script>
 </body>

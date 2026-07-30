@@ -124,7 +124,13 @@ location.replace('/index.html');
     notOk(NOT_UPLOADED.test(after.legacyMsg),
       'the athlete is still told their changes are not uploaded: ' + JSON.stringify(after.legacyMsg));
     eq(after.pending, null, 'the pending marker must be cleared');
-    eq(after.legacyState, 'ok');
+    /* NOT "the global state is ok": clearing an owned source reveals the next
+       live one (FIX-005). On a clean account the photo-reconciliation warning
+       is legitimately underneath, so the claim is that the UPLOAD alarm is
+       gone and nothing red remains — not that every cause vanished. */
+    notOk(after.dot === 'bad', 'no red upload alarm may remain: ' + JSON.stringify(after));
+    ok(after.legacyState === 'ok' || after.legacyState === 'warn',
+      'the revealed state must be ok or a warning, saw ' + after.legacyState);
   });
 
   section('STATUS-H-03..05 — but the warning must SURVIVE when something really is outstanding');
@@ -162,6 +168,172 @@ location.replace('/index.html');
   await test('STATUS-H-05 no uncaught page errors through the whole status path', () => {
     const unexpected = errors.filter((e) => !/pb\.test|ERR_|Failed to fetch|NetworkError/i.test(e));
     eq(unexpected.length, 0, unexpected.join('\n'));
+  });
+
+  section('STATUS-H-06..10 — a source may clear only what it OWNS');
+
+  /* H-04 leaves training dirty on purpose, and H-03 blocks it — so the
+     ownership cases must start from a known-settled surface or they test the
+     leftovers of the previous case instead of what they claim. */
+  const resetSurface = () => page.evaluate(() => {
+    CF_STATUS = {}; cfPending = null;
+    CF_CAS_BLOCK.core = null; CF_CAS_BLOCK.training = null;
+    revClean('core'); revClean('training');
+    cfCasSetBaseline('core', cfCanon(cfCasPayloadFor('core')));
+    cfCasSetBaseline('training', cfCanon(cfCasPayloadFor('training')));
+    cfStatusProject();
+  });
+
+  await test('STATUS-H-06 a successful commit clears the cas-pending source it owns', async () => {
+    await resetSurface();
+    await page.evaluate(() => { cfSetPending('push'); });
+    ok(await page.evaluate(() => cfStatusHas('cas-pending')), 'precondition: cas-pending is live');
+    await page.evaluate(() => { state.weights.push({ d: '2026-08-03', kg: 80.1 }); save(); });
+    await page.waitForFunction(() => cfCasStatusFor('core') === 'synced' && !isDirty(), null, { timeout: 25000 });
+    await page.waitForTimeout(200);
+    notOk(await page.evaluate(() => cfStatusHas('cas-pending')),
+      'the commit must clear its own pending source');
+  });
+
+  await test('STATUS-H-07 a successful commit does NOT clear a photo-reconciliation warning', async () => {
+    await resetSurface();
+    await page.evaluate(() => { cfPhotoStatusIncomplete(); cfSetPending('push'); });
+    const before = await page.evaluate(() => ({ photo: cfStatusHas('photo-reconcile'), pending: cfStatusHas('cas-pending') }));
+    ok(before.photo && before.pending, 'precondition: both sources live');
+    await page.evaluate(() => { state.weights.push({ d: '2026-08-04', kg: 80.0 }); save(); });
+    await page.waitForFunction(() => cfCasStatusFor('core') === 'synced' && !isDirty(), null, { timeout: 25000 });
+    await page.waitForTimeout(200);
+    const after = await page.evaluate(() => ({
+      photo: cfStatusHas('photo-reconcile'), pending: cfStatusHas('cas-pending'),
+      msg: (window.syncState || {}).msg, dot: syncDotClass() }));
+    notOk(after.pending, 'cas-pending must clear');
+    ok(after.photo, 'the photo warning must SURVIVE a successful core commit');
+    ok(/Photo sync/.test(after.msg), 'and be what the athlete now sees: ' + JSON.stringify(after.msg));
+    eq(after.dot, 'warn', 'at warning severity, not red upload failure');
+  });
+
+  await test('STATUS-H-08 a successful commit does NOT clear auth or an unrelated failure source', async () => {
+    for (const src of ['auth', 'cas-network', 'legacy-manual']) {
+      await resetSurface();
+      await page.evaluate((s_) => { cfStatusSet(s_, 'unrelated ' + s_); cfSetPending('push'); }, src);
+      await page.evaluate(() => { state.weights.push({ d: '2026-08-05', kg: 79.9 }); save(); });
+      await page.waitForFunction(() => cfCasStatusFor('core') === 'synced' && !isDirty(), null, { timeout: 25000 });
+      await page.waitForTimeout(150);
+      const st = await page.evaluate((s_) => ({ kept: cfStatusHas(s_), pending: cfStatusHas('cas-pending') }), src);
+      ok(st.kept, src + ' must survive a successful commit');
+      notOk(st.pending, 'while cas-pending clears');
+    }
+    await page.evaluate(() => { CF_STATUS = {}; cfStatusProject(); });
+  });
+
+  await test('STATUS-H-09 a BLOCKED sibling prevents cas-pending from clearing', async () => {
+    await page.evaluate(() => { CF_STATUS = {}; CF_CAS_BLOCK.training = 'failed'; cfSetPending('push'); cfStatusConverge(); });
+    ok(await page.evaluate(() => cfStatusHas('cas-pending')),
+      'a blocked sibling must keep the honest warning');
+    await page.evaluate(() => { CF_CAS_BLOCK.training = null; });
+  });
+
+  await test('STATUS-H-10 a DIRTY sibling prevents cas-pending from clearing', async () => {
+    await page.evaluate(() => { CF_STATUS = {}; revBump('training'); cfSetPending('push'); cfStatusConverge(); });
+    ok(await page.evaluate(() => cfStatusHas('cas-pending')),
+      'unsent local work must keep the honest warning');
+    ok(await page.evaluate(() => revIsDirty('training')), 'precondition: training really is dirty');
+  });
+
+  section('STATUS-H-11..15 — convergence without a commit (the ACTUAL canary state)');
+
+  await test('STATUS-H-11 a stale marker clears when agreement is PROVEN, with no commit', async () => {
+    /* the Product Owner's shape: pending raised, nothing sent, device and
+       server already in agreement. Prove it converges without any request. */
+    await page.evaluate(() => {
+      CF_STATUS = {}; CF_CAS_BLOCK.core = null; CF_CAS_BLOCK.training = null;
+      revClean('core'); revClean('training');
+      cfCasSetBaseline('core', cfCanon(cfCasPayloadFor('core')));
+      cfCasSetBaseline('training', cfCanon(cfCasPayloadFor('training')));
+      cfSetPending('push');
+    });
+    ok(await page.evaluate(() => cfStatusHas('cas-pending')), 'precondition: the stale marker is up');
+    const commitsBefore = commits.length;
+    await page.evaluate(() => { setLastSync(); });          /* a pull completing */
+    await page.waitForTimeout(200);
+    notOk(await page.evaluate(() => cfStatusHas('cas-pending')),
+      'proven agreement must clear the stale marker');
+    eq(commits.length, commitsBefore, 'and it must do so WITHOUT sending anything');
+  });
+
+  await test('STATUS-H-12 a completed pull does NOT clear pending when payloads differ', async () => {
+    await page.evaluate(() => {
+      CF_STATUS = {}; revClean('core'); revClean('training');
+      cfCasSetBaseline('core', 'A-DIFFERENT-CANONICAL-FORM');
+      cfSetPending('push');
+      setLastSync();
+    });
+    await page.waitForTimeout(150);
+    ok(await page.evaluate(() => cfStatusHas('cas-pending')),
+      'differing content must keep the warning — a pull alone proves nothing');
+  });
+
+  await test('STATUS-H-13 a completed pull does NOT clear pending while a subsystem is dirty', async () => {
+    await page.evaluate(() => {
+      CF_STATUS = {};
+      cfCasSetBaseline('core', cfCanon(cfCasPayloadFor('core')));
+      cfCasSetBaseline('training', cfCanon(cfCasPayloadFor('training')));
+      revBump('core');                      /* unsent local work */
+      cfSetPending('push');
+      setLastSync();
+    });
+    await page.waitForTimeout(150);
+    ok(await page.evaluate(() => cfStatusHas('cas-pending')), 'dirty work must keep the warning');
+  });
+
+  await test('STATUS-H-14 convergence does not clear conflict or recovery state', async () => {
+    const st = await page.evaluate(() => {
+      CF_STATUS = {};
+      revClean('core'); revClean('training');
+      cfCasSetBaseline('core', cfCanon(cfCasPayloadFor('core')));
+      cfCasSetBaseline('training', cfCanon(cfCasPayloadFor('training')));
+      CF_CAS_BLOCK.core = 'recovery';
+      cfSetPending('push');
+      setLastSync();
+      const out = { pending: cfStatusHas('cas-pending'), block: CF_CAS_BLOCK.core };
+      CF_CAS_BLOCK.core = null;
+      return out;
+    });
+    ok(st.pending, 'a recovery block must keep the warning');
+    eq(st.block, 'recovery', 'and convergence must not have cleared the block itself');
+  });
+
+  await test('STATUS-H-15 the no-commit convergence path emits NO request at all', async () => {
+    const seen = [];
+    const onReq = (r) => { if (/appdata|commit/.test(r.url())) seen.push(r.method() + ' ' + r.url()); };
+    page.on('request', onReq);
+    await page.evaluate(() => {
+      CF_STATUS = {}; revClean('core'); revClean('training');
+      cfCasSetBaseline('core', cfCanon(cfCasPayloadFor('core')));
+      cfCasSetBaseline('training', cfCanon(cfCasPayloadFor('training')));
+      cfSetPending('push');
+      setLastSync();
+    });
+    await page.waitForTimeout(600);
+    page.off('request', onReq);
+    notOk(await page.evaluate(() => cfStatusHas('cas-pending')), 'precondition: it did converge');
+    eq(seen.length, 0, 'convergence must be a pure local proof, saw: ' + JSON.stringify(seen));
+  });
+
+  section('DIAG-01 — the payload-free diagnostic snapshot');
+
+  await test('DIAG-01 cfDiag() reports the state the next canary needs and no athlete data', async () => {
+    const d = await page.evaluate(() => cfDiag());
+    ['build', 'cfPending', 'statusSources', 'legacyState', 'dot', 'converged', 'core', 'training']
+      .forEach((k) => ok(k in d, 'cfDiag must report ' + k));
+    ['localRev', 'serverRev', 'dirty', 'block', 'opPhase', 'conflict', 'status', 'agrees']
+      .forEach((k) => ok(k in d.core, 'cfDiag().core must report ' + k));
+    /* and NOTHING that could carry health data */
+    const blob = JSON.stringify(d);
+    notOk(/weights|"kg"|notes|bodyfat|sleep|food/i.test(blob),
+      'the snapshot must not contain athlete payload keys: ' + blob.slice(0, 300));
+    notOk(/80\.1|80\.0|79\.9/.test(blob), 'nor any weigh-in values');
+    eq(typeof d.core.baselineLen, 'number', 'canonical forms appear only as lengths');
   });
 
   await browser.close();

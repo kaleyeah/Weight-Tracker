@@ -77,6 +77,12 @@ async function setState(page, spec) {
       CF_CAS_RECHOOSE[sub] = false;
       CF_CAS_RES[sub] = null;
     });
+    /* The owned-status channels (FIX-005) are known state too, and these suites
+       run with no PocketBase at all — so photo enumeration cannot complete and
+       legitimately raises its warning, which would then colour the dot in every
+       later case. Reset it here for the same reason the durable preservation
+       obligation is reset above: "a known state" has to mean all of it. */
+    try { CF_STATUS = {}; cfPending = null; cfStatusProject(); } catch (e) { /* pre-FIX-005 client */ }
     (s.conflicts || []).forEach((sub) => cfCasSetConflictId(sub, s.recIds[sub]));
     (s.blocks || []).forEach(([sub, kind]) => cfCasSetBlock(sub, kind, 'tok'));
     (s.rechoose || []).forEach((sub) => { CF_CAS_RECHOOSE[sub] = true; });

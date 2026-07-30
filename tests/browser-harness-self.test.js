@@ -143,6 +143,24 @@ group('BHARNESS-08 — the release runner fails when any child fails', () => {
     ok(/no summary printed/.test(r.out), 'and be reported honestly: ' + r.out);
   });
 
+  test('BHARNESS-08e a HANGING child fails the run instead of holding it hostage', () => {
+    /* A suite can hang rather than fail: on this box ownership-gate's Chromium
+       died under the runner and left Playwright's promise pending — node sat in
+       ep_poll for 17+ minutes reporting nothing, so the release gate simply
+       never returned. A gate that can hang forever is not a gate.
+       The fixture needs a LIVE HANDLE: an unresolved promise alone does not keep
+       node alive, and my first attempt at this test passed vacuously because the
+       child exited immediately. */
+    const hang = mk(`(async () => { await test('starts', async () => ok(true));\n`
+      + `  setInterval(() => {}, 1000); await new Promise(() => {}); })();`, 'zz-hang');
+    const r = spawnSync(process.execPath, [RUNNER, hang],
+      { encoding: 'utf8', env: Object.assign({}, process.env, { CF_SUITE_TIMEOUT_MS: '6000' }) });
+    const out = (r.stdout || '') + (r.stderr || '');
+    notOk(r.status === 0, 'a hanging child must fail the run:\n' + out.slice(-400));
+    ok(/TIMED OUT/.test(out), 'and be reported as a timeout: ' + out.slice(-300));
+    ok(/BROWSER SUITES FAILED/.test(out), out.slice(-200));
+  });
+
   test('BHARNESS-08d a child printing FAILED while exiting 0 is caught explicitly', () => {
     /* Belt and braces: if the harness defect ever returns, the runner refuses
        the run on the transcript alone, independently of the exit code. */
