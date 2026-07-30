@@ -31,6 +31,13 @@ function summary(title) {
     ? 'FAILED — ' + passes + ' passed, ' + failures + ' failed  — ' + title
     : 'OK — ' + passes + ' passed, 0 failed  — ' + title;
   console.log(line);
+  /* A failing suite must EXIT nonzero. This returned the count and set nothing,
+     so every browser suite exited 0 while printing FAILED — any gate keyed on
+     the exit status would have reported green on red. Found 2026-07-30 while
+     adding the ownership-gate suite, whose first run failed 5 of 8 and still
+     exited 0. Verify-before-commit chains grep the transcript, which is why
+     this never shipped a bad commit; that is luck, not a guarantee. */
+  if (failures) process.exitCode = 1;
   return failures;
 }
 
