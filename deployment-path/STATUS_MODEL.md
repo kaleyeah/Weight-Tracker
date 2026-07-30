@@ -57,6 +57,31 @@ and an accessible name that carries the live cause so the state is never
 conveyed by colour alone. Screenshots of all six states at iPhone width are in
 `evidence/screenshots/`.
 
+## Success clearing is source-specific
+
+A successful operation clears **exactly one** named source — its own:
+
+| Operation | Clears |
+| --- | --- |
+| successful CAS commit / retry | `cas-network` |
+| successful manual upload / restore | `legacy-manual` |
+| successful reauthentication | `auth` |
+| complete photo enumeration | `photo-reconcile` |
+| proven convergence | `cas-pending` |
+
+The earlier helper cleared `cas-network` on every transport success, so a
+manual reconcile declared an independently failed CAS request recovered. It had
+not, and the test that should have caught it planted only a photo warning.
+
+## The registry is visually authoritative
+
+Holding the truth in the registry is not enough if a terminal
+`setSync("ok")` from an unrelated operation can paint "Synced" over it. The
+active `setSync` therefore refuses to lower the displayed state below the top
+live cause. Transient `saving`/`syncing` still show — they are progress, not
+causes — and the top cause returns when they end. With nothing live, a success
+may legitimately show Synced.
+
 ## Convergence — two paths, one rule
 
 `cas-pending` may be cleared only by proof, and the same function serves both
