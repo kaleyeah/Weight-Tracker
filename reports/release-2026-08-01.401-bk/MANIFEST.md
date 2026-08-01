@@ -1,7 +1,14 @@
 # Release-package manifest — 2026-08-01.401-bk
 
-Durable location: reports/release-2026-08-01.401-bk/ in ~/projects/compound-app
-(working tree; becomes durable in commit 1 of the proposed identity).
+**Living working-tree copy.** The record rows below track the evolving
+current-state records. The immutable ACCEPTED release-package manifest is the
+version inside tag `v2026-08-01.401-bk`; that tagged version remains the
+authority for the released artifacts.
+
+Location: reports/release-2026-08-01.401-bk/ in ~/projects/compound-app. The
+immutable ACCEPTED manifest is the version inside tag `v2026-08-01.401-bk`
+(published at M6); this working-tree copy is the LIVING manifest, updated by
+later local records commits.
 
 | file | sha256 |
 |---|---|
@@ -14,8 +21,8 @@ Durable location: reports/release-2026-08-01.401-bk/ in ~/projects/compound-app
 | FINAL-TAG-COMMAND.md | 9e58280bd22088502feba91ecde527d1b3a9df3844d5e51ae766c5734587e397 |
 | TAG-EXECUTION-EVIDENCE.md | 5af9b4f18bde72291a7cdfa07e0accf578ab29f6ed1ad1e00730cf8d4e056acc |
 | M5-COMMANDS.md | ad0200045707da059699a5db73141352ae738555d78ade20f9e16d640957b205 |
-| ../PROJECT_LOG.md | 3cef8e49c2f8d263062cd297200d84df50149818b3c1c13040ebd4132282dd6f |
-| ../MAESTRO_PROGRAM_CONTEXT.md | 8eb533752a3560fbb3a9e1d587ba2e9f6e53b90223c436c03aefe2d1853d6216 |
+| ../PROJECT_LOG.md | b190a219c23804a0c66e17b3f1aed48d159b5af47e92262fd9e7d265f74da280 |
+| ../MAESTRO_PROGRAM_CONTEXT.md | b9ffcc37f5b0e36916b5a2874a09f789d7bed8ffcdbb6978dab98e527c476a87 |
 
 Commit 10 retirement marker: tag retired/commit10-lineage-a, verified
 remotely, dereferencing to e379783259cf9fecbd5d24b4374bf1f94f034ce0.

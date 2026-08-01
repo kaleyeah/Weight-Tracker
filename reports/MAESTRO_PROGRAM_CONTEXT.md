@@ -62,11 +62,11 @@ in-session. Established 2026-08-01 at the Owner's request.
 |---|---|---|
 | M1 | Diagnose the 2026-07-31 training loss | **Done** — loss observed; defect established by inspection and reproduced against the shipping source; the historical request sequence is unproven (privileged logs declined by Owner) |
 | M2 | Containment build (backup + snapshot + quarantine + gates) | **Passed technical review** (round 15) against all round 1–14 findings |
-| M3 | Release packaging of M2 | **Done** (2026-08-01) — records, rollback procedure, served baseline, tag marker and execution evidence all persisted, hashed, and carried in the local release-records commit; nothing pushed |
+| M3 | Release packaging of M2 | **Done** (2026-08-01) — records, rollback procedure, served baseline, tag marker and execution evidence all persisted, hashed, and carried in the release-records commit (published with the release at M6) |
 | M4 | Owner exact-diff and rollback-risk review of M2 | **Done** (2026-08-01) — the Owner approved the exact diff (candidate sha256 `7d865ff8…9d5743`, review diff `fd0b46ac…ea755b`) and accepted the rollback limitation, via his decision channel |
-| M5 | Committed release identity | **Done** (2026-08-01) — this document rides the local release-records commit; the following commit carries the frozen candidate (sha256 `7d865ff8…9d5743`); annotated tag `v2026-08-01.401-bk` marks that commit; two commits ahead of `origin/main`, nothing pushed |
-| M6 | Owner authorizes live publication (= the deployment decision) → publish → served-artifact byte verification → manual iPhone check on every in-use storage area | Blocked on the backup prerequisites and the separate Owner publication authorization; the check deliberately permits the known-broken pull after snapshot capture |
-| M7 | Owner accepts the release, or the rollback procedure executes | Blocked on M6 evidence |
+| M5 | Committed release identity | **Done** (2026-08-01) — this document rides the release-records commit; the following commit carries the frozen candidate (sha256 `7d865ff8…9d5743`); annotated tag `v2026-08-01.401-bk` marks that commit (published at M6; `origin/main` at the accepted commit) |
+| M6 | Owner authorizes live publication (= the deployment decision) → publish → served-artifact byte verification → manual iPhone check on every in-use storage area | **Done** (2026-08-01) — Owner authorized via his decision channel with the production-deployment warning explicit; `main` and tag `v2026-08-01.401-bk` pushed; the live URL served sha256 `7d865ff8…9d5743`, **byte-identical to the accepted commit `e4abbae…`** (standing ruling 1 satisfied for THIS artifact only); Home-Screen device check passed, pre-sync notice confirmed on-screen |
+| M7 | Owner accepts the release, or the rollback procedure executes | **Done** (2026-08-01) — Owner formally ACCEPTED after the checklist, with the floating-nav cosmetic defect disclosed (bug 7, engineering repo) |
 | M7b | Reviewed HealthKit storage-migration package (schema, migration, backup, rollback, tests) per standing ruling | Required before M10 implementation; independent of M8 ordering |
 | M8 | Sync rework (Architect round-2 rulings 1–10) | Not started; brief agreed; kept separate from M2 by ruling |
 | M9 | Conflict/recovery resolution UI; snapshot reconciliation | Follows M8 |
@@ -74,22 +74,38 @@ in-session. Established 2026-08-01 at the Owner's request.
 
 ## Current gate
 
-**Backup prerequisites, then the separate M6 publication decision.** The
-candidate is committed locally on `main` (build `2026-08-01.401-bk`, sha256
-`7d865ff8…9d5743`, on base `e5f38c3`, marked by tag `v2026-08-01.401-bk`, two
-commits ahead of `origin/main`) and is **not pushed and not published** — the
-live site serves base `e5f38c3` until M6. Next, in order: the Owner's fresh
-same-day PocketBase export → verified NAS snapshot dated on/after it →
-separate Owner publication authorization → publish and verify served bytes →
-the Home-Screen iPhone check → Owner accepts or rolls back.
+**M7b — the reviewed HealthKit storage-migration package** (schema, migration,
+backup, rollback, tests), per standing ruling 3; it may not be displaced by
+M8, which remains separately outstanding (the sync rework brief, Architect
+round-2 rulings 1–10). The Owner-directed session-date correction is held
+pending its own reviewed package.
+
+**The accepted release:** The
+build `2026-08-01.401-bk` (commit `e4abbae…`, tag `v2026-08-01.401-bk`,
+candidate sha256 `7d865ff8…9d5743`) is **published and accepted**;
+`origin/main` stands at `e4abbae…`, and the served artifact was verified at
+sha256 `7d865ff8…9d5743`.
+Any records-only commit made after acceptance is **local-only and
+non-production** until a separate Owner records-publication authorization and
+fresh served-byte verification; the release tag is immutable at `e4abbae…`.
+
+Accuracy corrections to the M6 publication instrument, on the record: the full
+PocketBase backup was identified (name/size/time), not independently verified;
+and the protection-screen states are unlikely on a single-account device, not
+impossible. The Owner had already accepted the accurately-stated rollback
+limitation at M4, so his authorization stands.
 
 ## Standing risks
 
-- The deployed app loses training data on failed-push-then-pull, today. The
-  defect remains in production until M6 publishes the byte-verified containment
-  candidate; M8 later fixes the cause.
-- All automated evidence is desktop Chromium; iOS PWA lifecycle is unproven
-  until M6.
+- The deployed app does NOT prevent the failed-push-then-pull overwrite of
+  visible training; what it adds is a verified pre-sync recovery snapshot
+  (captured before any load or sync, carried in every export), the pre-sync
+  notice, the blocking ownership/logout gates, and a training-inclusive
+  backup. Visible training may still be overwritten until M8 fixes the
+  underlying sync defect.
+- All automated evidence is desktop Chromium. The defined Home-Screen
+  checklist passed once on the Owner's iPhone (M6); broader iOS lifecycle
+  behaviour remains unproven by automation or extended use.
 - Rollback: only the LOCAL base-artifact round-trip is byte-verified. The
   gated commit/push/Pages rollback path is specified but unexecuted. And it is
   *policy-constrained*: never from a gate, ambiguity, or an unresolved journal

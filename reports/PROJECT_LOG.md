@@ -109,6 +109,21 @@ the exchange transcripts, and are marked (r) where reconstructed.
   release tag resolves to the frozen-candidate commit that follows this
   records commit. Raw evidence lives in the exchange record.
 
+- **2026-08-01, rounds 39–43 — RELEASE.** Backup prerequisites verified
+  (Engineer-verified fresh export; DSM `[docker]`-share snapshot 22:41:47Z
+  covering `/volume1/docker/pocketbase/pb_data`; PB full-backup archive
+  identified). The Owner authorized publication via his decision channel with
+  the production-deployment warning explicit; `main` `e5f38c3..e4abbae` and tag
+  `v2026-08-01.401-bk` pushed; the live URL served the candidate bytes
+  (sha256 match — standing ruling 1 satisfied for this artifact); the Owner
+  completed the Home-Screen device check (pre-sync notice confirmed in his
+  screenshot, preserved and hashed) and **formally accepted the release**.
+  One cosmetic defect found during the check (floating bottom nav; bug 7).
+  Two overstated reassurances in the publication instrument corrected on the
+  record (PB backup identified-not-verified; protection states
+  unlikely-not-impossible). The Owner's session-date correction request is
+  held pending its own reviewed package.
+
 ## §2 Owner actions on record
 
 1. 2026-07-30 — direction change (sync simplification, review narrowing).
@@ -149,12 +164,19 @@ the exchange transcripts, and are marked (r) where reconstructed.
     be unavailable from the new protected failure states (gate, ownership
     ambiguity, unresolved logout journal); manual recovery applies there.
 
+16. 2026-08-01 — **authorized M6 publication** ("Publish now") via the
+    decision channel, and **formally accepted the release (M7)** after
+    completing the device checklist.
+17. 2026-08-01 — directed a session-date correction to his own record (move
+    the reconstructed session to 2026-07-31 18:43 local, 60 min); held by the
+    Architect pending a reviewed mutation package.
+
 ## §3 What the candidate is
 
-One change to `index.html`, committed locally in the tagged candidate commit on
-`main` of `~/projects/compound-app` (two commits ahead of `origin/main`; not
-pushed, not published; the deployed repo — `~/projects/Weight-Tracker` is
-engineering-only):
+One change to `index.html`, carried in the tagged candidate commit
+`e4abbae…` on `main` of `~/projects/compound-app` — **published 2026-08-01 and
+byte-verified against the live URL; accepted by the Owner** (the deployed
+repo — `~/projects/Weight-Tracker` is engineering-only):
 
 - The application-data JSON backup now carries training history, the active
   workout, and the pre-sync recovery snapshot, under a versioned `__backup`
