@@ -791,6 +791,11 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
 .wl-toast.show{opacity:1;transform:translateX(-50%) translateY(-4px);}
 
 .wl-nav{position:fixed;bottom:0;left:0;right:0;max-width:720px;margin:0 auto;
+  /* translate3d forces the nav onto its own compositing layer: iOS Safari's
+     known fixed+backdrop-filter bug otherwise repaints it at a stale scroll
+     offset, leaving the bar "floating" mid-content (seen on the Owner's phone
+     during the release checklist). */
+  transform:translate3d(0,0,0);
   background:rgba(20,25,34,.94);backdrop-filter:blur(12px);border-top:1px solid var(--line);
   display:flex;padding:8px 6px calc(8px + env(safe-area-inset-bottom,0px));z-index:10;}
 .wl-navbtn{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;
@@ -851,7 +856,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-01.401-bk";
+var APP_BUILD="2026-08-01.402-fx";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -6395,8 +6400,16 @@ function buildWorkoutEntries(rt,bw){return (rt.items||[]).map(function(it){var e
     if(last&&last[k]){w=last[k].weight;r=last[k].reps;}
     else if(last&&last.length){w=last[last.length-1].weight;r=last[last.length-1].reps;}
     else{w=ex.bodyweight?((bw!=null?bw:0)+(num(it.weight)||0)):(num(it.weight)>0?it.weight:"");r=(it.repHigh!=null&&it.repHigh!=="")?it.repHigh:"";}
+    /* A bodyweight exercise's "weight" is the athlete, and the athlete changed
+       since last session. History used to pre-fill the OLD bodyweight (a 7-29
+       pull-up suggested 186.8 against a same-day 184.0 weigh-in). Reps still
+       come from history; the load is always today's body plus any added. */
+    if(ex.bodyweight)w=(bw!=null?bw:0)+(num(it.weight)||0);
     sets.push({weight:(w===""||w==null)?"":String(w),reps:(r===""||r==null)?"":String(r),rir:"",status:"pending"});}
-  var notes=[];(ex.notes||[]).forEach(function(nn){notes.push({text:nn.text,pinned:true});});(it.notes||[]).forEach(function(nn){notes.push({text:nn.text,pinned:false});});
+  /* Copies must keep the SOURCE note id: the workout view's tap handler looks
+     the note up by id in the exercise/item store, and an id-less copy resolved
+     to nothing -- a blank editor over a note that exists. */
+  var notes=[];(ex.notes||[]).forEach(function(nn){notes.push({id:nn.id,text:nn.text,pinned:true});});(it.notes||[]).forEach(function(nn){notes.push({id:nn.id,text:nn.text,pinned:false});});
   var _lf=fbLastFor(it.exerciseId);
     var _lm=fbLastMuscle(ex.muscle||"other");
     return {itemId:it.id,progression:it.progression||rt.progression||"double",lastJoint:(_lf&&(_lf.joint==="mod"||_lf.joint==="alot"))?_lf:null,lastMus:_lm,exerciseId:it.exerciseId,name:ex.name,muscle:ex.muscle,equipment:ex.equipment,bodyweight:!!ex.bodyweight,repLow:it.repLow,repHigh:it.repHigh,movement:it.movement||guessMovement(ex.muscle),setRanges:rptRangesFor(it,n),addedWt:num(it.weight)||0,notes:notes,sets:sets};
@@ -6656,10 +6669,13 @@ function applySuggestions(entries,routineId){entries.forEach(function(en){if(!en
   if(!sg){en.firstTime=true;return;}
   var any=false;
   en.sets.forEach(function(st,si){var g=sg[si];if(!g)return;any=true;
-    if(g.w!=null)st.weight=String(g.w);
+    /* For bodyweight entries the historical weight is a stale bodyweight, so
+       the suggestion neither overwrites today's default load nor advertises the
+       old number as sugW. Rep suggestions still apply. */
+    if(g.w!=null&&!en.bodyweight)st.weight=String(g.w);
     if(g.r!=null)st.reps=String(g.r);
     if(g.tgtLo!=null){st.tgtLo=g.tgtLo;st.tgtHi=g.tgtHi;st.sugR=null;st.sugW=null;st.sugE=null;}
-    else{st.sugR=g.r;if(g.w!=null)st.sugW=g.w;if(g.e!=null)st.sugE=g.e;st.tgtLo=null;st.tgtHi=null;}});
+    else{st.sugR=g.r;if(g.w!=null&&!en.bodyweight)st.sugW=g.w;if(en.bodyweight)st.sugW=null;if(g.e!=null)st.sugE=g.e;st.tgtLo=null;st.tgtHi=null;}});
   if(any)en.sug=true;});}
 function startWorkout(rt){var bw=currentBW();var _ents=buildWorkoutEntries(rt,bw);applySuggestions(_ents,rt.id);
   state.workout={routineId:rt.id,name:rt.name||"Weight training",date:todayISO(),startTs:null,tState:"ready",stateStartTs:null,warmupMs:0,workMs:0,restMs:0,bw:bw,entries:_ents,finishing:false,restHidden:false};
@@ -6742,7 +6758,15 @@ function finishSheetHTML(){var w=state.workout;var b=woBuckets();var ff=w.finish
   return h+'</div>';}
 function getLiftSession(){var arr=(state.training.liftSessions||{})[state.liftViewDate]||[];return arr.filter(function(s){return s.id===state.liftViewId;})[0];}
 function liftSummaryFieldsHTML(s){var h='';
-  h+='<div class="wl-row"><label class="wl-field"><span>Duration <em>min</em></span><input class="wl-sv-input wl-num" data-sv="mins" type="text" inputmode="numeric" value="'+esc(s.mins!=null?String(s.mins):"")+'"></label><label class="wl-field"><span>Avg HR</span><input class="wl-sv-input wl-num" data-sv="hr" type="text" inputmode="numeric" value="'+esc(s.hr!=null?String(s.hr):"")+'"></label></div>';
+  /* Date and start time are editable so a session logged on the wrong day (a
+     late-night entry, a reconstruction after a loss) can be moved by the
+     athlete in-app -- through the same reviewed write path as everything else,
+     instead of anyone hand-editing the database. */
+  var _d=(s.date||state.liftViewDate||todayISO());
+  var _t=(function(){var dt=new Date(num(s.ts)||Date.now());return pad(dt.getHours())+":"+pad(dt.getMinutes());})();
+  h+='<div class="wl-row"><label class="wl-field"><span>Date</span><input class="wl-sv-input" data-sv="date" type="date" value="'+esc(_d)+'"></label>'+
+     '<label class="wl-field"><span>Start time</span><input class="wl-sv-input" data-sv="time" type="time" value="'+esc(_t)+'"></label></div>';
+  h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Duration <em>min</em></span><input class="wl-sv-input wl-num" data-sv="mins" type="text" inputmode="numeric" value="'+esc(s.mins!=null?String(s.mins):"")+'"></label><label class="wl-field"><span>Avg HR</span><input class="wl-sv-input wl-num" data-sv="hr" type="text" inputmode="numeric" value="'+esc(s.hr!=null?String(s.hr):"")+'"></label></div>';
   h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Peak HR</span><input class="wl-sv-input wl-num" data-sv="hrMax" type="text" inputmode="numeric" value="'+esc(s.hrMax!=null?String(s.hrMax):"")+'"></label><label class="wl-field"><span>Est. calories</span><input class="wl-sv-input wl-num" data-sv="cal" type="text" inputmode="numeric" value="'+esc(s.cal!=null?String(s.cal):"")+'"></label></div>';
   h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>RPE</span><input class="wl-sv-input wl-num" data-sv="rpe" type="text" inputmode="numeric" value="'+esc(s.rpe!=null?String(s.rpe):"")+'"></label><label class="wl-field" style="visibility:hidden"><span>.</span><input></label></div>';
   h+='<label class="wl-field wl-field-full" style="margin-top:12px"><span>Notes</span><textarea class="wl-sv-input" data-sv="notes" style="width:100%;min-height:56px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:14px;padding:11px 12px;box-sizing:border-box;outline:none;resize:vertical">'+esc(s.notes||"")+'</textarea></label>';
@@ -7224,12 +7248,17 @@ document.addEventListener("click",function(e){
   if(a==="glp:dose:save"){glpNormalize();glpSheetSync();var _s=state.glpSheet;if(!_s)return;var _g2=state.glp;if(!_g2.compound){toast("Set up a compound first");return;}var _dv=num(_s.dose);state.glp.doses.push({id:glpNewId("dose"),dose:(_dv!=null?_dv:""),unit:(_g2.compound.unit||"mg"),siteId:(_g2.settings.siteRotation?(_s.siteId||null):null),takenAt:(_s.at||Date.now()),note:(_s.note||"").trim(),skipped:false});save();state.glpSheet=null;render();toast("Dose logged");return;}
   if(a==="glp:dose:del"){glpNormalize();var _id=el.getAttribute("data-id");state.glp.doses=state.glp.doses.filter(function(d){return d.id!==_id;});save();render();return;}
   if(a==="glp:skip"){glpNormalize();var _g3=state.glp;var _at2=el.getAttribute("data-at");var _atMs2=_at2?parseInt(_at2,10):Date.now();state.glp.doses.push({id:glpNewId("dose"),dose:(_g3.compound?_g3.compound.dose:""),unit:(_g3.compound?_g3.compound.unit:"mg"),siteId:null,takenAt:_atMs2,note:"",skipped:true});save();render();toast("Marked skipped");return;}
-  if(a==="glp:sym:open"){glpNormalize();if(!state.glp.settings.symptomLogging)return;var _ts=state.glp.symptomTypes.filter(function(t){return !t.archived;});state.glpSheet={mode:"sym",symptomTypeId:(_ts[0]?_ts[0].id:null),severity:null,at:Date.now(),note:"",newOpen:false,newLabel:""};render();return;}
+  if(a==="glp:sym:open"){glpNormalize();if(!state.glp.settings.symptomLogging)return;state.glpSheet={mode:"sym",symptomTypeId:null,severity:null,at:Date.now(),note:"",newOpen:false,newLabel:""};render();return;}
+  /* The sheet used to open with the FIRST type (Nausea) preselected. On iOS,
+     tapping a chip while the note keyboard is up only dismisses the keyboard --
+     the tap never lands -- so the default was saved silently: a real headache
+     went into the record as a third "nausea". No preselection means the save
+     guard ("Pick a symptom") makes a silent wrong type impossible. */
   if(a==="glp:sym:pick"){glpSheetSync();if(state.glpSheet){state.glpSheet.symptomTypeId=el.getAttribute("data-id");state.glpSheet.newOpen=false;}render();return;}
   if(a==="glp:sev"){glpSheetSync();if(state.glpSheet)state.glpSheet.severity=parseInt(el.getAttribute("data-sev"),10);render();return;}
   if(a==="glp:sym:new"){glpSheetSync();if(state.glpSheet)state.glpSheet.newOpen=true;render();var _ni=document.getElementById("wl-glpnewin");if(_ni)_ni.focus();return;}
   if(a==="glp:sym:newsave"){glpNormalize();glpSheetSync();var _s2=state.glpSheet;if(!_s2)return;var _lbl=(_s2.newLabel||"").trim();if(!_lbl){toast("Enter a symptom name");return;}var _nid=glpNewId("sym");state.glp.symptomTypes.push({id:_nid,label:_lbl,isBuiltIn:false,archived:false});_s2.symptomTypeId=_nid;_s2.newOpen=false;_s2.newLabel="";save();render();return;}
-  if(a==="glp:sym:save"){glpNormalize();glpSheetSync();var _s3=state.glpSheet;if(!_s3)return;if(!_s3.symptomTypeId){toast("Pick a symptom");return;}if(!_s3.severity){toast("Pick a severity");return;}state.glp.symptoms.push({id:glpNewId("slog"),symptomTypeId:_s3.symptomTypeId,severity:parseInt(_s3.severity,10),occurredAt:(_s3.at||Date.now()),note:(_s3.note||"").trim()});save();state.glpSheet=null;render();toast("Symptom logged");return;}
+  if(a==="glp:sym:save"){glpNormalize();glpSheetSync();var _s3=state.glpSheet;if(!_s3)return;if(!_s3.symptomTypeId){toast("Pick a symptom");return;}if(!_s3.severity){toast("Pick a severity");return;}state.glp.symptoms.push({id:glpNewId("slog"),symptomTypeId:_s3.symptomTypeId,severity:parseInt(_s3.severity,10),occurredAt:(_s3.at||Date.now()),note:(_s3.note||"").trim()});save();state.glpSheet=null;render();toast("Logged: "+glpSymLabel(_s3.symptomTypeId)+" \u00b7 severity "+_s3.severity);return;}
   if(a==="glp:sheetclose"){state.glpSheet=null;render();return;}
   if(a==="glp:prog:sym"){state.glpProgSym=el.getAttribute("data-id");render();return;}
   if(a==="glp:prog:mode"){state.glpProgMode=el.getAttribute("data-mode");render();return;}
@@ -7359,7 +7388,7 @@ document.addEventListener("click",function(e){
   if(a==="wo:exremove"){var w=state.workout;var ei=+el.getAttribute("data-ei");var en=w&&w.entries[ei];askConfirm("Remove "+((en&&en.name)||"this exercise")+" from this workout? (Your routine isn\u2019t changed.)",function(){var w2=state.workout;if(w2)w2.entries.splice(ei,1);state.exMenu=null;saveWorkout();},{label:"Remove"});return;}
   if(a==="wo:exreplace"){state.woReplaceEi=+el.getAttribute("data-ei");state.exMenu=null;render();return;}
   if(a==="wo:replacecancel"){state.woReplaceEi=null;render();return;}
-  if(a==="wo:replacepick"){var w=state.workout;var ei=state.woReplaceEi;var ex=exById(el.getAttribute("data-eid"));if(w&&ei!=null&&ex){var en=w.entries[ei];en.exerciseId=ex.id;en.name=ex.name;en.muscle=ex.muscle;en.equipment=ex.equipment;en.bodyweight=!!ex.bodyweight;en.notes=[];(ex.notes||[]).forEach(function(nn){en.notes.push({text:nn.text,pinned:true});});}state.woReplaceEi=null;saveWorkout();render();return;}
+  if(a==="wo:replacepick"){var w=state.workout;var ei=state.woReplaceEi;var ex=exById(el.getAttribute("data-eid"));if(w&&ei!=null&&ex){var en=w.entries[ei];en.exerciseId=ex.id;en.name=ex.name;en.muscle=ex.muscle;en.equipment=ex.equipment;en.bodyweight=!!ex.bodyweight;en.notes=[];(ex.notes||[]).forEach(function(nn){en.notes.push({id:nn.id,text:nn.text,pinned:true});});}state.woReplaceEi=null;saveWorkout();render();return;}
   if(a==="wo:exnote"){var w=state.workout;var en=w&&w.entries[+el.getAttribute("data-ei")];if(!en)return;state.routineId=w.routineId;state.noteEdit={iid:en.itemId,nid:null,text:"",pinned:false,woEi:+el.getAttribute("data-ei")};state.exMenu=null;render();return;}
   if(a==="wo:hist"){var w=state.workout;var en=w&&w.entries[+el.getAttribute("data-ei")];if(en)openHistory(en.exerciseId,en.name);return;}
   if(a==="wo:histclose"){state.histView=null;render();return;}
@@ -7386,7 +7415,30 @@ document.addEventListener("click",function(e){
   if(a==="lift:tofinish"){state.liftEdit="summary";render();return;}
   if(a==="lift:summaryback"){state.liftEdit=(getLiftSession()&&getLiftSession().mode==="full")?"sets":null;render();return;}
   if(a==="lift:del"){var sid=el.getAttribute("data-id");var ls=state.training.liftSessions||{};var vic=null,vd=null;Object.keys(ls).forEach(function(dt){(ls[dt]||[]).forEach(function(s){if(s.id===sid){vic=s;vd=dt;}});});if(!vd){toast("Session not found");return;}askConfirm("Delete this "+((vic&&vic.name)||"workout")+" session? This can\u2019t be undone.",function(){var a2=(ls[vd]||[]).filter(function(s){return s.id!==sid;});if(a2.length)ls[vd]=a2;else delete ls[vd];syncLiftTags(vd);saveTraining();save();if(state.view==="liftview"){state.view="train";state.liftEdit=null;}},{label:"Delete"});return;}
-  if(a==="lift:savedetail"){saveTraining();save();state.view="train";state.liftViewId=null;state.liftEdit=null;toast("Saved");render();return;}
+  if(a==="lift:savedetail"){
+    var _es=getLiftSession();
+    if(_es){
+      var _old=state.liftViewDate;
+      var _nd=(typeof _es.date==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(_es.date))?_es.date:_old;
+      /* Rebuild ts from the (possibly edited) date + start time, local. */
+      var _tm=(typeof _es.time==="string"&&/^\d{1,2}:\d{2}$/.test(_es.time))?_es.time:null;
+      var _base=new Date(num(_es.ts)||Date.now());
+      var _hh=_tm?parseInt(_tm.split(":")[0],10):_base.getHours();
+      var _mm2=_tm?parseInt(_tm.split(":")[1],10):_base.getMinutes();
+      var _pp=_nd.split("-");
+      _es.ts=new Date(parseInt(_pp[0],10),parseInt(_pp[1],10)-1,parseInt(_pp[2],10),_hh,_mm2).getTime();
+      delete _es.time;   /* transient editor field; ts is the stored truth */
+      _es.date=_nd;
+      if(_nd!==_old){
+        var _ls=state.training.liftSessions;
+        var _rest=(_ls[_old]||[]).filter(function(x){return x.id!==_es.id;});
+        if(_rest.length)_ls[_old]=_rest;else delete _ls[_old];
+        _ls[_nd]=(_ls[_nd]||[]).slice();_ls[_nd].push(_es);
+        /* Re-derive the auto activity tags on BOTH days, through the app's own
+           derivation -- never by hand-editing core. */
+        syncLiftTags(_old);syncLiftTags(_nd);
+        state.liftViewDate=_nd;}}
+    saveTraining();save();state.view="train";state.liftViewId=null;state.liftEdit=null;toast("Saved");render();return;}
   if(a==="wt:add"){state.view="wtadd";render();return;}
   if(a==="wo:resumeask"){state.woResume=true;render();return;}
   if(a==="wo:resumecancel"){state.woResume=false;render();return;}
