@@ -437,9 +437,9 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 input{background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);
   padding:11px 12px;font-size:16px;font-family:var(--mono);width:100%;outline:none;}
 input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim);}
-input[type=date]{font-family:var(--sans);color-scheme:inherit;-webkit-appearance:none;appearance:none;text-align:left;min-width:0;}
-input[type=date]::-webkit-date-and-time-value{text-align:left;margin:0;}
-input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;}
+input[type=date],input[type=time]{font-family:var(--sans);color-scheme:inherit;-webkit-appearance:none;appearance:none;text-align:left;min-width:0;width:100%;}
+input[type=date]::-webkit-date-and-time-value,input[type=time]::-webkit-date-and-time-value{text-align:left;margin:0;}
+input[type=date]::-webkit-calendar-picker-indicator,input[type=time]::-webkit-calendar-picker-indicator{opacity:.55;}
 .wl-inline-input{font-family:var(--sans);flex:1;}
 .wl-macrogrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;}
 .wl-macro3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
@@ -856,7 +856,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-01.402-fx";
+var APP_BUILD="2026-08-01.403-fx";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -1015,8 +1015,20 @@ function glpCardHTML(){
     h+='<div class="wl-glpnag-sub">Due '+esc(fmtLong(new Date(info.due)))+' · '+(ago<=0?"today":(ago===1?"1 day ago":ago+" days ago"))+'</div>';
     h+='<div class="wl-glpnag-btns"><button class="wl-glpnag-prim" data-act="glp:dose:open" data-at="'+info.due+'">Log now</button><button class="wl-glpnag-sec" data-act="glp:skip" data-at="'+info.due+'">Skip this week</button></div></div>';
   }
-  var doses=(g.doses||[]).slice().sort(function(a,b){return b.takenAt-a.takenAt;}).slice(0,3);
-  var syms=g.symptoms||[];
+  /* The Activity card answers "what happened THIS day" -- it used to list the
+     three most-recent shots regardless of the day being viewed (Owner bug #4).
+     The full journal lives under the Weight & dose chart. NOTE: comparisons use
+     the PADDED iso day (toISO), not glpDayKey, whose "2026-8-1" format can
+     never equal a selDate like "2026-08-01". */
+  var _day=state.selDate||todayISO();
+  var _iso=function(ms){return toISO(new Date(ms));};
+  var doses=(g.doses||[]).filter(function(d){return _iso(d.takenAt)===_day;}).sort(function(a,b){return a.takenAt-b.takenAt;});
+  var syms=(g.symptoms||[]).filter(function(x){return _iso(x.occurredAt)===_day;}).sort(function(a,b){return a.occurredAt-b.occurredAt;});
+  if(!doses.length){
+    var _prev=null;(g.doses||[]).forEach(function(d){if(!d.skipped&&_iso(d.takenAt)<=_day&&(!_prev||d.takenAt>_prev.takenAt))_prev=d;});
+    if(_prev){var _ago=Math.round((new Date(_day+"T12:00").getTime()-_prev.takenAt)/86400000);
+      h+='<div class="wl-glpentry"><div class="wl-glpentry-lines"><div class="wl-glpentry-l2">No shot this day · last was '+(_ago<=0?"today":(_ago===1?"1 day ago":_ago+" days ago"))+' ('+esc(glpFmtWhen(_prev.takenAt))+')</div></div></div>';}
+  }
   doses.forEach(function(d){
     h+='<div class="wl-glpentry"><div class="wl-glpentry-lines">';
     if(d.skipped){
@@ -1025,12 +1037,11 @@ function glpCardHTML(){
       var dl=esc(g.compound.name||"")+((d.dose!=null&&d.dose!=="")?(" "+esc(d.dose)+" "+esc(d.unit||"mg")):"");
       h+='<div class="wl-glpentry-l1">'+dl+'</div><div class="wl-glpentry-l2">'+esc(glpFmtWhen(d.takenAt))+(d.siteId?(" · "+esc(glpSiteLabel(d.siteId))):"")+'</div>';
     }
-    var dk=glpDayKey(d.takenAt);
-    syms.filter(function(s){return glpDayKey(s.occurredAt)===dk;}).sort(function(a,b){return a.occurredAt-b.occurredAt;}).forEach(function(s){
-      var sev=parseInt(s.severity,10)||0;var pips="";for(var i=1;i<=5;i++)pips+='<span class="wl-glppip'+(i<=sev?" on":"")+'"></span>';
-      h+='<div class="wl-glpsev"><b>'+esc(glpSymLabel(s.symptomTypeId))+'</b>'+pips+'</div>';
-    });
     h+='</div><button class="wl-icon-btn" data-act="glp:dose:del" data-id="'+esc(d.id)+'">'+I.trash.replace("<svg","<svg width=15 height=15")+'</button></div>';
+  });
+  syms.forEach(function(x){
+    var sev=parseInt(x.severity,10)||0;var pips="";for(var i=1;i<=5;i++)pips+='<span class="wl-glppip'+(i<=sev?" on":"")+'"></span>';
+    h+='<div class="wl-glpsev"><b>'+esc(glpSymLabel(x.symptomTypeId))+'</b>'+pips+'</div>';
   });
   h+='<div class="wl-glpbtnrow"><button class="wl-btn wl-btn-supp" data-act="glp:dose:open">'+plus+'Log Dose</button>';
   if(g.settings.symptomLogging)h+='<button class="wl-btn wl-btn-supp" data-act="glp:sym:open">'+plus+'Symptom</button>';
@@ -1071,6 +1082,23 @@ function glpSheetHTML(){var s=state.glpSheet;if(!s)return "";glpNormalize();var 
   h+=(s.mode==="sym")?glpSymSheetInner(s,g):glpDoseSheetInner(s,g);
   return h+'</div></div>';
 }
+/* The full shot journal, under the Weight & dose chart (Owner design ruling). */
+function glpJournalHTML(){
+  var g=state.glp;if(!g||!g.settings||!g.settings.enabled)return "";
+  var doses=(g.doses||[]).slice().sort(function(a,b){return b.takenAt-a.takenAt;});
+  if(!doses.length)return "";
+  var h='<div class="wl-card"><div class="wl-card-head"><span>Shot journal</span></div>';
+  doses.forEach(function(d){
+    h+='<div class="wl-glpentry"><div class="wl-glpentry-lines">';
+    if(d.skipped){h+='<div class="wl-glpentry-l1">Dose skipped</div><div class="wl-glpentry-l2">'+esc(glpFmtWhen(d.takenAt))+'</div>';}
+    else{
+      var dl=esc((g.compound&&g.compound.name)||"")+((d.dose!=null&&d.dose!=="")?(" "+esc(d.dose)+" "+esc(d.unit||"mg")):"");
+      h+='<div class="wl-glpentry-l1">'+dl+'</div><div class="wl-glpentry-l2">'+esc(glpFmtWhen(d.takenAt))+(d.siteId?(" · "+esc(glpSiteLabel(d.siteId))):"")+'</div>';
+      if(d.note)h+='<div class="wl-glpentry-l2" style="margin-top:2px;color:var(--muted)">'+esc(d.note)+'</div>';
+    }
+    h+='</div></div>';
+  });
+  return h+'</div>';}
 function normActs(iso){var raw=state.workouts[iso];if(!Array.isArray(raw))return [];
   return raw.map(function(a){if(typeof a==="string")return {cat:catFromName(a),name:a};return {cat:(a&&a.cat)||catFromName(a&&a.name)||"other",name:(a&&a.name)||"",auto:a&&a.auto};});}
 var TKEY="wl_training_v1";
@@ -1805,6 +1833,7 @@ function view_glptimeline(){
   h+='<div class="wl-glpnote"><b>Bands mark when each dose was active</b> — not what caused the change. Diet, training and sleep move this line too.</div>';
   h+='</div>';
   h+='<button class="wl-glpexpand" data-act="go" data-view="weight"><span>Compare by dose level</span><span class="wl-glpgo">›</span></button>';
+  h+=glpJournalHTML();
   return h+'</div>';
 }
 
