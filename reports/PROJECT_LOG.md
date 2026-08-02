@@ -578,8 +578,10 @@ Candidate identity: base `e5f38c3` (build `2026-07-30.400-pb`, sha256
    sync rework.
 4. **Restore** — `applyImport()` does not restore training; deferred until the
    sync durability work lands.
-5. **"One active writing device"** — approved (pre-incident) but unimplemented;
-   prerequisite for HealthKit import.
+5. **"One active writing device"** — the single-writer half is IN DESIGN as
+   M10 (Owner direction 2026-08-02, STRICT ruling; proceeds after M8, done).
+   The M7b storage-migration package remains prerequisite ONLY for M10's
+   HealthKit-import half, which is not started (parked for Maestro).
 6. **Server lockdown must stay OFF** until the sync rework ships: rule-blocking
    raw PATCH with the current client would make every reopen destroy data.
 7. **`SHOW_TESTBTN=true`** — Owner ruled 2026-08-01: ships in this release

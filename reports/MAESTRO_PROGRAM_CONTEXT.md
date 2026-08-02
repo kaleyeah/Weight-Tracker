@@ -70,7 +70,7 @@ in-session. Established 2026-08-01 at the Owner's request.
 | M7b | Reviewed HealthKit storage-migration package (schema, migration, backup, rollback, tests) per standing ruling | Required before M10 implementation; independent of M8 ordering |
 | M8 | Sync rework (design v7 contract) | **COMPLETE.** 129 final-byte client cases; real-PocketBase gate passed (round 21); release commit `425f70e`, tag `v2026-08-02.415-m8`, sha256 `5bda0da5…1ba35ee3`, served-byte verified 2026-08-02 17:20:02Z; **Owner accepted** same day after a production check (bootstrap review resolved via the live workflow; online sync; offline hold + relaunch retry — a subset of the packaged checklist; the logout-refusal and deletion-cycle steps rest on the automated evidence). Raw-PATCH lockdown remains separately gated. Local records HEAD is ahead of `origin/main` (=`425f70e`) by the post-release records commits, unpushed pending Owner authorization |
 | M9 | Conflict/recovery resolution UI; snapshot reconciliation | Follows M8 |
-| M10 | "One active writing device"; then HealthKit import | Approved, unimplemented; after M8 AND the reviewed M7b package |
+| M10 | "One active writing device"; then HealthKit import | SPLIT by Owner direction 2026-08-02: the single-writer half is IN DESIGN (STRICT ruled; Architect rounds 1–3; after-M8 prerequisite met); the HealthKit-import half still requires the reviewed M7b package (parked for Maestro) |
 
 ## Current gate
 
