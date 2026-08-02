@@ -74,31 +74,26 @@ in-session. Established 2026-08-01 at the Owner's request.
 
 ## Current gate
 
-**M8 — the sync rework** (brief: Architect round-2 rulings 1–10, archived in
-`Weight-Tracker/M8-sync-rework/BRIEF-round2-rulings.md`). **Owner ruling
-2026-08-02, via the decision channel:** M8 formally precedes M7b, amending
-the earlier sequencing; M7b (HealthKit) stays parked for the Maestro project
-per the Owner's 2026-08-01 direction. Companion Owner rulings the same
-night: the per-device acknowledged-base is the **full canonical copy** (not
-a digest; R5 tradeoff decided, ~29 KB today measured from the Owner's data),
-and the empty-server bootstrap case is a **strict conflict** (no auto-push).
-The session-date correction closed 2026-08-01: solved by the `.402` session
-editor, no DB mutation.
+**M10 single-writer — server-package design review** (Architect rounds
+1–4 complete; STRICT Owner ruling on record; design v5 + consolidated
+matrix required before the server package may be implemented against
+disposable infrastructure). M9 is deferred behind M10 by Owner
+direction; M7b remains parked for Maestro and gates only M10's
+HealthKit-import half.
 
-**The accepted release:** The
-build `2026-08-01.401-bk` (commit `e4abbae…`, tag `v2026-08-01.401-bk`,
-candidate sha256 `7d865ff8…9d5743`) is **published and accepted**;
-`origin/main` stands at `e4abbae…`, and the served artifact was verified at
-sha256 `7d865ff8…9d5743`.
-Any records-only commit made after acceptance is **local-only and
-non-production** until a separate Owner records-publication authorization and
-fresh served-byte verification; the release tag is immutable at `e4abbae…`.
+**The accepted release:** build `2026-08-02.415-m8` (release commit
+`425f70e`, tag `v2026-08-02.415-m8`, sha256 `5bda0da5…1ba35ee3`) is
+**published, four-point byte-verified (17:20:02Z), and Owner-accepted**
+— the sync rework is live and the 2026-07-31 loss class is closed. The
+prior accepted releases (`.401-bk` containment, `.402`–`.414`
+correctness/UX) are historical; `origin/main` stands at `425f70e` with
+post-release records commits local pending an authorized push.
 
-Accuracy corrections to the M6 publication instrument, on the record: the full
-PocketBase backup was identified (name/size/time), not independently verified;
-and the protection-screen states are unlikely on a single-account device, not
-impossible. The Owner had already accepted the accurately-stated rollback
-limitation at M4, so his authorization stands.
+**Standing state:** raw-PATCH lockdown and M10 fence enforcement are
+OFF, awaiting one combined Owner-authorized server change after the M10
+client reaches both devices. Client-only UX changes remain outside the
+Architect loop by Owner ruling; server/data-integrity work goes through
+it.
 
 ## Standing risks
 

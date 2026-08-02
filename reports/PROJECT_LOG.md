@@ -554,41 +554,45 @@ Candidate identity: base `e5f38c3` (build `2026-07-30.400-pb`, sha256
 `4407050e…a004771`); candidate build `2026-08-01.401-bk`, sha256
 `7d865ff8388dad5bc73f7a518bbc981676ca3caeb0723188c304043a029d5743`.
 
-## §4 Open items
+## §4 Open items (current state, 2026-08-02 post-M8)
 
-1. **The training sync defect is UNFIXED and live.** The deployed app still
-   silently loses training on failed-push-then-pull. The containment candidate
-   contains the loss (exportable snapshot); it does not cure it. The rework
-   brief is the Architect's round-2 rulings 1–10 (own dirty flag; snapshot +
-   generation push; no blind boot push; conflict retention without auto-merge;
-   acknowledged-revision tracking; conflict UI with export-first resolution;
-   CAS-protected writes; data-safe rollback; deterministic tests; disposable-
-   record integration evidence — authorized by the Owner).
-2. **Release sequencing** per the Owner's round-19 release-model ruling
-   (production-origin validation): records → release package → Owner diff and
-   risk review → committed release identity + finalized rollback hash → fresh
-   PocketBase export + verified NAS snapshot + storage-area inventory → **Owner
-   authorizes live publication (this IS the deployment decision)** → publish →
-   byte-for-byte served-artifact verification → manual iPhone check against
-   every in-use storage area → **Owner accepts the release or the rollback
-   procedure executes**. No production record claims verification until the
-   served candidate matches the committed candidate. In progress.
-3. **`resyncAllActivityTags()` coupling** — a stale training read can delete
-   previously published core activity tags. Recorded round 2, deferred to the
-   sync rework.
-4. **Restore** — `applyImport()` does not restore training; deferred until the
-   sync durability work lands.
-5. **"One active writing device"** — the single-writer half is IN DESIGN as
-   M10 (Owner direction 2026-08-02, STRICT ruling; proceeds after M8, done).
-   The M7b storage-migration package remains prerequisite ONLY for M10's
-   HealthKit-import half, which is not started (parked for Maestro).
-6. **Server lockdown must stay OFF** until the sync rework ships: rule-blocking
-   raw PATCH with the current client would make every reopen destroy data.
-7. **`SHOW_TESTBTN=true`** — Owner ruled 2026-08-01: ships in this release
-   unchanged; removal rides the sync-rework build.
-8. **Shared-device "clear this device" action** — deliberately excluded from the
-   containment release; needs its own reviewed, Owner-authorized design.
-9. **iOS/PWA lifecycle behaviour unproven** — all automated evidence is desktop
-   Chromium; the manual iPhone check is the (Owner-authorized) gap-closer.
-10. **Recovery-snapshot resolution workflow** — clearing a snapshot after its
-    data is reconciled belongs to the sync rework, not containment.
+1. **The training sync defect is FIXED and the fix is LIVE.** Build
+   `2026-08-02.415-m8` (release commit `425f70e`, tag
+   `v2026-08-02.415-m8`, served-byte verified 17:20:02Z) implements the
+   full sync rework; the Owner formally accepted the release after a
+   production device check. The failed-push-then-pull loss class is
+   closed: unsynced work self-announces, retries, and can never be
+   silently overwritten. Historical detail: §1 chronology, rounds 1–25.
+2. **Release sequencing** — the round-19 release-model ruling was
+   executed in full for `.415-m8` (records → package review → frozen
+   identity → prerequisites → Owner publication decision → four-point
+   byte verification → device check → Owner acceptance). CLOSED for M8;
+   the model remains standing policy for future releases.
+3. **`resyncAllActivityTags()` coupling** — FIXED in M8 (§5b guards:
+   derivation only from acknowledged/adopted training; provenance-safe
+   `auto:true` cleanup incl. `migrateOrphanLiftTags`).
+4. **Restore** — `applyImport()` training restore shipped with the
+   containment release (restores only when the backup carries training).
+   CLOSED.
+5. **"One active writing device"** — the single-writer half is IN DESIGN
+   as M10 (Owner direction 2026-08-02, STRICT ruling; its after-M8
+   prerequisite is met). The M7b storage-migration package remains
+   prerequisite ONLY for M10's HealthKit-import half (parked for
+   Maestro). Architect design rounds 1–4 complete; server package not
+   yet authorized.
+6. **Server hardening (raw-PATCH lockdown + M10 fence enforcement)** —
+   still OFF, by design: it awaits M8 stability plus the M10 client on
+   both Owner devices, then ONE separately Owner-authorized server
+   change. The pre-M8 rationale (lockdown would destroy data on reopen)
+   no longer applies; the gate is now sequencing, not danger.
+7. **`SHOW_TESTBTN=true`** — still shipping (Owner ruling 2026-08-01);
+   removal now rides the next maintenance build (the M8 build kept it).
+8. **Shared-device "clear this device" action** — still excluded; needs
+   its own reviewed, Owner-authorized design.
+9. **iOS/PWA lifecycle behaviour** — the M8 release added an
+   Owner-performed production device check (subset recorded in the
+   release records); automated evidence remains desktop Chromium.
+   Standing limitation, honestly stated.
+10. **Recovery-snapshot resolution workflow** — deferred to M9
+    (conflict/recovery resolution UI), which the Owner sequenced AFTER
+    M10.
