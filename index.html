@@ -688,6 +688,10 @@ input[type=date]::-webkit-calendar-picker-indicator,input[type=time]::-webkit-ca
 .wl-mark{display:flex;line-height:0;flex:none;}
 .wl-brandword{font-weight:900;letter-spacing:.2em;font-size:17px;color:var(--text);}
 .wl-hnav{display:flex;align-items:center;gap:2px;min-width:0;}
+.wl-hnav-daynav{display:flex;align-items:center;justify-content:center;width:100%;gap:44px;}
+.wl-hnav-day{background:none;border:none;padding:6px 10px;color:var(--text);font-size:24px;font-weight:300;line-height:1;font-family:var(--sans);flex:none;}
+.wl-hnav-day.off{color:var(--faint);opacity:.35;}
+.wl-hnav-daynav .wl-hnav-lbl{min-width:150px;justify-content:center;}
 .wl-hnav-arw{width:30px;height:30px;border-radius:7px;border:1px solid var(--line);background:var(--card);color:var(--muted);font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0;flex:none;}
 .wl-hnav-lbl{display:flex;align-items:center;gap:7px;padding:4px 8px;border-radius:9px;background:none;border:none;color:var(--text);font-size:16px;font-weight:800;letter-spacing:-.01em;font-family:var(--sans);min-width:0;}
 .wl-hnav-lbl>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -856,7 +860,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-02.407-fx";
+var APP_BUILD="2026-08-02.408-fx";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -2345,11 +2349,21 @@ function dayBarHTML(){
 function headerNav(){var v=state.view;
   if(v==="overview"||v==="food"||v==="calendar"||v==="train"){
     var sel=state.selDate;var isToday=sel===todayISO();var open=state.calOpen;
-    var lbl=open?(MONTHS[state.calM]):(isToday?('Today, '+parseISO(sel).toLocaleDateString(undefined,{month:"long",day:"numeric"})):parseISO(sel).toLocaleDateString(undefined,{weekday:"short",month:"long",day:"numeric"}));
-    var h='<div class="wl-hnav'+((!isToday&&!open)?" off":"")+'">';
-    if(open)h+='<button class="wl-hnav-arw" data-act="cal:prev">‹</button>';
-    h+='<button class="wl-hnav-lbl'+(open?" month":"")+'" data-act="cal:expand"><span>'+lbl+'</span></button>';
-    if(open)h+='<button class="wl-hnav-arw" data-act="cal:next">›</button>';
+    var yday=toISO(addDays(new Date(),-1));
+    var lbl=open?(MONTHS[state.calM]):(isToday?'Today':sel===yday?'Yesterday':parseISO(sel).toLocaleDateString(undefined,{weekday:"short",month:"long",day:"numeric"}));
+    if(!open){
+      /* Owner design 2026-08-02 (mockup approved): bare chevrons, date centered,
+         one day per tap, never past today */
+      var h1='<div class="wl-hnav wl-hnav-daynav'+(!isToday?" off":"")+'">';
+      h1+='<button class="wl-hnav-day" data-act="day:prev" aria-label="Previous day">‹</button>';
+      h1+='<button class="wl-hnav-lbl" data-act="cal:expand"><span>'+lbl+'</span></button>';
+      h1+=isToday?'<button class="wl-hnav-day off" disabled aria-label="Next day">›</button>'
+                 :'<button class="wl-hnav-day" data-act="day:next" aria-label="Next day">›</button>';
+      return h1+'</div>';}
+    var h='<div class="wl-hnav">';
+    h+='<button class="wl-hnav-arw" data-act="cal:prev">‹</button>';
+    h+='<button class="wl-hnav-lbl month" data-act="cal:expand"><span>'+lbl+'</span></button>';
+    h+='<button class="wl-hnav-arw" data-act="cal:next">›</button>';
     return h+'</div>';}
   if(v==="summary"){var s0=weekStartFor(state.weekOffset),e0=new Date(s0);e0.setDate(s0.getDate()+6);var isThis=state.weekOffset===0;
     var h='<div class="wl-hnav'+(isThis?"":" off")+'">';
@@ -7544,6 +7558,8 @@ document.addEventListener("click",function(e){
   if(a==="cal:prev"){state.calM--;if(state.calM<0){state.calM=11;state.calY--;}render();return;}
   if(a==="cal:next"){state.calM++;if(state.calM>11){state.calM=0;state.calY++;}render();return;}
   if(a==="cal:sel"){state.selDate=el.getAttribute("data-date");var cd=parseISO(state.selDate);state.calY=cd.getFullYear();state.calM=cd.getMonth();state.calOpen=false;try{localStorage.setItem("wl_calopen","0");}catch(e){}render();return;}
+  if(a==="day:prev"){var _dp=parseISO(state.selDate);_dp.setDate(_dp.getDate()-1);state.selDate=toISO(_dp);state.calY=_dp.getFullYear();state.calM=_dp.getMonth();render();return;}
+  if(a==="day:next"){var _dn=parseISO(state.selDate);_dn.setDate(_dn.getDate()+1);var _ni=toISO(_dn);if(_ni>todayISO())return;state.selDate=_ni;state.calY=_dn.getFullYear();state.calM=_dn.getMonth();render();return;}
   if(a==="cal:expand"){state.calOpen=!state.calOpen;try{localStorage.setItem("wl_calopen",state.calOpen?"1":"0");}catch(e){}if(state.calOpen){var pd=parseISO(state.selDate);state.calY=pd.getFullYear();state.calM=pd.getMonth();}render();return;}
   if(a==="cal:overwrite"){var d=state.selDate;var e2=Object.assign({},state.food[d]||{});var p=num(e2.protein),c=num(e2.carbs),f=num(e2.fat);e2.calories=String(Math.round((p||0)*4+(c||0)*4+(f||0)*9));e2.calAuto=true;delete e2.calDismiss;state.food[d]=e2;save();render();return;}
   if(a==="cal:ignore"){var d2=state.selDate;var e3=Object.assign({},state.food[d2]||{});e3.calDismiss=true;state.food[d2]=e3;save();var n=document.getElementById("wl-calnotice");if(n)n.innerHTML="";return;}
