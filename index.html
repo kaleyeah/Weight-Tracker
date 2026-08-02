@@ -634,6 +634,7 @@ input[type=date]::-webkit-calendar-picker-indicator,input[type=time]::-webkit-ca
 /* ---- GLP-1 bottom sheets (reuses .wl-confirm overlay mechanism) ---- */
 .wl-confirm.wl-glpsheetwrap{align-items:flex-end;justify-content:center;padding:0;}
 .wl-glpsheetdim{position:absolute;inset:0;}
+.wl-glpsheet-x{position:absolute;top:14px;right:14px;width:32px;height:32px;border-radius:50%;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--muted);font-size:15px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0;z-index:2;}
 .wl-glpsheet{position:relative;max-width:520px;width:100%;background:var(--card);border:1px solid var(--line);border-bottom:none;border-radius:30px 30px 0 0;padding:12px 20px calc(env(safe-area-inset-bottom,0px) + 22px);max-height:88vh;overflow:auto;box-shadow:0 -12px 40px rgba(0,0,0,.5);}
 .wl-glpgrab{width:38px;height:5px;border-radius:3px;background:var(--line2);margin:0 auto 14px;}
 .wl-glpsheet-h{font-size:21px;font-weight:800;margin-bottom:3px;}
@@ -860,7 +861,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-02.411-fx";
+var APP_BUILD="2026-08-02.412-fx";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -1083,7 +1084,7 @@ function glpSymSheetInner(s,g){var types=(g.symptomTypes||[]).filter(function(t)
   return h;
 }
 function glpSheetHTML(){var s=state.glpSheet;if(!s)return "";glpNormalize();var g=state.glp;
-  var h='<div class="wl-confirm wl-glpsheetwrap"><div class="wl-glpsheetdim" data-act="glp:sheetclose"></div><div class="wl-glpsheet"><div class="wl-glpgrab"></div>';
+  var h='<div class="wl-confirm wl-glpsheetwrap"><div class="wl-glpsheetdim" data-act="glp:sheetclose"></div><div class="wl-glpsheet"><div class="wl-glpgrab"></div><button class="wl-glpsheet-x" data-act="glp:sheetclose" aria-label="Cancel">\u2715</button>';
   h+=(s.mode==="sym")?glpSymSheetInner(s,g):glpDoseSheetInner(s,g);
   return h+'</div></div>';
 }
