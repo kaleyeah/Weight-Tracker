@@ -1,14 +1,15 @@
-M8 round-10 evidence identities — 2026-08-02
+M8 round-11 evidence identities — 2026-08-02
 
 live base (published .414): 3b44f79c99a285619d53a8afd71a6b4cbff13bfaceadcf2c560066d73eb8b1e7
-M8 candidate (working copy): bb2d8899900dd7bce711bb6a2f15b3bbfe7e22bf3eebca2e8749fefc14dc08af
-recovery artifact: bda745b8f65ec02c1565345a573b9a87556de7b06ca975bc9621cc8161ca22a5
-app diff lines: 607
+M8 candidate (working copy): bb98157bb4099272d11df584c89cd13433dfd430aa5f274f8bff267537d6c51e
+recovery artifact: 716bef76774474e9f195ddabb6a755d006261b805c0cafea00ec8355a7cc8c07 (rebuilt from the current candidate)
+app diff lines: 669
 
 == OUT-accounts.txt: OK — 6 passed
+== OUT-faults.txt: OK — 12 passed
 == OUT-matrix.txt: OK — 9 passed
-== OUT-quota.txt: OK — 5 passed
-== OUT-recovery.txt: OK — 15 passed
+== OUT-quota.txt: OK — 6 passed
+== OUT-recovery.txt: OK — 25 passed
 == OUT-replay.txt: OK — 10 passed
 == OUT-tags.txt: OK — 5 passed
 == OUT-upgrade-BASELINE-FAILS.txt: FAILED — 1 passed, 3 failed

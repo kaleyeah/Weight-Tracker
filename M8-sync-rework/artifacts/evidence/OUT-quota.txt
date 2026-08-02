@@ -1,11 +1,12 @@
 
 C11-M8 quota — fail-closed under combined occupancy
   source: /home/griffin/projects/compound-app/index.html
-  ballast filled: ~4992 KB; state under pressure: clean; after release: clean
+  ballast ~4992KB; preNet state=dirty blocked=false primaryPersisted=true commitReqs=1; dirty bytes: {"gen":2,"persistedGen":2,"ts":1785651280477,"owner":"userA","mark":"m8.1"}
   ✓ B6: exhaustion never throws through the save path
   ✓ B6: the live in-memory copy keeps the edit regardless
   ✓ B6/13: BEFORE any network action the edit is a VERIFIED dirty marker or an explicit block
+  ✓ B6/13: a blocked state sent ZERO commit requests
   ✓ B6: no sync key is left half-written (base and dirty both parse)
   ✓ no page errors across the run
 
-OK — 5 passed
+OK — 6 passed

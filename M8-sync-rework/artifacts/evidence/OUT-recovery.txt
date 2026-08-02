@@ -13,5 +13,15 @@
   ✓ conflict: a forced training pull+push makes ZERO network requests
   ✓ conflict: local editing works and marks dirty
   ✓ conflict: no page errors
+  ✓ journal: boots with banner, zero training WRITES (CAS calls)
+  ✓ journal: EVERY seeded sync key byte-identical before any edit
+  ✓ journal: a forced training pull+push makes ZERO network requests
+  ✓ journal: local editing works and marks dirty
+  ✓ journal: no page errors
+  ✓ corrupt: boots with banner, zero training WRITES (CAS calls)
+  ✓ corrupt: EVERY seeded sync key byte-identical before any edit
+  ✓ corrupt: a forced training pull+push makes ZERO network requests
+  ✓ corrupt: local editing works and marks dirty
+  ✓ corrupt: no page errors
 
-OK — 15 passed
+OK — 25 passed

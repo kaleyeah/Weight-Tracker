@@ -1,0 +1,17 @@
+
+C11-M8 faults — DOM gating, ambiguity+restart, phase crashes, storage faults
+  source: /home/griffin/projects/compound-app/index.html
+  ✓ A: a REJECTED share leaves choices disabled and nothing marked delivered
+  ✓ A: no page errors
+  ✓ B: download-fallback cancel keeps the gate closed; confirm opens it
+  ✓ C: an edit after export re-disables the rendered choice
+  ✓ B/C: no page errors
+  ✓ D: transport ambiguity keeps the journal AND the conflict
+  ✓ D: restart recovery replays, acks, and clears the OWED conflict phase
+  ✓ E(intent): choose-server crash recovery completes every postcondition
+  ✓ E(k1): choose-server crash recovery completes every postcondition
+  ✓ E(k2): choose-server crash recovery completes every postcondition
+  ✓ F: quarantine COPY failure retains the original and blocks sync
+  ✓ F2: original-removal failure keeps BOTH copies and blocks
+
+OK — 12 passed
