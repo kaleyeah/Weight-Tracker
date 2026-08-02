@@ -1,54 +1,50 @@
-# M8 sync rework — round 13: rulings 1–9 landed, with the two demanded proofs
+# M8 sync rework — round 14: the three round-13 corrections, proven
 
 You are the Architect for the Compound project (read-only; rulings bind
 the Engineer; the Owner alone authorizes deployment and live-data
 mutation).
 
-## Your round-12 rulings, as landed (verify in the tree; hashes in
+## Your round-13 items, as landed (verify in the tree; hashes in
 ## artifacts/evidence/IDENTITIES.txt)
 
-1. An unproven dirty generation DERIVES a blocked state on every boot —
-   the check lives in `m8Boot`, so no reload sheds it, and only a later
-   verified save (recording a newer proven generation) lifts it.
-2. The no-op push path requires `persistedGen === gen` before clearing;
-   so do boot and every other clear site.
-3. The proof write is verified; failure blocks rather than claiming
-   proof that was never recorded.
-4. Fault case L: primary `wl_training_v1` write forced to fail after
-   the dirty marker lands → blocked immediately with an unproven
-   marker; RELOAD → block re-derived, dirty bytes untouched, zero
-   commits; fault lifted → recovery is an explicit verified re-save
-   with proof recorded. Never an automatic dirty deletion.
-5. `markDelivered` compares the current generation AND current
-   canonical content against the identity the files were built from;
-   any mismatch marks nothing and demands a fresh export. The recorded
-   evidence now carries `localCanon`.
-6. Choose Server, after the awaited delivery, re-reads the conflict and
-   requires: same conflict identity (enteredAt + serverRev), the
-   delivered `localGen === m8Gen`, and the live canonical content equal
-   to the delivered files' recorded identity — before any fetch or
-   journaling. Any mismatch stops and demands another export.
-7. Fault case M: the share promise held open, an edit persisted, the
-   share resolved → nothing marked delivered, choices stay closed,
-   conflict and local bytes intact, ZERO fetches.
-8. Conflict, auth-rejection, and not-applied arms persist a terminal
-   `done` journal record (with its outcome) BEFORE removal; boot treats
-   a done-phase survivor as cleanup-only.
-9. Adoption assigns the EXACT parsed canonical object — no field-list
-   rebuild. Fixture N: empty `cardioTypes` and an unknown future field
-   adopt exactly, base equality holds, no phantom conflict.
+2/3/4. **The block model is split.** Hard blocks (storage/integrity,
+   `m8Block`) and the derived unproven-dirty condition
+   (`m8SoftBlockUnproven`) are separate classes; the public
+   `m8StorageBlocked` is a read-only union so every existing check
+   still observes both. Release happens ONLY in
+   `m8ReleaseUnprovenIfProven()`, which re-reads and validates the
+   dirty record itself; nothing touches a hard block. Extended fault
+   case L now proves, without any reload: the verified re-save records
+   proof and bytes; only the unproven block releases; state reflects
+   the true base relationship (dirty); synchronization resumes to a
+   real acknowledged push; and a hard block survives an ordinary
+   successful save.
+5/6. **The second TOCTOU is closed.** Choose Server rechecks conflict
+   identity, generation, and the live canonical content against the
+   delivered export's recorded identity INSIDE the fetch callback,
+   immediately before journal creation. New case O holds the record
+   fetch open, persists an edit, releases the fetch: zero journal
+   creation, zero adoption, conflict and the raced edit byte-intact,
+   state still conflict.
+7/8. **Terminal records are verified.** Every done-write (conflict,
+   auth, not-applied — including the formerly direct-removal
+   `replay && !applied` branch) is checked; failure hard-blocks with
+   the prior journal preserved and NO removal, and boot performs no
+   journal resolution under a hard block (fail closed, no replay —
+   case P2 proves it with a real third-party write forcing the
+   conflict, and case P proves an unjournalable push never dispatches).
 
 ## Evidence
 
-95 cases, 8 suites, all green on candidate (hash in IDENTITIES; diff
-over published `.414`); the recovery artifact is rebuilt from THIS
-candidate, 25/25. The authentic upgrade baseline still fails 1/4.
-Raw outputs in artifacts/evidence/. Desktop Chromium, mocked
-endpoints: real engine, modeled server.
+102 cases, 8 suites, all green on the candidate (hash in IDENTITIES;
+diff over published `.414`); the recovery artifact is rebuilt from THIS
+candidate, 25/25; the authentic upgrade baseline still fails 1/4.
+Raw outputs in artifacts/evidence/. Desktop Chromium, mocked endpoints:
+real engine, modeled server.
 
 ## This round
 
-Rule on the implementation. Per your round-12 close: if rulings 1–9
-pass, the next gate is the disposable-PocketBase integration with the
-whole-record field-isolation demonstration — which needs no live-data
-mutation beyond the Owner-authorized disposable record.
+Rule on the implementation. Per your round-13 close: if these pass, the
+disposable-PocketBase gate follows (whole-record field isolation with a
+concurrent core mutation, against the real route, on the
+Owner-authorized disposable record only).

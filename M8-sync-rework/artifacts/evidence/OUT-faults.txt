@@ -28,9 +28,16 @@ C11-M8 faults — DOM gating, ambiguity+restart, phase crashes, storage faults
   ✓ L: a failed primary save blocks immediately with an unproven dirty marker
   ✓ L: after RELOAD the block is re-derived and the dirty bytes are untouched
   ✓ L: zero commits across the failed-save lifetime
-  ✓ L: recovery is an explicit verified re-save — proof recorded, bytes on disk
+  ✓ L: the verified re-save records proof and bytes WITHOUT a reload
+  ✓ L: only the unproven-save block is released; state reflects the base relationship
+  ✓ L: synchronization resumes to a real ack
+  ✓ L: a HARD block survives an ordinary successful save
+  ✓ O: an edit during the in-flight fetch prevents journal/adoption; conflict and edit survive
+  ✓ P: an unjournalable push never dispatches and blocks
+  ✓ P2: a failed done-write hard-blocks with the prior journal preserved (no removal)
+  ✓ P2: boot under the hard block performs no replay
   ✓ M: resolving a share AFTER an edit marks nothing delivered and keeps choices closed
   ✓ M: no fetch or adoption occurred
   ✓ N: fresh adoption preserves empty cardioTypes and unknown fields EXACTLY
 
-OK — 31 passed
+OK — 38 passed

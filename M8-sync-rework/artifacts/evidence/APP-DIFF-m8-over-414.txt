@@ -1,5 +1,5 @@
 diff --git a/index.html b/index.html
-index 27ee114..189f701 100644
+index 27ee114..4b6a701 100644
 --- a/index.html
 +++ b/index.html
 @@ -1115,7 +1115,11 @@ var DEFAULT_CARDIO_TYPES=["Peloton","Treadmill","Rowing","Bike","Elliptical","Ou
@@ -15,7 +15,7 @@ index 27ee114..189f701 100644
  function saveTraining(){saveTrainingLocal();scheduleTrainingPush();}
  function loadTraining(){try{var t=JSON.parse(localStorage.getItem(TKEY));if(t&&typeof t==="object"){state.training={cardioTypes:(Array.isArray(t.cardioTypes)&&t.cardioTypes.length)?t.cardioTypes:DEFAULT_CARDIO_TYPES.slice(),sessions:t.sessions||{},exercises:t.exercises||[],routines:t.routines||[],liftSessions:t.liftSessions||{}};}}catch(e){}}
  function syncCardioTags(date){var kept=normActs(date).filter(function(a){return !(a.cat==="cardio"&&a.auto);});
-@@ -8731,6 +8735,499 @@ function cloudPush(manual){
+@@ -8731,6 +8735,517 @@ function cloudPush(manual){
      setSync(err==="offline"?"offline":"error",err==="auth"?"session expired — log in again":"");
      if(manual)toast(err==="offline"?"No connection":err==="auth"?"Please log in again":"Save failed");});}
  
@@ -67,8 +67,18 @@ index 27ee114..189f701 100644
 +/* ---- §1 per-account key layer (B4) ---- */
 +function m8Uid(){try{return pbUid()||null;}catch(e){return null;}}
 +function m8Key(kind,uid){return "wl_training_"+kind+"__"+(uid||m8Uid());}
-+var m8StorageBlocked=false,m8StorageBlockReason="";
-+function m8Block(reason){m8StorageBlocked=true;m8StorageBlockReason=reason;try{setSync("error","training sync paused — "+reason);}catch(e){}}
++var m8HardBlocked=false,m8UnprovenBlocked=false,m8StorageBlockReason="";
++/* m8StorageBlocked stays as the read-only union so every existing check and
++   test observes either class */
++Object.defineProperty(window,"m8StorageBlocked",{get:function(){return m8HardBlocked||m8UnprovenBlocked;},configurable:true});
++function m8Block(reason){m8HardBlocked=true;m8StorageBlockReason=reason;try{setSync("error","training sync paused — "+reason);}catch(e){}}
++function m8SoftBlockUnproven(reason){m8UnprovenBlocked=true;m8StorageBlockReason=reason;try{setSync("error","training sync paused — "+reason);}catch(e){}}
++/* released ONLY after re-reading and validating the dirty record itself
++   (R13-3): never touches a hard block */
++function m8ReleaseUnprovenIfProven(){
++  if(!m8UnprovenBlocked)return;
++  var d=m8Read("dirty");
++  if(d.st==="absent"||(d.st==="ok"&&d.val.persistedGen===d.val.gen))m8UnprovenBlocked=false;}
 +
 +/* Read → {st:"absent"} | {st:"ok",val} | {st:"malformed"}. Malformed is NEVER
 +   treated as absent by callers until quarantine succeeds (C8). */
@@ -401,16 +411,17 @@ index 27ee114..189f701 100644
 +          m8CasCommit(res.serverRev,copy,reqId2,function(r2){m8AckOutcome(j,copy,pushedCanon,gen,r2,1,opts);});return;}
 +      }}
 +    if(m8EnterConflict(res.payload,res.serverRev,"push-conflict")){
-+      m8JournalAdvance(j,"done",{outcome:"conflict"});/* terminal record persisted
-+        BEFORE removal (R12-8): boot reads phase done as cleanup-only */
-+      if(!m8JournalEnd()){/* boot retries only cleanup */}}
++      if(!m8JournalAdvance(j,"done",{outcome:"conflict"})){
++        m8Block("could not record the outcome");return;/* prior journal preserved; no removal */}
++      if(!m8JournalEnd()){/* boot: cleanup-only */}}
 +    return;}
 +  if(res.st==="keyReused"){
 +    /* F4 hard stop: same key, different identity. Journal preserved. */
 +    m8Block("sync integrity error — request key reused");return;}
 +  if(res.st==="auth"){
 +    /* definite rejection before execution: not ambiguous */
-+    m8JournalAdvance(j,"done",{outcome:"auth"});
++    if(!m8JournalAdvance(j,"done",{outcome:"auth"})){
++      m8Block("could not record the outcome");return;}
 +    if(!m8JournalEnd()){/* boot: cleanup-only */}
 +    try{setSync("error","session expired — log in again");}catch(e){}return;}
 +  /* transport: AMBIGUOUS (E2) — journal survives at its current phase */
@@ -438,10 +449,12 @@ index 27ee114..189f701 100644
 +        if(m8JournalAdvance(j,"net-done",{newRev:rev}))m8FinishAck(j);
 +        finish();return;}
 +      if(sc.canon===j.expect.oldBaseCanon&&rev===j.expect.expectedRev){ /* E2(b): not applied */
-+        m8JournalAdvance(j,"done",{outcome:"not-applied"});
++        if(!m8JournalAdvance(j,"done",{outcome:"not-applied"})){
++          m8Block("could not record the outcome");finish();return;}
 +        if(!m8JournalEnd()){/* boot: cleanup-only */}finish();return;}
 +      if(m8EnterConflict(srv&&typeof srv==="object"?srv:null,rev,"ambiguous-push")){
-+        m8JournalAdvance(j,"done",{outcome:"conflict"});
++        if(!m8JournalAdvance(j,"done",{outcome:"conflict"})){
++          m8Block("could not record the outcome");finish();return;}
 +        if(!m8JournalEnd()){/* boot: cleanup-only */}}
 +      finish();});};
 +  if(age<M8_LEDGER_MS&&j.expect.requestId){
@@ -450,7 +463,10 @@ index 27ee114..189f701 100644
 +    if(!body){fetchCompare();return;}
 +    m8CasCommit(j.expect.expectedRev,body,j.expect.requestId,function(res){
 +      if(res.st==="ok"||res.st==="replay"){
-+        if(res.st==="replay"&&!res.applied){m8JournalEnd();finish();return;}
++        if(res.st==="replay"&&!res.applied){
++          if(!m8JournalAdvance(j,"done",{outcome:"not-applied"})){
++            m8Block("could not record the outcome");finish();return;}
++          if(!m8JournalEnd()){/* boot: cleanup-only */}finish();return;}
 +        if(m8JournalAdvance(j,"net-done",{newRev:res.newRev}))m8FinishAck(j);
 +        finish();return;}
 +      if(res.st==="conflict"){fetchCompare();return;}
@@ -497,7 +513,7 @@ index 27ee114..189f701 100644
 +     boot — no reload can shed it — and only a later VERIFIED save (which
 +     records a newer proven generation) lifts it. */
 +  if(d.st==="ok"&&d.val.persistedGen!==d.val.gen)
-+    m8Block("an edit may not have saved — make any change to re-save, and check your last entries");
++    m8SoftBlockUnproven("an edit may not have saved — make any change to re-save, and check your last entries");
 +  /* C7: base persisted but dirty-clear failed — compare locally, no server traffic */
 +  var b=m8Read("base");
 +  if(d.st==="ok"&&b.st==="ok"){
@@ -506,7 +522,9 @@ index 27ee114..189f701 100644
 +    if(lc.ok&&lc.canon===b.val.body&&d.val.persistedGen===d.val.gen)m8Remove("dirty");}
 +  var jr=m8Read("journal");
 +  if(jr.st==="malformed"){m8Quarantine("journal");cb&&cb();return;}
-+  if(jr.st==="ok"){m8ResolveJournal(jr.val,function(){cb&&cb();});return;}
++  if(jr.st==="ok"){
++    if(m8HardBlocked){cb&&cb();return;/* fail closed: no replay under a hard block */}
++    m8ResolveJournal(jr.val,function(){cb&&cb();});return;}
 +  cb&&cb();}
 +/* =============== end M8 transitions =============== */
 +
@@ -515,7 +533,7 @@ index 27ee114..189f701 100644
  function trainingPush(){
    /* Blocked in BOTH directions. Pulling can destroy the local copy; pushing an
       unverified local copy can destroy newer training on the server. With the
-@@ -8756,6 +9253,220 @@ function trainingPull(cb){
+@@ -8756,6 +9271,232 @@ function trainingPull(cb){
  
  
  /* =============== end M8 wiring =============== */
@@ -531,7 +549,9 @@ index 27ee114..189f701 100644
 +       claimed — the generation simply stays unproven, which fails closed. */
 +    var d=m8Read("dirty");
 +    if(d.st==="ok"&&d.val.gen===m8Gen){
-+      if(!m8Write("dirty",{gen:m8Gen,persistedGen:m8Gen,ts:d.val.ts}))
++      if(m8Write("dirty",{gen:m8Gen,persistedGen:m8Gen,ts:d.val.ts}))
++        m8ReleaseUnprovenIfProven();
++      else
 +        m8Block("saved, but could not record the proof");}
 +  }else{
 +    m8Block("could not save training to storage");}
@@ -669,6 +689,16 @@ index 27ee114..189f701 100644
 +          m8EnterConflict(srv,rev,"superseded");
 +          toast("The server changed again \u2014 review the new copy");m8Rerender();return;}
 +        if(sc.canon==null){toast("The server holds nothing to adopt");return;}
++        /* R13-5: an edit while the fetch was in flight invalidates everything —
++           recheck conflict identity, generation, and live content against the
++           delivered export immediately before journal creation */
++        var rNow2=m8Read("conflict");
++        var lcNow2=m8Canon(state.training);
++        if(rNow2.st!=="ok"
++          ||rNow2.val.enteredAt!==cx.enteredAt||rNow2.val.serverRev!==cx.serverRev
++          ||!(rNow2.val.exports&&rNow2.val.exports.localGen===m8Gen)
++          ||!lcNow2.ok||lcNow2.canon!==rNow2.val.exports.localCanon){
++          toast("Things changed during the export \u2014 export again");m8Rerender();return;}
 +        /* transition 5: journaled; ONE finisher, live and in recovery */
 +        var j=m8JournalStart("choose-server",{serverRev:rev,serverCanon:sc.canon,discardedLocalGen:m8Gen});
 +        if(!j){m8Block("could not journal the adoption");return;}
