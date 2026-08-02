@@ -1,121 +1,109 @@
-# M10 write-surface matrix — tree-derived (2026-08-02, from the shipping .415-m8 source)
+# M10 write-surface matrix v2 — multi-class, tree-derived (round-3 items 8/9)
 
-266 dispatcher actions inspected; 94 mutate persistent state. Columns:
-action | persistence path(s) | gate class. Gate classes:
-  G-training / G-core / G-photos / G-serverdirect -> m10Gate BEFORE mutation
-  E-devicelocal -> exempt (device-local bookkeeping, no content)
+266 dispatcher actions; 96 mutating; 92 GATED (pre-mutation m10Gate at handler entry); 4 exempt (device-local only).
 
-| action | persistence | class |
+Composite actions list EVERY class they touch. Photos are CONTENT and gated (C8).
+
+| action | classes | gate |
 |---|---|---|
-| `act:addcat` | save(core) | G-core |
-| `act:del` | save(core) | G-core |
-| `act:toggle` | save(core) | G-core |
-| `cal:expand` | rawLS | E-devicelocal |
-| `cal:ignore` | save(core) | G-core |
-| `cal:overwrite` | save(core) | G-core |
-| `cal:sel` | rawLS | E-devicelocal |
-| `cal:usecalc` | save(core) | G-core |
-| `cardio:del` | saveTraining, save(core) | G-training |
-| `cardio:save` | saveTraining, save(core) | G-training |
-| `cf:newtype` | save(core) | G-core |
-| `conn:remove` | save(core) | G-core |
-| `day:clear` | saveTraining, save(core), photosIDB | G-training |
-| `ex:clearall` | saveTraining | G-training |
-| `ex:del` | saveTraining | G-training |
-| `ex:save` | saveTraining | G-training |
-| `ex:seedall` | saveTraining | G-training |
-| `exseed:add` | saveTraining | G-training |
-| `fb:done` | saveWorkout | G-training |
-| `fb:set` | saveWorkout | G-training |
-| `glp:compoundsave` | save(core) | G-core |
-| `glp:dose:del` | save(core) | G-core |
-| `glp:dose:save` | save(core) | G-core |
-| `glp:enable` | save(core) | G-core |
-| `glp:showdue` | save(core) | G-core |
-| `glp:siterot` | save(core) | G-core |
-| `glp:skip` | save(core) | G-core |
-| `glp:sym:del` | save(core) | G-core |
-| `glp:sym:newsave` | save(core) | G-core |
-| `glp:sym:save` | save(core) | G-core |
-| `glp:symptoms` | save(core) | G-core |
-| `glp:titration` | save(core) | G-core |
-| `hk:import` | pbSave(direct) | G-serverdirect |
-| `invite:create` | save(core) | G-core |
-| `invite:join` | save(core), rawLS | G-core |
-| `lift:del` | saveTraining, save(core) | G-training |
-| `lift:save` | saveTraining, save(core) | G-training |
-| `macro:keep` | save(core) | G-core |
-| `macro:suggest` | save(core) | G-core |
-| `max:open` | save(core) | G-core |
-| `night:toggle` | save(core) | G-core |
-| `note:del` | saveTraining | G-training |
-| `note:save` | saveTraining | G-training |
-| `ob:back` | save(core) | G-core |
-| `ob:recalc` | save(core) | G-core |
-| `preset:del` | save(core) | G-core |
-| `reminder:add` | save(core) | G-core |
-| `reset:do` | save(core), photosIDB | G-photos |
-| `ri:mv` | saveTraining | G-training |
-| `ri:pick` | saveTraining | G-training |
-| `ri:prog` | saveTraining | G-training |
-| `ri:remove` | saveTraining | G-training |
-| `rt:del` | saveTraining | G-training |
-| `rt:new` | saveTraining | G-training |
-| `rt:save` | saveTraining | G-training |
-| `set:activity` | save(core) | G-core |
-| `set:sex` | save(core) | G-core |
-| `set:strategy` | save(core) | G-core |
-| `set:theme` | save(core) | G-core |
-| `set:ttype` | save(core) | G-core |
-| `set:units` | save(core) | G-core |
-| `set:weekstart` | save(core) | G-core |
-| `skip:calories` | save(core) | G-core |
-| `skip:sleep` | save(core) | G-core |
-| `skip:steps` | save(core) | G-core |
-| `skip:weight` | save(core) | G-core |
-| `status:end` | save(core) | G-core |
-| `status:endnow` | save(core) | G-core |
-| `status:save` | save(core) | G-core |
-| `sum:toggle` | save(core), rawLS | G-core |
-| `sync:pasteapply` | rawLS | E-devicelocal |
-| `tdee:apply` | save(core) | G-core |
-| `tdee:later` | save(core) | G-core |
-| `weight:add` | save(core) | G-core |
-| `weight:del` | save(core) | G-core |
-| `wo:addset` | saveWorkout | G-training |
-| `wo:begin` | saveWorkout | G-training |
-| `wo:bwsave` | saveWorkout | G-training |
-| `wo:delset` | saveWorkout | G-training |
-| `wo:discard` | saveWorkout | G-training |
-| `wo:discardnow` | saveWorkout | G-training |
-| `wo:endnow` | saveWorkout | G-training |
-| `wo:exaddset` | saveWorkout | G-training |
-| `wo:exmove` | saveWorkout | G-training |
-| `wo:exremove` | saveWorkout | G-training |
-| `wo:finish` | saveWorkout | G-training |
-| `wo:finishback` | saveWorkout | G-training |
-| `wo:log` | saveWorkout | G-training |
-| `wo:replacepick` | saveWorkout | G-training |
-| `wo:replsave:fwd` | saveTraining | G-training |
-| `wo:resume` | saveWorkout | G-training |
-| `wo:skipset` | saveWorkout | G-training |
-| `wo:skipthem` | saveWorkout | G-training |
-| `wu:no` | saveWorkout | G-training |
+| `act:addcat` | core | m10Gate |
+| `act:del` | core | m10Gate |
+| `act:toggle` | core | m10Gate |
+| `cal:expand` | device-local | EXEMPT (device-local) |
+| `cal:ignore` | core | m10Gate |
+| `cal:overwrite` | core | m10Gate |
+| `cal:sel` | device-local | EXEMPT (device-local) |
+| `cal:usecalc` | core | m10Gate |
+| `cardio:del` | core, training | m10Gate |
+| `cardio:save` | core, training | m10Gate |
+| `cf:newtype` | core | m10Gate |
+| `conn:remove` | core | m10Gate |
+| `day:clear` | core, photos, training | m10Gate |
+| `ex:clearall` | training | m10Gate |
+| `ex:del` | training | m10Gate |
+| `ex:save` | training | m10Gate |
+| `ex:seedall` | training | m10Gate |
+| `exseed:add` | training | m10Gate |
+| `fb:done` | training | m10Gate |
+| `fb:set` | training | m10Gate |
+| `glp:compoundsave` | core | m10Gate |
+| `glp:dose:del` | core | m10Gate |
+| `glp:dose:save` | core | m10Gate |
+| `glp:enable` | core | m10Gate |
+| `glp:showdue` | core | m10Gate |
+| `glp:siterot` | core | m10Gate |
+| `glp:skip` | core | m10Gate |
+| `glp:sym:del` | core | m10Gate |
+| `glp:sym:newsave` | core | m10Gate |
+| `glp:sym:save` | core | m10Gate |
+| `glp:symptoms` | core | m10Gate |
+| `glp:titration` | core | m10Gate |
+| `hk:import` | server-direct | m10Gate |
+| `invite:create` | core | m10Gate |
+| `invite:join` | core | m10Gate |
+| `lift:del` | core, training | m10Gate |
+| `lift:save` | core, training | m10Gate |
+| `lift:savedetail` | core, training | m10Gate |
+| `macro:keep` | core | m10Gate |
+| `macro:suggest` | core | m10Gate |
+| `max:open` | core | m10Gate |
+| `night:toggle` | core | m10Gate |
+| `note:del` | training | m10Gate |
+| `note:save` | training | m10Gate |
+| `ob:back` | core | m10Gate |
+| `ob:recalc` | core | m10Gate |
+| `pb:pwsave` | device-local | EXEMPT (device-local) |
+| `preset:del` | core | m10Gate |
+| `reminder:add` | core | m10Gate |
+| `reset:do` | core, photos | m10Gate |
+| `ri:mv` | training | m10Gate |
+| `ri:pick` | training | m10Gate |
+| `ri:prog` | training | m10Gate |
+| `ri:remove` | training | m10Gate |
+| `rt:del` | training | m10Gate |
+| `rt:new` | training | m10Gate |
+| `rt:save` | training | m10Gate |
+| `set:activity` | core | m10Gate |
+| `set:sex` | core | m10Gate |
+| `set:strategy` | core | m10Gate |
+| `set:theme` | core | m10Gate |
+| `set:ttype` | core | m10Gate |
+| `set:units` | core | m10Gate |
+| `set:weekstart` | core | m10Gate |
+| `skip:calories` | core | m10Gate |
+| `skip:sleep` | core | m10Gate |
+| `skip:steps` | core | m10Gate |
+| `skip:weight` | core | m10Gate |
+| `status:end` | core | m10Gate |
+| `status:endnow` | core | m10Gate |
+| `status:save` | core | m10Gate |
+| `sum:toggle` | core | m10Gate |
+| `sync:pasteapply` | device-local | EXEMPT (device-local) |
+| `tdee:apply` | core | m10Gate |
+| `tdee:later` | core | m10Gate |
+| `weight:add` | core | m10Gate |
+| `weight:del` | core | m10Gate |
+| `wo:addset` | training | m10Gate |
+| `wo:begin` | training | m10Gate |
+| `wo:bwsave` | training | m10Gate |
+| `wo:delset` | training | m10Gate |
+| `wo:discard` | training | m10Gate |
+| `wo:discardnow` | training | m10Gate |
+| `wo:endnow` | training | m10Gate |
+| `wo:exaddset` | training | m10Gate |
+| `wo:exmove` | training | m10Gate |
+| `wo:exremove` | training | m10Gate |
+| `wo:finish` | training | m10Gate |
+| `wo:finishback` | training | m10Gate |
+| `wo:log` | training | m10Gate |
+| `wo:replacepick` | training | m10Gate |
+| `wo:replsave:fwd` | training | m10Gate |
+| `wo:resume` | training | m10Gate |
+| `wo:skipset` | training | m10Gate |
+| `wo:skipthem` | training | m10Gate |
+| `wu:no` | training | m10Gate |
 
-## Non-action write paths (each individually specified in DESIGN v3 §8):
-
-- **hkTryFetch**: applies Health import to core+weights and CLEARS the server health field via pbSave — G-core + pbSave; fence-carrying; import blocked for non-holders
-- **applyImport**: backup restore into core+training — G-core+G-training; gated
-- **migrateProgressionTypes**: boot migration writes wl_training_v1 — LOCAL migration, exempt from lease (runs pre-gate at boot; cannot reach the server by itself; its output syncs only through gated paths)
-- **resyncAllActivityTags**: derives core tags from training — runs only inside already-gated/acked transitions (M8 §5b); inherits the callers gate
-- **cloudPush**: core push, raw PATCH — carries the fence once enforcement is on
-- **m8Push/m8CxChooseLocal/m8CxChooseServer/m8AdoptServer**: training CAS/adoption — fence-carrying; ChooseLocal/ChooseServer additionally m10-gated as user actions
-- **pushDataPromise**: pre-import core push — fence-carrying
-- **glpNormalize**: in-memory normalization; persists only via callers save() — inherits gates
-- **pbForceLogout**: logout machinery — containment-owned, exempt from lease (M8 logout gate already governs); its pbSave push is fence-carrying
-- **startWorkout**: writes wl_workout_v1 scratch — G-training entry (gated: starting a workout is a write intent)
-- **coach request (max sheet)**: pbSave({coachreq}) — EXEMPT from client gate AND server fence as an operational mailbox; server proof required that a coachreq write cannot carry content fields (single-field PATCH enforced in the hook)
-- **nightly/weekly coach jobs (NAS)**: superuser writes of nightlySummary/weeklySummary/scriptVer/health — server-side writer, enumerated for the enforcement gate: superuser-context writes bypass user fencing BY RULE (stated, reviewed), touch no athlete content fields except clearing health after import
-- **health Shortcut**: user-token PATCH of the health field — content-adjacent mailbox; same single-field proof as coachreq; enumerated for enforcement
-
-Class counts: {"G-core": 49, "E-devicelocal": 3, "G-training": 40, "G-serverdirect": 1, "G-photos": 1}
+Non-action writers: unchanged from v1 matrix, with corrections:
+- photo import/delete/clear paths (idb*) are G-photos wherever they appear, incl. day:clear and reset:do composites.
+- Object-URL caches, thumbnails, UI prefs: exempt (non-content).
+- All entries per DESIGN v4 §§2,5,6,7.

@@ -1,170 +1,179 @@
-# M10 — strict single writer: design v3
+# M10 — strict single writer: design v4
 
-Engineer, 2026-08-02, per round-2 items 1–11 (answered as B1–B11).
-Owner ruling STRICT stands. Base: released `2026-08-02.415-m8`.
-Companion: `WRITE-SURFACE-MATRIX.md` (tree-derived, B8).
+Engineer, 2026-08-02, per round-3 items 1–13 (answered as C1–C13).
+STRICT stands. Base: `2026-08-02.415-m8`. Companions:
+`WRITE-SURFACE-MATRIX.md` (v2, multi-class) and
+`artifacts/PB-SEMANTICS-PROBE.md` (real-0.39.8 evidence for C2).
 
-## 0. The invariant, stated honestly (B2)
+## 0. The invariant (unchanged, honest)
 
-**Exactly one fence may authorize server mutation.** At every moment the
-server accepts content writes from at most one (deviceId, fence) pair,
-atomically enforced. A partitioned former holder can still EDIT LOCALLY
-(it cannot observe a steal); those edits can never commit under its
-stale fence and are preserved durably for explicit reconciliation. M10
-does not claim to stop offline local typing — physics forbids it; it
-claims one server pen, always, plus lossless capture of stranded work.
+Exactly one fence may authorize server mutation; a partitioned former
+holder can still edit locally, losslessly captured for explicit
+reconciliation.
 
-## 1. The lease row (B3 — no ABA, ever)
+## 1. Core writes gain optimistic concurrency (C1)
 
-One DURABLE row per user in the closed `writer_lease` collection,
-created on first acquire and NEVER deleted during normal operation:
-`{user(unique), holderDeviceId|null, deviceName, fence(int), renewedAt,
-active(bool)}`.
-- fence increments on EVERY ownership event: grant, steal,
-  post-expiry acquisition, and release (release sets
-  holderDeviceId=null, active=false, fence+=1 — a released fence can
-  never validate again).
-- Strictly-increasing proof: every route response echoes fence; the
-  route rejects any transition that would not increase it; tests assert
-  monotonicity across grant/steal/release/expiry cycles.
-- Overflow: int64 via PB number field; at 1 event/second this outlives
-  the sun — asserted, and the route hard-errors (blocks) rather than
-  wraps if fence exceeds 2^53-2 (JS safe-integer guard).
-- Server rollback (B1): SEQUENCED — (1) redeploy hooks with
-  FENCING_ENFORCED off, verify; (2) publish + both-device-verify a
-  client that no longer consults the lease; (3) only then remove the
-  route/collection. A 404 on the route is NEVER permission to write:
-  clients treat missing and unreachable identically (fail closed —
-  cached-valid holder continues locally; everyone else read-only).
+Every core content write carries `expectedCoreRev`, validated in the
+SAME transaction as the fence and the mutation (the server already
+maintains `coreRev`; M10 makes clients SEND it and the server ENFORCE
+it — finishing for core what M8 did for training):
+- ordinary core push: `expectedCoreRev` = the client's last-seen rev;
+  mismatch → `409 {coreStale:true, coreRev}` → the client fetches
+  without adoption and enters the displaced-core flow (§4) — never a
+  blind overwrite, even for a valid holder.
+- displaced-core resolutions (§4): both actions re-fetch WITHOUT
+  adoption inside the action; if the server's rev or canonical content
+  differs from the envelope's captured copy, the envelope is REPLACED
+  (verified write) and review restarts. Push-mine then commits with
+  the freshly observed rev; stale evidence never pushes or adopts.
 
-## 2. Atomic fencing (B4 — designed, not asserted)
+## 2. ONE enforcement primitive, per path (C2 — proven, not assumed)
 
-PocketBase JSVM hooks support `$app.runInTransaction`. Both writers
-serialize on the SAME lease row:
-- **Content write** (CAS commit route AND the appdata update hook):
-  one transaction: `SELECT` the user's lease row (the row lock under
-  SQLite's single-writer transaction model serializes all contenders) →
-  validate `fence === request.fence && holderDeviceId ===
-  request.deviceId && active` → perform the content mutation →
-  commit. Any mismatch → rollback + `409 {fenceStale:true,
-  fence:<current>}`.
-- **Lease mutation** (acquire/renew/release/steal): its own
-  transaction on the same row. SQLite's serialized writes mean an
-  ownership change either commits before a content transaction reads
-  the row (content sees the new fence and rejects) or after it commits
-  (the steal takes effect next write). No check-then-write window
-  survives.
-- Evidence (B4): a forced-race test on the disposable gate — two
-  concurrent requests (steal ‖ fenced content write) fired repeatedly
-  (100 iterations); the invariant checked after each: the content write
-  landed iff its fence was current at commit; no lost/mixed state.
+`cfFencedWrite(txApp, authUserId, {fence, deviceId}, mutateFn)`:
+a shared-module function executed INSIDE `$app.runInTransaction`:
+loads the lease row by authUserId → validates
+`active && holderDeviceId===deviceId && fence===request.fence` (when
+FENCING_ENFORCED) → runs `mutateFn(txApp)` → commits. Callers:
+- **CAS commit route**: replaces its current save with a
+  `runInTransaction(cfFencedWrite(...))` wrapping ledger check +
+  content write (one transaction, per the probe).
+- **Raw update hook** (`onRecordUpdateRequest` on appdata): reads
+  fence from headers, validates PRE-WRITE (probe Q2) and then lets
+  the framework save proceed; the validation SELECT and the
+  framework's save are serialized by the DB single-writer (probe
+  Q1c) — an ownership change either commits before the request's
+  transaction (stale fence rejected) or queues behind it.
+- **Record CREATE** (`onRecordCreateRequest`, probe Q4): same header
+  validation — a create IS the first content write.
+- **Programmatic/superuser writes**: requests authenticated as
+  `_superusers` bypass the fence BY EXPLICIT RULE in the shared
+  module (`isSuperuser(e)`), logged (route+collection+fields, never
+  payloads) — the platform (coach jobs) is not a device. Ordinary
+  user tokens NEVER match this branch (tested).
+- **Hook ordering/recursion**: after-hooks performing programmatic
+  saves complete without re-firing loops (probe Q3); the design
+  keeps all M10 mutation inside request-phase hooks and the two
+  routes; no after-hook writes content.
+The disposable server gate re-proves each path on the real NAS before
+any reliance in production (per C2's closing requirement).
 
-## 3. Fence transport and authentication (B9)
+## 3. The race oracle, non-circular (C3)
 
-- CAS commit route: `fence` + `deviceId` as body fields.
-- Raw core PATCH: headers `X-CF-Fence`, `X-CF-Device` read by the
-  update hook.
-- Binding: the hook resolves the lease row by `@request.auth.id` ONLY —
-  the client-supplied pair is compared against that row; a spoofed
-  deviceId without the matching current fence fails; a spoofed fence
-  without the holder's deviceId fails. `deviceName` is display-only and
-  appears in no comparison.
-- Malformed/missing/duplicated values → `409 fenceStale` when
-  enforcement is on (fail closed); ignored when off.
-- deviceId: crypto-random 128-bit, generated once per install, stored
-  outside content (device-local key), never in exports.
+Each race iteration records, from the server, the tuple
+`{finalFence, finalHolder, coreRev/trainingRev, contentIdentity
+(canonical hash), responseOutcomes}` — the invariant asserted from
+OBSERVED state: for every committed content write there exists a
+lease-history entry (fences are strictly increasing and logged by the
+route) whose fence equals the write's stamped fence, and no committed
+write's fence is < the fence of any lease event that COMMITTED before
+it (order proven by the blocked-transaction timing, cf. probe Q1c
+652ms). Barriers force both orders (write-tx-first via slowMs inside
+the mutation; steal-first via sequencing) across the full op set:
+steal‖write, steal‖steal, renew‖steal, release‖write,
+expiry-acquire‖write. 100 iterations per pairing.
 
-## 4. Displaced work — durable, per data class (B5, B6)
+## 4. Displaced work (C4, C5, C6, C7)
 
-**Training** (proven path): on `fenceStale` from the CAS route, the
-client runs fetch-WITHOUT-adoption → canonical validation →
-`m8EnterConflict(serverTraining, rev, "fence-displaced")` — the
-existing persist-and-verify machinery, crash-journaled end to end
-(B6). Fetch failure → dirty retained, sync shows retry, nothing
-dropped; server moved again by the next attempt → the newer copy is
-what the conflict captures (same superseded semantics as M8). The M8
-conflict UI resolves it; Choose Local requires first RETAKING the pen
-(the choose action is m10-gated), so its CAS push carries the new
-fence.
+**Training (C4, claim corrected)**: `m8EnterConflict` is a SINGLE
+verified conflict-record write — not itself journaled. The guarantee,
+stated exactly: on `fenceStale` from the CAS route the client fetches
+without adoption; on fetch success it attempts the verified conflict
+write; if THAT write fails, `m8Block` fires with dirty bytes and the
+unresolved ack journal INTACT and zero adoption (the fetched copy is
+droppable — re-fetchable), which is the M8 fail-closed contract;
+evidence adds this fetch-ok/conflict-write-fails arm explicitly.
 
-**Core** (new, mirrors the training pattern): a durable
-`wl_core_displaced__<uid>` envelope written via the same
-verified-write + journal discipline (journal op `core-displace`):
-`{localData, serverData, serverFetchedAt, coreRevSeen, enteredAt,
-reason, mark}` — captured on the first fence-stale core push, via
-fetch-without-adoption of the server's `data` field. The app then
-shows a persistent banner ("Edits from this device are waiting for
-review") with a review sheet presenting PER-CLASS summaries derived
-from the one envelope (weigh-ins, food days, GLP entries, notes,
-settings — counts and dates differing), an export-both affordance
-(format-2 files), and two explicit actions after retaking the pen:
-**Push mine** (re-push localData under the new fence) or **Take
-server** (adopt serverData locally, discard localData — exports
-already taken). Until resolved, further core pushes stay paused
-(fail closed); local editing continues and updates localData through
-the same envelope discipline. Photos (IndexedDB, device-local until
-share) and device-local bookkeeping are exempt (matrix).
-This satisfies "separate durable displaced storage and recovery" for
-every enforced class; nothing rejected lives only in memory.
+**Core (C5 — the full machine)**: new account-keyed namespace,
+disjoint from M8's: `wl_core_displaced__<uid>` (envelope) +
+`wl_core_journal__<uid>` (its own journal; ops `core-displace`,
+`core-push-mine`, `core-take-server`). Phases mirror M8's proven
+grammar: intent → net-done (fetch identity recorded) → k1..kN
+(verified writes) → verified end. Validation schema per op (typed
+fields incl. `coreRevSeen`, canonical `localData`/`serverData` —
+same canon-class checks as M8's validator); malformed/invalid →
+copy-verify-delete quarantine into the SAME corrupt namespace with
+kind `corejournal`/`coredisplaced`, hard block, boot-derived.
+Interaction rule (C5): the two journals are independent keys; boot
+resolves M8's first, then core's; NEITHER op ever writes the other's
+keys (asserted by postcondition byte-checks in every core test);
+a hard block from either halts both (shared fail-closed union).
 
-## 5. Mailbox fields — one contract (B7)
+**Post-displacement editing (C6)**: the LIVE store (`wl_v1`) remains
+authoritative for the UI; the envelope's `localData` is a snapshot
+REFRESHED by each subsequent core edit through one journaled
+two-key write (`core-displace` phase `refresh`: live store verified →
+envelope verified → journal end); a crash between them is recovered
+by boot comparing the two and re-deriving the envelope from live (the
+live store is truth for "mine"). No window can mark either falsely
+complete because the envelope is DERIVED, never independently edited.
+Quota tests run under the full worst-case occupancy: live core +
+displaced core (×2 copies inside the envelope) + training + base +
+conflict copies + both journals + recovery snapshot + photo metadata.
 
-`coachreq` and `health` are EXEMPT from fencing, with the server
-enforcing the exemption's safety: the update hook REJECTS any PATCH
-that mixes a mailbox field with any content field (`data`, `training`)
-or revision field, whether fenced or not. Mailbox-only writes need no
-fence (a read-only iPad may request a recap; the Shortcut may deliver
-health lines). Content-bearing writes are always fenced. Tests: mixed
-PATCH rejected; mailbox-only accepted unfenced; content-only rejected
-unfenced (enforcement on).
+**Take-server(core) (C7)**: held to the M8 Choose-Server standard —
+in-action freshness (envelope identity + current local gen), delivery-
+evidenced exports (share-resolution or explicit confirm) tied to the
+exact current generation, re-export demanded after ANY edit during
+the sheet or the fetch, fresh fetch immediately before adoption with
+rev+canonical match against the envelope (mismatch → envelope
+replaced, gates reset), journal-first adoption with verified local
+persistence, verified cleanup.
 
-## 6. Client gating and cached expiry (B10 + matrix)
+## 5. Photos are content (C8)
 
-- `m10Gate` wraps the ACTION DISPATCH entry for every G-class action in
-  the matrix (pre-mutation: the handler body never runs ungated), plus
-  the non-action entries listed there.
-- Cached grant: `{fence, deviceId, ttlMs, grantedServerNow,
-  perfDeadline: performance.now()+ttlMs}` held in memory; a persisted
-  copy stores only `{fence, deviceId, grantedServerNow, ttlMs}`.
-  Across reload/reboot the monotonic clock is LOST: the persisted copy
-  alone never authorizes offline writing — on boot the client must
-  revalidate online (renew) before it counts as holder; failing that
-  it is read-only (fail closed, B10). Offline-holder continuity
-  therefore survives foreground/background within a session, not
-  reboots. Corrupt/unverifiable cached grants → read-only + banner.
-- TTL/cadence stay 24h/5min PROVISIONAL, revisited with lifecycle
-  evidence in the client rounds (B10 accepted).
+The matrix contradiction is fixed: EVERY IndexedDB content mutation —
+photo add, delete, import, day-clear photo pruning, reset — is
+G-photos, gated pre-mutation by the same `m10Gate`. Exempt: photo
+OBJECT-URL caches, thumbnails, and UI prefs (non-content, listed).
+A non-holder iPad cannot add or delete photos; it can view them.
 
-## 7. Enforcement compatibility gate (B11)
+## 6. Composite actions (C9)
 
-Every writer, enumerated from the tree and the NAS:
-1. Owner iPhone + iPad on the M10 client — fence-carrying.
-2. NAS coach jobs (run-coach/coach-watch): superuser-context writes of
-   `nightlySummary`/`weeklySummary`/`scriptVer`/`nightlyLog` inside
-   `data`, and clearing `health`. RULE: superuser requests bypass user
-   fencing (stated, hook-tested) — they are the platform, not a device.
-   Their fields ride inside `data`, so the mixed-PATCH rule exempts
-   superuser context explicitly.
-3. The health Shortcut: user-token, `health`-only (mailbox rule).
-4. In-app imports/restores: gated + fenced (matrix).
-5. No other writers exist (rules closed; verified in the gate by
-   attempting every path).
-The enforcement redeploy checklist re-verifies this enumeration on the
-day, plus both devices on the M10 build, before flipping
-FENCING_ENFORCED — one Owner-authorized server change, deliberately
-able to ride together with raw-PATCH lockdown.
+The matrix v2 lists EVERY affected class per action (e.g. `day:clear`:
+core+training+photos; `reset:do`: all; cardio/lift saves:
+training+core-tags). One global pre-gate authorizes the whole handler
+BEFORE any mutation (handler-entry gating means no partial pre-gate
+mutation by construction — asserted by tests that deny the gate and
+byte-check every store). Split-across-steal recovery: composite
+SERVER effects ride the existing per-subsystem protocols (training →
+CAS+M8 journal; core → coreRev+core journal); a steal between the two
+commits leaves each side in its own well-defined displaced flow — no
+new composite journal is needed, and the tests prove both sides land
+in their respective review paths with nothing lost.
 
-## 8. Evidence plan (delta from v2)
+## 7. Mailbox rule, from the parsed body (C10)
 
-Adds: the §2 forced-race suite; §1 monotonicity-across-lifecycle and
-release-fence-bump tests; §3 spoof/malformed transport cases; §4
-displaced-CORE capture/review/resolve suite incl. crash journaling at
-each phase and fetch-failure arms; §5 mixed-PATCH matrix; §6
-reboot-loses-monotonic fail-closed case; §7 every-writer probe. All at
-the M8 standard (disposable users; postcondition bytes; request
-counts; suites re-run unchanged).
+The hook inspects the PARSED request body: the write is mailbox-only
+iff the set of present keys (excluding nulls it also rejects — a null
+content field is still "present") is a subset of
+{coachreq}|{health}; unknown fields → reject; duplicated transport
+values (body+query) → reject; CREATE requests carrying content →
+fenced like updates. Superuser bypass: `_superusers` auth context
+only, logged without payloads, tested to NOT apply to user tokens.
 
-## 9. Sequence
+## 8. deviceId is not identity (C11)
 
-Unchanged from v2 §7, with the §7 compatibility checklist inserted
-before the enforcement redeploy.
+Stated: the FENCE is the sole authority; deviceId is a routing label.
+A copied deviceId cannot mint authority: acquire/steal still bump the
+fence, so two installs sharing an id merely displace each other, and
+the takeover UI keys on fence+holder from the server, never on local
+id equality. Tests: duplicated-id devices cannot both hold valid
+fences; UI shows the true server holder.
+
+## 9. Records (C12) — DONE
+
+PROJECT_LOG §4 and MAESTRO_PROGRAM_CONTEXT reconciled (commit
+`f257c1d`, local-only): single-writer proceeds post-M8 by Owner
+direction; HealthKit-import half remains M7b-gated.
+
+## 10. Sequence
+
+1. This design → review.
+2. Server package: collection migration + shared module + routes +
+   hook changes + the full disposable-instance test suite (local PB
+   first, then the NAS disposable gate) → review → Owner-authorized
+   NAS deploy, enforcement OFF.
+3. Client (delimited blocks; M8 discipline) → evidence rounds.
+4. Release package → Owner decision → publish → BOTH devices.
+5. Owner-authorized enforcement + raw-PATCH lockdown (one hardening
+   decision).
