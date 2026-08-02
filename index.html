@@ -858,7 +858,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-02.415-m8";
+var APP_BUILD="2026-08-02.416-fx";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -2150,14 +2150,20 @@ function trendCtx(){
   else{var n2=new Date();var em=new Date(n2.getFullYear(),n2.getMonth()-off*6,1);end=new Date(em.getFullYear(),em.getMonth()+1,0);start=new Date(em.getFullYear(),em.getMonth()-5,1);gran="month";label=MONTHS3[start.getMonth()]+" – "+MONTHS3[end.getMonth()]+" "+end.getFullYear();}
   return {mode:mode,off:off,start:start,end:end,gran:gran,label:label};
 }
-function bucketValues(map){var ctx=trendCtx();var out=[];
-  if(ctx.gran==="day"){for(var d=new Date(ctx.start);d<=ctx.end;d=addDays(d,1)){out.push({value:num(map[toISO(d)]),date:new Date(d)});}}
+function bucketValues(map,pendToday){var ctx=trendCtx();var out=[];
+  /* pendToday (Owner rule, 2026-08-02): today's in-progress number must not
+     skew averages — it counts only once the day is Completed (a recap
+     exists) or has passed. Applies to steps and calories; weight and sleep
+     don't accumulate through the day and are left alone. */
+  var _td=todayISO();var _tdPending=pendToday&&!dayRecap(_td);
+  if(ctx.gran==="day"){for(var d=new Date(ctx.start);d<=ctx.end;d=addDays(d,1)){var _iso=toISO(d);
+    out.push({value:num(map[_iso]),date:new Date(d),pending:(_tdPending&&_iso===_td)||undefined});}}
   else{var m=new Date(ctx.start);for(var i=0;i<6;i++){var y=m.getFullYear(),mo=m.getMonth(),sum=0,cnt=0;
-    Object.keys(map).forEach(function(k){var dt=parseISO(k);if(dt.getFullYear()===y&&dt.getMonth()===mo){var v=num(map[k]);if(v!=null){sum+=v;cnt++;}}});
+    Object.keys(map).forEach(function(k){if(_tdPending&&k===_td)return;var dt=parseISO(k);if(dt.getFullYear()===y&&dt.getMonth()===mo){var v=num(map[k]);if(v!=null){sum+=v;cnt++;}}});
     out.push({value:cnt?Math.round(sum/cnt):null,date:new Date(y,mo,1),month:true});m=new Date(y,mo+1,1);}}
   return out;
 }
-function bucketAvg(bk){var v=bk.map(function(b){return b.value;}).filter(function(x){return x!=null;});return v.length?Math.round(v.reduce(function(a,b){return a+b;},0)/v.length):null;}
+function bucketAvg(bk){var v=bk.filter(function(b){return !b.pending;}).map(function(b){return b.value;}).filter(function(x){return x!=null;});return v.length?Math.round(v.reduce(function(a,b){return a+b;},0)/v.length):null;}
 function niceMax(v){if(v<=0)return 10;var mag=Math.pow(10,Math.floor(Math.log10(v)));var n=v/mag;var nice=n<=1?1:n<=2?2:n<=2.5?2.5:n<=5?5:10;return nice*mag;}
 function buildSleepChart(bk,goalMin){
   var n=bk.length;if(!n)return '<div class="wl-empty">No sleep logged this period.</div>';
@@ -2198,8 +2204,12 @@ function buildBars(bk,goal,higherBetter){
   var every=n<=10?1:Math.ceil(n/6);
   bk.forEach(function(b,i){var x=cxc(i);
     if(b.value!=null){var y=sy(b.value);var bh=Math.max(1,(H-padB)-y);var good=goal!=null&&(higherBetter!==false?b.value>=goal:b.value<=goal);var col=good?CH.goal:CH.avg;
-      s+='<rect x="'+(x-bw/2).toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+bh.toFixed(1)+'" rx="2.5" fill="'+col+'"/>';
-      if(showVals)s+='<text x="'+x.toFixed(1)+'" y="'+(y-4).toFixed(1)+'" fill="'+col+'" font-size="9.5" font-weight="700" text-anchor="middle">'+Math.round(b.value).toLocaleString()+'</text>';}
+      if(b.pending){/* in progress: outlined, not counted in the average */
+        s+='<rect x="'+(x-bw/2).toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+bh.toFixed(1)+'" rx="2.5" fill="none" stroke="'+col+'" stroke-width="1.5" stroke-dasharray="3 2"/>';
+        if(showVals)s+='<text x="'+x.toFixed(1)+'" y="'+(y-4).toFixed(1)+'" fill="'+CH.axis+'" font-size="9.5" font-weight="700" text-anchor="middle">'+Math.round(b.value).toLocaleString()+'</text>';
+      }else{
+        s+='<rect x="'+(x-bw/2).toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+bh.toFixed(1)+'" rx="2.5" fill="'+col+'"/>';
+        if(showVals)s+='<text x="'+x.toFixed(1)+'" y="'+(y-4).toFixed(1)+'" fill="'+col+'" font-size="9.5" font-weight="700" text-anchor="middle">'+Math.round(b.value).toLocaleString()+'</text>';}}
     if(i%every===0||i===n-1){
       if(b.month)s+='<text x="'+x.toFixed(1)+'" y="'+(H-9)+'" fill="'+CH.axis+'" font-size="9" text-anchor="middle">'+MONTHS3[b.date.getMonth()]+'</text>';
       else if(showVals)s+='<text x="'+x.toFixed(1)+'" y="'+(H-16)+'" fill="'+CH.axis+'" font-size="9" text-anchor="middle">'+DAYS3[b.date.getDay()]+'</text><text x="'+x.toFixed(1)+'" y="'+(H-5)+'" fill="'+CH.axis+'" font-size="9" font-weight="600" text-anchor="middle">'+b.date.getDate()+'</text>';
@@ -2323,9 +2333,9 @@ function view_weight(){
   var moreOpen=state.moreStats!==false; /* Owner 2026-08-02: Progress sections start open */
   h+='<div class="wl-card"><button class="wl-collapse-head" data-act="morestats"><span>More stats</span><span class="wl-chevron'+(moreOpen?" open":"")+'">\u203a</span></button>';
   if(moreOpen){
-    var stepMap={};Object.keys(state.steps).forEach(function(d){var v=num(state.steps[d]);if(v!=null)stepMap[d]=v;});var sbk=bucketValues(stepMap);var savg=bucketAvg(sbk);
+    var stepMap={};Object.keys(state.steps).forEach(function(d){var v=num(state.steps[d]);if(v!=null)stepMap[d]=v;});var sbk=bucketValues(stepMap,true);var savg=bucketAvg(sbk);
     h+='<div class="wl-substat"><div class="wl-substat-h"><span>Steps</span><span class="v">'+(savg!=null?"avg "+savg.toLocaleString()+perLbl:"\u2014")+'</span></div>'+buildBars(sbk,num(state.settings.stepsGoal),true)+'</div>';
-    var calMap={};Object.keys(state.food).forEach(function(d){var c=num(state.food[d]&&state.food[d].calories);if(c!=null)calMap[d]=c;});var cbk=bucketValues(calMap);var cavg=bucketAvg(cbk);
+    var calMap={};Object.keys(state.food).forEach(function(d){var c=num(state.food[d]&&state.food[d].calories);if(c!=null)calMap[d]=c;});var cbk=bucketValues(calMap,true);var cavg=bucketAvg(cbk);
     h+='<div class="wl-substat"><div class="wl-substat-h"><span>Calories</span><span class="v">'+(cavg!=null?"avg "+cavg.toLocaleString()+perLbl:"\u2014")+'</span></div>'+buildBars(cbk,num(state.settings.targetCalories),false)+'</div>';
     var sleepMap={};Object.keys(state.sleep).forEach(function(d){var v=num(state.sleep[d]);if(v!=null)sleepMap[d]=v;});var slbk=bucketValues(sleepMap);var slavg=bucketAvg(slbk);var sgm=sleepGoalMin();
     h+='<div class="wl-substat"><div class="wl-substat-h"><span>Sleep</span><span class="v">'+(slavg!=null?"avg "+minToHM(slavg):"\u2014")+(sgm!=null?" \u00b7 goal "+minToHM(sgm):"")+'</span></div>'+buildSleepChart(slbk,sgm)+'</div>';
