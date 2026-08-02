@@ -1,4 +1,4 @@
-# M10 write-surface matrix v2 — multi-class, tree-derived (round-3 items 8/9)
+# M10 write-surface matrix v4 — multi-class, tree-derived (round-3 items 8/9)
 
 266 dispatcher actions; 96 mutating; 92 GATED (pre-mutation m10Gate at handler entry); 4 exempt (device-local only).
 
@@ -131,3 +131,18 @@ Every content call site is gated at its ACTION entry:
 | `day:clear` photo pruning | idbByDate→idbDelete | m10Gate (composite: core+training+photos) |
 | `reset:do` | idbClearAll | m10Gate (composite: all classes) |
 | object-URL/thumbnail caches, `photoURLs` revocation | none (in-memory) | EXEMPT (non-content) |
+
+## Sync + async additions (v4, round-5 items 6/7/8)
+
+| entry | effect | gate | recovery |
+|---|---|---|---|
+| `sync:push` (7646) | `cloudPush(true)` — server core write | m10Gate | coreStale/fenceStale → displaced-core |
+| `sync:pull` (7645) | confirm → `cloudPull(true)` REPLACES local core | m10Gate at entry + revalidate in confirm callback | clean-state-only adoption; else conflict rules |
+| boot pulls (`autoSync`) | core+training adoption | clean-state-only per subsystem protocols | M8/core rules |
+| `photo:add` (7571) → `wl-photo-input` change (7771+) | file picker → processImage → idbDelete/idbAdd (async!) | gate at entry AND revalidate inside the change listener pre-idb* | refuse → takeover sheet, no mutation |
+| `pphoto:add` (7572) → same listener progress branch (7774) | same | same | same |
+| `wl-import` change (7759) | applyImport (core+training) | revalidate pre-apply | per-subsystem displaced flows |
+| `wl-pbk-import` change (7765) | photo bundle import (idbAdd loop, 5999) | revalidate pre-loop | refuse |
+| askConfirm callbacks that mutate (day:clear, reset:do, sync:pull, glp:*:del, restore) | delayed mutation | revalidate inside callback | refuse |
+| `hkTryFetch` apply step | core write + health clear | revalidate pre-apply | coreStale → displaced |
+| photo SERVER sync (pbPhotoUpload 9853, delete 9858, patch 9927 via wrapped idbAdd/idbDelete 9949+) | `/api/collections/photos/records` create/delete/patch | client: rides the gated idb* entry; server: photos hooks validate fence under enforcement | stays local, photoSync retries |

@@ -1,18 +1,24 @@
-# M10 — strict single writer: design v5 (CONSOLIDATED)
+# M10 — strict single writer: design v6 (CONSOLIDATED)
 
 Engineer, 2026-08-02. THE authoritative server-package contract —
 self-contained; v2–v4 are history, not references. Owner ruling STRICT
 (recorded). Base: released `2026-08-02.415-m8`. Companions:
 `WRITE-SURFACE-MATRIX.md` v3 and `artifacts/PB-SEMANTICS-PROBE.md`
-(corrected). Round-4 items answered as D1–D13 inline.
+(corrected). Round-4 items answered as D1–D13, round-5 as E1–E12 inline.
 
-## 1. Invariant and honesty
+## 1. Invariant, stated exactly (E2)
 
-Exactly ONE fence may authorize server mutation of content. A
-partitioned former holder can still edit locally (a steal is
-unobservable offline); such edits are captured durably for explicit
-review and can never commit under a stale fence. M10 does not stop
-offline typing; it guarantees one server pen and lossless capture.
+- At most one DEVICE fence may authorize athlete-device content writes
+  at any moment (atomically enforced).
+- PLATFORM writers (the NAS coach) are separately authenticated and
+  limited to NAMED fields through a revision-safe transactional path —
+  they bypass the device lease, never revision safety or field
+  ownership (§2b).
+- ALL content mutation — device or platform — serializes through
+  revision-safe transactional primitives.
+- A partitioned former holder can still edit locally (a steal is
+  unobservable offline); such edits are captured durably for explicit
+  review and can never commit under a stale fence.
 
 ## 2. Architecture (D1/D2): all content writes are ROUTE writes
 
@@ -21,16 +27,34 @@ request hooks is unproven and therefore forbidden. Instead:
 
 - **Training**: already writes via `/api/cf/appdata/commit`
   (subsystem `training`) — gains fence fields.
-- **Core**: moves to the SAME route, subsystem `core` (the deployed
-  CAS kit already defines `core: {field:"data", rev:"coreRev"}` and
-  its ledger is subsystem-scoped) — one route, one ledger, one
-  transaction model, already byte-proven live for training by the M8
-  gate. Core writes send `{subsystem:"core", expectedRev:coreRev,
-  idempotencyKey, payload, fence, deviceId}` — solving D5
-  (idempotency for Push-mine and every core write) with the EXISTING
-  ledger semantics: replay-first recovery, 30-day retention,
-  same-key/different-body 409, ambiguity handled exactly as M8's
-  journaled protocol — reused, not reinvented.
+- **Core**: moves to the SAME route, subsystem `core`, with an
+  EXPLICIT M8-grade client durability protocol of its own (E3 — core
+  keys and postconditions stated, not "reuses M8"):
+  - `wl_core_dirty__<uid>` `{owner, mark, gen, persistedGen, ts}` —
+    set synchronously in `save()` before the debounce; verified
+    primary write of `wl_v1` with per-generation proof; an unproven
+    generation soft-blocks core sync exactly as M8's rule.
+  - `wl_core_base__<uid>` `{owner, mark, canon, rev, body}` — the
+    acknowledged canonical core copy + `coreRev` (~size of `data`;
+    same full-copy Owner ruling rationale).
+  - `wl_core_journal__<uid>` — intent PERSISTED BEFORE DISPATCH:
+    `{op:"core-ack", phase, startedAt, expect:{oldBaseCanon,
+    expectedRev, pushedCanon, gen, fence, requestId}}`; phases
+    intent → net-done(`newRev`) → k1(base) → k2(dirty) → verified end;
+    newer-generation-in-flight arm (base advances, dirty stays,
+    reschedule); replay-first recovery within ledger retention,
+    fetch-and-compare fallback after expiry; transport ambiguity
+    keeps the journal; auth rejection terminalizes (`done`/outcome);
+    revision conflict → displaced-core flow; fence displacement →
+    displaced-core flow; storage failure → the same fail-closed
+    verified-write rules as M8 (block classes shared); cleanup-only
+    recovery for terminal records; operation-aware validation +
+    quarantine identical in structure to M8's, in core's namespace.
+  - Boot ordering: M8 training journal → core journal → displaced-core
+    journal; a hard block from any halts all (shared union).
+  Core writes send `{subsystem:"core", expectedRev, idempotencyKey,
+  payload, fence, deviceId}`; the route ledger provides replay,
+  retention, and same-key/different-body semantics per subsystem.
 - **Raw user PATCH/CREATE carrying `data`, `training`, or revision
   fields REJECTS outright** (`onRecordUpdateRequest`/`CreateRequest`
   keep only two jobs: reject forbidden raw content writes, police
@@ -56,11 +80,40 @@ real 0.39.8: probe Q1/Q1b/Q1c, steal blocked 652ms):
 3. idempotency-ledger check (existing kit logic, subsystem-scoped);
 4. `expectedRev` check against the subsystem's rev → else
    `409 {conflict, serverRev, payload}`;
-5. content mutation + rev increment + ledger row;
+5. content mutation + rev increment + ledger row — the ledger row now
+   PERSISTS `writerFence` and a `deviceLabelHash` (sha256 of deviceId,
+   privacy-preserving) for every user content commit (E4): the durable
+   commit oracle the race evidence reads. Migration adds the two
+   nullable columns (existing rows default null = pre-M10);
+   enforcement-OFF writes record them when supplied; down-migration
+   drops the columns only under the sequenced rollback rules;
 6. commit. Any failure → rollback (proven).
-Superuser context (`_superusers` auth) bypasses step 2 ONLY, by
-explicit branch, logged (route, collection, field names — never
-payloads), tested to never match user tokens.
+### 2b. The platform writer path (E1/E5)
+
+The coach jobs currently read `data` and write back a FULL snapshot —
+a live lost-update window against a concurrent device commit (either
+side can build its payload from stale content). M10 removes it:
+
+- New route `POST /api/cf/platform/patch-data`, **superuser middleware
+  only** (`$apis.requireSuperuserAuth()` — its own binding, not a
+  branch inside the users-only commit route; a user token cannot reach
+  it, tested). Body: `{user, fields:{...}, idempotencyKey}` where
+  `fields` keys must be ⊆ the PLATFORM-OWNED set
+  `{nightlySummary, weeklySummary, nightlyLog, scriptVer}` — anything
+  else rejects.
+- One transaction: load latest `data`+`coreRev` → apply ONLY the named
+  fields onto the CURRENT snapshot (never replacing athlete fields
+  from a stale fetch) → `coreRev+=1` → ledger row (subsystem
+  `platform`, same idempotency semantics) → commit.
+- Bypasses the device lease by design; NEVER bypasses revision safety
+  or field scope. Logged (user, fields, rev — no payloads).
+- The NAS coach jobs migrate to this route (run-coach's write step
+  swaps its raw PATCH for the platform route; a reviewed coach change
+  deployed over the SSH channel). Clearing `health` after import stays
+  a mailbox operation.
+- Evidence: coach‖device races in BOTH orders proving athlete fields
+  and coach fields both survive; user-token access to the platform
+  route rejected; field-scope rejection matrix.
 
 ## 3. The lease
 
@@ -105,9 +158,38 @@ responses is informational).
 ## 5. Client consequences
 
 - `m10Gate` at HANDLER ENTRY for every gated action/function in
-  matrix v3 (pre-mutation by construction; denied-gate byte-checks in
-  evidence). Photos are content: all IndexedDB content mutations
-  gated; caches/thumbnails/UI prefs exempt.
+  matrix v4, AND — the async rule (E8) — REVALIDATED immediately
+  before every mutation that happens after an await, callback, file
+  picker, share sheet, confirmation, timer, or network fetch. Concrete
+  delayed-mutation sites from the tree (E7): the `wl-photo-input`
+  change listener (idbAdd after processImage, reached from `photo:add`
+  meal photos AND `pphoto:add` progress photos — both re-gate inside
+  the listener, before idbDelete/idbAdd); the `wl-import` and
+  `wl-pbk-import` change listeners (applyImport / photo-bundle import);
+  every askConfirm callback that mutates (day:clear, reset:do,
+  sync:pull, glp deletes, restore); the Health apply step inside
+  `hkTryFetch`; M8/M10 conflict-resolution actions after their export
+  sheets and fetches (already specified); the export-unlock callbacks.
+  A failed revalidation surfaces the takeover sheet and mutates
+  NOTHING.
+- Sync actions inventoried by EFFECT (E6): `sync:push` →
+  `cloudPush(true)` (server core write; fence-carrying; coreStale →
+  displaced flow); `sync:pull` → confirm-gated `cloudPull(true)`
+  (REPLACES local core — m10Gate + async revalidation in its confirm
+  callback; adopting server core in clean state only, else the
+  displaced/conflict rules); boot pulls (`autoSync` core adopt +
+  `trainingPull`) follow the same clean-state-only adoption rules —
+  reads are free, ADOPTION is a write to local content and follows
+  each subsystem's protocol.
+- Photos are content: every IndexedDB content mutation gated
+  (add/delete/import/clear at all call sites above); caches,
+  thumbnails, object-URLs exempt. **Photos also sync server-side**
+  (`/api/collections/photos/records` create/delete/patch via the
+  wrapped idbAdd/idbDelete): the photos collection's
+  create/delete/update hooks validate the fence under enforcement
+  (per-row authorization — no revision protocol needed: rows are
+  independent, never merged snapshots); superuser and mailbox rules
+  do not apply to photos.
 - Composites (7 in matrix v3): one global pre-gate; each side of a
   split-across-steal lands in its own subsystem\'s displaced flow.
 - Non-holder UX: "Another session is the active writer ("<deviceName>")
@@ -173,9 +255,15 @@ Superuser writes: §2 bypass, logged, payload-free logs.
 
 ## 7. Migration, backup, compatibility, rollback
 
-- **Migration up**: one migration file creating `writer_lease`
-  (closed rules) — no data transforms; appdata untouched. **Down**:
-  delete the collection (safe: operational state only).
+- **Migration up** (E10, full enumeration): (1) create `writer_lease`
+  (closed rules); (2) add `writerFence`+`deviceLabelHash` nullable
+  columns to the commit ledger (existing rows null; integrity
+  sentinel: row counts + a sample-hash check recorded before/after);
+  (3) no appdata transforms; (4) photos hooks gain the fence check
+  (code, not schema). **Down**: refuses while FENCING_ENFORCED is on
+  or any M10 client is known deployed (operational rule recorded in
+  the runbook); otherwise: drop ledger columns, delete `writer_lease`,
+  remove hooks — in that order, after the sequenced client rollback.
 - **Backup**: lease excluded from athlete exports (operational,
   valueless to restore); included in PB full backups trivially.
 - **Compatibility (enforcement OFF)**: `.415-m8` devices see zero
@@ -227,12 +315,17 @@ All with raw request/response evidence, before/after record state,
 hook hashes, and verified disposable cleanup (user 404 + record-by-id
 404 + relation 0), per the M8 gate bar.
 
-## 9. Sequence
+## 9. Sequence (E11 — corrected order)
 
-1. This design → review (round 5).
-2. Server package implementation vs disposable infra → review → 
-   Owner-authorized NAS deploy (enforcement OFF) → NAS disposable gate.
-3. Client (delimited blocks, M8 discipline) → evidence rounds.
-4. Release package → Owner decision → publish → BOTH devices checked.
-5. The combined hardening decision: FENCING_ENFORCED + raw-PATCH
+1. This design → review (round 6).
+2. On approval: implement + test LOCALLY ONLY (local disposable PB).
+3. Return code, migration, hashes, tests, rollback, and local evidence
+   for Architect review.
+4. Owner authorization for the enforcement-OFF NAS deployment.
+5. Deploy the EXACT reviewed package; run NAS disposable probes;
+   verified cleanup.
+6. Coach-job migration to the platform route (reviewed; SSH channel).
+7. Client (delimited blocks, M8 discipline) → evidence rounds.
+8. Release package → Owner decision → publish → BOTH devices checked.
+9. The combined hardening decision: FENCING_ENFORCED + raw-PATCH
    lockdown, Owner-authorized, with the enforcement-day checklist.
