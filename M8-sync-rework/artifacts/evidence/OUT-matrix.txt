@@ -1,0 +1,14 @@
+
+C11-M8 matrix — the seven R4 cases
+  source: /home/griffin/projects/compound-app/index.html
+  ✓ R4 pre: candidate exposes the canonical form
+  ✓ R4-1: equal content establishes the base cleanly (no conflict)
+  ✓ R4-2: local-only date -> conflict, local survives
+  ✓ R4-3: server-only date -> conflict, nothing auto-adopted
+  ✓ R4-4: same session, different content -> conflict
+  ✓ R4-5: server-deleted item -> conflict, never auto-pushed back
+  ✓ R4-6: locally-deleted item on server -> conflict, no silent restore
+  ✓ R4-7: an existing conflict survives restart with local intact
+  ✓ no page errors across all cases
+
+OK — 9 passed

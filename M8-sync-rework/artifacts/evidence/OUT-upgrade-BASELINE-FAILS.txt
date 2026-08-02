@@ -1,0 +1,13 @@
+
+C11-M8 — authentic upgrade boundary (R3)
+  source: /home/griffin/.claude/jobs/1f705b64/tmp/baseline-no-m8.html
+  M8 present: false
+  ✗ R3: the unsynced 2026-07-31 session SURVIVES ON DISK after boot against a stale server
+      DESTROYED — the original loss mode
+  ✗ R3: it also survives in live state
+      expected truthy
+  ✗ R3: the difference is HELD as a conflict, not silently resolved
+      no conflict record
+  ✓ no page errors
+
+FAILED — 1 passed, 3 failed

@@ -1,0 +1,10 @@
+
+C11-M8 — authentic upgrade boundary (R3)
+  source: /home/griffin/projects/compound-app/index.html
+  M8 present: true
+  ✓ R3: the unsynced 2026-07-31 session SURVIVES ON DISK after boot against a stale server
+  ✓ R3: it also survives in live state
+  ✓ R3: the difference is HELD as a conflict, not silently resolved
+  ✓ no page errors
+
+OK — 4 passed

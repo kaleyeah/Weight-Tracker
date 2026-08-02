@@ -1,0 +1,555 @@
+diff --git a/index.html b/index.html
+index 27ee114..e1c15e0 100644
+--- a/index.html
++++ b/index.html
+@@ -8731,6 +8731,381 @@ function cloudPush(manual){
+     setSync(err==="offline"?"offline":"error",err==="auth"?"session expired — log in again":"");
+     if(manual)toast(err==="offline"?"No connection":err==="auth"?"Please log in again":"Save failed");});}
+ 
++/* ================= M8 TRAINING SYNC — core (design v7 contract) =================
++   Contract: Weight-Tracker/M8-sync-rework/DESIGN.md, commit 9e849f4, approved
++   Architect round 8. This block is the pure core: canonicalization (§6),
++   per-account key layer with quarantine (§1, B4/C8), and the transition
++   journal primitives (§1, C4/D6/D7). Transitions, push/pull, conflict UI and
++   logout gating build on these in the following increments. Nothing here
++   touches the network. */
++
++var M8_MARK="m8.1", M8_CANON_VER=1;
++
++/* ---- §6 canonicalization: validate the ORIGINAL value first (C9) ---- */
++function m8CanonValidate(v,path){
++  path=path||"$";
++  var t=typeof v;
++  if(v===undefined)return path+": undefined";
++  if(t==="function"||t==="symbol")return path+": "+t;
++  if(t==="number"&&!isFinite(v))return path+": non-finite number";
++  if(v===null||t==="string"||t==="boolean"||t==="number")return null;
++  if(Array.isArray(v)){
++    for(var i=0;i<v.length;i++){
++      if(!(i in v))return path+"["+i+"]: hole";
++      var e=m8CanonValidate(v[i],path+"["+i+"]");if(e)return e;}
++    return null;}
++  if(t==="object"){
++    for(var k in v){if(!Object.prototype.hasOwnProperty.call(v,k))continue;
++      var e2=m8CanonValidate(v[k],path+"."+k);if(e2)return e2;}
++    return null;}
++  return path+": unsupported type "+t;}
++
++function m8CanonSerialize(v){
++  if(v===null||typeof v!=="object")return JSON.stringify(v);
++  if(Array.isArray(v)){var out="[";for(var i=0;i<v.length;i++){if(i)out+=",";out+=m8CanonSerialize(v[i]);}return out+"]";}
++  var keys=Object.keys(v).sort();var o="{";var first=true;
++  for(var j=0;j<keys.length;j++){var k=keys[j];
++    o+=(first?"":",")+JSON.stringify(k)+":"+m8CanonSerialize(v[k]);first=false;}
++  return o+"}";}
++
++/* Returns {ok:true,canon:string} or {ok:false,error:path-reason}. The root
++   must be a plain object (the training store). Fail closed, never coerce. */
++function m8Canon(v){
++  if(v===null||typeof v!=="object"||Array.isArray(v))return {ok:false,error:"$: root must be an object"};
++  var err=m8CanonValidate(v,"$");
++  if(err)return {ok:false,error:err};
++  return {ok:true,canon:m8CanonSerialize(v)};}
++
++/* ---- §1 per-account key layer (B4) ---- */
++function m8Uid(){try{return pbUid()||null;}catch(e){return null;}}
++function m8Key(kind,uid){return "wl_training_"+kind+"__"+(uid||m8Uid());}
++var m8StorageBlocked=false,m8StorageBlockReason="";
++function m8Block(reason){m8StorageBlocked=true;m8StorageBlockReason=reason;try{setSync("error","training sync paused — "+reason);}catch(e){}}
++
++/* Read → {st:"absent"} | {st:"ok",val} | {st:"malformed"}. Malformed is NEVER
++   treated as absent by callers until quarantine succeeds (C8). */
++function m8Read(kind,uid){
++  uid=uid||m8Uid();if(!uid)return {st:"absent"};
++  var raw;
++  try{raw=localStorage.getItem(m8Key(kind,uid));}catch(e){return {st:"absent"};}
++  if(raw==null)return {st:"absent"};
++  var v;try{v=JSON.parse(raw);}catch(e){return {st:"malformed",raw:raw};}
++  if(!v||typeof v!=="object"||v.owner!==uid||v.mark!==M8_MARK)return {st:"malformed",raw:raw};
++  return {st:"ok",val:v};}
++
++/* Write with read-back verification (B6). Returns true only when the stored
++   bytes parse back to the same mark/owner and equal content. */
++function m8Write(kind,obj,uid){
++  uid=uid||m8Uid();if(!uid)return false;
++  obj.owner=uid;obj.mark=M8_MARK;
++  var ser;try{ser=JSON.stringify(obj);}catch(e){return false;}
++  try{localStorage.setItem(m8Key(kind,uid),ser);}catch(e){return false;}
++  var back;try{back=localStorage.getItem(m8Key(kind,uid));}catch(e){return false;}
++  return back===ser;}
++function m8Remove(kind,uid){uid=uid||m8Uid();try{localStorage.removeItem(m8Key(kind,uid));}catch(e){}
++  try{return localStorage.getItem(m8Key(kind,uid))==null;}catch(e){return false;}}
++
++/* Quarantine: copy → verify → delete original (C8). On any failure the
++   original stays and sync blocks; an unpreserved malformed entry is never
++   "absent". Returns true when the original is safely preserved elsewhere. */
++function m8Quarantine(kind,uid){
++  uid=uid||m8Uid();if(!uid)return false;
++  var orig;try{orig=localStorage.getItem(m8Key(kind,uid));}catch(e){orig=null;}
++  if(orig==null)return true;
++  var qk,n=0;
++  do{qk="wl_training_corrupt__"+uid+"."+Date.now()+"."+n;n++;}
++  while((function(){try{return localStorage.getItem(qk)!=null;}catch(e){return true;}})()&&n<50);
++  try{localStorage.setItem(qk,orig);}catch(e){m8Block("storage full while preserving a damaged record");return false;}
++  var back;try{back=localStorage.getItem(qk);}catch(e){back=null;}
++  if(back!==orig){m8Block("could not verify a preserved copy");return false;}
++  try{localStorage.removeItem(m8Key(kind,uid));}catch(e){}
++  return true;}
++
++/* ---- §1 transition journal (C4, D6, D7, E1, F2) ---- */
++/* op journal value: {owner,mark,op,phase,startedAt,expect:{...}}. Phase
++   advances are themselves verified writes; boot recovery compares ACTUAL
++   keys/server against expect and never trusts phase alone (D6). */
++function m8JournalStart(op,expect){
++  var j={op:op,phase:"intent",startedAt:Date.now(),expect:expect};
++  return m8Write("journal",j)?j:null;}
++function m8JournalAdvance(j,phase,extra){
++  j.phase=phase;
++  if(extra)for(var k in extra)if(Object.prototype.hasOwnProperty.call(extra,k))j.expect[k]=extra[k];
++  return m8Write("journal",j);}
++function m8JournalEnd(){return m8Remove("journal");}
++
++/* idempotency key (F2): unique per logical mutation, ≤96 chars (route cap),
++   persisted in the intent journal before dispatch, never reused for a
++   different request identity. */
++function m8NewRequestId(){
++  return ("m8-"+m8Uid()+"-"+Date.now()+"-"+Math.random().toString(36).slice(2,10)).slice(0,96);}
++
++/* ---- CAS commit route client (§3; route: server/pb_hooks/cf_cas.pb.js) ---- */
++/* cb(res): res={st:"ok",newRev} | {st:"replay",newRev,applied} |
++   {st:"conflict",serverRev,payload} | {st:"keyReused"} | {st:"transport"} |
++   {st:"auth"}. A transport result is AMBIGUOUS (E2) — the server may have
++   committed; callers must never treat it as proof of failure. */
++function m8CasCommit(expectedRev,trainingObj,requestId,cb){
++  var base;try{base=pbBase();}catch(e){cb({st:"transport"});return;}
++  fetch(base+"/api/cf/appdata/commit",{method:"POST",headers:pbHeaders(true),
++    body:JSON.stringify({subsystem:"training",expectedRev:expectedRev,idempotencyKey:requestId,payload:trainingObj})})
++  .then(function(r){
++    if(r.status===401||r.status===403){cb({st:"auth"});return null;}
++    return r.json().then(function(b){
++      if(r.status===200&&b&&b.ok&&!b.replay){cb({st:"ok",newRev:b.newRev});return;}
++      if(b&&b.replay){cb({st:"replay",newRev:b.newRev,applied:!!b.ok});return;}
++      if(r.status===409&&b&&b.conflict){cb({st:"conflict",serverRev:b.serverRev,payload:b.payload});return;}
++      if(r.status===409){cb({st:"keyReused"});return;}
++      cb({st:"transport"});});})
++  .catch(function(){cb({st:"transport"});});}
++/* ---- §1 state derivation ---- */
++function m8LocalTrainingEmpty(){var t=state.training||{};
++  return !((t.exercises||[]).length||(t.routines||[]).length||Object.keys(t.sessions||{}).length||Object.keys(t.liftSessions||{}).length);}
++function m8State(){
++  if(m8StorageBlocked)return "blocked";
++  var uid=m8Uid();if(!uid)return "signedout";
++  var c=m8Read("conflict");if(c.st==="malformed")return "blocked";
++  if(c.st==="ok")return "conflict";
++  var d=m8Read("dirty");if(d.st==="malformed")return "blocked";
++  var b=m8Read("base");if(b.st==="malformed")return "blocked";
++  /* base-absence defines bootstrap regardless of dirty: a legacy device
++     edits before its first base exists (the round-2 upgrade boundary) */
++  if(b.st!=="ok")return m8LocalTrainingEmpty()?"fresh":"bootstrap";
++  if(d.st==="ok")return "dirty";
++  return "clean";}
++
++var m8Gen=0;
++function m8MarkDirty(){
++  /* called synchronously from saveTraining(), before the debounce and before
++     any syncOn() gate (contract §1) */
++  var uid=m8Uid();if(!uid)return;
++  m8Gen++;
++  if(!m8Write("dirty",{gen:m8Gen,ts:Date.now()}))m8Block("could not record an unsynced change");}
++
++/* ---- conflict entry (B7.2): persist-verify BEFORE surfacing; local
++   training is never written in this transition ---- */
++function m8EnterConflict(serverTraining,serverRev,reason){
++  var lc=m8Canon(state.training);
++  var sc=(serverTraining==null)?{ok:true,canon:null}:m8Canon(serverTraining);
++  if(!lc.ok){m8Block("local training failed validation: "+lc.error);return false;}
++  if(!sc.ok){m8Block("server training failed validation: "+sc.error);return false;}
++  var ok=m8Write("conflict",{canon:M8_CANON_VER,enteredAt:Date.now(),reason:reason,
++    serverRev:serverRev,serverAtEntry:sc.canon,localAtEntry:lc.canon,exports:{}});
++  if(!ok){m8Block("could not preserve the server copy — sync paused");return false;}
++  try{setSync("error","training conflict — review needed");}catch(e){}
++  return true;}
++
++/* ---- journaled adoption (transitions 2/3: local first, then base) ---- */
++function m8AdoptServer(training,serverRev,op){
++  var sc=m8Canon(training);if(!sc.ok){m8Block("server copy failed validation");return false;}
++  var j=m8JournalStart(op||"adopt",{serverRev:serverRev,serverCanon:sc.canon});
++  if(!j)return false;
++  state.training={cardioTypes:(Array.isArray(training.cardioTypes)&&training.cardioTypes.length)?training.cardioTypes:state.training.cardioTypes,
++    sessions:training.sessions||{},exercises:training.exercises||[],routines:training.routines||[],liftSessions:training.liftSessions||{}};
++  saveTrainingLocal();
++  if(!m8JournalAdvance(j,"k1")){/* local written, journal stuck: base derivable on recovery */}
++  if(!m8Write("base",{canon:M8_CANON_VER,rev:serverRev,body:sc.canon})){
++    m8Block("could not record the adopted copy");/* no base -> bootstrap re-runs and re-establishes by equality */
++    m8JournalEnd();return true;}
++  m8JournalEnd();
++  try{resyncAllActivityTags();saveLocal();}catch(e){}
++  return true;}
++
++/* ---- transition 4: bootstrap-equality base establishment ---- */
++function m8EstablishBase(canonStr,serverRev){
++  var j=m8JournalStart("bootstrap-base",{serverRev:serverRev,serverCanon:canonStr});
++  if(!j)return false;
++  var ok=m8Write("base",{canon:M8_CANON_VER,rev:serverRev,body:canonStr});
++  m8JournalEnd();
++  return ok;}
++
++/* ---- §2 bootstrap ---- */
++function m8Bootstrap(cb){
++  pbGetRecord(function(rec,err){
++    if(err){cb&&cb(false);return;}
++    /* rec===null is a real state: the appdata record does not exist yet.
++       Treat as server-has-nothing at rev 0 (the CAS route creates the
++       record on a rev-0 commit); the strict rules below still apply. */
++    var srv=rec?rec.training:null,rev=rec?(rec.trainingRev|0):0;
++    if(m8LocalTrainingEmpty()){
++      if(srv&&typeof srv==="object"){m8AdoptServer(srv,rev,"adopt-fresh");}
++      else{m8EstablishBase(null,rev);/* base records the server's ACTUAL identity:
++        the field is absent. Recording our local default canon here made every
++        later pull see a phantom difference (caught by smoke, 2026-08-02). */}
++      cb&&cb(true);return;}
++    var lc=m8Canon(state.training);
++    if(!lc.ok){m8Block("local training failed validation: "+lc.error);cb&&cb(false);return;}
++    if(srv&&typeof srv==="object"){
++      var sc=m8Canon(srv);
++      if(sc.ok&&sc.canon===lc.canon){m8EstablishBase(lc.canon,rev);cb&&cb(true);return;}
++    }
++    /* differing content OR training field absent: strict conflict (Owner ruling) */
++    m8EnterConflict((srv&&typeof srv==="object")?srv:null,rev,"bootstrap");
++    cb&&cb(true);});}
++
++/* ---- transition 1: the acked push, journal-first (E1/E2/F2-F7) ---- */
++var m8Pushing=false;
++function m8Push(){
++  if(m8Pushing)return;
++  if(trainingQuarantined()||m8StorageBlocked)return;
++  if(!syncOn())return;
++  var st=m8State();
++  if(st==="conflict"||st==="blocked"||st==="signedout")return;
++  var jr=m8Read("journal");
++  if(jr.st==="malformed"){if(!m8Quarantine("journal"))return;jr={st:"absent"};}
++  if(jr.st==="ok"){m8ResolveJournal(jr.val,function(){var s2=m8State();if(s2==="dirty")m8Push();});return;}
++  if(st==="bootstrap"||st==="fresh"){m8Bootstrap(function(){var s3=m8State();if(s3==="dirty")m8Push();});return;}
++  if(st!=="dirty")return;
++  var b=m8Read("base");if(b.st!=="ok")return;
++  var gen=m8Gen;
++  var copy;try{copy=JSON.parse(JSON.stringify(state.training));}catch(e){m8Block("could not snapshot training");return;}
++  var pc=m8Canon(copy);if(!pc.ok){m8Block("training failed validation: "+pc.error);return;}
++  if(pc.canon===b.val.body){ /* nothing actually changed */
++    var d0=m8Read("dirty");if(d0.st==="ok"&&d0.val.gen===m8Gen)m8Remove("dirty");
++    try{setSync("ok");}catch(e){}return;}
++  var reqId=m8NewRequestId();
++  var j=m8JournalStart("ack",{oldBaseCanon:b.val.body,expectedRev:b.val.rev,pushedCanon:pc.canon,gen:gen,requestId:reqId});
++  if(!j){m8Block("could not journal the push");return;}
++  m8Pushing=true;try{setSync("syncing");}catch(e){}
++  m8CasCommit(b.val.rev,copy,reqId,function(res){
++    m8Pushing=false;
++    m8AckOutcome(j,copy,pc.canon,gen,res,0);});}
++
++/* the shared outcome handler for a live push and an idempotent replay */
++function m8AckOutcome(j,copy,pushedCanon,gen,res,retried){
++  if(res.st==="ok"||(res.st==="replay"&&res.applied)){
++    if(!m8JournalAdvance(j,"net-done",{newRev:res.newRev})){/* proceed; recovery can re-derive */}
++    if(!m8Write("base",{canon:M8_CANON_VER,rev:res.newRev,body:pushedCanon})){
++      /* server has it, we could not record it: keep dirty, journal survives,
++         recovery is fetch-and-compare (C6) — never a stale CAS retry */
++      m8Block("saved to server but could not record it locally");return;}
++    var d=m8Read("dirty");
++    if(d.st==="ok"&&d.val.gen===gen){
++      if(!m8Remove("dirty")){/* C7: compare-and-retry locally on next boot */}
++      try{resyncAllActivityTags();saveLocal();}catch(e){}
++      try{setSync("ok");setLastSync&&setLastSync();}catch(e){}
++    }else{
++      /* gen advanced mid-flight: base moved forward, dirty stays (D8: no tag
++         derivation from the live copy under an older ack) */
++      try{setSync("saving");}catch(e){}
++      m8JournalEnd();scheduleTrainingPush();return;}
++    m8JournalEnd();return;}
++  if(res.st==="conflict"){
++    var b2=m8Read("base");
++    if(retried===0&&b2.st==="ok"&&res.payload!=null){
++      var rc=m8Canon(res.payload);
++      if(rc.ok&&rc.canon===b2.val.body){
++        /* stale-rev race with no actual writer (A11): retry once with the fresh
++           revision — a NEW logical request, so a NEW idempotency key */
++        var reqId2=m8NewRequestId();
++        if(m8JournalAdvance(j,"intent",{expectedRev:res.serverRev,requestId:reqId2})){
++          m8CasCommit(res.serverRev,copy,reqId2,function(r2){m8AckOutcome(j,copy,pushedCanon,gen,r2,1);});return;}
++      }}
++    if(m8EnterConflict(res.payload,res.serverRev,"push-conflict"))m8JournalEnd();
++    return;}
++  if(res.st==="keyReused"){
++    /* F4 hard stop: same key, different identity. Journal preserved. */
++    m8Block("sync integrity error — request key reused");return;}
++  if(res.st==="auth"){
++    /* definite rejection before execution: not ambiguous */
++    m8JournalEnd();try{setSync("error","session expired — log in again");}catch(e){}return;}
++  /* transport: AMBIGUOUS (E2) — journal survives at its current phase */
++  try{setSync("offline","unsynced training will retry");}catch(e){}}
++
++/* ---- E2/F3-F5: resolve a surviving ack journal ---- */
++var M8_LEDGER_MS=30*24*3600*1000;
++function m8ResolveJournal(j,cb){
++  if(j.op==="adopt"||j.op==="adopt-fresh"||j.op==="bootstrap-base"){
++    /* re-derivable ops: every input is inside expect; complete or unwind */
++    var b=m8Read("base");
++    if(b.st==="ok"&&b.val.body===j.expect.serverCanon&&b.val.rev===j.expect.serverRev){m8JournalEnd();cb&&cb();return;}
++    if(j.op==="bootstrap-base"){m8JournalEnd();cb&&cb();return;/* no base written: bootstrap re-runs */}
++    var lc=m8Canon(state.training);
++    if(lc.ok&&lc.canon===j.expect.serverCanon){ /* local landed, base did not */
++      m8Write("base",{canon:M8_CANON_VER,rev:j.expect.serverRev,body:j.expect.serverCanon});m8JournalEnd();cb&&cb();return;}
++    m8JournalEnd();cb&&cb();return;/* nothing landed: op re-runs from scratch */}
++  if(j.op!=="ack"){m8JournalEnd();cb&&cb();return;}
++  var age=Date.now()-(j.startedAt||0);
++  if(j.phase==="net-done"&&j.expect.newRev!=null){
++    /* server outcome known; finish the key phases */
++    if(!m8Write("base",{canon:M8_CANON_VER,rev:j.expect.newRev,body:j.expect.pushedCanon})){m8Block("could not record the acknowledged copy");cb&&cb();return;}
++    var d=m8Read("dirty");if(d.st==="ok"&&d.val.gen===j.expect.gen)m8Remove("dirty");
++    m8JournalEnd();cb&&cb();return;}
++  var finish=function(){cb&&cb();};
++  var fetchCompare=function(){
++    pbGetRecord(function(rec,err){
++      if(err||!rec){finish();return;}
++      var srv=rec.training,rev=(rec.trainingRev|0);
++      var sc=(srv&&typeof srv==="object")?m8Canon(srv):{ok:true,canon:null};
++      if(!sc.ok){m8Block("server copy failed validation");finish();return;}
++      if(sc.canon===j.expect.pushedCanon){ /* E2(a): applied */
++        m8Write("base",{canon:M8_CANON_VER,rev:rev,body:j.expect.pushedCanon});
++        var d2=m8Read("dirty");if(d2.st==="ok"&&d2.val.gen===j.expect.gen)m8Remove("dirty");
++        m8JournalEnd();finish();return;}
++      if(sc.canon===j.expect.oldBaseCanon&&rev===j.expect.expectedRev){ /* E2(b): not applied */
++        m8JournalEnd();finish();return;}
++      if(m8EnterConflict(srv&&typeof srv==="object"?srv:null,rev,"ambiguous-push"))m8JournalEnd();
++      finish();});};
++  if(age<M8_LEDGER_MS&&j.expect.requestId){
++    /* F3: replay the identical request first while the ledger can recognize it */
++    var body;try{body=JSON.parse(j.expect.pushedCanon);}catch(e){body=null;}
++    if(!body){fetchCompare();return;}
++    m8CasCommit(j.expect.expectedRev,body,j.expect.requestId,function(res){
++      if(res.st==="ok"||res.st==="replay"){
++        if(res.st==="replay"&&!res.applied){m8JournalEnd();finish();return;}
++        m8Write("base",{canon:M8_CANON_VER,rev:res.newRev,body:j.expect.pushedCanon});
++        var d3=m8Read("dirty");if(d3.st==="ok"&&d3.val.gen===j.expect.gen)m8Remove("dirty");
++        m8JournalEnd();finish();return;}
++      if(res.st==="conflict"){fetchCompare();return;}
++      if(res.st==="keyReused"){m8Block("sync integrity error — request key reused");finish();return;}
++      if(res.st==="auth"){try{setSync("error","session expired — log in again");}catch(e){}finish();return;}
++      /* transport again: remain unresolved (F4) */
++      try{setSync("offline","unsynced training will retry");}catch(e){}finish();});
++    return;}
++  fetchCompare();}
++
++/* ---- §4 pull ---- */
++function m8Pull(cb){
++  if(trainingQuarantined()||m8StorageBlocked){cb&&cb();return;}
++  if(!syncOn()){cb&&cb();return;}
++  var st=m8State();
++  if(st==="blocked"||st==="signedout"){cb&&cb();return;}
++  var jr=m8Read("journal");
++  if(jr.st==="ok"){m8ResolveJournal(jr.val,function(){m8Pull(cb);});return;}
++  if(st==="bootstrap"||st==="fresh"){m8Bootstrap(function(){cb&&cb();});return;}
++  if(st==="conflict"){cb&&cb();return;}
++  pbGetRecord(function(rec,err){
++    if(err||!rec){cb&&cb();return;}
++    var srv=rec.training,rev=(rec.trainingRev|0);
++    var b=m8Read("base");if(b.st!=="ok"){cb&&cb();return;}
++    var sc=(srv&&typeof srv==="object")?m8Canon(srv):{ok:true,canon:null};
++    if(!sc.ok){m8Block("server copy failed validation");cb&&cb();return;}
++    if(sc.canon===b.val.body){cb&&cb();return;/* unchanged */}
++    var stNow=m8State();
++    if(stNow==="clean"&&sc.canon!=null){m8AdoptServer(srv,rev,"adopt");cb&&cb();return;}
++    /* dirty (or server field vanished): never overwrite — conflict (R4) */
++    m8EnterConflict(srv&&typeof srv==="object"?srv:null,rev,"pull-refused");
++    cb&&cb();});}
++
++/* ---- boot reconciliation (runs before any sync activity) ---- */
++function m8Boot(cb){
++  var uid=m8Uid();if(!uid){cb&&cb();return;}
++  ["dirty","base","conflict"].forEach(function(k){
++    var r=m8Read(k);if(r.st==="malformed")m8Quarantine(k);});
++  var d=m8Read("dirty");if(d.st==="ok")m8Gen=Math.max(m8Gen,d.val.gen|0);
++  /* C7: base persisted but dirty-clear failed — compare locally, no server traffic */
++  var b=m8Read("base");
++  if(d.st==="ok"&&b.st==="ok"){
++    var lc=m8Canon(state.training);
++    if(lc.ok&&lc.canon===b.val.body)m8Remove("dirty");}
++  var jr=m8Read("journal");
++  if(jr.st==="malformed"){m8Quarantine("journal");cb&&cb();return;}
++  if(jr.st==="ok"){m8ResolveJournal(jr.val,function(){cb&&cb();});return;}
++  cb&&cb();}
++/* =============== end M8 transitions =============== */
++
++/* =============== end M8 core block =============== */
++
+ function trainingPush(){
+   /* Blocked in BOTH directions. Pulling can destroy the local copy; pushing an
+      unverified local copy can destroy newer training on the server. With the
+@@ -8756,6 +9131,168 @@ function trainingPull(cb){
+ 
+ 
+ /* =============== end M8 wiring =============== */
++/* ================= M8 WIRING (design v7 contract) =================
++   Later function declarations override the Lineage-A definitions above at
++   runtime. All M8 behavior stays inside the two delimited M8 blocks so a
++   release candidate can be built without any of it. */
++function saveTraining(){saveTrainingLocal();m8MarkDirty();scheduleTrainingPush();}
++function scheduleTrainingPush(){if(recoveryBlocked)return;if(!syncOn())return;clearTimeout(trainingPushTimer);trainingPushTimer=setTimeout(m8Push,1600);}
++function trainingPush(){
++  if(recoveryBlocked){setSync("error",recoveryBlockReason);return;}
++  m8Push();}
++function trainingPull(cb){
++  if(recoveryBlocked){setSync("error",recoveryBlockReason);cb&&cb();return;}
++  m8Boot(function(){m8Pull(cb);});}
++/* ---- §5 conflict workflow + §1 logout gate (Owner ruling A) ---- */
++var m8ConflictOpen=false;
++function m8CxSummary(canonStr){
++  if(canonStr==null)return {absent:true,dates:[],ex:0,rt:0};
++  var t;try{t=JSON.parse(canonStr);}catch(e){return {absent:true,dates:[],ex:0,rt:0};}
++  return {absent:false,dates:Object.keys(t.liftSessions||{}).sort(),ex:(t.exercises||[]).length,rt:(t.routines||[]).length,t:t};}
++function m8CxDiff(cx){
++  var lc=m8Canon(state.training);var L=m8CxSummary(lc.ok?lc.canon:null),S=m8CxSummary(cx.serverAtEntry);
++  var lOnly=L.dates.filter(function(d){return S.dates.indexOf(d)<0;});
++  var sOnly=S.dates.filter(function(d){return L.dates.indexOf(d)<0;});
++  var differ=L.dates.filter(function(d){
++    if(S.dates.indexOf(d)<0)return false;
++    try{return JSON.stringify((L.t.liftSessions||{})[d])!==JSON.stringify((S.t.liftSessions||{})[d]);}catch(e){return true;}});
++  var fieldsOnly=!lOnly.length&&!sOnly.length&&!differ.length;
++  return {L:L,S:S,lOnly:lOnly,sOnly:sOnly,differ:differ,fieldsOnly:fieldsOnly};}
++function m8ConflictBannerHTML(){
++  if(m8State()!=="conflict")return "";
++  return '<div class="wl-card" style="border-color:var(--bad)"><div class="wl-card-head"><span>Training needs your review</span></div>'
++    +'<div class="wl-hint">This device and your server hold different training. Nothing has been lost — both copies are kept until you decide.</div>'
++    +'<button class="wl-btn wl-btn-primary wl-full" style="margin-top:10px" data-act="m8:cx:open">Review both copies</button></div>';}
++function m8ConflictViewHTML(){
++  if(!m8ConflictOpen)return "";
++  var r=m8Read("conflict");if(r.st!=="ok"){m8ConflictOpen=false;return "";}
++  var cx=r.val,d=m8CxDiff(cx);
++  var exported=cx.exports&&cx.exports.serverDone&&cx.exports.localDone&&cx.exports.localGen===m8Gen;
++  var h='<div class="wl-confirm"><div class="wl-confirm-card" style="max-height:82vh;overflow:auto;text-align:left">';
++  h+='<div style="font-weight:800;font-size:17px;margin-bottom:6px">Two copies of your training</div>';
++  h+='<div class="wl-hint" style="margin-bottom:10px">Held since '+esc(fmtShort(new Date(cx.enteredAt)))+' ('+esc(cx.reason)+'). Neither is treated as right until you choose.</div>';
++  h+='<div style="font-size:13px;line-height:1.6;margin-bottom:10px">';
++  h+='<b>This device:</b> '+d.L.dates.length+' session day'+(d.L.dates.length===1?'':'s')+' \u00b7 '+d.L.ex+' exercises \u00b7 '+d.L.rt+' routines<br>';
++  h+='<b>Server:</b> '+(d.S.absent?'no training recorded':(d.S.dates.length+' session day'+(d.S.dates.length===1?'':'s')+' \u00b7 '+d.S.ex+' exercises \u00b7 '+d.S.rt+' routines'))+'</div>';
++  if(d.lOnly.length)h+='<div class="wl-hint">Only on this device: '+d.lOnly.map(esc).join(", ")+'</div>';
++  if(d.sOnly.length)h+='<div class="wl-hint">Only on the server: '+d.sOnly.map(esc).join(", ")+'</div>';
++  if(d.differ.length)h+='<div class="wl-hint">Different on the two: '+d.differ.map(esc).join(", ")+'</div>';
++  if(d.fieldsOnly)h+='<div class="wl-hint">The sessions match \u2014 fields present locally only, added by an app update, made the copies differ.</div>';
++  h+='<button class="wl-btn '+(exported?'wl-btn-ghost':'wl-btn-primary')+' wl-full" style="margin-top:12px" data-act="m8:cx:export">'+(exported?'Exported \u2713 \u2014 export again':'Export both copies first')+'</button>';
++  if(!exported)h+='<div class="wl-hint" style="margin-top:6px">Both copies leave the device before any choice \u2014 and any new edit asks for a fresh export.</div>';
++  h+='<button class="wl-btn wl-full" style="margin-top:10px;background:var(--accent);color:#fff;border:none'+(exported?'':';opacity:.4')+'" '+(exported?'data-act="m8:cx:local"':'disabled')+'>Keep this device\u2019s copy</button>';
++  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px'+(exported?'':';opacity:.4')+'" '+(exported?'data-act="m8:cx:server"':'disabled')+'>Take the server\u2019s copy</button>';
++  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="m8:cx:close">Decide later</button>';
++  return h+'</div></div>';}
++function m8CxExport(){
++  var r=m8Read("conflict");if(r.st!=="ok")return;
++  var cx=r.val;
++  var files=[{name:"conflict-local-"+todayISO()+".json",mime:"application/json",
++      text:JSON.stringify(Object.assign({},backupJSON(),{__conflict:"local"}))},
++    {name:"conflict-server-"+todayISO()+".json",mime:"application/json",
++      text:JSON.stringify({__conflict:"server",serverRev:cx.serverRev,training:cx.serverAtEntry?JSON.parse(cx.serverAtEntry):null})}];
++  try{files.forEach(function(f,i){setTimeout(function(){repDownloadFile(f);},i*400);});}catch(e){toast("Export failed");return;}
++  cx.exports={localGen:m8Gen,serverDone:true,localDone:true};
++  if(!m8Write("conflict",cx)){m8Block("could not record the export");return;}
++  toast("Both copies exported");m8Rerender();}
++function m8CxChooseLocal(){
++  var r=m8Read("conflict");if(r.st!=="ok")return;
++  var cx=r.val;
++  var copy;try{copy=JSON.parse(JSON.stringify(state.training));}catch(e){return;}
++  var pc=m8Canon(copy);if(!pc.ok){m8Block("training failed validation");return;}
++  var gen=m8Gen,reqId=m8NewRequestId();
++  var j=m8JournalStart("ack",{oldBaseCanon:cx.serverAtEntry,expectedRev:cx.serverRev,pushedCanon:pc.canon,gen:gen,requestId:reqId});
++  if(!j)return;
++  m8CasCommit(cx.serverRev,copy,reqId,function(res){
++    if(res.st==="ok"||(res.st==="replay"&&res.applied)){
++      m8Write("base",{canon:M8_CANON_VER,rev:res.newRev,body:pc.canon});
++      var dd=m8Read("dirty");if(dd.st==="ok"&&dd.val.gen<=gen)m8Remove("dirty");
++      m8Remove("conflict");m8JournalEnd();m8ConflictOpen=false;
++      try{resyncAllActivityTags();saveLocal();}catch(e){}
++      toast("Kept this device\u2019s copy");m8Rerender();return;}
++    if(res.st==="conflict"){
++      /* a newer server copy appeared: replace the conflict, reset every gate (B10) */
++      m8JournalEnd();
++      m8EnterConflict(res.payload,res.serverRev,"superseded");
++      toast("The server changed again \u2014 review the new copy");m8Rerender();return;}
++    m8JournalEnd();toast("Couldn\u2019t reach the server \u2014 nothing changed");m8Rerender();});}
++function m8CxChooseServer(){
++  var r=m8Read("conflict");if(r.st!=="ok")return;
++  var cx=r.val;var delta=m8Gen-(cx.exports&&cx.exports.localGen||0);
++  askConfirm("Take the server\u2019s copy and discard this device\u2019s version"+(delta>0?" (including "+delta+" newer edit"+(delta===1?"":"s")+")":"")+"? A fresh export of this device was just taken; this can\u2019t be undone on the device.",function(){
++    m8CxExport();/* A9: one more fresh delivered export of current local */
++    pbGetRecord(function(rec,err){
++      if(err){toast("Couldn\u2019t reach the server \u2014 nothing changed");return;}
++      var srv=rec?rec.training:null,rev=rec?(rec.trainingRev|0):0;
++      var sc=(srv&&typeof srv==="object")?m8Canon(srv):{ok:true,canon:null};
++      if(!sc.ok){m8Block("server copy failed validation");return;}
++      if(rev!==cx.serverRev||sc.canon!==cx.serverAtEntry){
++        /* B9: the server moved since entry — replace the conflict, reset gates */
++        m8Remove("conflict");m8EnterConflict(srv,rev,"superseded");
++        toast("The server changed again \u2014 review the new copy");m8Rerender();return;}
++      if(sc.canon==null){toast("The server holds nothing to adopt");return;}
++      m8Remove("conflict");m8Remove("dirty");
++      m8AdoptServer(srv,rev,"adopt");
++      m8ConflictOpen=false;toast("Took the server\u2019s copy");m8Rerender();});
++  },{label:"Take server copy",danger:true});}
++function m8Rerender(){try{render();}catch(e){}}
++
++/* view hooks: banner on the Training tab; overlay appended by a wrapped render */
++(function(){
++  var origView=view_train;
++  view_train=function(){return m8ConflictBannerHTML()+origView();};
++  var origRender=render;
++  render=function(){origRender();
++    if(m8ConflictOpen){var d=document.createElement("div");d.id="m8-cx";d.innerHTML=m8ConflictViewHTML();
++      var old=document.getElementById("m8-cx");if(old)old.remove();
++      if(d.innerHTML)document.body.appendChild(d);}
++    else{var o2=document.getElementById("m8-cx");if(o2)o2.remove();}};
++  /* §1 logout gate — Owner ruling A: only server acknowledgement releases the
++     device. State-specific affordances per D4. */
++  var origLogout=pbLogout;
++  pbLogout=function(){
++    var st=m8State();
++    if(st==="clean"||st==="fresh"||st==="signedout"){origLogout();return;}
++    if(st==="dirty"){
++      askConfirm("This device holds training the server hasn\u2019t confirmed. Logout stays off until a sync succeeds \u2014 try a push now?",function(){m8Push();},{label:"Push now",danger:false});
++      return;}
++    /* bootstrap / conflict / blocked: route into the review flow, no generic push */
++    m8ConflictOpen=(st==="conflict");
++    askConfirm("This device and the server disagree about your training. Review and resolve that first \u2014 logout stays off so nothing can be erased.",function(){m8Rerender();},{label:"Review",danger:false});};
++})();
++document.addEventListener("click",function(e){
++  var el=e.target.closest&&e.target.closest("[data-act^=\"m8:\"]");
++  if(!el)return;
++  var a=el.getAttribute("data-act");
++  if(a==="m8:cx:open"){m8ConflictOpen=true;m8Rerender();return;}
++  if(a==="m8:cx:close"){m8ConflictOpen=false;m8Rerender();return;}
++  if(a==="m8:cx:export"){m8CxExport();return;}
++  if(a==="m8:cx:local"){m8CxChooseLocal();return;}
++  if(a==="m8:cx:server"){m8CxChooseServer();return;}
++});
++
++/* ---- §5b tag-derivation guards (C10) ---- */
++(function(){
++  /* provenance: cleanup may remove ONLY derived auto:true lifting tags —
++     hand-added entries survive even when names overlap (C10). The original
++     filtered every cat==="lifting" tag regardless of auto. */
++  migrateOrphanLiftTags=function(){var changed=false;var ls=(state.training&&state.training.liftSessions)||{};
++    Object.keys(state.workouts||{}).forEach(function(d){var arr=state.workouts[d];if(!Array.isArray(arr))return;
++      var sn={};((ls[d]||[])).forEach(function(x){sn[x.name||"Weight training"]=1;});
++      var filt=arr.filter(function(a){var c=(a&&a.cat)||catFromName(a&&a.name)||"other";
++        if(c!=="lifting")return true;if(!(a&&a.auto))return true;/* hand-added: keep */
++        return !!sn[(a&&a.name)||""];});
++      if(filt.length!==arr.length){changed=true;if(filt.length)state.workouts[d]=filt;else delete state.workouts[d];}});
++    return changed;};
++  /* no derivation while a conflict is open: the live copy is neither
++     acknowledged nor adopted (§5b) */
++  var origResync=resyncAllActivityTags;
++  resyncAllActivityTags=function(){
++    if(m8State&&m8State()==="conflict")return false;
++    return origResync();};
++})();
++/* =============== M8-END-OF-ALL-BLOCKS =============== */
++
+ function cloudTest(){
+   if(ownershipAmbiguous()){toast("Paused — this device holds data from another account");return;}
+   setSync("syncing");

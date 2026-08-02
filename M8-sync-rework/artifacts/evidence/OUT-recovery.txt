@@ -1,0 +1,14 @@
+  ✓ clean: boots with banner, zero training WRITES (CAS calls)
+  ✓ clean: seeded sync keys byte-untouched
+  ✓ clean: local editing works and marks dirty
+  ✓ clean: no page errors
+  ✓ dirty: boots with banner, zero training WRITES (CAS calls)
+  ✓ dirty: seeded sync keys byte-untouched
+  ✓ dirty: local editing works and marks dirty
+  ✓ dirty: no page errors
+  ✓ conflict: boots with banner, zero training WRITES (CAS calls)
+  ✓ conflict: seeded sync keys byte-untouched
+  ✓ conflict: local editing works and marks dirty
+  ✓ conflict: no page errors
+
+OK — 12 passed

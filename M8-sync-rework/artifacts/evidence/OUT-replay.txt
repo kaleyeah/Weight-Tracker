@@ -1,0 +1,14 @@
+
+C11-M8 replay — E5/F7 recovery of a surviving ack journal
+  source: /home/griffin/projects/compound-app/index.html
+  ✓ F7-1: lost-response replay acks — base at the replayed rev, dirty cleared, journal gone
+  ✓ F7-2: not-applied replay resolves the journal, dirty retained for a normal retry
+  ✓ F7-3: replay-conflict + fetch proves applied — base adopts the fetched rev
+  ✓ F7-4: intervening write — held as conflict, local intact
+  ✓ F7-5: key-reuse mismatch — hard stop, journal PRESERVED, sync blocked
+  ✓ F7-6: transport failure again — journal and dirty survive untouched
+  ✓ F7-7: expired ledger skips replay (no commit call) and proves the outcome by fetch
+  ✓ E5: a net-done journal completes locally — no commit call, base at newRev
+  ✓ no page errors across all cases
+
+OK — 9 passed
