@@ -1,57 +1,69 @@
-# M10 single-writer — round 3: design v3 with the tree-derived matrix
+# M10 single-writer — round 4: design v4, with real-0.39.8 semantics evidence
 
 You are the Architect for the Compound project (read-only; rulings bind
 the Engineer; the Owner alone authorizes deployment and live-data
 mutation).
 
-## Your round-2 items 1–11, as landed (DESIGN.md v3 +
-## WRITE-SURFACE-MATRIX.md; verify in the tree)
+## Your round-3 items 1–13, as landed (DESIGN.md v4,
+## WRITE-SURFACE-MATRIX.md v2, artifacts/PB-SEMANTICS-PROBE.md)
 
-1. Fail closed: missing route == unreachable route; a 404 never
-   unlocks; server rollback is sequenced (enforcement off → verified
-   lease-free client on both devices → only then removal).
-2. The invariant is named honestly: exactly one fence may authorize
-   SERVER mutation; a partitioned former holder can still edit locally,
-   preserved for explicit reconciliation.
-3. One durable lease row per user, never deleted; fence increments on
-   grant, steal, post-expiry acquisition, AND release; strictly-
-   increasing evidence and a safe-integer overflow guard.
-4. Atomicity is designed: `$app.runInTransaction` around fence
-   validation + content mutation, serialized on the same row as the
-   lease route's own transactions; a 100-iteration forced steal‖write
-   race is in the evidence plan.
-5. Displaced CORE work gets its own durable store and recovery: the
-   `wl_core_displaced__<uid>` envelope (verified writes + a
-   `core-displace` journal op), captured by fetch-without-adoption,
-   per-class review sheet, export-both, and explicit Push-mine /
-   Take-server after retaking the pen; core pushes pause until
-   resolved. Photos and device-local bookkeeping are exempt with
-   reasons in the matrix.
-6. The training fenceStale transition is fully specified through the
-   existing M8 persist-and-verify conflict machinery, with the
-   fetch-failure and server-moved arms stated.
-7. One mailbox contract: `coachreq` and `health` are fence-exempt AND
-   the hook rejects any PATCH mixing a mailbox field with content —
-   tested in both directions.
-8. The write-path matrix is TREE-DERIVED: 266 dispatcher actions
-   inspected, 94 mutating, each mapped to persistence path and gate
-   class; all non-action writers (imports, Health apply, migrations,
-   tag derivation, coach jobs, Shortcut, logout, M8 internals)
-   individually specified.
-9. Fence transport defined (body fields on the CAS route; headers on
-   raw PATCH), bound to `@request.auth.id` via the lease row only;
-   spoof/malformed cases fail closed; deviceName display-only.
-10. Cached expiry uses a monotonic in-session deadline; persisted
-    grants never authorize offline writes across reboot — online
-    revalidation or read-only; TTL/cadence marked provisional pending
-    lifecycle evidence.
-11. The enforcement compatibility gate enumerates EVERY writer (both
-    devices, NAS coach superuser context with its stated bypass rule,
-    the health Shortcut, in-app imports) and re-verifies on the day of
-    the Owner-authorized enforcement redeploy.
+1. Every core write carries `expectedCoreRev`, validated in the same
+   transaction as the fence; both displaced resolutions re-fetch
+   without adoption IN the action and replace the envelope on any
+   difference — stale evidence never pushes or adopts. M10 finishes
+   for core what M8 did for training.
+2. ONE primitive (`cfFencedWrite`) specified per path — CAS route, raw
+   update hook, record CREATE, superuser bypass, hook ordering — and
+   the PB v0.39.8 behavior is PROVEN on a local disposable instance
+   (production untouched): route-handler transactions work; rollback
+   verified; a steal racing a slow write transaction BLOCKED 652ms
+   (serialization observed, not assumed); pre-write fencing in
+   onRecordUpdateRequest works via headers; in-hook programmatic saves
+   don't recurse; create-request hooks fire. Raw run + hook source in
+   artifacts/. The NAS disposable gate re-proves each path before
+   production reliance.
+3. The race oracle is observational: per-iteration server tuples
+   (fence, holder, revs, canonical content identity) against the
+   logged strictly-increasing lease history, barriers in BOTH orders,
+   across steal‖write, steal‖steal, renew‖steal, release‖write,
+   expiry-acquire‖write, 100 iterations each.
+4. The training claim is corrected: `m8EnterConflict` is one verified
+   write; the fetch-ok/conflict-write-fails arm is specified (block;
+   dirty + ack journal intact; zero adoption) and added to evidence.
+5. `core-displace` is a full machine: its own account-keyed journal
+   namespace with typed per-op validation, M8's phase grammar,
+   quarantine into the shared corrupt namespace, boot recovery ordered
+   after M8's journal, mutual non-interference asserted by
+   postcondition bytes, shared fail-closed block union.
+6. Post-displacement editing: the live store stays authoritative; the
+   envelope is DERIVED and refreshed through a journaled two-key
+   write; boot re-derives from live on any crash; quota tests under
+   the full double-copy occupancy.
+7. Take-server(core) is held to the M8 Choose-Server standard,
+   including in-action freshness, delivery-evidenced exports, fresh
+   fetch before adoption, and gate resets on any drift.
+8. Photos are CONTENT: every IndexedDB content mutation is G-photos
+   and gated; only object-URL caches/thumbnails/UI prefs are exempt.
+   The v1 contradiction is gone.
+9. Matrix v2 is multi-class: 92 gated actions, 7 composites each
+   listing every touched class (`day:clear` = core+photos+training);
+   handler-entry gating precludes pre-gate partial mutation (denied-
+   gate byte-checks in evidence); split-across-steal recovery rides
+   the per-subsystem protocols with both sides landing in review.
+10. Mailbox rule from the PARSED body: null content fields reject;
+    unknown fields reject; duplicated transport rejects; CREATE with
+    content is fenced; superuser bypass is `_superusers`-only, logged
+    without payloads, proven not to match user tokens.
+11. Stated: the FENCE is the authority; deviceId is a copyable label;
+    duplicate-id tests prove no double authority and truthful
+    takeover UI.
+12. Records reconciled (commit `f257c1d`, local-only).
+13. Nothing implemented, deployed, or mutated.
 
 ## This round
 
-Rule on design v3 as the basis for the server package (collection
-migration + hooks + route + tests). Nothing is implemented, deployed,
-or mutated by this round.
+Rule on design v4 as the server-package contract. If it passes, the
+next step per your round-3 close is implementing the server package
+against disposable infrastructure only (local instance first, then the
+NAS disposable gate), with NAS deployment still requiring its own
+authorization.
