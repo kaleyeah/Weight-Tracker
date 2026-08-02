@@ -1,5 +1,5 @@
 diff --git a/index.html b/index.html
-index 27ee114..d6c9e2d 100644
+index 27ee114..ad94d25 100644
 --- a/index.html
 +++ b/index.html
 @@ -1115,7 +1115,11 @@ var DEFAULT_CARDIO_TYPES=["Peloton","Treadmill","Rowing","Bike","Elliptical","Ou
@@ -15,7 +15,7 @@ index 27ee114..d6c9e2d 100644
  function saveTraining(){saveTrainingLocal();scheduleTrainingPush();}
  function loadTraining(){try{var t=JSON.parse(localStorage.getItem(TKEY));if(t&&typeof t==="object"){state.training={cardioTypes:(Array.isArray(t.cardioTypes)&&t.cardioTypes.length)?t.cardioTypes:DEFAULT_CARDIO_TYPES.slice(),sessions:t.sessions||{},exercises:t.exercises||[],routines:t.routines||[],liftSessions:t.liftSessions||{}};}}catch(e){}}
  function syncCardioTags(date){var kept=normActs(date).filter(function(a){return !(a.cat==="cardio"&&a.auto);});
-@@ -8731,6 +8735,585 @@ function cloudPush(manual){
+@@ -8731,6 +8735,587 @@ function cloudPush(manual){
      setSync(err==="offline"?"offline":"error",err==="auth"?"session expired — log in again":"");
      if(manual)toast(err==="offline"?"No connection":err==="auth"?"Please log in again":"Save failed");});}
  
@@ -373,7 +373,8 @@ index 27ee114..d6c9e2d 100644
 +  var st=m8State();
 +  if(st==="conflict"||st==="blocked"||st==="signedout")return;
 +  var jr=m8Read("journal");
-+  if(jr.st==="malformed"){if(!m8Quarantine("journal"))return;jr={st:"absent"};}
++  if(jr.st==="malformed"){m8QuarantineInvalidJournal();return;/* full stop (R18):
++    a syntactically malformed journal is the same unknown transition state */}
 +  if(jr.st==="ok"&&m8ValidateJournal(jr.val)){m8QuarantineInvalidJournal();return;/* full stop (R17) */}
 +  if(jr.st==="ok"){m8ResolveJournal(jr.val,function(){
 +    /* re-enter only when the journal is actually GONE — a cleanup-pending
@@ -543,6 +544,7 @@ index 27ee114..d6c9e2d 100644
 +  var st=m8State();
 +  if(st==="blocked"||st==="signedout"){cb&&cb();return;}
 +  var jr=m8Read("journal");
++  if(jr.st==="malformed"){m8QuarantineInvalidJournal();cb&&cb();return;/* full stop (R18) */}
 +  if(jr.st==="ok"&&m8ValidateJournal(jr.val)){m8QuarantineInvalidJournal();cb&&cb();return;/* full stop (R17) */}
 +  if(jr.st==="ok"){m8ResolveJournal(jr.val,function(){
 +    var jr2=m8Read("journal");
@@ -601,7 +603,7 @@ index 27ee114..d6c9e2d 100644
  function trainingPush(){
    /* Blocked in BOTH directions. Pulling can destroy the local copy; pushing an
       unverified local copy can destroy newer training on the server. With the
-@@ -8756,6 +9339,232 @@ function trainingPull(cb){
+@@ -8756,6 +9341,232 @@ function trainingPull(cb){
  
  
  /* =============== end M8 wiring =============== */

@@ -1,12 +1,12 @@
-M8 round-18 evidence identities — 2026-08-02
+M8 round-19 evidence identities — 2026-08-02
 
 live base (published .414): 3b44f79c99a285619d53a8afd71a6b4cbff13bfaceadcf2c560066d73eb8b1e7
-M8 candidate (working copy): eced3c68b945eb78fd115ff6077f61e117d23b3314506cbbfb44122c8903ffd2
-recovery artifact (rebuilt from this candidate): 94c88be254165df8e35a8b3f0b28a4039ca630d69bc2658c610d964a2d39ba08
-app diff lines: 836
+M8 candidate (working copy): b8f252b3dffd113f9929f70227e1c706b781d717e465fd385052df9e035de24b
+recovery artifact (rebuilt from this candidate): b87120faa8b113c07c6f1810930cd4779e2f420c7574b6887c88a552a49fb95f
+app diff lines: 838
 
 == OUT-accounts.txt: OK — 6 passed
-== OUT-faults.txt: OK — 59 passed
+== OUT-faults.txt: OK — 64 passed
 == OUT-matrix.txt: OK — 9 passed
 == OUT-quota.txt: OK — 6 passed
 == OUT-recovery.txt: OK — 25 passed

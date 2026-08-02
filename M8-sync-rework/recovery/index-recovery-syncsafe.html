@@ -9089,7 +9089,8 @@ function m8Push(){
   var st=m8State();
   if(st==="conflict"||st==="blocked"||st==="signedout")return;
   var jr=m8Read("journal");
-  if(jr.st==="malformed"){if(!m8Quarantine("journal"))return;jr={st:"absent"};}
+  if(jr.st==="malformed"){m8QuarantineInvalidJournal();return;/* full stop (R18):
+    a syntactically malformed journal is the same unknown transition state */}
   if(jr.st==="ok"&&m8ValidateJournal(jr.val)){m8QuarantineInvalidJournal();return;/* full stop (R17) */}
   if(jr.st==="ok"){m8ResolveJournal(jr.val,function(){
     /* re-enter only when the journal is actually GONE — a cleanup-pending
@@ -9259,6 +9260,7 @@ function m8Pull(cb){
   var st=m8State();
   if(st==="blocked"||st==="signedout"){cb&&cb();return;}
   var jr=m8Read("journal");
+  if(jr.st==="malformed"){m8QuarantineInvalidJournal();cb&&cb();return;/* full stop (R18) */}
   if(jr.st==="ok"&&m8ValidateJournal(jr.val)){m8QuarantineInvalidJournal();cb&&cb();return;/* full stop (R17) */}
   if(jr.st==="ok"){m8ResolveJournal(jr.val,function(){
     var jr2=m8Read("journal");

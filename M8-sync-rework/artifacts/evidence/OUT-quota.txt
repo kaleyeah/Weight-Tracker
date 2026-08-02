@@ -1,7 +1,7 @@
 
 C11-M8 quota — fail-closed under combined occupancy
   source: /home/griffin/projects/compound-app/index.html
-  ballast ~4992KB; preNet state=dirty blocked=false primaryPersisted=true commitReqs=1; dirty bytes: {"gen":2,"persistedGen":2,"ts":1785656412293,"owner":"userA","mark":"m8.1"}
+  ballast ~4992KB; preNet state=dirty blocked=false primaryPersisted=true commitReqs=1; dirty bytes: {"gen":2,"persistedGen":2,"ts":1785656891523,"owner":"userA","mark":"m8.1"}
   ✓ B6: exhaustion never throws through the save path
   ✓ B6: the live in-memory copy keeps the edit regardless
   ✓ B6/13: BEFORE any network action the edit is a VERIFIED dirty marker or an explicit block

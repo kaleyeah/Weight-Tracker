@@ -60,5 +60,10 @@ C11-M8 faults — DOM gating, ambiguity+restart, phase crashes, storage faults
   ✓ S(negative-rev): ZERO record fetches and ZERO commits after quarantine
   ✓ S(reload): the block re-derives from the corrupt namespace after reload, zero requests
   ✓ S2: quarantine copy failure keeps the invalid journal, blocks, and makes ZERO requests
+  ✓ T(push): malformed journal — quarantined byte-identical, BLOCKED, zero requests, others untouched
+  ✓ T(pull): malformed journal — quarantined byte-identical, BLOCKED, zero requests, others untouched
+  ✓ T(boot): malformed journal — quarantined byte-identical, BLOCKED, zero requests, others untouched
+  ✓ T(reload): the malformed-journal block persists across reload, zero requests
+  ✓ T2: push-path quarantine copy failure keeps the malformed original, blocks, zero requests
 
-OK — 59 passed
+OK — 64 passed
