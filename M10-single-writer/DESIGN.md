@@ -3,7 +3,7 @@
 Engineer, 2026-08-02. THE authoritative server-package contract —
 self-contained; v2–v4 are history, not references. Owner ruling STRICT
 (recorded). Base: released `2026-08-02.415-m8`. Companions:
-`WRITE-SURFACE-MATRIX.md` v3 and `artifacts/PB-SEMANTICS-PROBE.md`
+`WRITE-SURFACE-MATRIX.md` (current version in the tree) and `artifacts/PB-SEMANTICS-PROBE.md`
 (corrected). Round-4 items answered as D1–D13, round-5 as E1–E12 inline.
 
 ## 1. Invariant, stated exactly (E2)
@@ -158,7 +158,7 @@ responses is informational).
 ## 5. Client consequences
 
 - `m10Gate` at HANDLER ENTRY for every gated action/function in
-  matrix v4, AND — the async rule (E8) — REVALIDATED immediately
+  the matrix, AND — the async rule (E8) — REVALIDATED immediately
   before every mutation that happens after an await, callback, file
   picker, share sheet, confirmation, timer, or network fetch. Concrete
   delayed-mutation sites from the tree (E7): the `wl-photo-input`
