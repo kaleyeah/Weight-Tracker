@@ -1,59 +1,63 @@
-# M8 sync rework — round 9: implementation evidence
+# M8 sync rework — round 10: findings 1–13 fixed, revised diff + evidence
 
 You are the Architect for the Compound project (read-only; rulings bind
 the Engineer; the Owner alone authorizes deployment and live-data
 mutation).
 
-## What this round contains
+## Your 13 findings, as landed (verify in the tree; hashes in
+## artifacts/evidence/IDENTITIES.txt)
 
-The v7 contract is implemented. Everything is in the tree; verify there,
-not here. `artifacts/evidence/IDENTITIES.txt` carries every hash.
+1. `saveTraining()` marks dirty FIRST, then persists local — a crash
+   between them now leaves data classified dirty, never clean.
+2. The ack path persists and read-back verifies `net-done`, `k1` (base),
+   `k2` (dirty) — every journal-write failure blocks, none ignored.
+3. Choose Local IS transition 1: in-action export-freshness check,
+   routed through the shared `m8AckOutcome`, transport ambiguity keeps
+   the journal, conflict removal is a verified `k3` phase.
+4. Choose Server IS transition 5: in-action freshness check, the A9
+   export is awaited for delivery, a `choose-server` journal captures
+   all inputs, the conflict is retained until local and base writes
+   verify, clear is verified.
+5. The export gate advances only on success-bearing evidence: a
+   RESOLVED `navigator.share` (rejection/dismissal keeps the gate
+   closed) or, on the download fallback, an explicit both-files-saved
+   confirmation. Nothing marks delivered on an anchor click.
+6. A localStorage read exception blocks sync distinctly from absence.
+7. Quarantine verifies the original is gone after removal; failure
+   retains both copies and the blocked state.
+8. The recovery build performs zero training-related reads: the
+   training pull path makes NO fetch (test forces `trainingPull()` +
+   `m8Push()` and asserts zero network requests). Rebuilt artifact
+   sha256 `bda745b8…61ca22a5`.
+9. The recovery test asserts EVERY seeded key byte-identical BEFORE the
+   deliberate edit — no exemptions. 15/15.
+10. The replay suite models the real route: no ledger row → the replay
+    executes fresh (F7-2) or revision-conflicts; not-applied is proven
+    only via the expired-ledger fetch path (F7-2b, commit calls
+    asserted 0). The impossible 200 `{replay,ok:false}` is gone. The
+    mock is stateful: a successful commit updates what the record route
+    serves — which round-9's static mock did not, and which is exactly
+    what your finding exposed.
+11. `m8NewRequestId()` uses `crypto.getRandomValues`, fails closed; a
+    null id hard-stops before journal creation at both dispatch sites.
+12. Fetch-proves-applied recovery and the ack path both run D8 tag
+    derivation from the journaled/captured acknowledged copy, never the
+    live generation.
+13. The quota suite requires a VERIFIED dirty marker or an explicit
+    block BEFORE any network action (captured pre-push).
 
-- **The app diff** (`APP-DIFF-m8-over-414.txt`, 555 lines): the M8
-  candidate as an uncommitted change over the published `.414`
-  (`3b44f79c…`, live and byte-verified). Two delimited blocks: the
-  core+transitions engine and the wiring/conflict-UI/logout-gate/§5b
-  overrides. Candidate sha256 `0cdd7268…dafcf9fb`. Records commits
-  preserved; nothing committed to the app lineage.
-- **Seven browser evidence suites, 50 cases, all green on the candidate**
-  (`tests/browser/c11m8-*.browser.test.js`, raw outputs in
-  `artifacts/evidence/OUT-*.txt`):
-  - `upgrade` (R3): the authentic old-client boot against a stale server.
-    Baseline run DESTROYS the 2026-07-31 session (OUT-…-BASELINE-FAILS:
-    1/4); candidate holds it on disk and in state as a conflict (4/4).
-  - `matrix` (R4): all seven bootstrap cases; equal-content establishes
-    via a probe-learned post-migration canon; every difference conflicts
-    with local intact.
-  - `replay` (E5/F7): seeded intent/net-done journals × scripted
-    outcomes — lost-response replay ack, not-applied, fetch-proves-
-    applied, intervening writer, key-reuse hard stop with journal
-    preserved, repeated transport unresolved, expired-ledger fetch-only
-    (commit calls asserted zero), net-done local completion.
-  - `accounts` (B4/C8/B5): cross-account byte-isolation, copy-first
-    quarantine, dirty-logout offers Push-now.
-  - `quota` (B6/C12): ~5MB combined occupancy; save never throws, no
-    half-written key, recovers to clean.
-  - `tags` (§5b/C10): the migrateOrphanLiftTags auto-check fix is IN the
-    candidate; hand-added tags survive; derivation refuses during an
-    open conflict.
-  - `recovery` (§7/B8/A12): the SYNC_SAFE artifact
-    (`recovery/index-recovery-syncsafe.html`, sha256 `6a2a9fbe…df7bd0`)
-    boots from clean/dirty/conflict with zero training CAS calls and
-    every seeded key byte-untouched.
-- **Known flip**: containment C13's "the boot sync DID overwrite the
-  live copy (loss reproduced)" fails WITH M8 present — M8 prevents the
-  overwrite that case documents. It becomes a conflict expectation at
-  release; the published `.414` (M8-free) passes all containment suites.
+## Evidence
 
-## Wording discipline (R10)
-
-All evidence is desktop Chromium against mocked endpoints: real-engine,
-modeled-server. No device claim is made. The disposable-PocketBase round
-(real route, field isolation incl. concurrent core mutation) remains its
-own later gate, Owner-authorized but not yet scheduled.
+54 cases, 7 suites, all green on candidate `bb2d8899…14dc08af`
+(607-line diff over published `.414`, records preserved, nothing
+committed to the app lineage): upgrade 4 (baseline run still destroys
+the 2026-07-31 session — 1/4), matrix 9, replay 10, accounts 6,
+quota 5, tags 5, recovery 15. Raw outputs in artifacts/evidence/.
+All desktop Chromium against mocked endpoints (R10 wording): real
+engine, modeled server. Disposable-PB remains its own later gate.
 
 ## This round
 
-Rule on the implementation as evidenced. Name what must change, or name
-the remaining gates (disposable-PB round, release packaging) as next. No
-commit, publication, or server-record mutation is requested.
+Rule on the revised implementation. If it passes, name the next gate
+(disposable-PB round). No commit, publication, or server-record
+mutation is requested.

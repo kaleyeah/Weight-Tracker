@@ -1,14 +1,17 @@
   ✓ clean: boots with banner, zero training WRITES (CAS calls)
-  ✓ clean: seeded sync keys byte-untouched
+  ✓ clean: EVERY seeded sync key byte-identical before any edit
+  ✓ clean: a forced training pull+push makes ZERO network requests
   ✓ clean: local editing works and marks dirty
   ✓ clean: no page errors
   ✓ dirty: boots with banner, zero training WRITES (CAS calls)
-  ✓ dirty: seeded sync keys byte-untouched
+  ✓ dirty: EVERY seeded sync key byte-identical before any edit
+  ✓ dirty: a forced training pull+push makes ZERO network requests
   ✓ dirty: local editing works and marks dirty
   ✓ dirty: no page errors
   ✓ conflict: boots with banner, zero training WRITES (CAS calls)
-  ✓ conflict: seeded sync keys byte-untouched
+  ✓ conflict: EVERY seeded sync key byte-identical before any edit
+  ✓ conflict: a forced training pull+push makes ZERO network requests
   ✓ conflict: local editing works and marks dirty
   ✓ conflict: no page errors
 
-OK — 12 passed
+OK — 15 passed
