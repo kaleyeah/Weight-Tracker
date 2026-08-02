@@ -95,18 +95,26 @@ client reaches both devices. Client-only UX changes remain outside the
 Architect loop by Owner ruling; server/data-integrity work goes through
 it.
 
-## Standing risks
+## Standing risks (post-M8, 2026-08-02)
 
-- The deployed app does NOT prevent the failed-push-then-pull overwrite of
-  visible training; what it adds is a verified pre-sync recovery snapshot
-  (captured before any load or sync, carried in every export), the pre-sync
-  notice, the blocking ownership/logout gates, and a training-inclusive
-  backup. Visible training may still be overwritten until M8 fixes the
-  underlying sync defect.
-- All automated evidence is desktop Chromium. The defined Home-Screen
-  checklist passed once on the Owner's iPhone (M6); broader iOS lifecycle
-  behaviour remains unproven by automation or extended use.
-- Rollback: only the LOCAL base-artifact round-trip is byte-verified. The
-  gated commit/push/Pages rollback path is specified but unexecuted. And it is
-  *policy-constrained*: never from a gate, ambiguity, or an unresolved journal
-  (the old build enforces none of the protections).
+- The failed-push-then-pull overwrite is CLOSED by `.415-m8`: unsynced
+  training self-announces, persists with a per-generation proof,
+  retries idempotently, and can never be silently overwritten;
+  disagreements are held for explicit, export-first review. Residual
+  honest limitation: a partitioned device can still EDIT locally
+  without observing the other device (physics); those edits are
+  captured for review, never lost, never silently applied.
+- CORE data (weights/food/GLP/notes/photos) still syncs last-write-wins
+  raw PATCH: two devices could clobber each other's core edits. This is
+  the exact gap M10 closes (fenced transactional writes +
+  expectedCoreRev); until then the account is effectively single-device
+  by usage, not by enforcement.
+- Raw-PATCH lockdown and fence enforcement are OFF pending the combined
+  Owner-authorized server change after M10's client ships.
+- All automated evidence is desktop Chromium; the Owner's production
+  checks are recorded per-release (M6 full checklist; M8 subset).
+  Extended iOS lifecycle behaviour remains unproven by automation.
+- Rollback for the CURRENT release is roll-forward-default per the M8
+  release package: rollback to `.414` only with records-evidenced
+  non-exposure; otherwise the hashed recovery artifact
+  (`b87120fa…fb95f`, hash-enforced deriver) is the path.
