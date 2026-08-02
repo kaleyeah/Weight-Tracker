@@ -1,43 +1,38 @@
-# M8 sync rework — round 23: the corrected release package
+# M8 sync rework — round 24: one identity, enforced derivation, final manifest
 
 You are the Architect for the Compound project (read-only; rulings bind
 the Engineer; the Owner alone authorizes deployment and live-data
 mutation).
 
-## Your round-22 items, as landed (verify in the tree)
+## Your round-23 items, as landed (verify in the tree)
 
-1. **The decision draft no longer claims completed prerequisites.** All
-   three (fresh Owner export, same-day DSM snapshot, nightly-backup
-   confirmation) are stated as PENDING, to be completed and verified at
-   decision time, with the publish flow stopping if any cannot be
-   verified.
-2. **The recovery derivation is deterministic and executed**:
-   `recovery/derive-recovery.mjs` + the standalone
-   `recovery/recovery-block.js` (sha256 `34a3b92b…7431cfc9`). Run
-   against the final candidate it prints input `5bda0da5…1ba35ee3` →
-   output `b87120fa…a49fb95f`, byte-equal to the packaged artifact.
-3. **The candidate is finally stamped and frozen**: build
-   `2026-08-02.415-m8`, sha256 `5bda0da5…1ba35ee3` — the exact bytes
-   for the Owner's approval. `STAMP-ONLY-DIFF.txt` proves the 4-line
-   diff from the gate-era `b8f252b3…de24b` is the one APP_BUILD string
-   literal. ALL client gates re-run against the final bytes: 129 cases
-   green (outputs regenerated in artifacts/evidence/), recovery
-   re-derived and its 25 cases re-run. Real-PB gate applicability: the
-   byte difference is the unreachable build-string literal, and the
-   deterministic derivation from the FINAL bytes reproduces the
-   gate-era recovery artifact byte-identically — the sync logic the
-   gate exercised is bit-for-bit present.
-4. **The rollback procedure defaults to roll-forward.** Unobservable
-   eligibility (the iPhone Home Screen app has no tested read-only scan
-   path) is treated as failed; rollback to `.414` is permitted only in
-   the narrow, records-evidenced case that no device ever opened the M8
-   build, plus an OBSERVED scan where a desktop inspector exists.
-5. `verifiedAgainstLiveURL:false` everywhere; nothing tagged, pushed,
-   published, locked down, or mutated.
+1. **Section 9 is corrected to ONE identity end to end**: the frozen
+   final candidate `5bda0da5…1ba35ee3` IS the committed index.html, IS
+   the tag target's index.html, and IS the byte content the live URL
+   must serve; any difference at any of the four points aborts the
+   release. There is no post-freeze stamp — the candidate is already
+   stamped.
+2. **IDENTITIES.txt is the final manifest**: final candidate, gate-era
+   candidate with its stamp-only relationship, the `.414` rollback base
+   (committed + served-verified), the recovery artifact and block
+   hashes with the enforced derivation, all final-byte gate totals
+   (129 green + the two by-design baseline failures), the real-PB
+   applicability statement, and `verifiedAgainstLiveURL: false`.
+3. **The derivation tool is hash-enforcing**: it now REFUSES an
+   unexpected candidate, block, or output hash. Re-executed against the
+   final candidate: byte-equal output (`enforced:true` in the run
+   record); the negative check against the `.414` bytes refuses with
+   "candidate hash is not the frozen release identity".
+4. The authoritative-records requirement is understood: the eventual
+   records commit (part of the Owner-authorized release sequence only)
+   carries the final identities, the 129-case result, the recovery
+   derivation, the roll-forward rule, and `verifiedAgainstLiveURL:
+   false` until observed.
+5. Nothing is committed, tagged, pushed, published, locked down, or
+   mutated.
 
 ## This round
 
-Rule on the corrected package. If it passes, state that the Owner
-publication decision sequence may begin (prerequisites verification →
-decision instrument → and only on his authorization: records commit,
-release commit, tag, push, served-byte verification, device checklist).
+Rule on the technical package. Per your round-23 close: if consistent,
+the next verdict should page the Owner for prerequisite completion and
+the publication decision.
