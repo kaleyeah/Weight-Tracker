@@ -1,8 +1,10 @@
-# M8 — training-sync rework: design v3
+# M8 — training-sync rework: design v4
 
-Engineer, 2026-08-02, revised per the Architect's round-1 and round-2
-replies and FOUR Owner rulings taken the same night via the decision
-channel. Round-2 items answered inline as B1–B14. Base: live
+Engineer, 2026-08-02, revised per the Architect's rounds 1–3 and four
+Owner rulings taken via the decision channel. Round-2 items answered as
+B1–B14, round-3 items as C1–C12. The Owner logout decision artifact is at
+`decisions/DECISION-2026-08-02-M8-logout.md` (C1) and in the authoritative
+record (`compound-app/reports/PROJECT_LOG.md`, M8 rounds 2–3 entry). Base: live
 build `2026-08-02.407-fx` (commit `74a4777`). Brief: `BRIEF-round2-rulings.md`
 (R1–R10). Round-1 items answered inline as A1–A12.
 
@@ -38,17 +40,25 @@ build `2026-08-02.407-fx` (commit `74a4777`). Brief: `BRIEF-round2-rulings.md`
 
 ## 1. States and stores (revised per A7, B4)
 
-Storage is **per-account by key name** (B4 — a single global key cannot
-hold two accounts): `wl_training_dirty__<uid>`, `wl_training_base__<uid>`,
-`wl_training_conflict__<uid>`. Each value still carries `{owner, canon}`
-inside as a self-check; a value whose inner owner mismatches its key suffix
-is malformed (below).
+Storage is **per-account by key name** (B4): `wl_training_dirty__<uid>`,
+`wl_training_base__<uid>`, `wl_training_conflict__<uid>`, plus the
+transition journal `wl_training_journal__<uid>` (C4). Every value carries
+`{owner}` as a self-check (C3: `canon` only where a canonical body exists —
+base and conflict, not dirty); an inner owner mismatching its key suffix is
+malformed (below).
 
 | Key (per uid) | Content |
 |---|---|
 | `wl_training_dirty__<uid>` | `{owner, gen, ts}` — set synchronously in `saveTraining()` before debounce and gates |
-| `wl_training_base__<uid>` | `{owner, canon, rev, body, seal}` — body = full canonical string of the last acknowledged server copy (Owner ruling A6); `seal` = terminator field written last, its absence marks a partial write |
-| `wl_training_conflict__<uid>` | `{owner, canon, enteredAt, reason, serverRev, serverAtEntry, localAtEntry, exports:{localGen?, serverDone?, localDone?}, seal}` |
+| `wl_training_base__<uid>` | `{owner, canon, rev, body, mark}` — body = full canonical string of the last acknowledged server copy (Owner ruling A6) |
+| `wl_training_conflict__<uid>` | `{owner, canon, enteredAt, reason, serverRev, serverAtEntry, localAtEntry, exports:{localGen?, serverDone?, localDone?}, mark}` |
+| `wl_training_journal__<uid>` | `{owner, op, phase, startedAt, expect}` — the multi-key transition journal (C4) |
+
+`mark` (C4 correction of v3's "seal"): an integrity/version marker inside
+the single serialized value — it detects a truncated or foreign VALUE, and
+claims nothing about multi-key atomicity. Cross-key consistency is the
+journal's job, below. `localStorage.setItem` is atomic per value; nothing
+in this design pretends otherwise anymore.
 
 States per account: **clean · dirty · bootstrap · conflict**.
 
@@ -60,10 +70,13 @@ States per account: **clean · dirty · bootstrap · conflict**.
 - **Retention**: another account's keys are never deleted by any operation
   of the signed-in account (device-clear actions remain out of M8 scope,
   per the containment release's standing exclusion).
-- **Malformed entries** (parse failure, owner/suffix mismatch, missing
-  seal): treated as absent for decisions, preserved on disk under a
-  `.corrupt.<ts>` renamed key for inspection — never silently deleted,
-  same philosophy as the containment snapshot rules.
+- **Malformed entries** (parse failure, owner/suffix mismatch, bad mark):
+  quarantined **copy-first** (C8, localStorage has no rename): write the
+  copy to a collision-free `wl_training_corrupt__<uid>.<ts>.<n>` key,
+  read-back verify it, only then remove the original. If the copy or its
+  verification fails (quota exhaustion included), the original stays
+  untouched and **sync is blocked** with the storage-failure banner — an
+  unpreserved malformed entry is never treated as absent.
 - **Migration from global keys**: none shipped in any released build; if a
   pre-release global test key is found, it is renamed to the corrupt form,
   never interpreted.
@@ -87,15 +100,53 @@ authoritative-on-device and untouched); an export whose evidence cannot
 persist → the export is not marked done. A persistent storage-failure
 banner surfaces after any such refusal.
 
-**Write ordering (B7):** ordered, verified, and boot-reconciled:
-1. acked push: write base → read-back verify (seal) → clear dirty;
-2. conflict entry: write conflict (seal) → verify → only then surface;
-   local training is never written in this transition at all;
-3. export: write file → delivery evidence → then mark `exports.*`;
-4. boot reconciliation: a sealed base + dirty present is a legal state
-   (dirty simply retries); an unsealed base or conflict is renamed corrupt
-   and the state recomputed from what remains — recomputation can only
-   move toward conflict or dirty, never toward silent adoption.
+**The transition journal (C4, C5):** every operation that touches more
+than one key runs journaled: write journal `{op, phase, expect}` → verify →
+perform the key writes in the op's stated order, each read-back verified →
+remove journal. Boot reconciliation reads a surviving journal and finishes
+or unwinds the op **toward dirty/conflict only** — never toward clean.
+Mismatched local/base content is never treated as clean (C5).
+
+The five adoption/acknowledgement transitions, each with its ordering and
+its crash recovery (C5):
+
+1. **Acked push** — journal(op:ack, expect:{pushedCanon, gen, newRev}) →
+   write base → clear dirty → clear journal.
+   *Base write fails after server ack (C6):* the journal survives with the
+   pushed canonical identity. Recovery (boot or next push attempt) does
+   NOT retry the stale CAS: it **fetches**, and (a) server content equals
+   the journaled pushed copy AND local gen unchanged → establish base at
+   the server's current rev, clear dirty; (b) gen advanced → establish
+   base, dirty stays, normal push follows; (c) server differs → conflict.
+   *Dirty-clear fails after base persisted (C7):* boot compares current
+   local with the persisted base — equal → retry clearing dirty locally,
+   no server traffic, no new revision; different → dirty stays, normal
+   push path.
+2. **Clean pull adoption** — journal(op:adopt, expect:{serverRev,
+   serverCanon}) → write local training → write base → clear journal.
+   *Local written, base failed:* journal recovery re-derives base from the
+   journaled expect (content already verified at adoption time); if that
+   write still fails → sync blocked, banner, local retained; state is NOT
+   clean (no base) → bootstrap rules next boot, which see equality and
+   re-establish.
+   *Base written, local failed:* impossible in this order (local first);
+   the inverse order is forbidden.
+3. **Fresh-device adoption** — same journal and order as 2.
+4. **Bootstrap-equality establishment** — journal(op:bootstrap-base,
+   expect:{serverRev, serverCanon}) → write base only (local already equal,
+   untouched) → clear journal. Failure → no base, bootstrap re-runs.
+5. **Choose Server** — after the §5 gates: journal(op:choose-server,
+   expect:{serverRev, serverCanon, discardedLocalGen}) → write local
+   training → write base → clear conflict → clear journal. Any failure
+   mid-sequence: journal recovery completes the remaining writes from
+   expect; if a write cannot complete, sync blocks with local at whichever
+   verified step it reached and the conflict record intact — the journaled
+   op is re-runnable because every input is inside it.
+   **Choose Local acknowledgement** is transition 1 with the conflict key
+   cleared after base, inside the same journal.
+
+Export evidence stays single-key (inside the conflict value) and needs no
+journal: write file → delivery evidence → update `exports.*` (B7).
 
 ## 2. Bootstrap (R2–R4; strict per Owner ruling)
 
@@ -178,8 +229,11 @@ even though M8 is otherwise training-only:
   fetched-but-refused copy, never mid-transition state);
 - it runs strictly **after** a sync transition completes; its failure can
   neither clear dirty nor invalidate base (it has no access to sync keys);
-- it touches only `cat==="lifting"` tags whose dates it derives; it cannot
-  delete tags of other categories or hand-added entries;
+- cleanup removes **only derived entries carrying the existing provenance
+  marker `auto:true`** (C10); hand-added entries survive even when names
+  or categories overlap. `migrateOrphanLiftTags()` joins this audit — its
+  current filtering does not check `auto` and is corrected in the same
+  change;
 - tests cover: derivation refused during conflict, a failing core `save()`
   leaving sync state intact, and concurrent core edits during a push.
 
@@ -193,15 +247,15 @@ normalization); no member elision — **absent and empty are distinct and
 never coerced**; no whitespace. Every stored envelope carries `canon:1`.
 Comparisons are defined only between equal canon versions; a future client
 whose canon differs re-derives by parsing the stored `body` and
-re-canonicalizing under its version before comparing. `canonV1` operates on a domain-validated value (B12): the input is
-JSON-round-tripped first, then **rejected with a validation error** — fail
-closed, never silently coerced — if it contains non-finite numbers
-(impossible after a JSON round-trip, asserted anyway), `undefined` array
-members (round-trip makes them `null`; the validator flags nulls where the
-schema forbids them), or a non-object root. `-0` serializes as `0` per
-JSON; a fixture pins it. Legacy malformed training normalizes through the
-existing `normActs`-family normalizers **before** canon; anything the
-normalizers cannot shape is conflict-grade preserved, not canonicalized.
+re-canonicalizing under its version before comparing. `canonV1` validates the **original in-memory value first, recursively**
+(C9 — a JSON round-trip destroys the evidence it should reject):
+`undefined` members (object or array), non-finite numbers, functions,
+symbols, and non-object roots are validation errors — fail closed, never
+silently coerced. Only a value that passes validation is serialized. `-0`
+serializes as `0` per JSON; a fixture pins it. Legacy malformed training
+normalizes through the existing `normActs`-family normalizers **before**
+validation; anything the normalizers cannot shape is conflict-grade
+preserved, not canonicalized.
 The spec lives in the code as a pure function with test vectors:
 key-order-insensitivity, array-order-sensitivity, absent-vs-empty, unicode
 identity, `-0`, null-member, nested-absent, and a malformed legacy fixture.
@@ -222,12 +276,17 @@ identity goes in the release records before deployment.
 
 - **C11 revised on `engineering/m8`**: sound-core cases kept; containment
   cases become conflict expectations; the authentic-upgrade regression (R3)
-  and the seven R4 matrix cases added; plus per-uid key isolation (two
-  accounts, neither's state destroyed — the B4 scenario), malformed-entry
-  preservation, quota-failure fail-closed per transition (B6), write-order
-  and boot-reconciliation cases (B7), logout refusal from dirty, bootstrap,
-  AND conflict states (B5), and §5b tag-derivation cases. Suite must fail
-  against `.407`.
+  and the seven R4 matrix cases added; per-uid key isolation (B4);
+  copy-verify-delete quarantine incl. the copy-fails path (C8); quota
+  fail-closed per transition **under realistic combined occupancy** (C12:
+  live training + base + recovery snapshot + both conflict copies + core
+  app data seeded to size, not isolated key writes); every journaled
+  transition crash-tested at each phase boundary with boot recovery
+  asserted to land only in dirty/conflict (C4/C5); the ack-persist-failure
+  fetch-and-compare recovery, all three arms (C6); the dirty-clear retry
+  without server traffic (C7); logout refusal from dirty, bootstrap, AND
+  conflict (B5); §5b tag-provenance cases incl. `migrateOrphanLiftTags`
+  (C10). Suite must fail against `.407`.
 - **Browser suite**: Playwright, shipping file, mocked endpoint; boot
   ordering, timers, the conflict view driven through real DOM including
   export-gating and the re-disable-on-edit rule.
@@ -245,10 +304,13 @@ identity goes in the release records before deployment.
 1. ✅ Round 1: design review → halt → Owner rulings (sequencing, base
    representation, strict bootstrap).
 2. ✅ Round 2: v2 review → 14 findings → Owner logout ruling (A: server
-   acknowledgement or abort) → this v3.
-3. Round 3 (this bundle): v3 as the implementation contract.
-4. Implementation; C11 revision; browser suite; evidence round(s).
-5. Disposable-PB integration round.
-6. Recovery artifact built, hashed, packaged (gate for 7).
-7. Owner decision file → publish → served-byte verify → device check.
-8. Owner-authorized server lockdown of raw training PATCH.
+   acknowledgement or abort; artifact in `decisions/`).
+3. ✅ Round 3: v3 review → policies and branch plan approved → 12
+   technical corrections (journal, ack-recovery, original-value
+   validation, quarantine, tag provenance, combined-occupancy quota).
+4. Round 4 (this bundle): v4 as the implementation contract.
+5. Implementation; C11 revision; browser suite; evidence round(s).
+6. Disposable-PB integration round.
+7. Recovery artifact built, hashed, packaged (gate for 8).
+8. Owner decision file → publish → served-byte verify → device check.
+9. Owner-authorized server lockdown of raw training PATCH.
