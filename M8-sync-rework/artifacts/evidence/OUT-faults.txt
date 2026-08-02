@@ -25,5 +25,12 @@ C11-M8 faults — DOM gating, ambiguity+restart, phase crashes, storage faults
   ✓ I: malformed dirty during ack completion blocks, journal AND malformed bytes preserved
   ✓ J: adoption base-write failure blocks with the journal preserved
   ✓ K: a newer generation after an ack is rescheduled by the finisher to a second ack (rev 2, clean)
+  ✓ L: a failed primary save blocks immediately with an unproven dirty marker
+  ✓ L: after RELOAD the block is re-derived and the dirty bytes are untouched
+  ✓ L: zero commits across the failed-save lifetime
+  ✓ L: recovery is an explicit verified re-save — proof recorded, bytes on disk
+  ✓ M: resolving a share AFTER an edit marks nothing delivered and keeps choices closed
+  ✓ M: no fetch or adoption occurred
+  ✓ N: fresh adoption preserves empty cardioTypes and unknown fields EXACTLY
 
-OK — 24 passed
+OK — 31 passed
