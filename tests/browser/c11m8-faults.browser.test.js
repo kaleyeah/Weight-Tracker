@@ -430,29 +430,40 @@ const OLDT={cardioTypes:["Peloton"],exercises:[],liftSessions:{},routines:[],ses
   // never silently erased, zero server requests
   const badJournals=[
     ['done-missing-outcome',{owner:'userA',mark:'m8.1',op:'ack',phase:'done',startedAt:1,expect:{oldBaseCanon:'{}',expectedRev:0,pushedCanon:'{}',gen:1,requestId:'k'}}],
+    ['done-newRev-no-outcome (R16 regression)',{owner:'userA',mark:'m8.1',op:'ack',phase:'done',startedAt:1,expect:{oldBaseCanon:'{}',expectedRev:0,pushedCanon:'{}',gen:1,requestId:'k',newRev:1}}],
     ['unknown-op',{owner:'userA',mark:'m8.1',op:'mystery',phase:'intent',startedAt:1,expect:{}}],
     ['impossible-phase',{owner:'userA',mark:'m8.1',op:'adopt',phase:'k4',startedAt:1,expect:{serverRev:1,serverCanon:'{}'}}],
-    ['netdone-missing-newRev',{owner:'userA',mark:'m8.1',op:'ack',phase:'net-done',startedAt:1,expect:{oldBaseCanon:'{}',expectedRev:0,pushedCanon:'{}',gen:1,requestId:'k'}}]];
+    ['netdone-missing-newRev',{owner:'userA',mark:'m8.1',op:'ack',phase:'net-done',startedAt:1,expect:{oldBaseCanon:'{}',expectedRev:0,pushedCanon:'{}',gen:1,requestId:'k'}}],
+    ['garbage-serverCanon',{owner:'userA',mark:'m8.1',op:'adopt',phase:'intent',startedAt:1,expect:{serverRev:1,serverCanon:'garbage'}}],
+    ['negative-rev',{owner:'userA',mark:'m8.1',op:'ack',phase:'intent',startedAt:1,expect:{oldBaseCanon:'{}',expectedRev:-1,pushedCanon:'{}',gen:1,requestId:'k'}}]];
   for(const [name,bj] of badJournals){
     const b=await boot({seed:[['wl_training_journal__userA',JSON.stringify(bj)]]});
     const r=await b.page.evaluate(async()=>{
-      const f0=performance.getEntriesByType('resource').filter(x=>/cf\/appdata\/commit/.test(x.name)).length;
+      /* ALL training-originated requests, not merely commits (R16-6): the
+         quarantine happens inside the forced pull, whose own delta we count */
+      const f0=performance.getEntriesByType('resource').length;
       await new Promise(x=>trainingPull(x));m8Push();await new Promise(x=>setTimeout(x,250));
+      const requests=performance.getEntriesByType('resource').length-f0;
       return {gone:!localStorage.getItem('wl_training_journal__userA'),
         preserved:Object.keys(localStorage).some(k=>/^wl_training_corrupt__userA/.test(k)),
-        commits:performance.getEntriesByType('resource').filter(x=>/cf\/appdata\/commit/.test(x.name)).length-f0};});
-    test(`S(${name}): invalid journal quarantined (preserved, not executed), zero commits`,
-      ()=>ok(r.gone&&r.preserved&&r.commits===0,JSON.stringify(r)));
+        requests};});
+    test(`S(${name}): invalid journal quarantined (preserved, not executed)`,
+      ()=>ok(r.gone&&r.preserved,JSON.stringify(r)));
+    test(`S(${name}): request count reported and bounded to the post-quarantine pull (${r.requests})`,
+      ()=>ok(r.requests<=1,'requests='+r.requests));
     await b.ctx.close();}
   // S2: quarantine COPY failure for an invalid journal — original retained, blocked
   {const bj={owner:'userA',mark:'m8.1',op:'mystery',phase:'intent',startedAt:1,expect:{}};
    const b=await boot({seed:[['wl_training_journal__userA',JSON.stringify(bj)]],denySet:['^wl_training_corrupt__']});
-   const r=await b.page.evaluate(()=>({
-     original:!!localStorage.getItem('wl_training_journal__userA'),
-     blocked:m8StorageBlocked,
-     corrupt:Object.keys(localStorage).filter(k=>/corrupt/.test(k)).length}));
-   test('S2: quarantine copy failure keeps the invalid journal and blocks — no silent loss',
-     ()=>ok(r.original&&r.blocked&&r.corrupt===0,JSON.stringify(r)));
+   const r=await b.page.evaluate(async()=>{
+     const f0=performance.getEntriesByType('resource').length;
+     await new Promise(x=>trainingPull(x));m8Push();await new Promise(x=>setTimeout(x,250));
+     return {original:!!localStorage.getItem('wl_training_journal__userA'),
+       blocked:m8StorageBlocked,
+       corrupt:Object.keys(localStorage).filter(k=>/corrupt/.test(k)).length,
+       requests:performance.getEntriesByType('resource').length-f0};});
+   test('S2: quarantine copy failure keeps the invalid journal, blocks, and makes ZERO requests',
+     ()=>ok(r.original&&r.blocked&&r.corrupt===0&&r.requests===0,JSON.stringify(r)));
    await b.ctx.close();}
 
   await browser.close();server.close();
