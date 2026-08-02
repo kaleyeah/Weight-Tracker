@@ -27,3 +27,20 @@ Results (raw run 2026-08-02):
   the need (no request-hook writes: content moves to explicit
   transactional routes).
 - Q4 create path: `onRecordCreateRequest` fires (creation is fenceable).
+
+## File-backed transaction probe (round-6 item 2; hooks: probe2.pb.js)
+
+Local disposable PB v0.39.8, raw run 2026-08-02:
+- A: a multipart/file record CREATED inside `runInTransaction` commits
+  with its managed file retrievable (2048 bytes round-tripped).
+- B: forced rollback after the in-tx save → the record AND the managed
+  file are both absent (404/404) — no orphaned file.
+- C: a deliberately slow file-upload transaction serialized against a
+  concurrent lease steal (steal blocked 654 ms) — same single-writer
+  serialization as the content probe.
+- D: transactional DELETE with forced rollback preserves BOTH the
+  record and the file (200/200).
+- E: committed transactional delete removes both (404/404).
+Conclusion: transactional photo routes (create/delete) are viable on
+the deployed PocketBase version with correct managed-file semantics in
+both directions.
