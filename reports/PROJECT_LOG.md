@@ -254,6 +254,28 @@ the exchange transcripts, and are marked (r) where reconstructed.
   (`auto:true`) activity-tag cleanup including `migrateOrphanLiftTags()`,
   and realistic combined-occupancy quota tests. Engineer.
 
+- **2026-08-02, M8 rounds 4–8 — DESIGN CONTRACT APPROVED.** Rounds 4–5
+  hardened the persistence mechanics (per-value `mark` vs the impossible
+  multi-key "seal"; a transition journal with explicit phases; five
+  journaled adoption transitions; ack-after-storage-failure recovery by
+  fetch-and-compare; state-specific logout affordances; a five-kind
+  all-account rollback scan; provenance-safe tag cleanup). Round 6 was
+  REJECTED on tree evidence: the Engineer's edit script aborted before
+  writing and the bundle described a v6 that did not exist — the same
+  reporting-an-unlanded-edit failure class from release packaging, caught
+  by the loop working as designed and recorded in the design's own
+  sequence section. Round 7 verified v6 in the tree and named the last
+  gap: `requestId` unbound to the CAS route's idempotency ledger. Round 8
+  **approved design v7 as the implementation contract** (commit `9e849f4`,
+  DESIGN.md sha256 `a6f592c9…c6a5abd8`): requestId IS the CAS
+  idempotencyKey (96-char cap, ledger pruned at 30 days — confirmed
+  against the deployed route), replay-first ambiguous-outcome recovery,
+  expired-ledger conservative fallback, acks never clearing newer dirty
+  state. Approval authorizes implementation and disposable test
+  infrastructure ONLY — no production-record mutation, no server
+  lockdown, no commit into the app lineage, no publication. C11 revision
+  must fail against `.407` before it counts. Engineer.
+
 ## §2 Owner actions on record
 
 1. 2026-07-30 — direction change (sync simplification, review narrowing).
