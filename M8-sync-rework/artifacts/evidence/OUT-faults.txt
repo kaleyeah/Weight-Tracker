@@ -44,5 +44,10 @@ C11-M8 faults — DOM gating, ambiguity+restart, phase crashes, storage faults
   ✓ Q: the verified re-save releases the soft block and journal resolution resumes safely
   ✓ R: a done-record with failing removal survives with zero training-originated requests
   ✓ R: once removal succeeds, boot performed ONLY the verified cleanup (no commits, clean)
+  ✓ S(done-missing-outcome): invalid journal quarantined (preserved, not executed), zero commits
+  ✓ S(unknown-op): invalid journal quarantined (preserved, not executed), zero commits
+  ✓ S(impossible-phase): invalid journal quarantined (preserved, not executed), zero commits
+  ✓ S(netdone-missing-newRev): invalid journal quarantined (preserved, not executed), zero commits
+  ✓ S2: quarantine copy failure keeps the invalid journal and blocks — no silent loss
 
-OK — 43 passed
+OK — 48 passed

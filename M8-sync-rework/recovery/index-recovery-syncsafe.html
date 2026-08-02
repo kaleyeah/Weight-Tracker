@@ -8844,6 +8844,41 @@ function m8Quarantine(kind,uid){
 /* op journal value: {owner,mark,op,phase,startedAt,expect:{...}}. Phase
    advances are themselves verified writes; boot recovery compares ACTUAL
    keys/server against expect and never trusts phase alone (D6). */
+/* R15: operation-aware validation. A journal drives writes, replays, and
+   deletions; a parseable-but-invalid record must be QUARANTINED, never
+   executed and never silently erased. */
+var M8_J_PHASES={ack:["intent","net-done","k1","k2","k3","done"],
+  adopt:["intent","k1","k2"],"adopt-fresh":["intent","k1","k2"],
+  "bootstrap-base":["intent"],"choose-server":["intent","k1","k2","k3","k4"]};
+var M8_J_OUTCOMES=["conflict","auth","not-applied"];
+function m8ValidateJournal(j){
+  if(!j||typeof j!=="object")return "not an object";
+  var ph=M8_J_PHASES[j.op];
+  if(!ph)return "unknown op";
+  if(ph.indexOf(j.phase)<0)return "impossible phase for op";
+  if(typeof j.startedAt!=="number")return "missing startedAt";
+  var e=j.expect;
+  if(!e||typeof e!=="object")return "missing expect";
+  if(j.op==="ack"){
+    if(!(e.oldBaseCanon===null||typeof e.oldBaseCanon==="string"))return "bad oldBaseCanon";
+    if(!(typeof e.expectedRev==="number"&&e.expectedRev>=0))return "bad expectedRev";
+    if(typeof e.pushedCanon!=="string")return "bad pushedCanon";
+    if(typeof e.gen!=="number")return "bad gen";
+    if(typeof e.requestId!=="string"||!e.requestId)return "bad requestId";
+    if(j.phase!=="intent"&&j.phase!=="done"&&typeof e.newRev!=="number")return "missing newRev";
+    if(j.phase==="done"&&(typeof e.newRev!=="number")&&M8_J_OUTCOMES.indexOf(e.outcome)<0)return "bad terminal outcome";
+    if(j.phase==="done"&&typeof e.newRev!=="number"&&M8_J_OUTCOMES.indexOf(e.outcome)<0)return "bad terminal outcome";
+  }else{
+    if(!(typeof e.serverRev==="number"&&e.serverRev>=0))return "bad serverRev";
+    if(j.op==="bootstrap-base"){if(!(e.serverCanon===null||typeof e.serverCanon==="string"))return "bad serverCanon";}
+    else{if(typeof e.serverCanon!=="string")return "bad serverCanon";}
+    if(j.op==="choose-server"&&typeof e.discardedLocalGen!=="number")return "bad discardedLocalGen";}
+  return null;}
+/* invalid journal -> the copy-verify-delete quarantine; failure blocks */
+function m8QuarantineInvalidJournal(reason){
+  if(m8Quarantine("journal"))return true;
+  /* quarantine already blocked with its own reason */
+  return false;}
 function m8JournalStart(op,expect){
   var j={op:op,phase:"intent",startedAt:Date.now(),expect:expect};
   return m8Write("journal",j)?j:null;}
@@ -9036,6 +9071,7 @@ function m8Push(){
   if(st==="conflict"||st==="blocked"||st==="signedout")return;
   var jr=m8Read("journal");
   if(jr.st==="malformed"){if(!m8Quarantine("journal"))return;jr={st:"absent"};}
+  if(jr.st==="ok"&&m8ValidateJournal(jr.val)){if(!m8QuarantineInvalidJournal())return;jr={st:"absent"};}
   if(jr.st==="ok"){m8ResolveJournal(jr.val,function(){
     /* re-enter only when the journal is actually GONE — a cleanup-pending
        journal must not recurse (caught by fault case H: sync stack overflow);
@@ -9146,10 +9182,13 @@ function m8AckOutcome(j,copy,pushedCanon,gen,res,retried,opts){
 /* ---- E2/F3-F5: resolve a surviving ack journal ---- */
 var M8_LEDGER_MS=30*24*3600*1000;
 function m8ResolveJournal(j,cb){
+  var jerr0=m8ValidateJournal(j);
+  if(jerr0){m8QuarantineInvalidJournal();cb&&cb();return;}
   if(j.op==="choose-server"){m8FinishChooseServer(j);cb&&cb();return;}
   if(j.op==="bootstrap-base"){m8FinishBootstrapBase(j);cb&&cb();return;}
   if(j.op==="adopt"||j.op==="adopt-fresh"){m8FinishAdopt(j);cb&&cb();return;}
-  if(j.op!=="ack"){m8JournalEnd();cb&&cb();return;}
+  if(j.op!=="ack"){m8QuarantineInvalidJournal();cb&&cb();return;/* unreachable
+    after validation; preserved rather than erased if it ever is */}
   if(j.phase==="done"){m8JournalEnd();cb&&cb();return;/* terminal record: cleanup only (R12-8) */}
   var age=Date.now()-(j.startedAt||0);
   if((j.phase==="net-done"||j.phase==="k1"||j.phase==="k2"||j.phase==="k3")&&j.expect.newRev!=null){
@@ -9200,6 +9239,7 @@ function m8Pull(cb){
   var st=m8State();
   if(st==="blocked"||st==="signedout"){cb&&cb();return;}
   var jr=m8Read("journal");
+  if(jr.st==="ok"&&m8ValidateJournal(jr.val)){if(!m8QuarantineInvalidJournal()){cb&&cb();return;}jr={st:"absent"};}
   if(jr.st==="ok"){m8ResolveJournal(jr.val,function(){
     var jr2=m8Read("journal");
     if(jr2.st==="absent")m8Pull(cb);else cb&&cb();});return;}
@@ -9239,8 +9279,11 @@ function m8Boot(cb){
   var jr=m8Read("journal");
   if(jr.st==="malformed"){m8Quarantine("journal");cb&&cb();return;}
   if(jr.st==="ok"){
-    if(jr.val.phase==="done"){m8JournalEnd();cb&&cb();return;/* the explicit
-      exception: removing a verified terminal record is cleanup-only */}
+    var jerr=m8ValidateJournal(jr.val);
+    if(jerr){m8QuarantineInvalidJournal();cb&&cb();return;/* preserved, never executed */}
+    if(jr.val.op==="ack"&&jr.val.phase==="done"){m8JournalEnd();cb&&cb();return;/* the
+      explicit exception: a SEMANTICALLY VALID terminal record; removal is
+      cleanup-only (R15-6) */}
     if(m8HardBlocked||m8UnprovenBlocked){cb&&cb();return;/* fail closed on the
       UNION: no replay or fetch while any block stands (R14) */}
     m8ResolveJournal(jr.val,function(){cb&&cb();});return;}
