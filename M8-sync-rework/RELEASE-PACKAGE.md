@@ -136,12 +136,16 @@ bounded journal/conflict copies during transitions.
 
 ## 9. Served-byte verification procedure
 
-After the authorized push: poll the live URL with cache-busting until
-the served sha256 equals the RELEASE commit's index.html hash (recorded
-at commit time; differs from the frozen candidate hash only by the
-APP_BUILD stamp). Record UTC timestamps and both hashes in the release
-records. Until that match is recorded: `verifiedAgainstLiveURL: false`
-and no production claim is made.
+ONE identity end to end (round-23 item 1): the frozen final candidate
+`5bda0da5…1ba35ee3` IS the committed `index.html`, IS the tag target's
+`index.html`, and IS the byte content the live URL must serve. After
+the authorized push: poll the live URL with cache-busting until the
+served sha256 equals `5bda0da514c512ce1674aaff5cd78eb81f7fd0519388d788
+75a5f1bc1ba35ee3` exactly. ANY difference at any of these four points —
+candidate, commit, tag target, served — ABORTS the release. Record UTC
+timestamps and the observed hashes in the release records. Until the
+match is recorded: `verifiedAgainstLiveURL: false` and no production
+claim is made.
 
 ## 10. Owner-facing risk summary (draft decision instrument:
 ## `decisions/DECISION-DRAFT-publish-m8.md`; delivered only after this
