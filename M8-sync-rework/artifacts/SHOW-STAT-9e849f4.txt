@@ -1,0 +1,11 @@
+commit 9e849f4ce23052e74d6a530018acc70b51700237
+Author: Griffin <griffin@gobblegobble.com>
+Date:   Sun Aug 2 01:48:04 2026 +0000
+
+    M8 design v7: requestId bound to the CAS idempotency ledger (F2-F7)
+    
+    Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+    Claude-Session: https://claude.ai/code/session_013vTJLyt3fzzCxkgRaB7ajH
+
+ M8-sync-rework/DESIGN.md | 59 +++++++++++++++++++++++++++++++++++-------------
+ 1 file changed, 43 insertions(+), 16 deletions(-)
