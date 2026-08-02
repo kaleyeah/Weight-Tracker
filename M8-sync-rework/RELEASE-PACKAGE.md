@@ -5,18 +5,25 @@ lineage, tagged, or pushed; `verifiedAgainstLiveURL: false` throughout.
 
 ## 1. Frozen candidate identity
 
-- **Candidate**: the M8 sync rework as an uncommitted change in the
-  `compound-app` working copy, sha256
-  `b8f252b3dffd113f9929f70227e1c706b781d717e465fd385052df9e035de24b`
-  — the exact bytes the Architect verified at rounds 19–21 and the
-  disposable-PB gate exercised. FROZEN as of this package: any
-  application change invalidates this identity and requires a scoped
-  evidence rebuild.
+- **FINAL candidate (stamped)**: sha256
+  `5bda0da514c512ce1674aaff5cd78eb81f7fd0519388d78875a5f1bc1ba35ee3`,
+  build id `2026-08-02.415-m8` — the exact bytes the Owner will approve
+  and that would be published. FROZEN: any further change invalidates
+  this identity.
+- **Stamp-only proof**: `artifacts/evidence/STAMP-ONLY-DIFF.txt` — the
+  4-line diff from the gate-era candidate `b8f252b3…de24b` is exactly
+  the one APP_BUILD string literal, unreachable by any sync code path.
+- **All client gates re-run against the FINAL bytes**: 129 cases green
+  (upgrade 4, matrix 9, replay 10, accounts 6, quota 6, tags 5,
+  faults 64, recovery 25 against the re-derived artifact), outputs in
+  `artifacts/evidence/`. **Real-PB gate applicability**: the byte
+  difference is the build-string literal only (proof above); further,
+  the deterministic recovery derivation from the FINAL bytes reproduces
+  the gate-era recovery artifact BYTE-IDENTICALLY (`b87120fa…fb95f`),
+  because the recovery stamp overrides the only differing bytes — the
+  sync logic the gate exercised is bit-for-bit present.
 - **Diff**: `artifacts/evidence/APP-DIFF-m8-over-414.txt` over the
   published base.
-- **Build id at release**: to be stamped `2026-08-02.415-m8` in the
-  release commit (the only permitted change beyond this freeze: the
-  APP_BUILD string, re-hashed and recorded in the release records).
 
 ## 2. Committed release identity + tag plan
 
@@ -54,12 +61,13 @@ Owner authorizes; the tag must dereference to the release commit.
 
 - **Bytes**: `recovery/index-recovery-syncsafe.html`, sha256
   `b87120faa8b113c07c6f1810930cd4779e2f420c7574b6887c88a552a49fb95f`.
-- **Derivation (reproducible)**: the frozen candidate + the delimited
-  `M8 RECOVERY BUILD (SYNC_SAFE)` block appended at the
-  `M8-END-OF-ALL-BLOCKS` marker + the APP_BUILD string set to
-  `2026-08-02.414-RECOVERY-syncsafe`. The block's exact text is inside
-  the artifact itself; re-derivation = re-run the documented insertion
-  against the frozen candidate and compare hashes.
+- **Derivation (deterministic, executable)**:
+  `recovery/derive-recovery.mjs` with the standalone block source
+  `recovery/recovery-block.js` (sha256 `34a3b92b…7431cfc9`). Run:
+  `node derive-recovery.mjs <candidate> <out>`. Executed against the
+  FINAL candidate: input `5bda0da5…1ba35ee3` → output
+  `b87120fa…a49fb95f`, byte-equal to the packaged artifact (the tool
+  prints all three hashes; recorded in this package).
 - **No-network proof + state matrix**:
   `artifacts/evidence/OUT-recovery.txt` — 25 cases across five seeded
   states (clean, dirty, conflict, journal-present, corrupt-key): zero
@@ -82,16 +90,20 @@ the push.
 ## 6. Rollback / roll-forward decision procedure
 
 A bad M8 build in production is handled as:
-1. Run the five-kind scan (console paste, `rollback-scan.js`) on every
-   device that has opened the app since publication (the Owner's iPhone;
-   iPad if used).
-2. ALL devices eligible (zero matches) → rollback permitted: revert the
-   release commit, push, served-byte verify against the `.414` hash
-   above.
-3. ANY match anywhere → roll-forward ONLY: publish the recovery
-   artifact (§4) as the served file, served-byte verify against its
-   hash, and hold until a fixed candidate passes review. Never serve a
-   raw-pull client to a device carrying M8 keys.
+1. **Default: roll-forward.** On the Owner's iPhone Home Screen app
+   there is no tested read-only way to execute the scan (no console;
+   Safari Web Inspector requires a Mac the procedure cannot assume).
+   Eligibility that cannot be OBSERVED is treated as failed: publish
+   the recovery artifact (§4), served-byte verify against its hash,
+   hold for a reviewed fix. Never serve a raw-pull client to a device
+   that may carry M8 keys.
+2. Rollback to `.414` is permitted ONLY in the narrow provable case:
+   the release records show no device ever opened the M8 build (e.g.
+   the defect is caught by served-byte verification before the Owner's
+   first open) — evidenced from the records, not assumed — plus, where
+   a desktop inspector IS available, an observed five-kind scan
+   (`rollback-scan.js`, evidence ROLLBACK-SCAN-EVIDENCE.json) showing
+   zero matches on every device that opened the app.
 
 ## 7. Storage-area inventory (what M8 touches on-device)
 

@@ -22,9 +22,13 @@ the app pauses sync VISIBLY instead of guessing.
   tested in advance) while a fix is reviewed.
 - Your export habit stays worthwhile during the first days.
 
-## Prerequisites already in place before you say yes
-Fresh export from your phone · same-day NAS snapshot · nightly PB
-backup schedule confirmed.
+## Prerequisites — PENDING, completed together right before you say yes
+None of these is done yet; each gets verified and recorded at decision
+time: (1) a fresh export from your phone that day, delivered and
+confirmed; (2) a same-day DSM snapshot of the PocketBase data folder;
+(3) confirmation the nightly 18:00 PB backup you scheduled on Aug 1 is
+still active and produced a recent archive. The publish flow stops if
+any of the three cannot be verified.
 
 ## Options
 - **A — Publish.** Push → byte-verify → your device checklist (6 steps,
