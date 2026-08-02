@@ -323,6 +323,19 @@ the exchange transcripts, and are marked (r) where reconstructed.
   C14 at 59; C12/C13 VM+browser green. Owner authorized; pushed; served
   bytes verified (sha256 `f0ed14e7…225d6472`).
 
+- **2026-08-02, build `2026-08-02.413-fx` published + coach `2026-08-02.178`
+  deployed.** Owner asks: symptoms as a list under GLP on Progress, and
+  symptoms on the coach's reports. App: a Symptoms card in the GLP section
+  of Progress — newest first, severity pips, time/note, rows tappable into
+  the `.407` edit sheet (C14 at 62). Coach: nightly TODAY line gains
+  `GLP symptoms [Name sevN/5 (note)]`, weekly CSV gains a `glp_symptoms`
+  column with symptom-only days joining the day set, both prompts carry
+  the context-not-diagnosis guardrail with a tell-your-prescriber flag for
+  severe or recurring symptoms; deployed to the Synology over the SSH
+  channel (`.bak-symptoms` backups, md5 verified both sides, NAS
+  `node --check` passed, watcher untouched). Owner authorized the app
+  push; served bytes verified (sha256 `c0e084fa…fcfc22da`).
+
 ## §2 Owner actions on record
 
 1. 2026-07-30 — direction change (sync simplification, review narrowing).
