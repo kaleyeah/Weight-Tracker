@@ -488,6 +488,16 @@ the exchange transcripts, and are marked (r) where reconstructed.
   schema/migration/backup/rollback/compatibility packages before any
   server mutation. Engineer, with Owner ruling.
 
+- **2026-08-02, build `2026-08-02.416-fx` published.** First post-M8
+  maintenance build (client-only, outside the loop per standing rule):
+  Steps and Calories treat an incomplete today as PENDING — outlined
+  dashed bar, muted value, excluded from averages until the day is
+  Completed (a recap exists) or has passed; Weight and Sleep untouched
+  by Owner ruling. Owner approved from real-render screenshots before
+  publication. C14 at 67; containment suites green. Owner authorized;
+  pushed (carrying the M8 closure/records commits — their authorized
+  publication); served bytes verified (sha256 `08a3f6bd…36dc1489`).
+
 ## §2 Owner actions on record
 
 1. 2026-07-30 — direction change (sync simplification, review narrowing).
