@@ -433,6 +433,24 @@ the exchange transcripts, and are marked (r) where reconstructed.
   and the full Owner-facing package). Publication, production mutation,
   lockdown, and live verification remain unauthorized. Engineer.
 
+- **2026-08-02, M8 rounds 22–24 — RELEASE PACKAGE PASSES; Owner
+  authorizes publication.** Packaging corrections through three rounds:
+  one identity end-to-end (final stamped candidate `5bda0da5…1ba35ee3`,
+  build `2026-08-02.415-m8`; stamp-only diff proven from the gate-era
+  candidate; all client gates re-run on the final bytes — 129 green),
+  hash-enforcing deterministic recovery derivation reproducing
+  `b87120fa…fb95f` byte-identically, roll-forward-default rollback
+  procedure (on-device eligibility not observable on iOS), and a
+  decision instrument honest about pending prerequisites. Round-24
+  verdict: package passes; Owner sequence begins. Prerequisites
+  completed and recorded: Owner's fresh export + same-day DSM snapshot
+  (Owner-confirmed), PB archive `m8_prereq_20260802171658.zip`
+  (API-verified), nightly schedule active. **Owner decision: PUBLISH**
+  (decision channel + in-session). This records commit precedes the
+  release commit per the established pattern;
+  `verifiedAgainstLiveURL: false` until the served match is observed.
+  Engineer, with Owner authorization.
+
 ## §2 Owner actions on record
 
 1. 2026-07-30 — direction change (sync simplification, review narrowing).
