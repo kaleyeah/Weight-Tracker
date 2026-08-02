@@ -1,6 +1,25 @@
 # Compound Fitness — project handover
 
-> ## READ THIS FIRST — direction changed 2026-07-30
+> ## STATUS 2026-08-02 (newest first — the 07-30 note below is history)
+>
+> - Live build: `2026-08-02.416-fx` (compound-app main). The July-31
+>   training-loss arc is CLOSED: `.415-m8` shipped the M8 sync rework
+>   (server-acked, crash-journaled training sync; 25 Architect rounds),
+>   released, Owner-accepted, records reconciled.
+> - Current milestone: **M10 strict single-writer** (Owner ruling:
+>   offline non-holders read-only). Design v9.1 approved; the LOCAL
+>   server package (writer_lease + fenced commits + transactional photo
+>   routes + platform route; `M10-single-writer/server/`) passed the
+>   Architect gate at round 12. Client work is in progress in THIS
+>   checkout on `engineering/m8` — `index.html` here is now the synced
+>   `.416` client + M10 client increments (increment 1 = the lease
+>   client, C15 suite). NOT published; NAS deploy/coach
+>   migration/enforcement all await Owner authorization.
+> - The M8 rework record lives in `M8-sync-rework/`; M10 in
+>   `M10-single-writer/`. Memory + `reports/PROJECT_LOG.md` (in
+>   compound-app) carry the chronology.
+>
+> ## Direction changed 2026-07-30 (historical)
 >
 > **Where to edit the app the athletes actually use:**
 > `~/projects/compound-app` (branch `main`, file `index.html`, build `.400`).
