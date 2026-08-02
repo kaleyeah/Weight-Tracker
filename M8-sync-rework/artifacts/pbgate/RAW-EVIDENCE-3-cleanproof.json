@@ -1,0 +1,71 @@
+{
+ "readOnlyAbsence": {
+  "jiez8jcwd6ckdn0": {
+   "userStatus": 404,
+   "appdataItemsForRelation": 0,
+   "totalItems": 0
+  },
+  "puo4f7pxj94vq3j": {
+   "userStatus": 404,
+   "appdataItemsForRelation": 0,
+   "totalItems": 0
+  }
+ },
+ "gate2": {
+  "cases": [
+   {
+    "name": "A-fresh-commit",
+    "response": {
+     "newRev": 1,
+     "ok": true,
+     "subsystem": "training"
+    }
+   },
+   {
+    "name": "B-same-key-own-ledger",
+    "response": {
+     "newRev": 1,
+     "ok": true,
+     "subsystem": "training"
+    }
+   },
+   {
+    "name": "B-raw-patch-of-A-denied",
+    "status": 404
+   },
+   {
+    "name": "A-record-unaffected",
+    "response": {
+     "trainingRev": 1,
+     "trainingUntouched": true
+    }
+   }
+  ],
+  "users": {
+   "A": {
+    "id": "jvih54l73lu8e1b",
+    "email": "disposable-xa2-1785657491080@disposable.invalid"
+   },
+   "B": {
+    "id": "cy8b1mlghrbkchc",
+    "email": "disposable-xb2-1785657491408@disposable.invalid"
+   }
+  },
+  "records": {
+   "A": "7cfmen4bdnxz44j",
+   "B": "liywipdx0ktk5n8"
+  },
+  "cleanup": {
+   "A": {
+    "userStatus": 404,
+    "recordByIdStatus": 404,
+    "recordsByRelation": 0
+   },
+   "B": {
+    "userStatus": 404,
+    "recordByIdStatus": 404,
+    "recordsByRelation": 0
+   }
+  }
+ }
+}

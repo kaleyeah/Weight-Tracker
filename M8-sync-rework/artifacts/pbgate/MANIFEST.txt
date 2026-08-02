@@ -29,3 +29,15 @@ Runs:
     disposable user, crashed 60ms after dispatching a real push;
     restart recovered via the REAL ledger: clean@rev1, journal
     resolved, edit present on device AND server; user deleted verified.
+
+Amendment (round 21): RAW-EVIDENCE-3-cleanproof.json —
+  Read-only absence postconditions for BOTH restart-run uids
+  (jiez8jcwd6ckdn0, puo4f7pxj94vq3j): user 404, zero appdata records by
+  relation, totalItems 0.
+  Gate 2 RERUN with attributable IDs (users jvih54l73lu8e1b /
+  cy8b1mlghrbkchc; records 7cfmen4bdnxz44j / liywipdx0ktk5n8): same
+  functional results (same-key own ledgers, cross-account PATCH denied
+  404, A byte-untouched), then INDEPENDENT postconditions per
+  identifier: user 404 AND record-by-id 404 AND records-by-relation 0,
+  for both users. No tokens, credentials, or Owner record content
+  appear in any artifact.
