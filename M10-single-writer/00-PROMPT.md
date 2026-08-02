@@ -1,48 +1,57 @@
-# M10 single-writer — round 2: design v2 under the strict ruling
+# M10 single-writer — round 3: design v3 with the tree-derived matrix
 
 You are the Architect for the Compound project (read-only; rulings bind
 the Engineer; the Owner alone authorizes deployment and live-data
 mutation).
 
-## Since round 1
+## Your round-2 items 1–11, as landed (DESIGN.md v3 +
+## WRITE-SURFACE-MATRIX.md; verify in the tree)
 
-**Owner ruling (decision channel, recorded in PROJECT_LOG): Option A —
-STRICT.** Non-holders read-only even offline; cached-lease holder
-continuity; fencing at commit time; displaced dirty work preserved for
-explicit review, never auto-applied.
-
-`DESIGN.md` v2 answers your A1–A9:
-- A3: a separate `writer_lease` COLLECTION with closed client
-  create/update/delete rules; hook-only mutation; the appdata-field
-  approach is dropped for exactly the raw-PATCH reason you named.
-- A5: server-side fencing on every writable path — the training CAS
-  route AND the core update hook's four content fields — with a
-  monotonic fence mutated only by the lease route; enforcement ships
-  OFF behind a reviewed hook constant and turns ON only by a separately
-  Owner-authorized redeploy after both devices run M10 (the implicit
-  first-acquire switch was considered and rejected in the text).
-- A4: pre-MUTATION gating via one wrapper at the action entry points,
-  with a full write-surface inventory (gated vs exempt, each exemption
-  reasoned — including the coachreq mailbox nuance stated explicitly
-  for your review).
-- A2: the displaced-dirty policy is concrete: the push attempt is
-  permitted, the server fence rejects it, and the client routes the
-  dirty copy into the M8 conflict workflow — preserved, explicit,
-  never silent.
-- A7: TTL/cadence DERIVED from the strict policy (24h TTL, 5-min
-  foreground renew): fencing, not expiry, closes the stale-holder
-  hole; expiry exists only for permanently-gone devices; iPad takeover
-  is always an explicit steal.
-- A9: compatibility (enforcement-OFF is a no-op for `.415-m8`),
-  migration (one empty collection), backup exclusion (reasoned),
-  server and client rollback — with Question 1 on the
-  service-missing vs service-unreachable distinction.
-- §6: the evidence plan at the M8 standard, including
-  closed-rule proofs, enforcement-ON disposable-scoped rejection
-  tests, entry-point (not save-time) gating proofs, and the demoted-
-  holder-to-conflict-workflow path.
+1. Fail closed: missing route == unreachable route; a 404 never
+   unlocks; server rollback is sequenced (enforcement off → verified
+   lease-free client on both devices → only then removal).
+2. The invariant is named honestly: exactly one fence may authorize
+   SERVER mutation; a partitioned former holder can still edit locally,
+   preserved for explicit reconciliation.
+3. One durable lease row per user, never deleted; fence increments on
+   grant, steal, post-expiry acquisition, AND release; strictly-
+   increasing evidence and a safe-integer overflow guard.
+4. Atomicity is designed: `$app.runInTransaction` around fence
+   validation + content mutation, serialized on the same row as the
+   lease route's own transactions; a 100-iteration forced steal‖write
+   race is in the evidence plan.
+5. Displaced CORE work gets its own durable store and recovery: the
+   `wl_core_displaced__<uid>` envelope (verified writes + a
+   `core-displace` journal op), captured by fetch-without-adoption,
+   per-class review sheet, export-both, and explicit Push-mine /
+   Take-server after retaking the pen; core pushes pause until
+   resolved. Photos and device-local bookkeeping are exempt with
+   reasons in the matrix.
+6. The training fenceStale transition is fully specified through the
+   existing M8 persist-and-verify conflict machinery, with the
+   fetch-failure and server-moved arms stated.
+7. One mailbox contract: `coachreq` and `health` are fence-exempt AND
+   the hook rejects any PATCH mixing a mailbox field with content —
+   tested in both directions.
+8. The write-path matrix is TREE-DERIVED: 266 dispatcher actions
+   inspected, 94 mutating, each mapped to persistence path and gate
+   class; all non-action writers (imports, Health apply, migrations,
+   tag derivation, coach jobs, Shortcut, logout, M8 internals)
+   individually specified.
+9. Fence transport defined (body fields on the CAS route; headers on
+   raw PATCH), bound to `@request.auth.id` via the lease row only;
+   spoof/malformed cases fail closed; deviceName display-only.
+10. Cached expiry uses a monotonic in-session deadline; persisted
+    grants never authorize offline writes across reboot — online
+    revalidation or read-only; TTL/cadence marked provisional pending
+    lifecycle evidence.
+11. The enforcement compatibility gate enumerates EVERY writer (both
+    devices, NAS coach superuser context with its stated bypass rule,
+    the health Shortcut, in-app imports) and re-verifies on the day of
+    the Owner-authorized enforcement redeploy.
 
 ## This round
 
-Rule on design v2 as the basis for the server package. Answer
-Question 1 (§5). Nothing is implemented, deployed, or mutated.
+Rule on design v3 as the basis for the server package (collection
+migration + hooks + route + tests). Nothing is implemented, deployed,
+or mutated by this round.
