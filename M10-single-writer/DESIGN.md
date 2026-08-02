@@ -1,10 +1,10 @@
-# M10 — strict single writer: design v6 (CONSOLIDATED)
+# M10 — strict single writer: design v7 (CONSOLIDATED)
 
 Engineer, 2026-08-02. THE authoritative server-package contract —
 self-contained; v2–v4 are history, not references. Owner ruling STRICT
 (recorded). Base: released `2026-08-02.415-m8`. Companions:
 `WRITE-SURFACE-MATRIX.md` (current version in the tree) and `artifacts/PB-SEMANTICS-PROBE.md`
-(corrected). Round-4 items answered as D1–D13, round-5 as E1–E12 inline.
+(corrected). Round-4 items answered as D1–D13, round-5 as E1–E12, round-6 as F1–F15 inline.
 
 ## 1. Invariant, stated exactly (E2)
 
@@ -37,7 +37,14 @@ request hooks is unproven and therefore forbidden. Instead:
   - `wl_core_base__<uid>` `{owner, mark, canon, rev, body}` — the
     acknowledged canonical core copy + `coreRev` (~size of `data`;
     same full-copy Owner ruling rationale).
-  - `wl_core_journal__<uid>` — intent PERSISTED BEFORE DISPATCH:
+  - `wl_core_ack_journal__<uid>` (F7 — its OWN key; displaced-core
+    uses `wl_core_dx_journal__<uid>`; boot order: M8 training journal
+    → core ack journal → core dx journal; a revision/fence conflict
+    discovered by an in-flight ack HANDS OFF by terminalizing the ack
+    journal with outcome `displaced` (verified) BEFORE the dx
+    journal's intent is written, preserving the original request
+    identity inside the terminal record; the shared hard-block union
+    spans all three) — intent PERSISTED BEFORE DISPATCH:
     `{op:"core-ack", phase, startedAt, expect:{oldBaseCanon,
     expectedRev, pushedCanon, gen, fence, requestId}}`; phases
     intent → net-done(`newRev`) → k1(base) → k2(dirty) → verified end;
@@ -50,8 +57,40 @@ request hooks is unproven and therefore forbidden. Instead:
     verified-write rules as M8 (block classes shared); cleanup-only
     recovery for terminal records; operation-aware validation +
     quarantine identical in structure to M8's, in core's namespace.
-  - Boot ordering: M8 training journal → core journal → displaced-core
-    journal; a hard block from any halts all (shared union).
+  - **Core bootstrap (F8, the `.416`→M10 boundary)**: local `wl_v1`
+    exists, no core base → fetch WITHOUT adoption; canonicalize both;
+    equal → journaled base establishment (`core-bootstrap` op);
+    local-empty + server-nonempty → journaled adoption (fresh-device
+    rule); server-empty/absent + local-nonempty → the first push IS
+    allowed at expectedRev 0 with the fence (core has revision
+    protection from day one, unlike training at M8-time — stated for
+    review); differing → displaced-core review, both copies preserved.
+    The old `autoSync()` newest-date heuristic is RETIRED, never
+    consulted.
+  - **The core state model (F9)** — permitted operations per state:
+    fresh/bootstrap: edit gated-holder; no push before bootstrap;
+      bootstrap rules only; logout blocked; takeover allowed.
+    clean: edit gated-holder; journaled adoption allowed; logout
+      allowed; takeover allowed.
+    dirty(proven): edit gated-holder; fenced push; pull refuses
+      overwrite (displaced rules); logout blocked; takeover allowed
+      (stale push → displaced).
+    dirty(unproven): edit gated; NO push (soft block); no pull;
+      logout blocked; takeover allowed.
+    displaced: edit gated via refresh op; pushes paused; no adoption;
+      logout blocked; takeover REQUIRED for resolution.
+    journal-recovery: no new ops until resolved; resolver only;
+      logout blocked; takeover allowed.
+    corrupt/blocked: read-only; nothing syncs; logout blocked;
+      takeover allowed (UI explains).
+    signed-out: nothing.
+  - **Core adoption postconditions (F10)**: clean-device adoption is
+    journaled (`core-adopt`: intent{serverRev, serverCanon} → k1 local
+    bytes verified → k2 base verified → verified end); a dirty device
+    NEVER adopts — both copies preserved via the displaced flow; a
+    server `data` field disappearance is NEVER an empty authoritative
+    copy — it enters displaced review like any difference.
+  - Shared hard-block union across ALL journals halts everything.
   Core writes send `{subsystem:"core", expectedRev, idempotencyKey,
   payload, fence, deviceId}`; the route ledger provides replay,
   retention, and same-key/different-body semantics per subsystem.
@@ -107,6 +146,14 @@ side can build its payload from stale content). M10 removes it:
   `platform`, same idempotency semantics) → commit.
 - Bypasses the device lease by design; NEVER bypasses revision safety
   or field scope. Logged (user, fields, rev — no payloads).
+- **Idempotency identity (F11)**: hash(target user id + canonical JSON
+  of the platform-field patch) — never a full snapshot; the ledger row
+  is BOUND to the target user (same `user` column as content rows, so
+  the deletion cascade covers it; `subsystem` is a plain text column —
+  "platform" fits without schema change, verified in the local build).
+  Replay returns the stored outcome; same key + different fields →
+  409; missing target row → 404 (the coach skips); concurrent
+  platform requests serialize on the transaction.
 - The NAS coach jobs migrate to this route (run-coach's write step
   swaps its raw PATCH for the platform route; a reviewed coach change
   deployed over the SSH channel). Clearing `health` after import stays
@@ -182,14 +229,60 @@ responses is informational).
   reads are free, ADOPTION is a write to local content and follows
   each subsystem's protocol.
 - Photos are content: every IndexedDB content mutation gated
-  (add/delete/import/clear at all call sites above); caches,
-  thumbnails, object-URLs exempt. **Photos also sync server-side**
-  (`/api/collections/photos/records` create/delete/patch via the
-  wrapped idbAdd/idbDelete): the photos collection's
-  create/delete/update hooks validate the fence under enforcement
-  (per-row authorization — no revision protocol needed: rows are
-  independent, never merged snapshots); superuser and mailbox rules
-  do not apply to photos.
+  (add/delete/import/clear at all call sites above) AND revalidated at
+  the delayed-mutation points; caches, thumbnails, object-URLs exempt.
+
+### 5b. The photo subsystem under STRICT (F1–F6)
+
+Request-hook photo fencing is REJECTED (same check-then-write reason as
+raw core). Instead, three explicit transactional routes (each ONE
+`runInTransaction` validating the lease fence and mutating the photo
+record; file-in-transaction semantics PROVEN on 0.39.8 — probe2:
+create-with-file commits and is retrievable; rollback removes record
+AND managed file; 654ms serialization vs a steal; delete-rollback
+preserves both; committed delete removes both):
+- `POST /api/cf/photos/upload` (multipart: file + {localId, date, week,
+  pose, meal, kind}, fence, deviceId, requestId),
+- `POST /api/cf/photos/update` (metadata patch by server id),
+- `POST /api/cf/photos/delete` (by server id).
+Raw user mutation of the photos collection REJECTS under enforcement.
+
+**Idempotency (F4)**: each op carries a requestId into the SAME ledger
+(subsystem `photos`), identity = op + serverId/localId + canonical
+metadata; semantics identical to content commits: lost-response replay
+returns the stored outcome; same-key/different-op 409; retention
+expiry → fetch-and-compare fallback (does the record exist with my
+localId? is it gone?); already-deleted delete replays as success;
+files cleaned by the transactional route (proven).
+
+**Displaced-photo durability (F3)**: an account-keyed
+`wl_photo_ops__<uid>` durable QUEUE of intents/tombstones — one entry
+per add/delete/metadata op `{op, localId, serverId?, meta, requestId,
+state}` — written (verified) BEFORE any network attempt; entries clear
+only on acked outcomes. A `fenceStale` outcome freezes the entry as
+DISPLACED for explicit post-takeover review (a review sheet listing
+pending photo ops with Apply-after-takeover / Discard per entry).
+Nothing auto-applies, auto-retries after displacement, or silently
+reverses: the current unsafe behaviors (auto-upload retry, local
+delete despite remote failure, swallowed PATCH failures, silent
+re-download) are all replaced by queue entries with explicit states.
+
+**Photo pull/reconciliation (F5)**: `photoSync()` adoption (download,
+local delete, relabel) is a content mutation: holder-only, gated and
+REVALIDATED immediately before each IndexedDB transaction; a
+non-holder's photoSync performs ZERO local and ZERO server mutations
+(read-only listing allowed). If both sides changed for the same
+localId → an explicit review entry in the same queue; never automatic
+server-wins.
+
+**Journaled clear (F6)**: `idbClearAll` becomes a journaled batch: the
+journal captures the member set (localIds+serverIds) at intent; each
+member's remote delete is its own idempotent op with a recorded
+outcome; local clear only after every member's server outcome is
+acked (or the member is queued displaced); restart resumes from
+recorded outcomes; photos added AFTER the intent snapshot are NOT
+part of the clear and survive; partial failure leaves a resumable
+journal, never a half-truth.
 - Composites (7 in matrix v3): one global pre-gate; each side of a
   split-across-steal lands in its own subsystem\'s displaced flow.
 - Non-holder UX: "Another session is the active writer ("<deviceName>")
@@ -257,8 +350,12 @@ Superuser writes: §2 bypass, logged, payload-free logs.
 
 - **Migration up** (E10, full enumeration): (1) create `writer_lease`
   (closed rules); (2) add `writerFence`+`deviceLabelHash` nullable
-  columns to the commit ledger (existing rows null; integrity
-  sentinel: row counts + a sample-hash check recorded before/after);
+  columns to the commit ledger — integrity sentinel over EVERY
+  existing row (F12): before/after row count plus a deterministic
+  in-memory digest of ALL pre-existing columns per row (computed and
+  compared, never logged — health-adjacent contents stay out of
+  logs); the migration alters no existing ledger value or appdata
+  record, and the sentinel proves it;
   (3) no appdata transforms; (4) photos hooks gain the fence check
   (code, not schema). **Down**: refuses while FENCING_ENFORCED is on
   or any M10 client is known deployed (operational rule recorded in
@@ -311,6 +408,15 @@ Local instance first, then the NAS disposable gate:
    rejected; `.415`-shaped writes pass with enforcement OFF.
 5. Ledger reuse for core: replay, same-key/different-body, retention
    boundary — subsystem-scoped independence from training keys.
+6. Photo suites (F13): photo route ‖ takeover in both orders;
+   lost-response upload/delete/metadata (replay-first); partial clear +
+   restart resumption; non-holder photoSync → zero local AND zero
+   server mutations; displaced photo add/delete/update review; file-
+   orphan checks after every rollback path.
+7. Core client suites (F13): the `.416`→M10 bootstrap four cases;
+   core ack→displacement handoff crashed at every boundary; the full
+   F9 state-model permission matrix; coach ‖ device in both orders
+   proving both field sets survive.
 All with raw request/response evidence, before/after record state,
 hook hashes, and verified disposable cleanup (user 404 + record-by-id
 404 + relation 0), per the M8 gate bar.
