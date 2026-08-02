@@ -336,6 +336,25 @@ the exchange transcripts, and are marked (r) where reconstructed.
   `node --check` passed, watcher untouched). Owner authorized the app
   push; served bytes verified (sha256 `c0e084fa…fcfc22da`).
 
+- **2026-08-02, build `2026-08-02.414-fx` published; M8 client complete in
+  the working copy.** `.414`: the Daily recap card's own prev/next arrows
+  retired — the header day nav (`.411`) navigates days and the recap
+  follows the viewed day (C14 at 64, incl. a header-nav-moves-the-recap
+  assertion). Owner authorized; pushed; served bytes verified at 05:14:45Z
+  (sha256 `3b44f79c…3eb8b1e7`). **M8 progress (uncommitted, two delimited
+  blocks, extracted for every release):** the full transitions engine
+  (journaled ack with idempotent replay, bootstrap per the strict ruling,
+  pull that never overwrites, boot reconciliation), the §5 conflict
+  workflow (export-before-choice with a gen gate that re-disables on any
+  edit), and the §1 logout gate (Owner ruling A) are implemented and
+  smoke-verified in real Chromium. The R3 authentic-upgrade regression is
+  committed on `engineering/m8` (`3c80893`): against the M8-free baseline
+  it REPRODUCES the 2026-07-31 loss (session destroyed on disk); against
+  the candidate the session survives and is held as a conflict. Known
+  flip: the C13 loss-reproduction case fails with M8 present because M8
+  prevents the overwrite it documents — it becomes a conflict expectation
+  in the M8 evidence round. Engineer.
+
 ## §2 Owner actions on record
 
 1. 2026-07-30 — direction change (sync simplification, review narrowing).
