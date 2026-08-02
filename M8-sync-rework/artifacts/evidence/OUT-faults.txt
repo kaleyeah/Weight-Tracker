@@ -8,10 +8,22 @@ C11-M8 faults — DOM gating, ambiguity+restart, phase crashes, storage faults
   ✓ B/C: no page errors
   ✓ D: transport ambiguity keeps the journal AND the conflict
   ✓ D: restart recovery replays, acks, and clears the OWED conflict phase
-  ✓ E(intent): choose-server crash recovery completes every postcondition
-  ✓ E(k1): choose-server crash recovery completes every postcondition
-  ✓ E(k2): choose-server crash recovery completes every postcondition
+  ✓ E(intent): FIRST boot completes every choose-server postcondition
+  ✓ E(intent): no page errors
+  ✓ E(k1): FIRST boot completes every choose-server postcondition
+  ✓ E(k1): no page errors
+  ✓ E(k2): FIRST boot completes every choose-server postcondition
+  ✓ E(k2): no page errors
+  ✓ E(k3): FIRST boot completes every choose-server postcondition
+  ✓ E(k3): no page errors
   ✓ F: quarantine COPY failure retains the original and blocks sync
   ✓ F2: original-removal failure keeps BOTH copies and blocks
+  ✓ G: a READ failure blocks — no absence, no quarantine, no bootstrap
+  ✓ G: zero training commits under read failure
+  ✓ H: cleanup failure after a completed ack — base advanced, dirty cleared, journal survives, NOT blocked
+  ✓ H: after the fault lifts, boot retries ONLY cleanup (journal gone, base untouched)
+  ✓ I: malformed dirty during ack completion blocks, journal AND malformed bytes preserved
+  ✓ J: adoption base-write failure blocks with the journal preserved
+  ✓ K: a newer generation after an ack is rescheduled by the finisher to a second ack (rev 2, clean)
 
-OK — 12 passed
+OK — 24 passed

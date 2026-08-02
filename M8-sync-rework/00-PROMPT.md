@@ -1,51 +1,63 @@
-# M8 sync rework — round 11: the shared finisher, with fault evidence
+# M8 sync rework — round 12: R11 corrections, with authentic fault proof
 
 You are the Architect for the Compound project (read-only; rulings bind
 the Engineer; the Owner alone authorizes deployment and live-data
 mutation).
 
-## The round-10 ruling, as landed (verify in the tree)
+## Your round-11 items, as landed (verify in the tree; hashes in
+## artifacts/evidence/IDENTITIES.txt)
 
-**One phase-aware transition finisher.** `m8FinishAck(j)` executes every
-phase at/after net-done — base verified against expect (k1), dirty
-resolved with a verified postcondition (absent or provably newer, k2),
-the journaled owed conflict phase (`expect.finalPhases`, k3), the single
-common D8 captured-copy derivation rule, verified journal end — and it
-is the ONLY implementation: the live callback advances to net-done and
-calls it; every recovery arm (net-done, k1–k3, replay success,
-fetch-proves-applied) calls the same function. `m8FinishChooseServer(j)`
-is likewise the single transition-5 implementation, live and in
-recovery, verifying the persisted local store against serverCanon at
-every boundary. `saveTrainingLocal` is success-bearing and read-back
-verified; the dirty envelope carries `persistedGen`, and the boot
-dirty-clear fires only with that proof. `m8AdoptServer` and
-`m8EstablishBase` verify every write and preserve their journals on
-failure. Choose Local's journal records the owed final phase itself.
+1/2. The control-flow concern: the `if(!ended){}` empty-body-comment
+   idiom is gone. Every finisher ends with an explicit
+   `cleanupVerified ? true : "cleanup-pending"` — the normal-path
+   status update and the newer-generation reschedule run in BOTH
+   branches, inside the finisher. `m8EstablishBase` no longer discards
+   its journal on base-write failure: it delegates to
+   `m8FinishBootstrapBase(j)`, which preserves the journal on every
+   failed write.
+3. `m8JournalEnd()` is itself the verified terminal phase: it confirms
+   the key is gone and returns the result; every call site either
+   surfaces `cleanup-pending` or leaves the journal for boot's
+   completed-transition recognition (proven by fault case H below).
+4. `m8FinishChooseServer` has distinct verified phases for the dirty
+   removal (k3) and the conflict removal (k4); the crash between them
+   is representable and tested.
+5. Malformed dirty during ack completion blocks with the journal AND
+   the malformed bytes preserved (fault case I drives the finisher
+   directly; boot's copy-first healing path is covered in accounts).
+6. Generic adoption recovery is gone: `m8FinishAdopt(j)` is the single
+   implementation for adopt/adopt-fresh, live and in recovery, verifying
+   the persisted local store against serverCanon.
+7. A superseded conflict is a single verified overwrite — no
+   delete-then-write absent interval.
+8. The choose-server phase tests are authentic first-boot tests: a
+   VALID canonical journal seeded before page load against a consistent
+   server world, first boot only, page errors asserted — at intent, k1,
+   k2, AND the k3/k4 boundary.
+9. `getItem` faults are injected (wrapped Storage primitive): a read
+   failure blocks — never absence, quarantine, bootstrap, or network
+   (zero commits asserted). Quarantine's own read failure also blocks.
+10. The remaining fault evidence: journal-removal failure after a
+   completed ack (transition completes unblocked, journal survives,
+   and after the fault lifts boot retries ONLY cleanup); base-write
+   failure during adoption (blocked, journal preserved); the
+   newer-generation ack rescheduling to a PROVEN second ack (rev 2,
+   clean). Fault case H also exposed and fixed a real defect: a
+   cleanup-pending journal plus a push retry produced synchronous
+   infinite recursion — journal re-entry is now guarded.
 
-## Evidence — 77 cases, 8 suites, all green on candidate
-## `bb98157b…37d6c51e` (669-line diff over published .414)
+## Evidence
 
-New `faults` suite (12): share REJECTION keeps choices disabled with
-nothing marked delivered; download-fallback cancel keeps the gate
-closed while confirm opens it; an edit after export re-disables the
-RENDERED control; Choose Local transport ambiguity keeps journal AND
-conflict, and a RESTART recovers through replay to clean with the owed
-conflict phase cleared; choose-server journals seeded at intent/k1/k2
-all recover every postcondition; quarantine copy-failure and
-original-removal-failure (wrapped Storage primitives) retain the
-originals and block. Recovery suite at 25: five seeded states now
-including journal-present and corrupt-key, every key byte-identical
-before any edit, zero training network on a forced pull+push; the
-artifact is REBUILT from the current candidate (hash in IDENTITIES).
-Quota (6) exposes exact dirty bytes, primary-write result, block flag,
-and commit-request counts, and asserts a blocked state sent zero
-requests. Raw outputs in artifacts/evidence/.
-
-All desktop Chromium, mocked endpoints (R10 wording): real engine,
-modeled server. Disposable-PB remains its own later, Owner-authorized
-gate.
+88 cases, 8 suites, all green on candidate `518eeec4…8788f4e1`
+(701-line diff over published `.414`); the recovery artifact is rebuilt
+from THIS candidate (`a453eddf…abc1f66a`), 25/25 from five seeded
+states. The authentic upgrade baseline still fails 1/4 (session
+destroyed) against the M8-free build. Raw outputs in
+artifacts/evidence/. All desktop Chromium, mocked endpoints: real
+engine, modeled server.
 
 ## This round
 
-Rule on the revised implementation. If it passes, name the next gate.
-No commit, publication, or server-record mutation is requested.
+Rule on the implementation. If it passes, name the next gate
+(disposable-PocketBase). No commit, publication, or server-record
+mutation is requested.
