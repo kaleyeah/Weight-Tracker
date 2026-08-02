@@ -156,6 +156,33 @@ the exchange transcripts, and are marked (r) where reconstructed.
   the published `.402` — it specifies the M8 sync-durability behaviour, not a
   regression.
 
+- **2026-08-02, build `2026-08-02.404-fx` published + coach deployed to the
+  NAS.** Owner request: Lean Body Mass and Waist Circumference on the weight
+  check-in, in the HealthKit Shortcut import, in the coach's summaries, and
+  an LBM tab on the Body composition chart. Findings: waist was already
+  end-to-end in the app; LBM was new everywhere. App: `state.leanmass` store
+  (persisted/exported/imported/cleared), check-in field, LBM chart tab,
+  `hkPlan` leanmass bucket + JSON-key normalization through `hkLabelToField`
+  (accepts "leanmass"/"lbm"/"Lean Body Mass"/"Waist Circumference", per-day
+  lines or single values); reset/join erase paths never cleared
+  bodyfat/waist — fixed for all three body-comp maps. Mid-build Owner ask:
+  Progress-page sections start open (More stats default-open, toggle
+  preserved). C14 grew to 37; C12/C13 VM+browser green. Owner authorized;
+  `main` `97f3fac..6f1aaaf` pushed; served bytes verified at 00:30:01Z
+  (sha256 `7d42892c…9826d7a7`).
+  **Coach**: nightly row + weekly CSV gain lean mass with muscle-preservation
+  guidance. Deployment surfaced two facts: (1) the Owner established an SSH
+  deploy channel from the VPS to the RACK Synology (key auth, user
+  `griffingoodman`, coach at `/volume1/homes/griffingoodman/compound-coach/`,
+  DSM task + coach-watch loop) — future coach deploys need no Owner
+  intervention; (2) the repo copies of the checkin scripts had fallen behind
+  the NAS, which had been patched in place (fiber, sterner voice, training
+  self-ratings, MOOD — scriptVer 2026-07-22.176): the lean-mass edits were
+  rebased onto the deployed lineage as build `2026-08-02.177`, deployed with
+  `.bak-leanmass` backups, md5-verified identical both sides, NAS-side
+  `node --check` passed, watcher untouched (spawns fresh node per run), and
+  the Weight-data repo re-synced to the deployed bytes so repo == NAS.
+
 ## §2 Owner actions on record
 
 1. 2026-07-30 — direction change (sync simplification, review narrowing).
