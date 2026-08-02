@@ -426,6 +426,35 @@ const OLDT={cardioTypes:["Peloton"],exercises:[],liftSessions:{},routines:[],ses
      ()=>ok(!r2.journal&&r2.commitsDelta===0&&r2.state==='clean',JSON.stringify(r2)));
    await b.ctx.close();}
 
+  // S (R15-7): semantically invalid journals — quarantined, never executed,
+  // never silently erased, zero server requests
+  const badJournals=[
+    ['done-missing-outcome',{owner:'userA',mark:'m8.1',op:'ack',phase:'done',startedAt:1,expect:{oldBaseCanon:'{}',expectedRev:0,pushedCanon:'{}',gen:1,requestId:'k'}}],
+    ['unknown-op',{owner:'userA',mark:'m8.1',op:'mystery',phase:'intent',startedAt:1,expect:{}}],
+    ['impossible-phase',{owner:'userA',mark:'m8.1',op:'adopt',phase:'k4',startedAt:1,expect:{serverRev:1,serverCanon:'{}'}}],
+    ['netdone-missing-newRev',{owner:'userA',mark:'m8.1',op:'ack',phase:'net-done',startedAt:1,expect:{oldBaseCanon:'{}',expectedRev:0,pushedCanon:'{}',gen:1,requestId:'k'}}]];
+  for(const [name,bj] of badJournals){
+    const b=await boot({seed:[['wl_training_journal__userA',JSON.stringify(bj)]]});
+    const r=await b.page.evaluate(async()=>{
+      const f0=performance.getEntriesByType('resource').filter(x=>/cf\/appdata\/commit/.test(x.name)).length;
+      await new Promise(x=>trainingPull(x));m8Push();await new Promise(x=>setTimeout(x,250));
+      return {gone:!localStorage.getItem('wl_training_journal__userA'),
+        preserved:Object.keys(localStorage).some(k=>/^wl_training_corrupt__userA/.test(k)),
+        commits:performance.getEntriesByType('resource').filter(x=>/cf\/appdata\/commit/.test(x.name)).length-f0};});
+    test(`S(${name}): invalid journal quarantined (preserved, not executed), zero commits`,
+      ()=>ok(r.gone&&r.preserved&&r.commits===0,JSON.stringify(r)));
+    await b.ctx.close();}
+  // S2: quarantine COPY failure for an invalid journal — original retained, blocked
+  {const bj={owner:'userA',mark:'m8.1',op:'mystery',phase:'intent',startedAt:1,expect:{}};
+   const b=await boot({seed:[['wl_training_journal__userA',JSON.stringify(bj)]],denySet:['^wl_training_corrupt__']});
+   const r=await b.page.evaluate(()=>({
+     original:!!localStorage.getItem('wl_training_journal__userA'),
+     blocked:m8StorageBlocked,
+     corrupt:Object.keys(localStorage).filter(k=>/corrupt/.test(k)).length}));
+   test('S2: quarantine copy failure keeps the invalid journal and blocks — no silent loss',
+     ()=>ok(r.original&&r.blocked&&r.corrupt===0,JSON.stringify(r)));
+   await b.ctx.close();}
+
   await browser.close();server.close();
   console.log('\n'+(failures.length?`FAILED — ${passed} passed, ${failures.length} failed`:`OK — ${passed} passed`));
   process.exitCode=failures.length?1:0;
