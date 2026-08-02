@@ -691,7 +691,7 @@ input[type=date]::-webkit-calendar-picker-indicator,input[type=time]::-webkit-ca
 .wl-hnav-daynav{display:flex;align-items:center;justify-content:center;width:100%;gap:8px;}
 .wl-hnav-day{background:none;border:none;padding:6px 10px;color:var(--text);font-size:24px;font-weight:300;line-height:1;font-family:var(--sans);flex:none;}
 .wl-hnav-day.off{color:var(--faint);opacity:.35;}
-.wl-hnav-daynav .wl-hnav-lbl{width:148px;flex:none;justify-content:center;} /* fixed: the chevrons never move as the label changes */
+.wl-hnav-daynav .wl-hnav-lbl{width:118px;flex:none;justify-content:center;} /* fixed slot sized to the widest possible label ("Mon, May 28" = 93px measured + padding + cross-font margin); the chevrons never move */
 .wl-hnav-arw{width:30px;height:30px;border-radius:7px;border:1px solid var(--line);background:var(--card);color:var(--muted);font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0;flex:none;}
 .wl-hnav-lbl{display:flex;align-items:center;gap:7px;padding:4px 8px;border-radius:9px;background:none;border:none;color:var(--text);font-size:16px;font-weight:800;letter-spacing:-.01em;font-family:var(--sans);min-width:0;}
 .wl-hnav-lbl>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -860,7 +860,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-02.410-fx";
+var APP_BUILD="2026-08-02.411-fx";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
