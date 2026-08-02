@@ -383,6 +383,33 @@ the exchange transcripts, and are marked (r) where reconstructed.
   postcondition bytes. Round 11 will carry the finisher refactor.
   Engineer.
 
+- **2026-08-02, M8 rounds 11–19 — CLIENT IMPLEMENTATION PASSES REVIEW.**
+  Eight further correction rounds hardened the engine to the Architect's
+  standard: one phase-aware transition finisher shared by every live and
+  recovery path (ack, adopt, bootstrap-base, choose-server) with
+  read-back-verified postconditions on every write, remove, and cleanup;
+  verified primary persistence with a per-generation proof
+  (`persistedGen`) that no boot, pull, or no-op push may bypass; a split
+  block model (hard vs derived-unproven) with boot gating on the union;
+  delivery-evidenced export gating immune to edits during the share
+  sheet AND during the in-flight fetch (two TOCTOU boundaries closed);
+  terminal `done` journal records verified before cleanup; an
+  operation-aware journal validator (op, phase, typed expect fields,
+  96-char request ids, canonical-class content) routing anything
+  invalid — semantic or syntactic, at push, pull, or boot — into
+  copy-verify-delete quarantine under a persistent hard block that
+  re-derives from the kind-tagged corrupt namespace on every boot.
+  Evidence: 128 cases across 8 browser suites incl. six-point crash
+  injection, storage read/write/remove faults, share rejection and held
+  races, reload persistence, and the authentic upgrade regression that
+  still destroys the 2026-07-31 session on the M8-free baseline.
+  Round-19 verdict: client passes against the MODELED server; the
+  distinction is preserved — the real-PocketBase disposable gate
+  (Owner-authorized 2026-08-01) is now the current gate, requiring the
+  real CAS hook and idempotency ledger with raw evidence and disposable
+  users/records only. No publication, production mutation, release
+  packaging, or lockdown is authorized. Engineer.
+
 ## §2 Owner actions on record
 
 1. 2026-07-30 — direction change (sync simplification, review narrowing).
