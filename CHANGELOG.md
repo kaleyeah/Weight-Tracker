@@ -1,6 +1,6 @@
 # Compound Fitness — Changelog
 
-**Last Updated:** 2026-08-02
+**Last Updated:** 2026-08-02 (through the .416 release)
 
 **Status:** Active
 
@@ -53,6 +53,33 @@ A high-level, human- and AI-readable log of how the **product** has evolved — 
 ### `2026-08-02.407-fx` — the bug list closes
 - **Added** the replace-exercise prompt: swapping an exercise mid-workout asks "save to the routine going forward, or today only"; saving updates the routine in place with ranges and notes kept.
 - **Added** editable symptom logs: tap any logged symptom to relabel, re-time, or delete it in place — the self-serve path for fixing the mislabeled headache, same Owner-validates-the-feature pattern as the session editor.
+
+### `2026-08-02.408-fx` — day navigation in the header
+- **Added** previous/next day chevrons beside the header date (Owner-approved mockup), so day paging no longer depends on the recap card.
+
+### `2026-08-02.409-fx` — month calendar nav matches
+- **Changed** the month calendar's navigation to the same chevron treatment as the day header.
+
+### `2026-08-02.410-fx` / `2026-08-02.411-fx` — arrows that never move
+- **Changed** the chevrons to a fixed slot sized to the widest possible date label ("Mon, May 28" class), so the arrows sit close to the date and never shift as the label changes (Owner ruling: forced width).
+
+### `2026-08-02.412-fx` — GLP sheets can be cancelled
+- **Added** a visible Cancel on the GLP symptom/dose sheets — there was previously no obvious way to back out.
+
+### `2026-08-02.413-fx` — symptoms as data you can read
+- **Added** a symptom list under GLP on Progress, and the same list on the coach's nightly/weekly reports (coach build `.178`).
+
+### `2026-08-02.414-fx` — recap card arrows retired
+- **Removed** the day arrows from the nightly recap card — the header owns day paging now.
+
+### `2026-08-02.415-m8` — the M8 training-sync rework (the July-31-loss fix, end of the arc)
+- **Added** server-acknowledged training sync: per-account dirty/base/conflict/journal state, crash-journaled writes with verified persistence, replay-first recovery, and an idempotency ledger on the server — a failed push can no longer be silently overwritten by the next pull.
+- **Added** an explicit conflict flow: when local and server training genuinely diverge, the app preserves both copies, requires a delivered export before any destructive choice, and asks in plain language.
+- **Added** logout-requires-server-ack: signing out can no longer discard unsynced training.
+- 25 Architect review rounds; 129 browser cases + a real-PocketBase disposable gate; four-point release identity verified against the served bytes; Owner-accepted after on-device checks on both flows.
+
+### `2026-08-02.416-fx` — today doesn't skew the averages
+- **Changed** Steps and Calories "More stats" charts: today renders as an outlined pending bar and is excluded from averages until the day is completed (nightly recap) or has passed — a partial day no longer drags the numbers down. Weight and Sleep are unaffected (they don't accumulate through the day).
 
 ### In progress (not yet in any live build)
 - **M8 sync rework** — the real fix for the July 31 loss class. Design v7 approved as the implementation contract by the Architect after 8 review rounds and 4 Owner rulings (2026-08-02); implementation under way. Nothing ships without the Owner's publish decision.
