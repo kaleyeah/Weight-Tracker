@@ -1,8 +1,8 @@
-# M8 — training-sync rework: design v6
+# M8 — training-sync rework: design v7
 
 Engineer, 2026-08-02, revised per the Architect's rounds 1–3 and four
 Owner rulings taken via the decision channel. Round-2 items answered as
-B1–B14, round-3 as C1–C12, round-4 as D1–D9, round-5 as E1–E6. The Owner logout decision artifact is at
+B1–B14, round-3 as C1–C12, round-4 as D1–D9, round-5 as E1–E6, round-6/7 as F1–F8. The Owner logout decision artifact is at
 `decisions/DECISION-2026-08-02-M8-logout.md` (C1) and in the authoritative
 record (`compound-app/reports/PROJECT_LOG.md`, M8 rounds 2–3 entry). Base: live
 build `2026-08-02.407-fx` (commit `74a4777`). Brief: `BRIEF-round2-rulings.md`
@@ -134,18 +134,39 @@ its crash recovery (C5):
    requestId}`, persisted and verified **before** the CAS request is sent;
    `net-done` adds the returned `newRev` and the acknowledged response
    identity; then the base phase → the dirty phase → journal removal.
-   **Ambiguous outcome (E2)** — an `intent` journal whose request outcome
-   is unknown (crash mid-request, response lost, or ANY transport error:
-   a transport error never proves the request failed, the server may have
-   committed): fetch without modifying local, then —
-   (a) server canonically equals `pushedCanon` → the request applied;
-   adopt the fetched revision as `newRev` and follow the normal
-   unchanged/advanced-gen arms;
-   (b) server equals `oldBaseCanon` at `expectedRev` → the request did
-   not apply; resolve the journal, dirty is retained, a normal retry is
-   permitted;
-   (c) anything else → persist conflict before any adoption or further
-   push.
+   **`requestId` is the CAS route's `idempotencyKey`, exactly (F2):**
+   unique per logical mutation, generated and persisted in the intent
+   journal before dispatch, within the route's length constraints, and
+   never reused with different request bytes. The journal also persists
+   the request identity — the canonical payload string (already present
+   as `pushedCanon`) plus `expectedRev` — so a replay can be proven
+   logically identical (F6). A newer local generation is a **subsequent**
+   mutation: it never alters the unresolved request or its key.
+   **Ambiguous outcome (E2, replay-first per F3)** — an `intent` journal
+   whose request outcome is unknown (crash mid-request, response lost, or
+   ANY transport error: a transport error never proves the request
+   failed, the server may have committed):
+   1. **If the journal is younger than the CAS ledger retention (30
+      days), replay the identical request first** — same idempotency key,
+      same `expectedRev`, same canonical payload — while the server
+      ledger can still recognize it. Replay outcomes (F4):
+      original-or-idempotent success → persist `net-done` with the
+      returned acknowledged revision and continue; revision conflict →
+      fall through to the fetch arms below; same key recognized with a
+      DIFFERENT request identity → hard stop: journal preserved,
+      integrity error surfaced, no further mutation; another transport
+      failure → remain unresolved, no new key, no inference.
+   2. **Fetch-and-compare** (on revision conflict, or when the journal
+      has outlived ledger retention, F5 — an old journal may not assume
+      replay is idempotent): fetch without modifying local, then —
+      (a) server canonically equals `pushedCanon` → the request applied;
+      adopt the fetched revision as `newRev` and follow the normal
+      unchanged/advanced-gen arms;
+      (b) server equals `oldBaseCanon` at `expectedRev` → the request did
+      not apply; resolve the journal, dirty is retained, a normal retry
+      (with a NEW key) is permitted;
+      (c) anything else → persist conflict before any adoption or further
+      push.
    *Base write fails after server ack (C6):* the journal survives with the
    pushed canonical identity. Recovery (boot or next push attempt) does
    NOT retry the stale CAS: it **fetches**, and (a) server content equals
@@ -329,7 +350,11 @@ rule in this contract.
   with local generation advancing during each ambiguous outcome — with
   boot recovery asserted to reach clean only on exact proof and otherwise
   only dirty/conflict (C4/C5/E2/E3); the ack-persist-failure
-  fetch-and-compare recovery, all three arms (C6); the dirty-clear retry
+  fetch-and-compare recovery, all three arms (C6); the F7 replay cases —
+  committed-with-lost-response replay, request-not-applied replay,
+  intervening revision change, same-key/different-body hard stop,
+  repeated transport failure staying unresolved, and ledger-expired
+  recovery falling back to fetch-and-compare; the dirty-clear retry
   without server traffic (C7); logout refusal from dirty, bootstrap, AND
   conflict (B5); §5b tag-provenance cases incl. `migrateOrphanLiftTags`
   (C10). Suite must fail against `.407`.
@@ -363,7 +388,9 @@ rule in this contract.
    but had not landed in this file (a failed edit script aborted before
    writing; the send proceeded anyway). The tree wins; this entry records
    the failure class recurring.
-7. Round 7 (this bundle): v6 actually in the tree, with diff evidence.
+7. ✅ Round 7: v6 verified in the tree; one gap — `requestId` unbound to
+   the CAS route's idempotency ledger → F2–F7.
+8. Round 8 (this bundle): v7 as the implementation contract.
 8. Implementation; C11 revision; browser suite; evidence round(s).
 9. Disposable-PB integration round.
 10. Recovery artifact built, hashed, packaged (gate for 11).
