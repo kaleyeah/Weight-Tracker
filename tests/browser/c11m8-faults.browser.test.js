@@ -26,6 +26,7 @@ const OLDT={cardioTypes:["Peloton"],exercises:[],liftSessions:{},routines:[],ses
       Storage.prototype.removeItem=function(k){if(window.__denyRemove.some(rx=>new RegExp(rx).test(k)))return;return oRem.call(this,k);};
       // share control
       if(cfg.share==='reject'){navigator.canShare=()=>true;navigator.share=()=>Promise.reject(new Error('cancel'));}
+      if(cfg.share==='hold'){navigator.canShare=()=>true;navigator.share=()=>new Promise(res=>{window.__resolveShare=res;});}
       localStorage.setItem('wl_pb',JSON.stringify({uid:'userA',base:'https://pb.test',token:'tok',email:'a@x.com'}));
       localStorage.setItem('wl_last_owner','userA');
       localStorage.setItem('wl_v1',JSON.stringify({settings:{onboarded:true,units:'lbs'},weights:[],food:{},workouts:{},steps:{},notes:{},sleep:{},bodyfat:{},waist:{},leanmass:{},statuses:[],presets:[],skips:{},nightlyLog:{}}));
@@ -205,6 +206,67 @@ const OLDT={cardioTypes:["Peloton"],exercises:[],liftSessions:{},routines:[],ses
        dirty:!!localStorage.getItem('wl_training_dirty__userA')};});
    test('K: a newer generation after an ack is rescheduled by the finisher to a second ack (rev 2, clean)',
      ()=>ok(r.state==='clean'&&r.base&&r.base.rev===2&&!r.dirty,JSON.stringify(r)));
+   await b.ctx.close();}
+
+  // L (R12-4): a failed PRIMARY save is fail-closed across reload
+  {const b=await boot({seed:[]});
+   const r=await b.page.evaluate(async()=>{
+     await new Promise(x=>trainingPull(x));
+     window.__denySet=['^wl_v1$'.replace('wl_v1','wl_training_v1')];
+     state.training.exercises.push({id:'lost',name:'Lost Edit',muscle:'back',notes:[]});
+     saveTraining();
+     return {blocked:m8StorageBlocked,dirty:localStorage.getItem('wl_training_dirty__userA')};});
+   test('L: a failed primary save blocks immediately with an unproven dirty marker',
+     ()=>ok(r.blocked&&r.dirty&&JSON.parse(r.dirty).persistedGen!==JSON.parse(r.dirty).gen,JSON.stringify(r)));
+   await b.page.reload({waitUntil:'load'});
+   await b.page.waitForFunction(()=>typeof window.m8State==='function',null,{timeout:15000});
+   await b.page.waitForTimeout(1500);
+   const r2=await b.page.evaluate((prevDirty)=>({
+     blocked:m8StorageBlocked,
+     dirtySame:localStorage.getItem('wl_training_dirty__userA')===prevDirty,
+     state:m8State()}),r.dirty);
+   test('L: after RELOAD the block is re-derived and the dirty bytes are untouched',
+     ()=>ok(r2.blocked&&r2.dirtySame,JSON.stringify(r2)));
+   test('L: zero commits across the failed-save lifetime',()=>ok(b.commits()===0,'commits='+b.commits()));
+   const r3=await b.page.evaluate(async()=>{
+     window.__denySet=[];
+     state.training.exercises.push({id:'again',name:'Recovered',muscle:'back',notes:[]});
+     saveTraining();
+     const d=JSON.parse(localStorage.getItem('wl_training_dirty__userA'));
+     return {proof:d.persistedGen===d.gen,onDisk:JSON.parse(localStorage.getItem('wl_training_v1')).exercises.some(x=>x.id==='again')};});
+   test('L: recovery is an explicit verified re-save — proof recorded, bytes on disk',
+     ()=>ok(r3.proof&&r3.onDisk,JSON.stringify(r3)));
+   await b.ctx.close();}
+  // M (R12-5/7): an edit while the share sheet is OPEN can never be discarded
+  {const b=await boot({share:'hold',seed:[CX()]});
+   const r=await b.page.evaluate(async()=>{
+     state.view='train';render();await new Promise(x=>setTimeout(x,80));
+     document.querySelector('[data-act="m8:cx:open"]').click();await new Promise(x=>setTimeout(x,80));
+     const f0=performance.getEntriesByType('resource').filter(x=>/collections\/appdata|cf\/appdata/.test(x.name)).length;
+     document.querySelector('[data-act="m8:cx:export"]').click();await new Promise(x=>setTimeout(x,150));
+     // the sheet is open; the athlete edits
+     state.training.exercises.push({id:'mid',name:'Mid-share Edit',muscle:'back',notes:[]});
+     saveTraining();
+     window.__resolveShare();await new Promise(x=>setTimeout(x,250));
+     const cx=JSON.parse(localStorage.getItem('wl_training_conflict__userA'));
+     const f1=performance.getEntriesByType('resource').filter(x=>/collections\/appdata|cf\/appdata/.test(x.name)).length;
+     return {delivered:!!(cx.exports&&cx.exports.localDone),choices:!!document.querySelector('[data-act="m8:cx:local"]'),
+       conflictIntact:!!cx,localIntact:state.training.exercises.some(x=>x.id==='mid'),fetches:f1-f0};});
+   test('M: resolving a share AFTER an edit marks nothing delivered and keeps choices closed',
+     ()=>ok(!r.delivered&&!r.choices&&r.conflictIntact&&r.localIntact,JSON.stringify(r)));
+   test('M: no fetch or adoption occurred',()=>ok(r.fetches===0,'fetches='+r.fetches));
+   await b.ctx.close();}
+  // N (R12-9): adoption preserves EXACT server objects — empty arrays and unknown fields
+  {const weird={cardioTypes:[],exercises:[],liftSessions:{},routines:[],sessions:{},futureField:{keep:"me"}};
+   const b=await boot({seed:[],serverTraining:weird,serverRev:9});
+   const r=await b.page.evaluate(()=>{
+     const base=JSON.parse(localStorage.getItem('wl_training_base__userA')||'null');
+     const lc=m8Canon(state.training);
+     return {state:m8State(),rev:base&&base.rev,exact:lc.ok&&lc.canon===base.body,
+       unknownKept:JSON.stringify(state.training).indexOf('futureField')>=0,
+       emptyCardioKept:Array.isArray(state.training.cardioTypes)&&state.training.cardioTypes.length===0};});
+   test('N: fresh adoption preserves empty cardioTypes and unknown fields EXACTLY',
+     ()=>ok(r.state==='clean'&&r.rev===9&&r.exact&&r.unknownKept&&r.emptyCardioKept,JSON.stringify(r)));
    await b.ctx.close();}
 
   await browser.close();server.close();

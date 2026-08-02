@@ -28,7 +28,7 @@ const eq=(a,b,m)=>{if(JSON.stringify(a)!==JSON.stringify(b))throw new Error((m||
       localStorage.setItem('wl_v1',JSON.stringify({settings:{onboarded:true,units:'lbs'},weights:[],food:{},workouts:{},steps:{},notes:{},sleep:{},bodyfat:{},waist:{},leanmass:{},statuses:[],presets:[],skips:{},nightlyLog:{}}));
       localStorage.setItem('wl_training_v1',cfg.localTraining);
       localStorage.setItem('wl_training_base__userA',JSON.stringify({owner:'userA',mark:'m8.1',canon:1,rev:cfg.baseRev,body:cfg.baseBody}));
-      if(cfg.dirtyGen!=null)localStorage.setItem('wl_training_dirty__userA',JSON.stringify({owner:'userA',mark:'m8.1',gen:cfg.dirtyGen,ts:Date.now()}));
+      if(cfg.dirtyGen!=null)localStorage.setItem('wl_training_dirty__userA',JSON.stringify({owner:'userA',mark:'m8.1',gen:cfg.dirtyGen,persistedGen:cfg.dirtyGen,ts:Date.now()}));
       localStorage.setItem('wl_training_journal__userA',JSON.stringify(Object.assign({owner:'userA',mark:'m8.1'},cfg.journal)));
     },opts.seed);
     let commitCalls=0,recordCalls=0;

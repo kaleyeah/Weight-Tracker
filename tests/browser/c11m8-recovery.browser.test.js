@@ -15,7 +15,7 @@ const ok=(v,m)=>{if(!v)throw new Error(m||'expected truthy');};
   const states={
     clean:[['wl_training_base__userA',JSON.stringify({owner:'userA',mark:'m8.1',canon:1,rev:3,body:'{}'})]],
     dirty:[['wl_training_base__userA',JSON.stringify({owner:'userA',mark:'m8.1',canon:1,rev:3,body:'{}'})],
-           ['wl_training_dirty__userA',JSON.stringify({owner:'userA',mark:'m8.1',gen:4,ts:1})],
+           ['wl_training_dirty__userA',JSON.stringify({owner:'userA',mark:'m8.1',gen:4,persistedGen:4,ts:1})],
            ['wl_training_journal__userA',JSON.stringify({owner:'userA',mark:'m8.1',op:'ack',phase:'intent',startedAt:1,expect:{oldBaseCanon:'{}',expectedRev:3,pushedCanon:'{"a":1}',gen:4,requestId:'k1'}})]],
     conflict:[['wl_training_conflict__userA',JSON.stringify({owner:'userA',mark:'m8.1',canon:1,enteredAt:1,reason:'t',serverRev:3,serverAtEntry:'{}',localAtEntry:'{}',exports:{}})]],
     journal:[['wl_training_base__userA',JSON.stringify({owner:'userA',mark:'m8.1',canon:1,rev:3,body:'{}'})],

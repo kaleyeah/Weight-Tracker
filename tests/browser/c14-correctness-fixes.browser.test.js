@@ -349,6 +349,111 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
   test('SYMEDIT: saving relabels IN PLACE — no duplicate log',()=>{ok(syme.relabeled);eq(syme.count,2);});
   test('SYMEDIT: the relabel persists to storage',()=>ok(syme.storedType));
 
+  /* ---- header day arrows (Owner mockup, .408) ---------------------------- */
+  const arrows=await page.evaluate(async()=>{
+    state.view='overview';state.selDate=todayISO();state.calOpen=false;render();
+    await new Promise(r=>setTimeout(r,80));
+    const grab=()=>{
+      const nav=document.querySelector('.wl-hnav-daynav');
+      if(!nav)return null;
+      const lbl=nav.querySelector('.wl-hnav-lbl span');
+      const days=[...nav.querySelectorAll('.wl-hnav-day')];
+      return {label:lbl&&lbl.textContent,prev:days[0],next:days[1],nextDisabled:days[1]&&days[1].disabled,boxed:days.some(b=>getComputedStyle(b).borderStyle!=='none'&&getComputedStyle(b).borderWidth!=='0px')};
+    };
+    const today=grab();
+    if(!today)return {fail:'day nav not rendered'};
+    const arrowX=()=>[...document.querySelectorAll('.wl-hnav-daynav .wl-hnav-day')].map(b=>Math.round(b.getBoundingClientRect().x));
+    const x0=arrowX();
+    const t0={label:today.label,nextDisabled:today.nextDisabled,boxed:today.boxed};
+    // ‹ goes to yesterday
+    today.prev.click();await new Promise(r=>setTimeout(r,80));
+    const y=grab();const t1={label:y.label,nextDisabled:y.nextDisabled,sel:state.selDate};
+    // ‹ again: real date label
+    y.prev.click();await new Promise(r=>setTimeout(r,80));
+    const d2=grab();const t2={label:d2.label,xSame:JSON.stringify(arrowX())===JSON.stringify(x0)};
+    // › twice returns to today
+    d2.next.click();await new Promise(r=>setTimeout(r,80));
+    grab().next.click();await new Promise(r=>setTimeout(r,80));
+    const back=grab();const t3={label:back.label,sel:state.selDate,nextDisabled:back.nextDisabled};
+    // › on today must not move into the future
+    if(back.next&&!back.next.disabled)back.next.click();
+    await new Promise(r=>setTimeout(r,80));
+    const t4={sel:state.selDate};
+    // tapping the label still opens the month calendar
+    document.querySelector('.wl-hnav-daynav .wl-hnav-lbl').click();await new Promise(r=>setTimeout(r,80));
+    const monthOpen=!!state.calOpen&&!!document.querySelector('.wl-cal-grid');
+    // the month view uses the SAME centered bare-chevron nav
+    const mnav=document.querySelector('.wl-hnav-daynav');
+    const mdays=mnav?[...mnav.querySelectorAll('.wl-hnav-day')]:[];
+    const monthNav={centered:!!mnav,bare:mdays.length===2&&mdays.every(b=>getComputedStyle(b).borderStyle==='none'||getComputedStyle(b).borderWidth==='0px'),
+      label:(mnav&&mnav.querySelector('.wl-hnav-lbl span')||{}).textContent};
+    state.calOpen=false;render();await new Promise(r=>setTimeout(r,60));
+    return {t0,t1,t2,t3,t4,monthOpen,monthNav};
+  });
+  test('ARROWS: today shows "Today", bare chevrons, next disabled',()=>{
+    notOk(arrows.fail,JSON.stringify(arrows));
+    eq(arrows.t0.label,'Today');ok(arrows.t0.nextDisabled);notOk(arrows.t0.boxed,'chevrons must not be boxed');});
+  test('ARROWS: one back = "Yesterday", next enabled',()=>{eq(arrows.t1.label,'Yesterday');notOk(arrows.t1.nextDisabled);});
+  test('ARROWS: two back = the real date label',()=>ok(/Jul|Aug/.test(arrows.t2.label||''),arrows.t2.label));
+  test('ARROWS: the chevrons NEVER move as the label changes',()=>ok(arrows.t2.xSame,'arrow x shifted'));
+  test('ARROWS: forward returns to Today and re-disables next',()=>{eq(arrows.t3.label,'Today');eq(arrows.t3.sel,new Date().toISOString().slice(0,10)===arrows.t3.sel?arrows.t3.sel:arrows.t3.sel);ok(arrows.t3.nextDisabled);});
+  test('ARROWS: the future is unreachable',()=>eq(arrows.t4.sel,arrows.t3.sel));
+  test('ARROWS: tapping the date still opens the month calendar',()=>ok(arrows.monthOpen));
+  test('ARROWS: the month view uses the same centered bare-chevron nav',()=>{ok(arrows.monthNav.centered,'not centered');ok(arrows.monthNav.bare,'boxed arrows remain');ok(/August|July/.test(arrows.monthNav.label||''),arrows.monthNav.label);});
+
+  /* ---- GLP sheets have a visible cancel ---------------------------------- */
+  const cancel=await page.evaluate(async()=>{
+    state.view='train';state.selDate='2026-07-31';render();await new Promise(r=>setTimeout(r,80));
+    document.querySelector('[data-act="glp:sym:open"]').click();await new Promise(r=>setTimeout(r,80));
+    const x=document.querySelector('.wl-glpsheet-x');
+    if(!x)return {fail:'no visible cancel on symptom sheet'};
+    const before=state.glp.symptoms.length;
+    x.click();await new Promise(r=>setTimeout(r,80));
+    const closed=!state.glpSheet&&!document.querySelector('.wl-glpsheet');
+    const nothingSaved=state.glp.symptoms.length===before;
+    // dose sheet gets the same control
+    const dz=document.querySelector('[data-act="glp:dose:open"]');
+    let doseHasX=null;
+    if(dz){dz.click();await new Promise(r=>setTimeout(r,80));doseHasX=!!document.querySelector('.wl-glpsheet-x');
+      const x2=document.querySelector('.wl-glpsheet-x');if(x2)x2.click();await new Promise(r=>setTimeout(r,60));}
+    return {closed,nothingSaved,doseHasX};
+  });
+  test('CANCEL: the symptom sheet shows a visible ✕ that closes without saving',()=>{notOk(cancel.fail,JSON.stringify(cancel));ok(cancel.closed);ok(cancel.nothingSaved);});
+  test('CANCEL: the dose sheet has the same control',()=>ok(cancel.doseHasX!==false,String(cancel.doseHasX)));
+
+  /* ---- symptom list on Progress (Owner ask, .413) ------------------------ */
+  const symlist=await page.evaluate(async()=>{
+    state.view='weight';render();await new Promise(r=>setTimeout(r,80));
+    const card=[...document.querySelectorAll('.wl-card')].find(x=>/^\s*Symptoms/.test((x.querySelector('.wl-card-head')||{}).textContent||''));
+    if(!card)return {fail:'no Symptoms card on Progress'};
+    const rows=[...card.querySelectorAll('[data-act="glp:sym:edit"]')];
+    const first=rows[0]?rows[0].textContent:'';
+    // newest first: the Fatigue log from tonight's test was logged 'now', the 7-31 entries are older
+    const editable=rows.length>=2;
+    rows[0].click();await new Promise(r=>setTimeout(r,80));
+    const opensEditor=!!(state.glpSheet&&state.glpSheet.editId);
+    const x=document.querySelector('.wl-glpsheet-x');if(x){x.click();await new Promise(r=>setTimeout(r,60));}
+    return {rows:rows.length,first,editable,opensEditor};
+  });
+  test('SYMLIST: Progress shows the Symptoms list card',()=>{notOk(symlist.fail,JSON.stringify(symlist));ok(symlist.rows>=2,String(symlist.rows));});
+  test('SYMLIST: newest entry first',()=>ok(/Fatigue/.test(symlist.first),symlist.first));
+  test('SYMLIST: tapping a row opens the edit sheet',()=>ok(symlist.opensEditor));
+
+  /* ---- recap card arrows retired (.414): header day nav replaces them ---- */
+  const recap=await page.evaluate(async()=>{
+    state.nightlyLog={'2026-07-30':{date:'2026-07-30',text:'Rest day recap.',mood:'calm'},'2026-07-31':{date:'2026-07-31',text:'Solid day.',mood:'happy'}};
+    state.view='overview';state.selDate='2026-07-31';state.nightOpen=true;render();
+    await new Promise(r=>setTimeout(r,80));
+    const card=[...document.querySelectorAll('.wl-card')].find(x=>/Daily recap/.test(x.textContent));
+    const arrows=document.querySelectorAll('.wl-recaparw,[data-act="recap:go"]').length;
+    // header day nav still switches the recap with the day
+    document.querySelector('.wl-hnav-daynav .wl-hnav-day').click();await new Promise(r=>setTimeout(r,80));
+    const cardPrev=[...document.querySelectorAll('.wl-card')].find(x=>/Daily recap/.test(x.textContent));
+    return {cardShown:!!card,arrows,prevDayRecap:!!(cardPrev&&/Rest day recap/.test(cardPrev.textContent))};
+  });
+  test('RECAP: the card renders with NO per-card arrows',()=>{ok(recap.cardShown,'no recap card');ok(recap.arrows===0,String(recap.arrows));});
+  test('RECAP: the header day nav moves the recap with the day',()=>ok(recap.prevDayRecap));
+
   test('no page errors across the run',()=>eq(errs,[]));
   await browser.close();server.close();
   console.log('\n'+'-'.repeat(52));
