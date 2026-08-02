@@ -34,11 +34,16 @@ const OLDT={cardioTypes:["Peloton"],exercises:[],liftSessions:{},routines:[],ses
     },o);
     let srvT=o.serverTraining!==undefined?o.serverTraining:null,srvR=o.serverRev||0,commits=0;
     await ctx.route('**/api/**',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[],token:'tok',record:{id:'userA'}})}));
-    await ctx.route('**/api/collections/appdata/records**',r=>r.fulfill({status:200,contentType:'application/json',
-      body:JSON.stringify({items:[{id:'rec1',user:'userA',training:srvT,trainingRev:srvR}]})}));
+    await ctx.route('**/api/collections/appdata/records**',async r=>{
+      if(o.holdRecords){await new Promise(res=>{
+        r.request().frame().page().evaluate(()=>new Promise(x=>{window.__releaseRecords=x;})).then(res,res);});}
+      r.fulfill({status:200,contentType:'application/json',
+        body:JSON.stringify({items:[{id:'rec1',user:'userA',training:srvT,trainingRev:srvR}]})});});
     await ctx.route('**/api/cf/appdata/commit',r=>{commits++;
       if(o.commit==='abort'){r.abort();return;}
       const b=JSON.parse(r.request().postData());
+      if(b.expectedRev!==srvR){/* rev-aware like the real route */
+        r.fulfill({status:409,contentType:'application/json',body:JSON.stringify({ok:false,conflict:true,subsystem:'training',serverRev:srvR,payload:srvT})});return;}
       srvT=b.payload;srvR=b.expectedRev+1;
       r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,subsystem:'training',newRev:srvR})});});
     const page=await ctx.newPage();
@@ -46,7 +51,7 @@ const OLDT={cardioTypes:["Peloton"],exercises:[],liftSessions:{},routines:[],ses
     await page.goto('http://127.0.0.1:'+server.address().port,{waitUntil:'load'});
     await page.waitForFunction(()=>typeof window.m8State==='function',null,{timeout:15000});
     await page.waitForTimeout(1500);
-    return {ctx,page,errs,commits:()=>commits};};
+    return {ctx,page,errs,commits:()=>commits,mutate:(t,r)=>{srvT=t;srvR=r;}};};
   const CX=(exports)=>['wl_training_conflict__userA',JSON.stringify({owner:'userA',mark:'m8.1',canon:1,enteredAt:Date.now(),reason:'t',serverRev:0,serverAtEntry:JSON.stringify(OLDT),localAtEntry:'{}',exports:exports||{}})];
 
   console.log('\nC11-M8 faults — DOM gating, ambiguity+restart, phase crashes, storage faults\n  source: '+SRC);
@@ -233,9 +238,102 @@ const OLDT={cardioTypes:["Peloton"],exercises:[],liftSessions:{},routines:[],ses
      state.training.exercises.push({id:'again',name:'Recovered',muscle:'back',notes:[]});
      saveTraining();
      const d=JSON.parse(localStorage.getItem('wl_training_dirty__userA'));
-     return {proof:d.persistedGen===d.gen,onDisk:JSON.parse(localStorage.getItem('wl_training_v1')).exercises.some(x=>x.id==='again')};});
-   test('L: recovery is an explicit verified re-save — proof recorded, bytes on disk',
+     const released=!m8StorageBlocked;                        // (2) only the unproven block released
+     const st=m8State();                                      // (3) state per the real base relationship
+     m8Push();await new Promise(x=>setTimeout(x,400));        // (4) sync resumes
+     const after={state:m8State(),rev:(JSON.parse(localStorage.getItem('wl_training_base__userA')||'{}')||{}).rev};
+     m8Block('hard failure for the test');                    // (5) a hard block survives an ordinary save
+     state.training.exercises.push({id:'h',name:'H',muscle:'back',notes:[]});
+     saveTraining();
+     const hardSurvives=m8StorageBlocked;
+     return {proof:d.persistedGen===d.gen,
+       onDisk:JSON.parse(localStorage.getItem('wl_training_v1')).exercises.some(x=>x.id==='again'),
+       released,st,after,hardSurvives};});
+   test('L: the verified re-save records proof and bytes WITHOUT a reload',
      ()=>ok(r3.proof&&r3.onDisk,JSON.stringify(r3)));
+   test('L: only the unproven-save block is released; state reflects the base relationship',
+     ()=>ok(r3.released&&r3.st==='dirty',JSON.stringify({released:r3.released,st:r3.st})));
+   test('L: synchronization resumes to a real ack',
+     ()=>ok(r3.after.state==='clean'&&r3.after.rev>=1,JSON.stringify(r3.after)));
+   test('L: a HARD block survives an ordinary successful save',
+     ()=>ok(r3.hardSurvives));
+   await b.ctx.close();}
+  // O (R13-5/6): an edit while the Choose Server FETCH is in flight
+  {const b=await boot({seed:[CX({localGen:0,localCanon:'X',serverDone:true,localDone:true})],holdRecords:true});
+   const r=await b.page.evaluate(async()=>{
+     // make the recorded export match the CURRENT local copy so the pre-fetch
+     // check passes; the in-flight edit is what must invalidate it
+     const cx=JSON.parse(localStorage.getItem('wl_training_conflict__userA'));
+     cx.exports.localCanon=m8Canon(state.training).canon;cx.exports.localGen=m8Gen;
+     localStorage.setItem('wl_training_conflict__userA',JSON.stringify(cx));
+     const preConflict=localStorage.getItem('wl_training_conflict__userA');
+     const preLocal=localStorage.getItem('wl_training_v1');
+     state.view='train';render();await new Promise(x=>setTimeout(x,80));
+     document.querySelector('[data-act="m8:cx:open"]').click();await new Promise(x=>setTimeout(x,80));
+     document.querySelector('[data-act="m8:cx:server"]').click();await new Promise(x=>setTimeout(x,120));
+     const cy=document.querySelector('[data-act="confirm:yes"]');if(cy)cy.click();
+     await new Promise(x=>setTimeout(x,900));
+     const cy2=document.querySelector('[data-act="confirm:yes"]');if(cy2)cy2.click();/* fallback delivery confirm */
+     await new Promise(x=>setTimeout(x,200));
+     // the record fetch is now HELD open; the athlete edits
+     state.training.exercises.push({id:'raced',name:'Raced Edit',muscle:'back',notes:[]});
+     saveTraining();
+     window.__releaseRecords&&window.__releaseRecords();
+     await new Promise(x=>setTimeout(x,400));
+     return {journal:!!localStorage.getItem('wl_training_journal__userA'),
+       conflictIntact:!!localStorage.getItem('wl_training_conflict__userA'),
+       localKept:state.training.exercises.some(x=>x.id==='raced'),
+       state:m8State()};});
+   test('O: an edit during the in-flight fetch prevents journal/adoption; conflict and edit survive',
+     ()=>ok(!r.journal&&r.conflictIntact&&r.localKept&&r.state==='conflict',JSON.stringify(r)));
+   await b.ctx.close();}
+  // P (R13-7/8): terminal-journal fault coverage
+  {const b=await boot({seed:[]});
+   const r=await b.page.evaluate(async(oldc)=>{
+     await new Promise(x=>trainingPull(x));
+     // force a push conflict; deny the journal WRITE so the done record cannot persist
+     state.training.exercises.push({id:'e1',name:'Row',muscle:'back',notes:[]});
+     saveTraining();
+     window.__denySet=['^wl_training_journal__userA$'];
+     // journal already exists? no — deny hits JournalStart: the push must refuse to dispatch
+     const f0=performance.getEntriesByType('resource').filter(x=>/cf\/appdata\/commit/.test(x.name)).length;
+     m8Push();await new Promise(x=>setTimeout(x,300));
+     const noDispatch=performance.getEntriesByType('resource').filter(x=>/cf\/appdata\/commit/.test(x.name)).length===f0;
+     window.__denySet=[];
+     return {noDispatch,blocked:m8StorageBlocked};
+   },'x');
+   test('P: an unjournalable push never dispatches and blocks',()=>ok(r.noDispatch&&r.blocked,JSON.stringify(r)));
+   await b.ctx.close();}
+  {// P2: done-write failure AFTER a conflict outcome preserves the prior journal, no removal, boot does not replay
+   const b=await boot({seed:[]});
+   const r=await b.page.evaluate(async()=>{
+     await new Promise(x=>trainingPull(x));
+     state.training.exercises.push({id:'e1',name:'Row',muscle:'back',notes:[]});
+     saveTraining();m8Push();await new Promise(x=>setTimeout(x,300));/* clean at rev1 */
+     // another writer -> next push conflicts; deny journal WRITES only after intent lands
+     state.training.exercises.push({id:'e2',name:'Curl',muscle:'biceps',notes:[]});
+     saveTraining();
+     return {ok:true};});
+   // a third-party writer changes the server: the next push must 409 into a
+   // REAL conflict (different content, so no stale-rev retry)
+   b.mutate({cardioTypes:["Peloton"],exercises:[{id:"ghost",muscle:"chest",name:"Ghost",notes:[]}],liftSessions:{},routines:[],sessions:{}},2);
+   const r2=await b.page.evaluate(async()=>{
+     const origAdvance=m8JournalAdvance;
+     window.m8JournalAdvance=function(j,ph,extra){if(ph==='done')return false;return origAdvance(j,ph,extra);};
+     m8Push();await new Promise(x=>setTimeout(x,400));
+     const out={blocked:m8StorageBlocked,journal:localStorage.getItem('wl_training_journal__userA'),
+       conflict:!!localStorage.getItem('wl_training_conflict__userA')};
+     window.m8JournalAdvance=origAdvance;
+     out.journalPreserved=!!out.journal&&JSON.parse(out.journal).phase!=='done';
+     return out;});
+   test('P2: a failed done-write hard-blocks with the prior journal preserved (no removal)',
+     ()=>ok(r2.blocked&&r2.journalPreserved&&r2.conflict,JSON.stringify({b:r2.blocked,jp:r2.journalPreserved,c:r2.conflict})));
+   const r3=await b.page.evaluate(async()=>{
+     // boot under the hard block must not replay (zero commits)
+     const f0=performance.getEntriesByType('resource').filter(x=>/cf\/appdata\/commit/.test(x.name)).length;
+     await new Promise(x=>m8Boot(x));
+     return {noReplay:performance.getEntriesByType('resource').filter(x=>/cf\/appdata\/commit/.test(x.name)).length===f0};});
+   test('P2: boot under the hard block performs no replay',()=>ok(r3.noReplay));
    await b.ctx.close();}
   // M (R12-5/7): an edit while the share sheet is OPEN can never be discarded
   {const b=await boot({share:'hold',seed:[CX()]});
