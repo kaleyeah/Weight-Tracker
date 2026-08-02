@@ -1,8 +1,8 @@
-# M8 — training-sync rework: design v5
+# M8 — training-sync rework: design v6
 
 Engineer, 2026-08-02, revised per the Architect's rounds 1–3 and four
 Owner rulings taken via the decision channel. Round-2 items answered as
-B1–B14, round-3 as C1–C12, round-4 as D1–D9. The Owner logout decision artifact is at
+B1–B14, round-3 as C1–C12, round-4 as D1–D9, round-5 as E1–E6. The Owner logout decision artifact is at
 `decisions/DECISION-2026-08-02-M8-logout.md` (C1) and in the authoritative
 record (`compound-app/reports/PROJECT_LOG.md`, M8 rounds 2–3 entry). Base: live
 build `2026-08-02.407-fx` (commit `74a4777`). Brief: `BRIEF-round2-rulings.md`
@@ -115,8 +115,11 @@ network step this MUST be persisted before the request is sent, D3) →
 `k1..kN` (one phase per key write in the op's stated order) → removal.
 Boot recovery never trusts `phase` alone (D6): it compares the actual keys
 against `expect` and derives what completed; phase only tells it where to
-look first. Recovery moves **toward dirty/conflict only** — never toward
-clean; mismatched local/base content is never treated as clean (C5).
+look first. Recovery reaches **clean only when the actual persisted and
+server state exactly proves the transition completed** (E3 — every key
+matches `expect`, or the E2(a) fetch shows the pushed copy on the server);
+any ambiguity or mismatch moves only toward dirty/conflict, and mismatched
+local/base content is never treated as clean (C5).
 **Journal-removal failure (D7):** if every data write verified but the
 journal delete fails, boot recognizes the completed transition by that
 key comparison, treats the op as done idempotently, and retries only the
@@ -126,8 +129,23 @@ state newer than the journal's `expect.gen`.
 The five adoption/acknowledgement transitions, each with its ordering and
 its crash recovery (C5):
 
-1. **Acked push** — journal(op:ack, expect:{pushedCanon, gen, newRev}) →
-   write base → clear dirty → clear journal.
+1. **Acked push** — the journal evolves (E1: `newRev` is unknowable at
+   intent time): `intent` = `{oldBaseCanon, expectedRev, pushedCanon, gen,
+   requestId}`, persisted and verified **before** the CAS request is sent;
+   `net-done` adds the returned `newRev` and the acknowledged response
+   identity; then the base phase → the dirty phase → journal removal.
+   **Ambiguous outcome (E2)** — an `intent` journal whose request outcome
+   is unknown (crash mid-request, response lost, or ANY transport error:
+   a transport error never proves the request failed, the server may have
+   committed): fetch without modifying local, then —
+   (a) server canonically equals `pushedCanon` → the request applied;
+   adopt the fetched revision as `newRev` and follow the normal
+   unchanged/advanced-gen arms;
+   (b) server equals `oldBaseCanon` at `expectedRev` → the request did
+   not apply; resolve the journal, dirty is retained, a normal retry is
+   permitted;
+   (c) anything else → persist conflict before any adoption or further
+   push.
    *Base write fails after server ack (C6):* the journal survives with the
    pushed canonical identity. Recovery (boot or next push attempt) does
    NOT retry the stale CAS: it **fetches**, and (a) server content equals
@@ -287,14 +305,14 @@ from the M8 candidate with **all training network activity disabled**
 generic recovery cannot assume the defect is pull-only), local edits fully
 functional, dirty state accumulating, a visible recovery banner, hashed,
 release-packaged, and tested to boot from clean, dirty, and conflict
-states without mutating any training or sync key. Rollback to `.407` remains legal only for devices that have
-never written an M8 key (all three absent). The recovery artifact's
+states without mutating any training or sync key. The recovery artifact's
 identity goes in the release records before deployment. Rollback
 eligibility (D5): rolling back to `.407` is legal only when a prefix scan
 proves **no M8 sync key of any kind has ever been written for any
 account** — no dirty, no base, no conflict, no journal, and no
 quarantined/corrupt M8 key. Any single M8 key on the device makes recovery
-roll-forward-only.
+roll-forward-only. That five-kind, all-account scan is the only rollback
+rule in this contract.
 
 ## 8. Evidence plan (R3, R4, R9, R10; A5)
 
@@ -305,8 +323,12 @@ roll-forward-only.
   fail-closed per transition **under realistic combined occupancy** (C12:
   live training + base + recovery snapshot + both conflict copies + core
   app data seeded to size, not isolated key writes); every journaled
-  transition crash-tested at each phase boundary with boot recovery
-  asserted to land only in dirty/conflict (C4/C5); the ack-persist-failure
+  transition crash-tested at the six E5 points — before dispatch; after
+  dispatch before any response; after server commit with the response
+  lost; after net-done persistence; at every subsequent key phase; and
+  with local generation advancing during each ambiguous outcome — with
+  boot recovery asserted to reach clean only on exact proof and otherwise
+  only dirty/conflict (C4/C5/E2/E3); the ack-persist-failure
   fetch-and-compare recovery, all three arms (C6); the dirty-clear retry
   without server traffic (C7); logout refusal from dirty, bootstrap, AND
   conflict (B5); §5b tag-provenance cases incl. `migrateOrphanLiftTags`
@@ -335,9 +357,15 @@ roll-forward-only.
    corrections (stale B6 sentence, journal phases and idempotent cleanup,
    state-specific logout affordances, five-key rollback scan, captured-copy
    tag derivation, repo facts).
-5. Round 5 (this bundle): v5 as the implementation contract.
-6. Implementation; C11 revision; browser suite; evidence round(s).
-7. Disposable-PB integration round.
-8. Recovery artifact built, hashed, packaged (gate for 9).
-9. Owner decision file → publish → served-byte verify → device check.
-10. Owner-authorized server lockdown of raw training PATCH.
+5. ✅ Round 5: v5 review → one final case named: the ambiguous CAS
+   outcome (server may commit while the response is lost) → E1–E6.
+6. ✅ Round 6: REJECTED — the E-corrections were described in the prompt
+   but had not landed in this file (a failed edit script aborted before
+   writing; the send proceeded anyway). The tree wins; this entry records
+   the failure class recurring.
+7. Round 7 (this bundle): v6 actually in the tree, with diff evidence.
+8. Implementation; C11 revision; browser suite; evidence round(s).
+9. Disposable-PB integration round.
+10. Recovery artifact built, hashed, packaged (gate for 11).
+11. Owner decision file → publish → served-byte verify → device check.
+12. Owner-authorized server lockdown of raw training PATCH.
