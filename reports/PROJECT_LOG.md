@@ -276,6 +276,18 @@ the exchange transcripts, and are marked (r) where reconstructed.
   lockdown, no commit into the app lineage, no publication. C11 revision
   must fail against `.407` before it counts. Engineer.
 
+- **2026-08-02, build `2026-08-02.408-fx` published.** Owner-designed header
+  day navigation, mockup-first: bare chevrons flanking a centered date on
+  Home and Train (Today / Yesterday / then the date), one day per tap, the
+  future unreachable, month calendar and Jump-to-today unchanged. The
+  Owner approved a pixel mockup rendered in the real header before any
+  implementation. The uncommitted M8 core was extracted before the release
+  commit — `.408` carries no M8 code — and restored to the working copy
+  after publication. Owner authorized; `main` `74a4777..0e7d1ff` pushed
+  (carrying five records commits, their authorized publication); served
+  bytes verified at 02:08:43Z (sha256 `a09d87c8…b457d5f2`). C14 at 55;
+  C12/C13 VM+browser green.
+
 ## §2 Owner actions on record
 
 1. 2026-07-30 — direction change (sync simplification, review narrowing).
