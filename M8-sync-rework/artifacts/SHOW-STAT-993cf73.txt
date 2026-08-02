@@ -1,0 +1,11 @@
+commit 993cf73f218f30466067a3a835a0b717384d4c7b
+Author: Griffin <griffin@gobblegobble.com>
+Date:   Sun Aug 2 01:45:48 2026 +0000
+
+    M8 design v6: E1-E5 actually applied (round-6 was prompt-only, caught)
+    
+    Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+    Claude-Session: https://claude.ai/code/session_013vTJLyt3fzzCxkgRaB7ajH
+
+ M8-sync-rework/DESIGN.md | 62 +++++++++++++++++++++++++++++++++++-------------
+ 1 file changed, 45 insertions(+), 17 deletions(-)

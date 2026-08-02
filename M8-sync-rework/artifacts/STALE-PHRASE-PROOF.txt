@@ -1,0 +1,6 @@
+grep -c 'all three absent' DESIGN.md:
+0
+grep -c 'design v6' DESIGN.md:
+1
+sha256 of DESIGN.md:
+e36fd0791edaa4ecd68fd08f1427da481e336c6082683e34c1a85c3072b19fe7  M8-sync-rework/DESIGN.md
