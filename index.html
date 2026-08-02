@@ -856,7 +856,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-02.406-fx";
+var APP_BUILD="2026-08-02.407-fx";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -1041,7 +1041,7 @@ function glpCardHTML(){
   });
   syms.forEach(function(x){
     var sev=parseInt(x.severity,10)||0;var pips="";for(var i=1;i<=5;i++)pips+='<span class="wl-glppip'+(i<=sev?" on":"")+'"></span>';
-    h+='<div class="wl-glpsev"><b>'+esc(glpSymLabel(x.symptomTypeId))+'</b>'+pips+'</div>';
+    h+='<button class="wl-glpsev" style="width:100%;background:none;border:none;padding:0;font:inherit;color:inherit;text-align:left" data-act="glp:sym:edit" data-id="'+esc(x.id)+'"><b>'+esc(glpSymLabel(x.symptomTypeId))+'</b>'+pips+'</button>';
   });
   h+='<div class="wl-glpbtnrow"><button class="wl-btn wl-btn-supp" data-act="glp:dose:open">'+plus+'Log Dose</button>';
   if(g.settings.symptomLogging)h+='<button class="wl-btn wl-btn-supp" data-act="glp:sym:open">'+plus+'Symptom</button>';
@@ -1063,7 +1063,7 @@ function glpDoseSheetInner(s,g){var c=g.compound||{};var unit=c.unit||"mg";
   return h;
 }
 function glpSymSheetInner(s,g){var types=(g.symptomTypes||[]).filter(function(t){return !t.archived;});
-  var h='<h4 class="wl-glpsheet-h">Log symptom</h4><div class="wl-glpsheet-sub">'+esc(glpFmtWhen(s.at||Date.now()))+'</div>';
+  var h='<h4 class="wl-glpsheet-h">'+(s.editId?'Edit symptom':'Log symptom')+'</h4><div class="wl-glpsheet-sub">'+esc(glpFmtWhen(s.at||Date.now()))+'</div>';
   h+='<div class="wl-glpfield"><div class="wl-glpflabel">Symptom</div><div class="wl-glpchips">';
   types.forEach(function(t){var cls="wl-glpchip"+(s.symptomTypeId===t.id?" sel":"");var extra=t.isBuiltIn?"":(' data-glplong="'+t.id+'"');h+='<button class="'+cls+'" data-act="glp:sym:pick" data-id="'+t.id+'"'+extra+'>'+esc(t.label)+'</button>';});
   if(s.newOpen)h+='<span class="wl-glpchip add"><input class="wl-glpnewin" data-glps="newlabel" id="wl-glpnewin" placeholder="name…" value="'+esc(s.newLabel||"")+'" autocomplete="off"><button class="wl-glpnewok" data-act="glp:sym:newsave">✓</button></span>';
@@ -1074,7 +1074,8 @@ function glpSymSheetInner(s,g){var types=(g.symptomTypes||[]).filter(function(t)
   h+='<div class="wl-glpfield"><div class="wl-glpflabel">Severity</div><div class="wl-seg wl-seg-wide" style="margin-bottom:0">'+[1,2,3,4,5].map(function(n){return '<button class="'+(s.severity===n?"on":"")+'" data-act="glp:sev" data-sev="'+n+'">'+n+'</button>';}).join("")+'</div></div>';
   h+='<div class="wl-glpfield"><div class="wl-glpflabel">Time</div><input class="wl-glpinbox" data-glps="at" type="datetime-local" value="'+glpToLocalInput(s.at||Date.now())+'"></div>';
   h+='<div class="wl-glpfield"><div class="wl-glpflabel">Note <span class="wl-glpopt">— optional</span></div><input class="wl-glpinbox" data-glps="note" type="text" value="'+esc(s.note||"")+'" placeholder="Anything worth noting"></div>';
-  h+='<button class="wl-glpcta" data-act="glp:sym:save">Save symptom</button>';
+  h+='<button class="wl-glpcta" data-act="glp:sym:save">'+(s.editId?'Save changes':'Save symptom')+'</button>';
+  if(s.editId)h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="glp:sym:del" data-id="'+esc(s.editId)+'">Delete this log</button>';
   return h;
 }
 function glpSheetHTML(){var s=state.glpSheet;if(!s)return "";glpNormalize();var g=state.glp;
@@ -1153,7 +1154,7 @@ function dayDots(iso){var seen={},cats=[];function _ad(c){if(!seen[c]){seen[c]=1
   return '';}
 var state={settings:Object.assign({},DEFAULT_SETTINGS),weights:[],food:{},workouts:{},steps:{},notes:{},sleep:{},bodyfat:{},waist:{},leanmass:{},statuses:[],weeklySummary:null,nightlySummary:null,nightlyLog:{},presets:DEFAULT_PRESETS.slice(),
   view:"overview",calY:new Date().getFullYear(),calM:new Date().getMonth(),weekOffset:0,trendMode:"W",trendOffset:0,calOpen:false,sumOpen:true,nightOpen:true,genBusy:false,nightBusy:false,diaryWeeks:1,
-  training:{cardioTypes:DEFAULT_CARDIO_TYPES.slice(),sessions:{},exercises:[],routines:[],liftSessions:{}},cardioForm:null,manageOpen:false,actAddCat:null,actPick:null,exForm:null,routineId:null,riPickOpen:false,noteEdit:null,liftForm:null,workout:null,setMenu:null,woPrompt:false,bwEdit:false,histView:null,exMenu:null,woReplaceEi:null,liftViewId:null,liftViewDate:null,woResume:false,liftEdit:null,quickEntry:null,
+  training:{cardioTypes:DEFAULT_CARDIO_TYPES.slice(),sessions:{},exercises:[],routines:[],liftSessions:{}},cardioForm:null,manageOpen:false,actAddCat:null,actPick:null,exForm:null,routineId:null,riPickOpen:false,noteEdit:null,liftForm:null,workout:null,setMenu:null,woPrompt:false,bwEdit:false,histView:null,exMenu:null,woReplaceEi:null,woReplSave:null,liftViewId:null,liftViewDate:null,woResume:false,liftEdit:null,quickEntry:null,
   selDate:todayISO(),foodDate:todayISO(),alertDismissed:false,confirmReset:false,skips:{},glp:glpDefault(),glpDraft:null,glpSheet:null,reopenAsk:null};
 
 function load(){
@@ -6892,6 +6893,8 @@ function woOverlaysHTML(){var h="";
       h+='<div style="margin:10px 0 4px">'+muscleTagHTML(m[0])+'</div>';
       items.forEach(function(e){h+='<button class="wl-exrow-main" data-act="wo:replacepick" data-eid="'+e.id+'" style="width:100%;padding:9px 0;border-bottom:1px solid var(--line)"><span class="wl-exrow-name">'+esc(e.name)+'</span></button>';});});
     h+='</div></div>';}
+  if(state.woReplSave){var _rs=state.woReplSave;
+    h+='<div class="wl-confirm"><div class="wl-confirm-card"><div class="wl-confirm-msg">Swapped <b>'+esc(_rs.prev)+'</b> for <b>'+esc(_rs.next)+'</b>. Save it to the routine going forward, or keep it for today only?</div><div class="wl-confirm-btns"><button class="wl-btn wl-btn-ghost wl-full" data-act="wo:replsave:once">Just this once</button><button class="wl-btn wl-full" style="background:var(--accent);color:#fff;border:none" data-act="wo:replsave:fwd">Save to routine</button></div></div></div>';}
   if(state.workout&&state.workout.tState==="resting"){var b=woBuckets();
     h+='<div class="wl-confirm"><div class="wl-confirm-card" style="text-align:center"><div style="font-size:12px;color:var(--faint);text-transform:uppercase;letter-spacing:.1em;font-weight:800">Rest</div><div class="wl-tb-total" id="wl-rest-time" style="font-size:52px;margin:12px 0;color:#3b82f6">'+fmtDur(b.segMs)+'</div><div class="wl-restwhy"><div class="wl-restwhy-h">Rest long enough to</div><ol class="wl-restwhy-l"><li>No longer be breathing heavily.</li><li>Feel mentally ready for another hard set.</li><li>Not be crampy in a supporting muscle \u2014 a fatigued lower back before another squat set, say.</li><li>Have enough back in the target muscle for at least 5 reps.</li></ol></div><button class="wl-btn wl-btn-primary wl-full" data-act="wo:endrest">Begin next set</button>'+(function(){var _un=woUpNext();if(!_un)return "";var _u=state.settings.units;var _bits=['Set '+_un.setNo+' of '+_un.setTotal];if(_un.reps)_bits.push(_un.reps+' reps');if(_un.weight)_bits.push(esc(_un.weight)+' '+_u);return '<div class="wl-upnext"><span class="wl-upnext-l">Up next</span><b style="color:var(--text)">'+esc(_un.name)+'</b><br>'+_bits.join(' \u00b7 ')+'</div>';})()+'</div></div>';}
   h+=fbSheetHTML();
@@ -7240,6 +7243,8 @@ document.addEventListener("click",function(e){
   if(a==="glp:dose:del"){glpNormalize();var _id=el.getAttribute("data-id");state.glp.doses=state.glp.doses.filter(function(d){return d.id!==_id;});save();render();return;}
   if(a==="glp:skip"){glpNormalize();var _g3=state.glp;var _at2=el.getAttribute("data-at");var _atMs2=_at2?parseInt(_at2,10):Date.now();state.glp.doses.push({id:glpNewId("dose"),dose:(_g3.compound?_g3.compound.dose:""),unit:(_g3.compound?_g3.compound.unit:"mg"),siteId:null,takenAt:_atMs2,note:"",skipped:true});save();render();toast("Marked skipped");return;}
   if(a==="glp:sym:open"){glpNormalize();if(!state.glp.settings.symptomLogging)return;state.glpSheet={mode:"sym",symptomTypeId:null,severity:null,at:Date.now(),note:"",newOpen:false,newLabel:""};render();return;}
+  if(a==="glp:sym:edit"){glpNormalize();var _sid=el.getAttribute("data-id");var _sl=(state.glp.symptoms||[]).filter(function(x){return x.id===_sid;})[0];if(!_sl)return;state.glpSheet={mode:"sym",editId:_sl.id,symptomTypeId:_sl.symptomTypeId,severity:parseInt(_sl.severity,10)||null,at:_sl.occurredAt,note:_sl.note||"",newOpen:false,newLabel:""};render();return;}
+  if(a==="glp:sym:del"){var _did=el.getAttribute("data-id");askConfirm("Delete this symptom log? This can\u2019t be undone.",function(){state.glp.symptoms=(state.glp.symptoms||[]).filter(function(x){return x.id!==_did;});save();state.glpSheet=null;toast("Symptom log deleted");},{label:"Delete"});return;}
   /* The sheet used to open with the FIRST type (Nausea) preselected. On iOS,
      tapping a chip while the note keyboard is up only dismisses the keyboard --
      the tap never lands -- so the default was saved silently: a real headache
@@ -7249,7 +7254,11 @@ document.addEventListener("click",function(e){
   if(a==="glp:sev"){glpSheetSync();if(state.glpSheet)state.glpSheet.severity=parseInt(el.getAttribute("data-sev"),10);render();return;}
   if(a==="glp:sym:new"){glpSheetSync();if(state.glpSheet)state.glpSheet.newOpen=true;render();var _ni=document.getElementById("wl-glpnewin");if(_ni)_ni.focus();return;}
   if(a==="glp:sym:newsave"){glpNormalize();glpSheetSync();var _s2=state.glpSheet;if(!_s2)return;var _lbl=(_s2.newLabel||"").trim();if(!_lbl){toast("Enter a symptom name");return;}var _nid=glpNewId("sym");state.glp.symptomTypes.push({id:_nid,label:_lbl,isBuiltIn:false,archived:false});_s2.symptomTypeId=_nid;_s2.newOpen=false;_s2.newLabel="";save();render();return;}
-  if(a==="glp:sym:save"){glpNormalize();glpSheetSync();var _s3=state.glpSheet;if(!_s3)return;if(!_s3.symptomTypeId){toast("Pick a symptom");return;}if(!_s3.severity){toast("Pick a severity");return;}state.glp.symptoms.push({id:glpNewId("slog"),symptomTypeId:_s3.symptomTypeId,severity:parseInt(_s3.severity,10),occurredAt:(_s3.at||Date.now()),note:(_s3.note||"").trim()});save();state.glpSheet=null;render();toast("Logged: "+glpSymLabel(_s3.symptomTypeId)+" \u00b7 severity "+_s3.severity);return;}
+  if(a==="glp:sym:save"){glpNormalize();glpSheetSync();var _s3=state.glpSheet;if(!_s3)return;if(!_s3.symptomTypeId){toast("Pick a symptom");return;}if(!_s3.severity){toast("Pick a severity");return;}
+    if(_s3.editId){var _hit=(state.glp.symptoms||[]).filter(function(x){return x.id===_s3.editId;})[0];if(!_hit){state.glpSheet=null;render();return;}
+      _hit.symptomTypeId=_s3.symptomTypeId;_hit.severity=parseInt(_s3.severity,10);_hit.occurredAt=(_s3.at||_hit.occurredAt);_hit.note=(_s3.note||"").trim();
+      save();state.glpSheet=null;render();toast("Updated: "+glpSymLabel(_hit.symptomTypeId)+" \u00b7 severity "+_hit.severity);return;}
+    state.glp.symptoms.push({id:glpNewId("slog"),symptomTypeId:_s3.symptomTypeId,severity:parseInt(_s3.severity,10),occurredAt:(_s3.at||Date.now()),note:(_s3.note||"").trim()});save();state.glpSheet=null;render();toast("Logged: "+glpSymLabel(_s3.symptomTypeId)+" \u00b7 severity "+_s3.severity);return;}
   if(a==="glp:sheetclose"){state.glpSheet=null;render();return;}
   if(a==="glp:prog:mode"){state.glpProgMode=el.getAttribute("data-mode");render();return;}
   if(a==="glp:timeline"){if(!glpProgEnabled())return;state.view="glptimeline";render();return;}
@@ -7378,7 +7387,13 @@ document.addEventListener("click",function(e){
   if(a==="wo:exremove"){var w=state.workout;var ei=+el.getAttribute("data-ei");var en=w&&w.entries[ei];askConfirm("Remove "+((en&&en.name)||"this exercise")+" from this workout? (Your routine isn\u2019t changed.)",function(){var w2=state.workout;if(w2)w2.entries.splice(ei,1);state.exMenu=null;saveWorkout();},{label:"Remove"});return;}
   if(a==="wo:exreplace"){state.woReplaceEi=+el.getAttribute("data-ei");state.exMenu=null;render();return;}
   if(a==="wo:replacecancel"){state.woReplaceEi=null;render();return;}
-  if(a==="wo:replacepick"){var w=state.workout;var ei=state.woReplaceEi;var ex=exById(el.getAttribute("data-eid"));if(w&&ei!=null&&ex){var en=w.entries[ei];en.exerciseId=ex.id;en.name=ex.name;en.muscle=ex.muscle;en.equipment=ex.equipment;en.bodyweight=!!ex.bodyweight;en.notes=[];(ex.notes||[]).forEach(function(nn){en.notes.push({id:nn.id,text:nn.text,pinned:true});});}state.woReplaceEi=null;saveWorkout();render();return;}
+  if(a==="wo:replacepick"){var w=state.workout;var ei=state.woReplaceEi;var ex=exById(el.getAttribute("data-eid"));if(w&&ei!=null&&ex){var en=w.entries[ei];var _prevN=en.name;en.exerciseId=ex.id;en.name=ex.name;en.muscle=ex.muscle;en.equipment=ex.equipment;en.bodyweight=!!ex.bodyweight;en.notes=[];(ex.notes||[]).forEach(function(nn){en.notes.push({id:nn.id,text:nn.text,pinned:true});});
+    /* Owner spec: swapping mid-workout asks whether the routine keeps the change */
+    var _rt=getRoutine(w.routineId);var _it=_rt&&en.itemId?rItem(_rt,en.itemId):null;
+    if(_it&&_it.exerciseId!==ex.id)state.woReplSave={rtId:w.routineId,itemId:en.itemId,exId:ex.id,prev:_prevN,next:ex.name};
+  }state.woReplaceEi=null;saveWorkout();render();return;}
+  if(a==="wo:replsave:once"){state.woReplSave=null;render();return;}
+  if(a==="wo:replsave:fwd"){var _rs=state.woReplSave;state.woReplSave=null;if(_rs){var _rt2=getRoutine(_rs.rtId);var _it2=_rt2?rItem(_rt2,_rs.itemId):null;var _ex2=exById(_rs.exId);if(_it2&&_ex2){_it2.exerciseId=_ex2.id;saveTraining();toast("Routine updated: "+_ex2.name+" going forward");}else{toast("Couldn't update the routine");}}render();return;}
   if(a==="wo:exnote"){var w=state.workout;var en=w&&w.entries[+el.getAttribute("data-ei")];if(!en)return;state.routineId=w.routineId;state.noteEdit={iid:en.itemId,nid:null,text:"",pinned:false,woEi:+el.getAttribute("data-ei")};state.exMenu=null;render();return;}
   if(a==="wo:hist"){var w=state.workout;var en=w&&w.entries[+el.getAttribute("data-ei")];if(en)openHistory(en.exerciseId,en.name);return;}
   if(a==="wo:histclose"){state.histView=null;render();return;}
