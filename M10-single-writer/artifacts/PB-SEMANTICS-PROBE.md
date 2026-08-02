@@ -19,7 +19,11 @@ Results (raw run 2026-08-02):
   collection and reject PRE-WRITE on a stale `x-probe-fence` header
   (400 before mutation); a current fence passes and the hook can stamp
   fields.
-- Q3 recursion: a programmatic `e.app.save()` inside
-  `onRecordAfterUpdateSuccess` completes without re-firing loops or
-  deadlock (777→778 observed, no hang).
+- Q3 (corrected description per M10 round-4 item 3): a programmatic
+  `e.app.save()` inside `onRecordAfterUpdateSuccess` — an AFTER hook —
+  completes without loops or deadlock (777→778, no hang). This says
+  NOTHING about saves inside `onRecordUpdateRequest` or request-hook
+  recursion; it is not cited for that, and the v5 architecture removes
+  the need (no request-hook writes: content moves to explicit
+  transactional routes).
 - Q4 create path: `onRecordCreateRequest` fires (creation is fenceable).
