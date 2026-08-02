@@ -355,6 +355,20 @@ the exchange transcripts, and are marked (r) where reconstructed.
   prevents the overwrite it documents — it becomes a conflict expectation
   in the M8 evidence round. Engineer.
 
+- **2026-08-02, M8 round 9 — implementation evidence REJECTED, 13
+  findings.** The evidence bundle (50 green cases across 7 browser
+  suites, recovery artifact hashed, 555-line candidate diff) was rejected
+  on substance: dirty-marker ordering leaves a crash window; the ack path
+  skips persisted k1..kN phases; Choose Local/Server bypass the journal
+  protocol; export evidence is an anchor click, not delivery; read
+  exceptions read as absence; quarantine doesn't verify deletion; the
+  recovery build still permits training reads; one replay test modeled a
+  response the real route cannot produce; the idempotency key used
+  Math.random. The upgrade/matrix/accounts/provenance evidence was
+  acknowledged as sound. Full list in the exchange record and the M8
+  status memory; disposable-PB and packaging remain blocked until a
+  revised round passes. Engineer.
+
 ## §2 Owner actions on record
 
 1. 2026-07-30 — direction change (sync simplification, review narrowing).
