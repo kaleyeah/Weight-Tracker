@@ -103,7 +103,31 @@ Composite actions list EVERY class they touch. Photos are CONTENT and gated (C8)
 | `wo:skipthem` | training | m10Gate |
 | `wu:no` | training | m10Gate |
 
-Non-action writers: unchanged from v1 matrix, with corrections:
-- photo import/delete/clear paths (idb*) are G-photos wherever they appear, incl. day:clear and reset:do composites.
-- Object-URL caches, thumbnails, UI prefs: exempt (non-content).
-- All entries per DESIGN v4 §§2,5,6,7.
+## Non-action writers (v3 — concrete, per round-4 item 9)
+
+| writer (function) | stores | gate location | endpoint | fence | stale recovery / exemption |
+|---|---|---|---|---|---|
+| `hkTryFetch` (Health apply) | core (`wl_v1` weights/steps/sleep/food/bodyfat/waist/leanmass), server `health` clear | m10Gate at the apply step | commit route (`core`) + mailbox clear | yes (core) | coreStale → displaced-core flow; health clear is mailbox |
+| `applyImport` (backup restore) | core + training | m10Gate at action entry (`import:*`) | commit route (both subsystems) | yes | per-subsystem displaced flows |
+| `migrateProgressionTypes` (boot) | `wl_training_v1` local | EXEMPT: local normalization pre-gate; reaches the server only via gated paths | — | — | n/a |
+| `resyncAllActivityTags` | core tags | inherits caller (runs only inside acked/adopted transitions, M8 §5b) | via caller | via caller | n/a |
+| `cloudPush` (core push) | server `data` | n/a (transport) | commit route (`core`) after M10 | yes | coreStale → displaced-core |
+| `m8Push`/M8 internals | server `training` | n/a (transport) | commit route (`training`) | yes | fenceStale → M8 conflict |
+| `m8CxChooseLocal`/`ChooseServer` | training + conflict keys | m10Gate (user actions) | commit route | yes | M8 flows |
+| `pushDataPromise` (pre-import) | server `data` | inherits import gate | commit route (`core`) | yes | coreStale → displaced-core |
+| `pbForceLogout` push | server `data`+`training` | EXEMPT from lease gate (M8 logout gate governs); pushes fence-carrying | commit route | yes | refusal keeps device signed in |
+| coach request (`max:*`) | server `coachreq` | EXEMPT (mailbox) | raw PATCH mailbox-only | no | §6 mailbox rule |
+| NAS coach jobs | `data` summaries + `health` clear | server-side | superuser writes | bypass (§2) | logged, payload-free |
+| health Shortcut | server `health` | external | raw PATCH mailbox-only | no | §6 |
+
+## IndexedDB (photos) mutation enumeration (v3, per round-4 items 8/9)
+
+Primitives in the tree: `idbAdd`, `idbClearAll`, `idbDelete`.
+Every content call site is gated at its ACTION entry:
+| entry | primitive(s) | gate |
+|---|---|---|
+| photo import/add (`ph:*` add + share-import chain) | idbPut/idbAdd | m10Gate |
+| photo delete (`photo:del`, viewer delete) | idbDelete | m10Gate |
+| `day:clear` photo pruning | idbByDate→idbDelete | m10Gate (composite: core+training+photos) |
+| `reset:do` | idbClearAll | m10Gate (composite: all classes) |
+| object-URL/thumbnail caches, `photoURLs` revocation | none (in-memory) | EXEMPT (non-content) |
