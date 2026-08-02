@@ -9239,7 +9239,10 @@ function m8Boot(cb){
   var jr=m8Read("journal");
   if(jr.st==="malformed"){m8Quarantine("journal");cb&&cb();return;}
   if(jr.st==="ok"){
-    if(m8HardBlocked){cb&&cb();return;/* fail closed: no replay under a hard block */}
+    if(jr.val.phase==="done"){m8JournalEnd();cb&&cb();return;/* the explicit
+      exception: removing a verified terminal record is cleanup-only */}
+    if(m8HardBlocked||m8UnprovenBlocked){cb&&cb();return;/* fail closed on the
+      UNION: no replay or fetch while any block stands (R14) */}
     m8ResolveJournal(jr.val,function(){cb&&cb();});return;}
   cb&&cb();}
 /* =============== end M8 transitions =============== */

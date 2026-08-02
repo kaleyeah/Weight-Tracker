@@ -39,5 +39,10 @@ C11-M8 faults — DOM gating, ambiguity+restart, phase crashes, storage faults
   ✓ M: resolving a share AFTER an edit marks nothing delivered and keeps choices closed
   ✓ M: no fetch or adoption occurred
   ✓ N: fresh adoption preserves empty cardioTypes and unknown fields EXACTLY
+  ✓ Q: boot with unproven dirty + nonterminal journal is fully fail-closed (blocked, bytes intact)
+  ✓ Q: a forced training pull+push makes zero requests and zero commits under the soft block
+  ✓ Q: the verified re-save releases the soft block and journal resolution resumes safely
+  ✓ R: a done-record with failing removal survives with zero training-originated requests
+  ✓ R: once removal succeeds, boot performed ONLY the verified cleanup (no commits, clean)
 
-OK — 38 passed
+OK — 43 passed

@@ -1,5 +1,5 @@
 diff --git a/index.html b/index.html
-index 27ee114..4b6a701 100644
+index 27ee114..b593d51 100644
 --- a/index.html
 +++ b/index.html
 @@ -1115,7 +1115,11 @@ var DEFAULT_CARDIO_TYPES=["Peloton","Treadmill","Rowing","Bike","Elliptical","Ou
@@ -15,7 +15,7 @@ index 27ee114..4b6a701 100644
  function saveTraining(){saveTrainingLocal();scheduleTrainingPush();}
  function loadTraining(){try{var t=JSON.parse(localStorage.getItem(TKEY));if(t&&typeof t==="object"){state.training={cardioTypes:(Array.isArray(t.cardioTypes)&&t.cardioTypes.length)?t.cardioTypes:DEFAULT_CARDIO_TYPES.slice(),sessions:t.sessions||{},exercises:t.exercises||[],routines:t.routines||[],liftSessions:t.liftSessions||{}};}}catch(e){}}
  function syncCardioTags(date){var kept=normActs(date).filter(function(a){return !(a.cat==="cardio"&&a.auto);});
-@@ -8731,6 +8735,517 @@ function cloudPush(manual){
+@@ -8731,6 +8735,520 @@ function cloudPush(manual){
      setSync(err==="offline"?"offline":"error",err==="auth"?"session expired — log in again":"");
      if(manual)toast(err==="offline"?"No connection":err==="auth"?"Please log in again":"Save failed");});}
  
@@ -523,7 +523,10 @@ index 27ee114..4b6a701 100644
 +  var jr=m8Read("journal");
 +  if(jr.st==="malformed"){m8Quarantine("journal");cb&&cb();return;}
 +  if(jr.st==="ok"){
-+    if(m8HardBlocked){cb&&cb();return;/* fail closed: no replay under a hard block */}
++    if(jr.val.phase==="done"){m8JournalEnd();cb&&cb();return;/* the explicit
++      exception: removing a verified terminal record is cleanup-only */}
++    if(m8HardBlocked||m8UnprovenBlocked){cb&&cb();return;/* fail closed on the
++      UNION: no replay or fetch while any block stands (R14) */}
 +    m8ResolveJournal(jr.val,function(){cb&&cb();});return;}
 +  cb&&cb();}
 +/* =============== end M8 transitions =============== */
@@ -533,7 +536,7 @@ index 27ee114..4b6a701 100644
  function trainingPush(){
    /* Blocked in BOTH directions. Pulling can destroy the local copy; pushing an
       unverified local copy can destroy newer training on the server. With the
-@@ -8756,6 +9271,232 @@ function trainingPull(cb){
+@@ -8756,6 +9274,232 @@ function trainingPull(cb){
  
  
  /* =============== end M8 wiring =============== */
