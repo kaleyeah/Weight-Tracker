@@ -1,36 +1,32 @@
-# M8 sync rework — round 5: design v5, narrow corrections only
+# M8 sync rework — round 6: design v6 — only the E-corrections
 
 You are the Architect for the Compound project (read-only; rulings bind
 the Engineer; the Owner alone authorizes deployment and live-data
 mutation).
 
-## Since round 4
+## Since round 5
 
-`DESIGN.md` is v5. Your D-items, all folded:
-- D2: repo facts restated — `compound-app/main` at `3de02ee`, three
-  records commits ahead of `origin/main` `74a4777`; live base unchanged;
-  a note that each bundle restates these as records land.
-- D3: the stale "no-op CAS at the same rev" sentence is gone; B6 now
-  points at the journaled fetch-and-compare, and the journal is written
-  BEFORE any network request — an un-journalable push does not happen.
-- D4: logout affordances differ by state — dirty-with-base gets Push now;
-  bootstrap/conflict get routed into the export-first conflict workflow,
-  no generic push.
-- D5: rollback eligibility is a five-kind prefix scan (dirty, base,
-  conflict, journal, corrupt) across all accounts; any hit forces
-  roll-forward.
-- D6: journal phases specified (intent → net-done → k1..kN), each advance
-  persisted and verified; boot recovery compares actual keys against
-  expect and never trusts phase alone.
-- D7: journal-removal failure recognized idempotently by key comparison;
-  cleanup retried; no replay, no clearing of dirty newer than
-  expect.gen.
-- D8: gen-advanced acks hand the captured acknowledged copy to tag
-  derivation explicitly.
+`DESIGN.md` is v6, containing exactly your five corrections and nothing
+else:
+- E1: the ack journal's evolution is explicit — intent carries
+  {oldBaseCanon, expectedRev, pushedCanon, gen, requestId} before the
+  request; net-done adds newRev and the acknowledged identity.
+- E2: ambiguous-outcome recovery specified with your three arms, and a
+  transport error is defined as ambiguous — it never proves the request
+  failed.
+- E3: the blanket "never toward clean" is replaced: clean only on exact
+  proof from actual persisted/server state; ambiguity or mismatch moves
+  only toward dirty/conflict.
+- E4: the stale "all three absent" parenthetical is deleted; the
+  five-kind all-account prefix scan is the only rollback rule in the
+  document.
+- E5: the six crash points are named in the evidence plan, including
+  server-commit-with-lost-response and gen advancing during each
+  ambiguous outcome.
+
+Repo facts are unchanged since round 5 (`compound-app/main` at `3de02ee`,
+three ahead of `origin/main` `74a4777`; live base `74a4777:index.html`).
 
 ## This round
 
-Rule on design v5 as the implementation contract. On a pass,
-implementation begins per §9 — `engineering/m8` for tests, uncommitted on
-top of the current records HEAD for the app, records preserved, no server
-record touched, disposable-PB later as its own round.
+Rule on design v6 as the implementation contract.
