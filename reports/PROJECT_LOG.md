@@ -203,6 +203,19 @@ the exchange transcripts, and are marked (r) where reconstructed.
   pushed; served bytes verified at 01:11:48Z (sha256 `76fef3f1…6ec773ef`).
   C14 at 42; C12/C13 VM+browser green.
 
+- **2026-08-02, build `2026-08-02.407-fx` published — the bug list is
+  CLOSED.** (1) The replace-exercise prompt, to the Owner's own spec:
+  swapping mid-workout asks "save to the routine going forward, or today
+  only"; Save updates the routine item in place (ranges/notes kept);
+  same-exercise swaps ask nothing. (2) Symptom logs are editable in place
+  from the day card (sheet opens prefilled; save relabels without
+  duplicating; gated delete) — the self-serve path for the mislabelled
+  2026-07-31 headache, deliberately the same Owner-validates-the-feature
+  pattern as the session editor. Owner authorized; `main`
+  `a2b4234..74a4777` pushed; served bytes verified at 01:19:04Z (sha256
+  `6018c038…87896bd9`). C14 at 49; C12/C13 VM+browser green. Next per
+  Owner direction: M8 sync rework, through the Architect loop.
+
 ## §2 Owner actions on record
 
 1. 2026-07-30 — direction change (sync simplification, review narrowing).
