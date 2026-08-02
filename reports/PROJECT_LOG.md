@@ -124,6 +124,38 @@ the exchange transcripts, and are marked (r) where reconstructed.
   unlikely-not-impossible). The Owner's session-date correction request is
   held pending its own reviewed package.
 
+- **2026-08-01, post-release — build `2026-08-01.402-fx` published.** Client
+  correctness batch, ruled by the Owner ("Correctness first") and exempt from
+  the exchange loop per his standing rule (client-only). Fixes: symptom sheet
+  no longer preselects a type and refuses save without one, toast names what
+  it saved (bug 5, root cause of the mislabelled headache); bodyweight
+  exercises load the day's weigh-in, not last session's (bug 6); pinned-note
+  copies carry source ids so they open with text (bug 3); bottom nav gets its
+  own compositing layer (bug 7). Plus the Owner-requested **session editor**
+  (date / start time / duration on the lift summary) — replacing the held DB
+  mutation package entirely: the Owner moves his reconstructed 8/01 workout to
+  7/31 18:43 himself, which also validates the feature. Owner authorized via
+  the decision channel; `main` `e4abbae..e6cc3a1` pushed (carrying records
+  commit `b236cc8`, its authorized publication); served bytes verified
+  (sha256 `e3e119a8…d51d2b25`). C14 browser suite created (21 assertions,
+  incl. the exact planned move through the real editor); C12/C13 green.
+
+- **2026-08-02 (UTC), build `2026-08-01.403-fx` published.** Two Owner
+  reports from live use: the Edit-summary start-time field oversized (the old
+  date-input intrinsic-width bug, fix now covers `input[type=time]`), and the
+  GLP activity pill still listing every shot (bug 4, pulled forward from
+  Build 2). `glpCardHTML()` now day-scopes doses and symptoms to the viewed
+  day (padded-ISO comparisons — `glpDayKey`'s unpadded format can never match
+  a `selDate`; latent trap found and avoided), with a "last was N days ago"
+  hint on shot-free days; the full journal (`glpJournalHTML()`: compound,
+  dose, time, site, note) lives under the Weight & dose chart per the Owner's
+  design ruling. Owner authorized via the decision channel; `main`
+  `e6cc3a1..97f3fac` pushed; served bytes verified at 00:01:08Z (sha256
+  `86031cf2…cf162402`). C14 extended to 28 assertions; C12/C13 VM+browser
+  green. Noted for the record: suite C11 (10/51) fails identically against
+  the published `.402` — it specifies the M8 sync-durability behaviour, not a
+  regression.
+
 ## §2 Owner actions on record
 
 1. 2026-07-30 — direction change (sync simplification, review narrowing).
