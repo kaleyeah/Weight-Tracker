@@ -68,7 +68,7 @@ in-session. Established 2026-08-01 at the Owner's request.
 | M6 | Owner authorizes live publication (= the deployment decision) → publish → served-artifact byte verification → manual iPhone check on every in-use storage area | **Done** (2026-08-01) — Owner authorized via his decision channel with the production-deployment warning explicit; `main` and tag `v2026-08-01.401-bk` pushed; the live URL served sha256 `7d865ff8…9d5743`, **byte-identical to the accepted commit `e4abbae…`** (standing ruling 1 satisfied for THIS artifact only); Home-Screen device check passed, pre-sync notice confirmed on-screen |
 | M7 | Owner accepts the release, or the rollback procedure executes | **Done** (2026-08-01) — Owner formally ACCEPTED after the checklist, with the floating-nav cosmetic defect disclosed (bug 7, engineering repo) |
 | M7b | Reviewed HealthKit storage-migration package (schema, migration, backup, rollback, tests) per standing ruling | Required before M10 implementation; independent of M8 ordering |
-| M8 | Sync rework (Architect round-2 rulings 1–10) | Not started; brief agreed; kept separate from M2 by ruling |
+| M8 | Sync rework (design v7 contract, approved round 8) | IMPLEMENTED in the compound-app working copy (uncommitted, two delimited blocks, extracted for every release); under Architect evidence review (rounds 9–14); disposable-PB, packaging, publication all still gated |
 | M9 | Conflict/recovery resolution UI; snapshot reconciliation | Follows M8 |
 | M10 | "One active writing device"; then HealthKit import | Approved, unimplemented; after M8 AND the reviewed M7b package |
 
