@@ -475,9 +475,6 @@ input[type=date]::-webkit-calendar-picker-indicator,input[type=time]::-webkit-ca
 .wl-infobody p:last-child{margin-bottom:0;}
 .wl-infobody b{color:var(--text);}
 .wl-recaphead{display:flex;align-items:center;gap:6px;}
-.wl-recapnav{display:flex;gap:4px;flex:none;}
-.wl-recaparw{width:30px;height:30px;border-radius:8px;background:var(--bg2);border:1px solid var(--line);color:var(--muted);font-size:18px;line-height:0;display:flex;align-items:center;justify-content:center;flex:none;font-family:var(--sans);cursor:pointer;padding:0;}
-.wl-recaparw.off{opacity:.35;}
 .wl-recaplink{background:none;border:none;color:var(--muted);font-size:12px;font-weight:600;font-family:var(--sans);display:inline-flex;align-items:center;gap:4px;padding:2px 4px;flex:none;cursor:pointer;}
 .wl-recaplink:hover{color:var(--accent);}
 .wl-recap-new{border-color:rgba(245,181,68,.55);box-shadow:0 0 0 1px rgba(245,181,68,.22),0 6px 24px rgba(245,181,68,.12);}
@@ -861,7 +858,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-02.413-fx";
+var APP_BUILD="2026-08-02.414-fx";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -2065,8 +2062,7 @@ function view_overview(){
   var _rcDate=_rcFor(_sel)?_sel:null;/* recap shows only for the viewed day; no fallback to yesterday's recap on an uncompleted day */
   var _rc=_rcDate?_rcFor(_rcDate):null;var _recapCard="";var _atTop=false;
   if(_rc){var _unrdThis=_unrdN&&_rcDate===_nsD;_atTop=_unrdThis;var _no=_unrdThis?false:(state.nightOpen!==false);
-    var _pi=_rcDates.indexOf(_rcDate);var _prev=_pi>0?_rcDates[_pi-1]:null;var _next=(_pi>=0&&_pi<_rcDates.length-1)?_rcDates[_pi+1]:null;
-    var _nav=(_rcDates.length>1)?('<span class="wl-recapnav">'+(_prev?'<button class="wl-recaparw" data-act="recap:go" data-date="'+_prev+'" aria-label="Older recap">‹</button>':'<span class="wl-recaparw off">‹</span>')+(_next?'<button class="wl-recaparw" data-act="recap:go" data-date="'+_next+'" aria-label="Newer recap">›</button>':'<span class="wl-recaparw off">›</span>')+'</span>'):'';
+    var _nav='';/* recap arrows retired 2026-08-02: the header day nav navigates days, and the recap follows the viewed day */
     var _canRegen=SHOW_TESTBTN&&!state.nightBusy&&state.nightlySummary&&state.nightlySummary.date===_rcDate&&state.nightlySummary.text;
     var _regen=_canRegen?'<button class="wl-recaplink" data-act="night:gen" aria-label="Regenerate recap">↻ Regenerate</button>':'';
     _recapCard='<div class="wl-card'+(_unrdThis?' wl-recap-new':'')+'"><div class="wl-recaphead"><button class="wl-collapse-head" style="flex:1;min-width:0" data-act="night:toggle">'+coachHeadHTML("Daily recap",fmtShort(parseISO(_rcDate)),_unrdThis,_no)+'</button>'+_regen+_nav+'</div>'+(_no?'<div class="wl-ai-summary" style="margin-top:6px">'+maxMoodHTML(_rc.mood)+renderSummary(_rc.text)+'</div>':'')+'</div>';}
@@ -7342,7 +7338,6 @@ document.addEventListener("click",function(e){
   if(a==="noop"){return;}
   if(a==="sum:toggle"){var _ws1=state.weeklySummary;if(_ws1&&_ws1.week&&state.settings.seenWeekly!==_ws1.week){state.settings.seenWeekly=_ws1.week;state.sumOpen=true;try{localStorage.setItem("wl_sumopen","1");}catch(e){}save();render();return;}state.sumOpen=(state.sumOpen===false);try{localStorage.setItem("wl_sumopen",state.sumOpen?"1":"0");}catch(e){}render();return;}
   if(a==="night:toggle"){var _ns1=state.nightlySummary;if(_ns1&&_ns1.date&&state.settings.seenNightly!==_ns1.date){state.settings.seenNightly=_ns1.date;state.nightOpen=true;if(state.selDate!==_ns1.date){state.selDate=_ns1.date;var _np=parseISO(_ns1.date);state.calY=_np.getFullYear();state.calM=_np.getMonth();}save();render();return;}state.nightOpen=(state.nightOpen===false);render();return;}
-  if(a==="recap:go"){var _d=el.getAttribute("data-date");if(_d){state.selDate=_d;var _dp=parseISO(_d);state.calY=_dp.getFullYear();state.calM=_dp.getMonth();state.nightOpen=true;if((state.nightlySummary||{}).date===_d&&state.settings.seenNightly!==_d)state.settings.seenNightly=_d;save();render();}return;}
   if(a==="diary:older"){state.diaryWeeks=(state.diaryWeeks||1)+1;renderDiary();return;}
   if(a==="browse:open"){state.browseOpen=true;state.exForm=null;render();return;}
   if(a==="browse:close"){state.browseOpen=false;render();return;}
@@ -8759,6 +8754,8 @@ function trainingPull(cb){
       saveTrainingLocal();}
     cb&&cb();});}
 
+
+/* =============== end M8 wiring =============== */
 function cloudTest(){
   if(ownershipAmbiguous()){toast("Paused — this device holds data from another account");return;}
   setSync("syncing");
