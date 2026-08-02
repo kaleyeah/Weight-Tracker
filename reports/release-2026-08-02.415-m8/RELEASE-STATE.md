@@ -24,13 +24,17 @@
   (candidate = release commit 425f70e = tag v2026-08-02.415-m8 target
   = served artifact; four-point byte identity held).
 
-- OWNER DEVICE CHECK (2026-08-02): build confirmed; the one-time
-  bootstrap review card appeared on the Activity tab (sessions matched;
-  migration-stamped local fields; Owner exported both copies then chose
-  Keep this device's copy — cleared cleanly). Online quick-log synced
-  green unprompted; offline quick-log turned the dot red BY ITSELF
-  (unsynced-hold announced); on reconnect + relaunch the retry fired and
-  BOTH sessions survived intact to the server; dot green confirmed.
+- OWNER DEVICE CHECK (2026-08-02) — a SUBSET of the packaged §8
+  checklist, accurately recorded: build confirmed; the one-time
+  bootstrap review card appeared on the Activity tab and was resolved
+  through the full workflow (export both → Keep this device's copy —
+  cleared cleanly); online quick-log synced green unprompted; offline
+  quick-log turned the dot red BY ITSELF; on reconnect + relaunch the
+  retry fired and BOTH sessions survived intact; dot green confirmed by
+  the Owner. NOT individually evidenced on-device: the throwaway
+  deletion cycle and the offline logout-refusal step (the Owner was
+  advised the latter is covered by the automated evidence and could be
+  skipped). Acceptance is the Owner's decision on that subset check.
 - OWNER ACCEPTANCE: FORMALLY ACCEPTED, 2026-08-02 (decision channel +
   in-session). Follow-up queued (not part of this release): humane
   conflict-card wording for the sessions-match case and an offline
