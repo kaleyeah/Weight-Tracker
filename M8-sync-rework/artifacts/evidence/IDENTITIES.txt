@@ -26,3 +26,10 @@ Real-PB gate applicability: byte difference from the gate-era candidate is the
 unreachable APP_BUILD literal (STAMP-ONLY-DIFF.txt); the deterministic recovery
 derivation from the FINAL bytes reproduces the gate-era artifact byte-identically.
 verifiedAgainstLiveURL: false
+
+Prerequisite evidence (2026-08-02):
+  PB archive: m8_prereq_20260802171658.zip, 34,626,882 bytes,
+  modified 2026-08-02 17:17:00Z, created via the admin backups API on
+  the NAS and confirmed in the API listing. Nightly 18:00 schedule
+  Owner-set 2026-08-01, active. PENDING (Owner actions at decision
+  time): fresh in-app export; same-day DSM snapshot.
