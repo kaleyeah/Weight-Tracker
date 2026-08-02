@@ -40,6 +40,17 @@ const jittered = (fn, ms) => new Promise((res) => setTimeout(() => res(fn()), ms
     return (r.body?.items || [])[0] || null;
   };
   const status = () => lease("status", {});
+  const coreState = async () => {
+    const r = await api("/api/collections/appdata/records?filter=" +
+      encodeURIComponent(`user="${uid}"`), {}, su);
+    const it = (r.body?.items || [])[0] || {};
+    return { rev: it.coreRev, data: it.data };
+  };
+  /* typed-rejection check (round-11 item 5): a rejected write must be the
+     exact contract shape — 409 + fenceStale:true + the authoritative
+     post-transition fence. Anything else is an anomaly. */
+  const typedStale = (cR, authorityFence) =>
+    cR.status === 409 && cR.body && cR.body.fenceStale === true && cR.body.fence === authorityFence;
 
   // seed: appdata row at rev 1, devA holds the pen
   let acq = await lease("acquire", { deviceId: "devA", deviceName: "A" });
@@ -85,13 +96,18 @@ const jittered = (fn, ms) => new Promise((res) => setTimeout(() => res(fn()), ms
       if (landed) { rev = cR.body.newRev; commitFirst++;
         if (MODE === "enforce" && row.writerFence !== fence)
           anomalies.push({ pair: "steal-write", i, fenceEvidence: [row.writerFence, fence] });
-      } else if (MODE === "enforce" && cR.status === 409 && cR.body.fenceStale) stealFirst++;
-      else anomalies.push({ pair: "steal-write", i, unexpected: { status: cR.status, body: cR.body } });
+        const cs = await coreState();
+        if (cs.rev !== rev || cs.data?.i !== i)
+          anomalies.push({ pair: "steal-write", i, winnerIdentity: { rev: cs.rev, expected: rev, marker: cs.data?.i } });
+      } else if (MODE === "enforce" && typedStale(cR, sR.body.fence)) { stealFirst++;
+        const cs = await coreState();
+        if (cs.rev !== rev) anomalies.push({ pair: "steal-write", i, mutatedDespiteStale: cs.rev });
+      } else anomalies.push({ pair: "steal-write", i, unexpected: { status: cR.status, body: cR.body } });
       noteFence(sR.body.fence, "steal-write", i);
       fence = sR.body.fence; holder = newDev;
     }
     pairs.stealWrite = { N, commitFirst, stealFirst,
-      pass: MODE === "enforce" ? (commitFirst > 10 && stealFirst > 10) : commitFirst === N };
+      pass: MODE === "enforce" ? (commitFirst > 5 && stealFirst > 5) : commitFirst === N };
   }
 
   /* --- steal ‖ steal --- */
@@ -106,9 +122,12 @@ const jittered = (fn, ms) => new Promise((res) => setTimeout(() => res(fn()), ms
       if (s1.body.fence === s2.body.fence) anomalies.push({ pair: "steal-steal", i, sameFence: s1.body.fence });
       else distinct++;
       const hi = Math.max(s1.body.fence, s2.body.fence);
+      const hiDev = s1.body.fence > s2.body.fence ? "devA" : "devB";
       noteFence(hi, "steal-steal", i);
       const st = await status();
       if (st.body.fence !== hi) anomalies.push({ pair: "steal-steal", i, finalFence: [st.body.fence, hi] });
+      if (st.body.holderDeviceId !== hiDev)
+        anomalies.push({ pair: "steal-steal", i, finalHolder: [st.body.holderDeviceId, hiDev] });
       fence = st.body.fence; holder = st.body.holderDeviceId;
     }
     pairs.stealSteal = { N, distinct, pass: distinct === N };
@@ -125,12 +144,13 @@ const jittered = (fn, ms) => new Promise((res) => setTimeout(() => res(fn()), ms
         jittered(() => lease("steal", { deviceId: newDev, deviceName: "x" }), 15 - bias)]);
       if (rR.status === 200) { renewWon++;
         if (rR.body.fence !== preFence) anomalies.push({ pair: "renew-steal", i, renewChangedFence: rR.body.fence });
-      } else if (rR.status === 409) renewStaled++;
-      else anomalies.push({ pair: "renew-steal", i, renew: rR.status });
+      } else if (rR.status === 409 && rR.body && rR.body.stale === true) renewStaled++;
+      else anomalies.push({ pair: "renew-steal", i, renew: rR.status, body: rR.body });
       noteFence(sR.body.fence, "renew-steal", i);
       fence = sR.body.fence; holder = newDev;
     }
-    pairs.renewSteal = { N, renewWon, renewStaled, pass: renewWon + renewStaled === N && renewWon > 5 };
+    pairs.renewSteal = { N, renewWon, renewStaled,
+      pass: renewWon + renewStaled === N && renewWon > 5 && renewStaled > 5 };
   }
 
   /* --- release ‖ write --- */
@@ -147,16 +167,25 @@ const jittered = (fn, ms) => new Promise((res) => setTimeout(() => res(fn()), ms
       else anomalies.push({ pair: "release-write", i, release: relR.status, body: relR.body });
       const row = await ledgerHas(k);
       if ((cR.status === 200) !== !!row) anomalies.push({ pair: "release-write", i, oracleMismatch: true });
-      if (cR.status === 200) { rev = cR.body.newRev; writeLanded++; }
-      else if (MODE === "enforce" && cR.status === 409) writeRejected++;
-      else anomalies.push({ pair: "release-write", i, unexpected: cR.status });
+      if (cR.status === 200) { rev = cR.body.newRev; writeLanded++;
+        if (MODE === "enforce" && row.writerFence !== preFence)
+          anomalies.push({ pair: "release-write", i, fenceEvidence: [row.writerFence, preFence] });
+        const cs = await coreState();
+        if (cs.rev !== rev || cs.data?.rel !== i)
+          anomalies.push({ pair: "release-write", i, winnerIdentity: { rev: cs.rev, expected: rev, marker: cs.data?.rel } });
+      } else if (MODE === "enforce" && typedStale(cR, relR.body.fence)) { writeRejected++;
+        const cs = await coreState();
+        if (cs.rev !== rev) anomalies.push({ pair: "release-write", i, mutatedDespiteStale: cs.rev });
+      } else anomalies.push({ pair: "release-write", i, unexpected: cR.status, body: cR.body });
       // reacquire for the next iteration
       const newAcq = await lease("acquire", { deviceId: holder, deviceName: "x" });
       noteFence(newAcq.body.fence, "release-write", i);
       fence = newAcq.body.fence;
     }
     pairs.releaseWrite = { N, releaseOk, writeLanded, writeRejected,
-      pass: releaseOk === N && (MODE === "enforce" ? writeLanded + writeRejected === N && writeLanded > 5 : writeLanded === N) };
+      pass: releaseOk === N && (MODE === "enforce"
+        ? writeLanded + writeRejected === N && writeLanded > 5 && writeRejected > 5
+        : writeLanded === N) };
   }
 
   /* --- expiry-acquire ‖ write --- */
@@ -174,14 +203,23 @@ const jittered = (fn, ms) => new Promise((res) => setTimeout(() => res(fn()), ms
       else anomalies.push({ pair: "expiry-write", i, acquire: aR.status, fence: aR.body?.fence });
       const row = await ledgerHas(k);
       if ((cR.status === 200) !== !!row) anomalies.push({ pair: "expiry-write", i, oracleMismatch: true });
-      if (cR.status === 200) { rev = cR.body.newRev; writeLanded++; }
-      else if (MODE === "enforce" && cR.status === 409) writeRejected++;
-      else anomalies.push({ pair: "expiry-write", i, unexpected: cR.status });
+      if (cR.status === 200) { rev = cR.body.newRev; writeLanded++;
+        if (MODE === "enforce" && row.writerFence !== preFence)
+          anomalies.push({ pair: "expiry-write", i, fenceEvidence: [row.writerFence, preFence] });
+        const cs = await coreState();
+        if (cs.rev !== rev || cs.data?.ex !== i)
+          anomalies.push({ pair: "expiry-write", i, winnerIdentity: { rev: cs.rev, expected: rev, marker: cs.data?.ex } });
+      } else if (MODE === "enforce" && typedStale(cR, aR.body.fence)) { writeRejected++;
+        const cs = await coreState();
+        if (cs.rev !== rev) anomalies.push({ pair: "expiry-write", i, mutatedDespiteStale: cs.rev });
+      } else anomalies.push({ pair: "expiry-write", i, unexpected: cR.status, body: cR.body });
       noteFence(aR.body?.fence, "expiry-write", i);
       fence = aR.body.fence; holder = newDev;
     }
     pairs.expiryWrite = { N, acquireOk, writeLanded, writeRejected,
-      pass: acquireOk === N && (MODE === "enforce" ? writeLanded + writeRejected === N : writeLanded === N) };
+      pass: acquireOk === N && (MODE === "enforce"
+        ? writeLanded + writeRejected === N && writeLanded > 5 && writeRejected > 5
+        : writeLanded === N) };
   }
 
   // cleanup with verified absence

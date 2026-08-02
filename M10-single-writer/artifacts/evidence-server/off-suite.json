@@ -1,7 +1,7 @@
 {
  "mode": "off",
  "base": "http://127.0.0.1:8098",
- "when": "2026-08-02T20:59:09.226Z",
+ "when": "2026-08-02T21:03:33.056Z",
  "total": 71,
  "failures": 0,
  "results": [
@@ -19,7 +19,7 @@
      "holderDeviceId": null,
      "ok": true,
      "renewedAt": null,
-     "serverNow": 1785704345364,
+     "serverNow": 1785704609214,
      "ttlMs": 86400000
     }
    }
@@ -38,8 +38,8 @@
      "granted": true,
      "holderDeviceId": "devA",
      "ok": true,
-     "renewedAt": "2026-08-02 20:59:05.368Z",
-     "serverNow": 1785704345367,
+     "renewedAt": "2026-08-02 21:03:29.218Z",
+     "serverNow": 1785704609218,
      "ttlMs": 86400000
     }
    }
@@ -58,8 +58,8 @@
      "granted": true,
      "holderDeviceId": "devA",
      "ok": true,
-     "renewedAt": "2026-08-02 20:59:05.370Z",
-     "serverNow": 1785704345370,
+     "renewedAt": "2026-08-02 21:03:29.221Z",
+     "serverNow": 1785704609221,
      "ttlMs": 86400000
     }
    }
@@ -78,8 +78,8 @@
      "held": true,
      "holderDeviceId": "devA",
      "ok": false,
-     "renewedAt": "2026-08-02 20:59:05.370Z",
-     "serverNow": 1785704345373,
+     "renewedAt": "2026-08-02 21:03:29.221Z",
+     "serverNow": 1785704609224,
      "ttlMs": 86400000
     }
    }
@@ -97,8 +97,8 @@
      "fence": 1,
      "holderDeviceId": "devA",
      "ok": true,
-     "renewedAt": "2026-08-02 20:59:05.376Z",
-     "serverNow": 1785704345376,
+     "renewedAt": "2026-08-02 21:03:29.227Z",
+     "serverNow": 1785704609226,
      "ttlMs": 86400000
     }
    }
@@ -130,8 +130,8 @@
      "granted": true,
      "holderDeviceId": "devB",
      "ok": true,
-     "renewedAt": "2026-08-02 20:59:05.382Z",
-     "serverNow": 1785704345382,
+     "renewedAt": "2026-08-02 21:03:29.232Z",
+     "serverNow": 1785704609232,
      "ttlMs": 86400000
     }
    }
@@ -162,8 +162,8 @@
      "fence": 3,
      "holderDeviceId": null,
      "ok": true,
-     "renewedAt": "2026-08-02 20:59:05.388Z",
-     "serverNow": 1785704345388,
+     "renewedAt": "2026-08-02 21:03:29.237Z",
+     "serverNow": 1785704609237,
      "ttlMs": 86400000
     }
    }
@@ -195,8 +195,8 @@
      "granted": true,
      "holderDeviceId": "devA",
      "ok": true,
-     "renewedAt": "2026-08-02 20:59:05.393Z",
-     "serverNow": 1785704345393,
+     "renewedAt": "2026-08-02 21:03:29.242Z",
+     "serverNow": 1785704609242,
      "ttlMs": 86400000
     }
    }
@@ -215,8 +215,8 @@
      "granted": true,
      "holderDeviceId": "devB",
      "ok": true,
-     "renewedAt": "2026-08-02 20:59:05.398Z",
-     "serverNow": 1785704345398,
+     "renewedAt": "2026-08-02 21:03:29.247Z",
+     "serverNow": 1785704609247,
      "ttlMs": 86400000
     }
    }
@@ -262,9 +262,9 @@
        "deviceName": "iPad",
        "fence": 5,
        "holderDeviceId": "devB",
-       "id": "pw5mc60ruwujcd3",
-       "renewedAt": "2026-08-01 19:59:05.401Z",
-       "user": "cpcz1lr07w8xpxa"
+       "id": "2efr52mf9kbq3rn",
+       "renewedAt": "2026-08-01 20:03:29.249Z",
+       "user": "cpox1hikhj800v4"
       }
      ],
      "page": 1,
@@ -328,8 +328,8 @@
      "fence": 5,
      "holderDeviceId": "devB",
      "ok": true,
-     "renewedAt": "2026-08-01 19:59:05.401Z",
-     "serverNow": 1785704345590,
+     "renewedAt": "2026-08-01 20:03:29.249Z",
+     "serverNow": 1785704609437,
      "ttlMs": 86400000
     }
    }
@@ -369,14 +369,14 @@
      "clientBuild": "t3-m10",
      "collectionId": "pbc_2708271774",
      "collectionName": "cf_commit_log",
-     "created": "2026-08-02 20:59:05.773Z",
+     "created": "2026-08-02 21:03:29.623Z",
      "deviceHash": "36d5b7eead3effc9",
      "expectedRev": 1,
      "fileByteLength": 0,
      "fileSha256": "",
      "holderDeviceHash": "36d5b7eead3effc98b153be2fab922dc9eecac9aa2fb9567ef0bd7a448e649da",
-     "id": "b61rxtauu0d99b1",
-     "key": "m10-db6ef6d6f9dd190e3ef62462fd92240a67fd89645bda1353",
+     "id": "nr0tm1gsp2uhfhc",
+     "key": "m10-cc4967a13d8bd96b066ef795ba5be81c819f7901d5571ae7",
      "op": "",
      "requestHash": "46096a88fedf1a982fbad8326fceb4538c70bd6a320b22d355d0fa78b725140d",
      "responseStatus": 200,
@@ -384,7 +384,7 @@
      "resultRecordId": "",
      "resultingRev": 2,
      "subsystem": "core",
-     "user": "77k0pmx5uy26pl4",
+     "user": "079aciglzf1jetx",
      "writerFence": 1
     }
    ]
@@ -432,10 +432,10 @@
        "ts": "1754170000000",
        "week": ""
       },
-      "sha256": "47dd41f7789214bd3b3b791315b702ea62c41f252b85a8b372dbaff9f096fef5"
+      "sha256": "087a575ea8bacb4442bda580e98b72e04b16341c1acee93df1c8c5e6bb7e8d37"
      },
      "ok": true,
-     "recordId": "irz44nqephfbcee"
+     "recordId": "heq43z198jsqudk"
     }
    }
   },
@@ -447,22 +447,22 @@
     "clientBuild": "t4",
     "collectionId": "pbc_2708271774",
     "collectionName": "cf_commit_log",
-    "created": "2026-08-02 20:59:06.019Z",
+    "created": "2026-08-02 21:03:29.867Z",
     "deviceHash": "a0066e1a6b694924",
     "expectedRev": 0,
     "fileByteLength": 2055,
-    "fileSha256": "47dd41f7789214bd3b3b791315b702ea62c41f252b85a8b372dbaff9f096fef5",
+    "fileSha256": "087a575ea8bacb4442bda580e98b72e04b16341c1acee93df1c8c5e6bb7e8d37",
     "holderDeviceHash": "a0066e1a6b6949240eaa5f6b5738af384bab5f0146db65f2aee9f1888175f326",
-    "id": "4ffj0hz4nkkoxdi",
-    "key": "m10-3be1fffc21cd7b4a2d0b9dff95297aa1495f09c629ee5560",
+    "id": "0e2fhys3e9sukxm",
+    "key": "m10-d362025eee6148f9da6a2358f076233f2d85ae33cedc8b69",
     "op": "photo-upload",
-    "requestHash": "86093c2d8e909058dc8266348eac12ad3994d9c7c86f7a8335db29448084b13e",
+    "requestHash": "b7709b1a4ac3b808d2f628e3d6e0579a98594b58d3f63913a58278ffa6639991",
     "responseStatus": 200,
-    "resultIdentity": "{\"localId\":\"l-1\",\"byteLength\":2055,\"sha256\":\"47dd41f7789214bd3b3b791315b702ea62c41f252b85a8b372dbaff9f096fef5\",\"meta\":{\"date\":\"2026-08-02\",\"kind\":\"food\",\"meal\":\"lunch\",\"pose\":\"\",\"ts\":\"1754170000000\",\"week\":\"\"}}",
-    "resultRecordId": "irz44nqephfbcee",
+    "resultIdentity": "{\"localId\":\"l-1\",\"byteLength\":2055,\"sha256\":\"087a575ea8bacb4442bda580e98b72e04b16341c1acee93df1c8c5e6bb7e8d37\",\"meta\":{\"date\":\"2026-08-02\",\"kind\":\"food\",\"meal\":\"lunch\",\"pose\":\"\",\"ts\":\"1754170000000\",\"week\":\"\"}}",
+    "resultRecordId": "heq43z198jsqudk",
     "resultingRev": 0,
     "subsystem": "photos",
-    "user": "naj1ex1050bq5b0",
+    "user": "xufeyej6kxk6grv",
     "writerFence": 1
    }
   },
@@ -484,10 +484,10 @@
        "ts": "1754170000000",
        "week": ""
       },
-      "sha256": "47dd41f7789214bd3b3b791315b702ea62c41f252b85a8b372dbaff9f096fef5"
+      "sha256": "087a575ea8bacb4442bda580e98b72e04b16341c1acee93df1c8c5e6bb7e8d37"
      },
      "ok": true,
-     "recordId": "irz44nqephfbcee",
+     "recordId": "heq43z198jsqudk",
      "replay": true
     }
    }
@@ -653,7 +653,7 @@
       "week": ""
      },
      "ok": true,
-     "recordId": "irz44nqephfbcee"
+     "recordId": "heq43z198jsqudk"
     }
    }
   },
@@ -674,7 +674,7 @@
       "week": ""
      },
      "ok": true,
-     "recordId": "irz44nqephfbcee",
+     "recordId": "heq43z198jsqudk",
      "replay": true
     }
    }
@@ -737,7 +737,7 @@
      "alreadyGone": false,
      "deleted": true,
      "ok": true,
-     "recordId": "irz44nqephfbcee"
+     "recordId": "heq43z198jsqudk"
     }
    }
   },
@@ -751,7 +751,7 @@
      "alreadyGone": false,
      "deleted": true,
      "ok": true,
-     "recordId": "irz44nqephfbcee",
+     "recordId": "heq43z198jsqudk",
      "replay": true
     }
    }
@@ -944,7 +944,7 @@
    "pass": true,
    "mode": "off",
    "detail": {
-    "stealMs": 583,
+    "stealMs": 582,
     "fence": 2
    }
   },
@@ -963,12 +963,12 @@
    "pass": true,
    "mode": "off",
    "detail": {
-    "f1": 63,
-    "f2": 64
+    "f1": 64,
+    "f2": 63
    }
   },
   {
-   "name": "cleanup m10-lease-5cb01e5a@disposable.test",
+   "name": "cleanup m10-lease-42bd47f2@disposable.test",
    "pass": true,
    "mode": "off",
    "detail": {
@@ -979,7 +979,7 @@
    }
   },
   {
-   "name": "cleanup m10-leaseB-5c1f9342@disposable.test",
+   "name": "cleanup m10-leaseB-8cce56da@disposable.test",
    "pass": true,
    "mode": "off",
    "detail": {
@@ -990,7 +990,7 @@
    }
   },
   {
-   "name": "cleanup m10-commit-b0962f21@disposable.test",
+   "name": "cleanup m10-commit-ad6eb7b4@disposable.test",
    "pass": true,
    "mode": "off",
    "detail": {
@@ -1001,7 +1001,7 @@
    }
   },
   {
-   "name": "cleanup m10-malformed-459be654@disposable.test",
+   "name": "cleanup m10-malformed-970a0d7c@disposable.test",
    "pass": true,
    "mode": "off",
    "detail": {
@@ -1012,7 +1012,7 @@
    }
   },
   {
-   "name": "cleanup m10-photo-d8a95d2d@disposable.test",
+   "name": "cleanup m10-photo-eb00ca77@disposable.test",
    "pass": true,
    "mode": "off",
    "detail": {
@@ -1023,7 +1023,7 @@
    }
   },
   {
-   "name": "cleanup m10-plat-60a530a4@disposable.test",
+   "name": "cleanup m10-plat-612df797@disposable.test",
    "pass": true,
    "mode": "off",
    "detail": {
@@ -1034,7 +1034,7 @@
    }
   },
   {
-   "name": "cleanup m10-platB-4ac1fad5@disposable.test",
+   "name": "cleanup m10-platB-2d1c3ee2@disposable.test",
    "pass": true,
    "mode": "off",
    "detail": {
@@ -1045,7 +1045,7 @@
    }
   },
   {
-   "name": "cleanup m10-race-ff571aba@disposable.test",
+   "name": "cleanup m10-race-290e4944@disposable.test",
    "pass": true,
    "mode": "off",
    "detail": {

@@ -1,10 +1,10 @@
 {
  "mode": "enforce",
- "when": "2026-08-02T20:59:45.153Z",
+ "when": "2026-08-02T21:03:13.431Z",
  "N": 100,
  "pairs": {
   "txholdBarrier": {
-   "blockedMs": 582,
+   "blockedMs": 584,
    "pass": true
   },
   "stealWrite": {

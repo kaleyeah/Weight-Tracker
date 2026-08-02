@@ -1,0 +1,7 @@
+M10-single-writer/00-PROMPT.md
+M10-single-writer/artifacts/evidence-server/enforce-suite.json
+M10-single-writer/artifacts/evidence-server/off-suite.json
+M10-single-writer/artifacts/evidence-server/races-enforce.json
+M10-single-writer/artifacts/evidence-server/races-off.json
+M10-single-writer/server/MANIFEST.txt
+M10-single-writer/server/tests/run-races.mjs

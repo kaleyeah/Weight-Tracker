@@ -1,7 +1,7 @@
 {
  "mode": "enforce",
  "base": "http://127.0.0.1:8099",
- "when": "2026-08-02T20:59:13.729Z",
+ "when": "2026-08-02T21:03:37.429Z",
  "total": 92,
  "failures": 0,
  "results": [
@@ -19,7 +19,7 @@
      "holderDeviceId": null,
      "ok": true,
      "renewedAt": null,
-     "serverNow": 1785704349544,
+     "serverNow": 1785704613372,
      "ttlMs": 86400000
     }
    }
@@ -38,8 +38,8 @@
      "granted": true,
      "holderDeviceId": "devA",
      "ok": true,
-     "renewedAt": "2026-08-02 20:59:09.549Z",
-     "serverNow": 1785704349548,
+     "renewedAt": "2026-08-02 21:03:33.375Z",
+     "serverNow": 1785704613375,
      "ttlMs": 86400000
     }
    }
@@ -58,8 +58,8 @@
      "granted": true,
      "holderDeviceId": "devA",
      "ok": true,
-     "renewedAt": "2026-08-02 20:59:09.551Z",
-     "serverNow": 1785704349551,
+     "renewedAt": "2026-08-02 21:03:33.378Z",
+     "serverNow": 1785704613378,
      "ttlMs": 86400000
     }
    }
@@ -78,8 +78,8 @@
      "held": true,
      "holderDeviceId": "devA",
      "ok": false,
-     "renewedAt": "2026-08-02 20:59:09.551Z",
-     "serverNow": 1785704349554,
+     "renewedAt": "2026-08-02 21:03:33.378Z",
+     "serverNow": 1785704613381,
      "ttlMs": 86400000
     }
    }
@@ -97,8 +97,8 @@
      "fence": 1,
      "holderDeviceId": "devA",
      "ok": true,
-     "renewedAt": "2026-08-02 20:59:09.557Z",
-     "serverNow": 1785704349557,
+     "renewedAt": "2026-08-02 21:03:33.383Z",
+     "serverNow": 1785704613383,
      "ttlMs": 86400000
     }
    }
@@ -130,8 +130,8 @@
      "granted": true,
      "holderDeviceId": "devB",
      "ok": true,
-     "renewedAt": "2026-08-02 20:59:09.563Z",
-     "serverNow": 1785704349563,
+     "renewedAt": "2026-08-02 21:03:33.388Z",
+     "serverNow": 1785704613388,
      "ttlMs": 86400000
     }
    }
@@ -162,8 +162,8 @@
      "fence": 3,
      "holderDeviceId": null,
      "ok": true,
-     "renewedAt": "2026-08-02 20:59:09.569Z",
-     "serverNow": 1785704349569,
+     "renewedAt": "2026-08-02 21:03:33.394Z",
+     "serverNow": 1785704613393,
      "ttlMs": 86400000
     }
    }
@@ -195,8 +195,8 @@
      "granted": true,
      "holderDeviceId": "devA",
      "ok": true,
-     "renewedAt": "2026-08-02 20:59:09.574Z",
-     "serverNow": 1785704349574,
+     "renewedAt": "2026-08-02 21:03:33.398Z",
+     "serverNow": 1785704613398,
      "ttlMs": 86400000
     }
    }
@@ -215,8 +215,8 @@
      "granted": true,
      "holderDeviceId": "devB",
      "ok": true,
-     "renewedAt": "2026-08-02 20:59:09.579Z",
-     "serverNow": 1785704349579,
+     "renewedAt": "2026-08-02 21:03:33.403Z",
+     "serverNow": 1785704613403,
      "ttlMs": 86400000
     }
    }
@@ -262,9 +262,9 @@
        "deviceName": "iPad",
        "fence": 5,
        "holderDeviceId": "devB",
-       "id": "tb0zi618owurtnv",
-       "renewedAt": "2026-08-01 19:59:09.581Z",
-       "user": "zzrq8z1nqlshmfa"
+       "id": "shs6ks0r6n6780z",
+       "renewedAt": "2026-08-01 20:03:33.405Z",
+       "user": "ep7r0tbxbmqwn01"
       }
      ],
      "page": 1,
@@ -328,8 +328,8 @@
      "fence": 5,
      "holderDeviceId": "devB",
      "ok": true,
-     "renewedAt": "2026-08-01 19:59:09.581Z",
-     "serverNow": 1785704349769,
+     "renewedAt": "2026-08-01 20:03:33.405Z",
+     "serverNow": 1785704613592,
      "ttlMs": 86400000
     }
    }
@@ -369,14 +369,14 @@
      "clientBuild": "t3-m10",
      "collectionId": "pbc_2708271774",
      "collectionName": "cf_commit_log",
-     "created": "2026-08-02 20:59:09.952Z",
+     "created": "2026-08-02 21:03:33.772Z",
      "deviceHash": "36d5b7eead3effc9",
      "expectedRev": 0,
      "fileByteLength": 0,
      "fileSha256": "",
      "holderDeviceHash": "36d5b7eead3effc98b153be2fab922dc9eecac9aa2fb9567ef0bd7a448e649da",
-     "id": "w9gmgfd7l37lgiu",
-     "key": "m10-6edfc93a26a30ba82c3d1933e84fb31e48b42657d497ded5",
+     "id": "863n5k5ux21kgh6",
+     "key": "m10-4155d38344714dbd8e6254ba75ac8fd90fe479503793ac28",
      "op": "",
      "requestHash": "73b5ee9663aa8146b8ce5ed4ac6a30009d0d38657580c95afa5e4e1591a77c33",
      "responseStatus": 200,
@@ -384,7 +384,7 @@
      "resultRecordId": "",
      "resultingRev": 1,
      "subsystem": "core",
-     "user": "xd7b4w67coz4xfd",
+     "user": "gk513x1ecyyxgzh",
      "writerFence": 1
     }
    ]
@@ -427,8 +427,8 @@
      "fence": 2,
      "holderDeviceId": "devC2",
      "ok": true,
-     "renewedAt": "2026-08-02 20:59:09.957Z",
-     "serverNow": 1785704349962,
+     "renewedAt": "2026-08-02 21:03:33.777Z",
+     "serverNow": 1785704613782,
      "ttlMs": 86400000
     }
    }
@@ -470,10 +470,10 @@
        "ts": "1754170000000",
        "week": ""
       },
-      "sha256": "d60015e09eac6af6d43eb1386020277c8a3b16878b79e9e8a1774e3d1c749b75"
+      "sha256": "551b6b1ddbab75d1afcf81c1a37fa4daa76208e53be3005a9d7d718071e1cb1f"
      },
      "ok": true,
-     "recordId": "8f86ja5q807e6rn"
+     "recordId": "w7c42c1k6x1zos7"
     }
    }
   },
@@ -485,22 +485,22 @@
     "clientBuild": "t4",
     "collectionId": "pbc_2708271774",
     "collectionName": "cf_commit_log",
-    "created": "2026-08-02 20:59:10.206Z",
+    "created": "2026-08-02 21:03:34.028Z",
     "deviceHash": "a0066e1a6b694924",
     "expectedRev": 0,
     "fileByteLength": 2055,
-    "fileSha256": "d60015e09eac6af6d43eb1386020277c8a3b16878b79e9e8a1774e3d1c749b75",
+    "fileSha256": "551b6b1ddbab75d1afcf81c1a37fa4daa76208e53be3005a9d7d718071e1cb1f",
     "holderDeviceHash": "a0066e1a6b6949240eaa5f6b5738af384bab5f0146db65f2aee9f1888175f326",
-    "id": "kamer46kt9dhh58",
-    "key": "m10-94264ba100353f58d22405aa5b64728698f5647972da3f20",
+    "id": "s7iwhut9a016yft",
+    "key": "m10-a9b87e3985e3453d02bc02897ecac7ea3ba2949973a53c9a",
     "op": "photo-upload",
-    "requestHash": "14a40e08457f2563c4e956b8c2f969ec1c5528592cb2beac1fd597451ba2e0bd",
+    "requestHash": "7eed0eca74e62f01b509151cb310a2c4d4888f5a8db87e98d07b75dcb8405b80",
     "responseStatus": 200,
-    "resultIdentity": "{\"localId\":\"l-1\",\"byteLength\":2055,\"sha256\":\"d60015e09eac6af6d43eb1386020277c8a3b16878b79e9e8a1774e3d1c749b75\",\"meta\":{\"date\":\"2026-08-02\",\"kind\":\"food\",\"meal\":\"lunch\",\"pose\":\"\",\"ts\":\"1754170000000\",\"week\":\"\"}}",
-    "resultRecordId": "8f86ja5q807e6rn",
+    "resultIdentity": "{\"localId\":\"l-1\",\"byteLength\":2055,\"sha256\":\"551b6b1ddbab75d1afcf81c1a37fa4daa76208e53be3005a9d7d718071e1cb1f\",\"meta\":{\"date\":\"2026-08-02\",\"kind\":\"food\",\"meal\":\"lunch\",\"pose\":\"\",\"ts\":\"1754170000000\",\"week\":\"\"}}",
+    "resultRecordId": "w7c42c1k6x1zos7",
     "resultingRev": 0,
     "subsystem": "photos",
-    "user": "neuqgs871xtqaxi",
+    "user": "ygnkzu3d2us1xnh",
     "writerFence": 1
    }
   },
@@ -522,10 +522,10 @@
        "ts": "1754170000000",
        "week": ""
       },
-      "sha256": "d60015e09eac6af6d43eb1386020277c8a3b16878b79e9e8a1774e3d1c749b75"
+      "sha256": "551b6b1ddbab75d1afcf81c1a37fa4daa76208e53be3005a9d7d718071e1cb1f"
      },
      "ok": true,
-     "recordId": "8f86ja5q807e6rn",
+     "recordId": "w7c42c1k6x1zos7",
      "replay": true
     }
    }
@@ -691,7 +691,7 @@
       "week": ""
      },
      "ok": true,
-     "recordId": "8f86ja5q807e6rn"
+     "recordId": "w7c42c1k6x1zos7"
     }
    }
   },
@@ -712,7 +712,7 @@
       "week": ""
      },
      "ok": true,
-     "recordId": "8f86ja5q807e6rn",
+     "recordId": "w7c42c1k6x1zos7",
      "replay": true
     }
    }
@@ -775,7 +775,7 @@
      "alreadyGone": false,
      "deleted": true,
      "ok": true,
-     "recordId": "8f86ja5q807e6rn"
+     "recordId": "w7c42c1k6x1zos7"
     }
    }
   },
@@ -789,7 +789,7 @@
      "alreadyGone": false,
      "deleted": true,
      "ok": true,
-     "recordId": "8f86ja5q807e6rn",
+     "recordId": "w7c42c1k6x1zos7",
      "replay": true
     }
    }
@@ -1020,10 +1020,10 @@
      "health": {
       "steps": []
      },
-     "id": "b5hgfqfl694aa56",
+     "id": "qnud3w1bf0p2fxm",
      "training": null,
      "trainingRev": 0,
-     "user": "zm4g5r20e2vtgcx"
+     "user": "6kgyebaono4zpm1"
     }
    }
   },
@@ -1046,10 +1046,10 @@
      "health": {
       "steps": []
      },
-     "id": "b5hgfqfl694aa56",
+     "id": "qnud3w1bf0p2fxm",
      "training": null,
      "trainingRev": 0,
-     "user": "zm4g5r20e2vtgcx"
+     "user": "6kgyebaono4zpm1"
     }
    }
   },
@@ -1176,10 +1176,10 @@
      "health": {
       "cleared": true
      },
-     "id": "b5hgfqfl694aa56",
+     "id": "qnud3w1bf0p2fxm",
      "training": null,
      "trainingRev": 0,
-     "user": "zm4g5r20e2vtgcx"
+     "user": "6kgyebaono4zpm1"
     }
    }
   },
@@ -1228,7 +1228,7 @@
    "pass": true,
    "mode": "enforce",
    "detail": {
-    "stealMs": 583,
+    "stealMs": 582,
     "fence": 2
    }
   },
@@ -1252,7 +1252,7 @@
    }
   },
   {
-   "name": "cleanup m10-lease-cf6ebfe9@disposable.test",
+   "name": "cleanup m10-lease-5e76cc86@disposable.test",
    "pass": true,
    "mode": "enforce",
    "detail": {
@@ -1263,7 +1263,7 @@
    }
   },
   {
-   "name": "cleanup m10-leaseB-0a370ce1@disposable.test",
+   "name": "cleanup m10-leaseB-c9c7ac40@disposable.test",
    "pass": true,
    "mode": "enforce",
    "detail": {
@@ -1274,7 +1274,7 @@
    }
   },
   {
-   "name": "cleanup m10-commit-abf94bc6@disposable.test",
+   "name": "cleanup m10-commit-4877139a@disposable.test",
    "pass": true,
    "mode": "enforce",
    "detail": {
@@ -1285,7 +1285,7 @@
    }
   },
   {
-   "name": "cleanup m10-malformed-5b10ef72@disposable.test",
+   "name": "cleanup m10-malformed-44461f71@disposable.test",
    "pass": true,
    "mode": "enforce",
    "detail": {
@@ -1296,7 +1296,7 @@
    }
   },
   {
-   "name": "cleanup m10-photo-a2dacb40@disposable.test",
+   "name": "cleanup m10-photo-28cefe8b@disposable.test",
    "pass": true,
    "mode": "enforce",
    "detail": {
@@ -1307,7 +1307,7 @@
    }
   },
   {
-   "name": "cleanup m10-plat-12c45066@disposable.test",
+   "name": "cleanup m10-plat-34c8c8dc@disposable.test",
    "pass": true,
    "mode": "enforce",
    "detail": {
@@ -1318,7 +1318,7 @@
    }
   },
   {
-   "name": "cleanup m10-platB-dd421495@disposable.test",
+   "name": "cleanup m10-platB-f0802623@disposable.test",
    "pass": true,
    "mode": "enforce",
    "detail": {
@@ -1329,7 +1329,7 @@
    }
   },
   {
-   "name": "cleanup m10-mail-566e98f4@disposable.test",
+   "name": "cleanup m10-mail-7f3dfac9@disposable.test",
    "pass": true,
    "mode": "enforce",
    "detail": {
@@ -1340,7 +1340,7 @@
    }
   },
   {
-   "name": "cleanup m10-race-d25a374a@disposable.test",
+   "name": "cleanup m10-race-fd5d695d@disposable.test",
    "pass": true,
    "mode": "enforce",
    "detail": {
