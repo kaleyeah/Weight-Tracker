@@ -483,6 +483,53 @@ const OLDT={cardioTypes:["Peloton"],exercises:[],liftSessions:{},routines:[],ses
      ()=>ok(r.original&&r.blocked&&r.corrupt===0&&r.requests===0,JSON.stringify(r)));
    await b.ctx.close();}
 
+  // T (R18): syntactically MALFORMED journals at every entry point
+  for(const entry of ['push','pull','boot']){
+    const b=await boot({seed:[['wl_training_journal__userA','{{{malformed-json'],
+      ['wl_training_base__userA',JSON.stringify({owner:'userA',mark:'m8.1',canon:1,rev:2,body:'{}'})]]});
+    const r=await b.page.evaluate(async(ep)=>{
+      const before={local:localStorage.getItem('wl_training_v1'),
+        base:localStorage.getItem('wl_training_base__userA'),
+        dirty:localStorage.getItem('wl_training_dirty__userA'),
+        conflict:localStorage.getItem('wl_training_conflict__userA')};
+      const f0=performance.getEntriesByType('resource').length;
+      if(ep==='push')m8Push();
+      else if(ep==='pull')await new Promise(x=>m8Pull(x));
+      else await new Promise(x=>trainingPull(x));
+      await new Promise(x=>setTimeout(x,250));
+      const qk=Object.keys(localStorage).find(k=>/^wl_training_corrupt__userA\.journal\./.test(k));
+      return {gone:!localStorage.getItem('wl_training_journal__userA'),
+        qBytes:qk?localStorage.getItem(qk)==='{{{malformed-json':false,
+        blocked:m8StorageBlocked,
+        requests:performance.getEntriesByType('resource').length-f0,
+        othersUntouched:localStorage.getItem('wl_training_v1')===before.local
+          &&localStorage.getItem('wl_training_base__userA')===before.base
+          &&localStorage.getItem('wl_training_dirty__userA')===before.dirty
+          &&localStorage.getItem('wl_training_conflict__userA')===before.conflict};},entry);
+    test(`T(${entry}): malformed journal — quarantined byte-identical, BLOCKED, zero requests, others untouched`,
+      ()=>ok(r.gone&&r.qBytes&&r.blocked&&r.requests===0&&r.othersUntouched,JSON.stringify(r)));
+    if(entry==='boot'){
+      await b.page.reload({waitUntil:'load'});
+      await b.page.waitForFunction(()=>typeof window.m8State==='function',null,{timeout:15000});
+      await b.page.waitForTimeout(1200);
+      const rr=await b.page.evaluate(async()=>{
+        const f0=performance.getEntriesByType('resource').length;
+        await new Promise(x=>trainingPull(x));m8Push();await new Promise(x=>setTimeout(x,250));
+        return {blocked:m8StorageBlocked,requests:performance.getEntriesByType('resource').length-f0};});
+      test('T(reload): the malformed-journal block persists across reload, zero requests',
+        ()=>ok(rr.blocked&&rr.requests===0,JSON.stringify(rr)));}
+    await b.ctx.close();}
+  // T2: quarantine COPY failure reached via direct m8Push
+  {const b=await boot({seed:[['wl_training_journal__userA','{{{malformed-json']],denySet:['^wl_training_corrupt__']});
+   const r=await b.page.evaluate(async()=>{
+     const f0=performance.getEntriesByType('resource').length;
+     m8Push();await new Promise(x=>setTimeout(x,250));
+     return {original:localStorage.getItem('wl_training_journal__userA')==='{{{malformed-json',
+       blocked:m8StorageBlocked,requests:performance.getEntriesByType('resource').length-f0};});
+   test('T2: push-path quarantine copy failure keeps the malformed original, blocks, zero requests',
+     ()=>ok(r.original&&r.blocked&&r.requests===0,JSON.stringify(r)));
+   await b.ctx.close();}
+
   await browser.close();server.close();
   console.log('\n'+(failures.length?`FAILED — ${passed} passed, ${failures.length} failed`:`OK — ${passed} passed`));
   process.exitCode=failures.length?1:0;
