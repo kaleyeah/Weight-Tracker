@@ -1,0 +1,31 @@
+M8 disposable-PocketBase gate — manifest, 2026-08-02
+
+Server: the production PocketBase on the RACK Synology, addressed ONLY
+through disposable users/records created and deleted (verified absent)
+within each run. Griffin's account and records were never addressed.
+
+PocketBase version: deployed v0.39.8 per the cutover record
+(2026-07-21, PROJECT_LOG); the binary self-report was unavailable
+without sudo on the NAS — stated honestly, not claimed.
+Hook identities (sha256, live files under /volume1/docker/pocketbase/pb_hooks):
+  cf_cas.pb.js: db09d8f2ea66f647c010400c6f9ea7ec4445f4f4ac8c08c64dba92ba5d1a9814
+  cf_cas_shared.js: 7bc856cf3e1774aa2090abe4fba52b0df036917db840926f0bd97fe5d0f7592f
+appdata schema fields + rules: RAW-EVIDENCE-2.json (updateRule pins user = @request.auth.id)
+M8 candidate at gate time: b8f252b3dffd113f9929f70227e1c706b781d717e465fd385052df9e035de24b
+
+Runs:
+  RAW-EVIDENCE.json    — pb-gate.mjs on the NAS: fresh commit(rev1),
+    identical-key replay(replay:true), same-key/different-body(409
+    keyReused), stale-rev(409 conflict+payload), lost-response
+    replay(replay:true@rev2), never-executed key executes fresh(rev3),
+    unauthenticated(401), concurrent core PATCH(coreRev only), commit
+    after core patch, whole-record isolation changedFields=[training,
+    trainingRev,updated] onlyPermitted:true; cleanup verified.
+  RAW-EVIDENCE-2.json  — pb-gate2.mjs: cross-account: same key on B's
+    OWN ledger(rev1), B raw-PATCH of A denied(404 by rule), A byte-
+    untouched; schema captured; both disposables deleted verified.
+  CLIENT-RESTART-EVIDENCE.txt — the REAL app (Chromium,
+    host-resolver-rules mapping the ts.net name), signed in as a
+    disposable user, crashed 60ms after dispatching a real push;
+    restart recovered via the REAL ledger: clean@rev1, journal
+    resolved, edit present on device AND server; user deleted verified.

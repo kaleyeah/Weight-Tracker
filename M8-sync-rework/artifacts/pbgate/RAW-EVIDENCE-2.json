@@ -1,0 +1,98 @@
+{
+ "cases": [
+  {
+   "name": "A-fresh-commit",
+   "status": 200,
+   "response": {
+    "newRev": 1,
+    "ok": true,
+    "subsystem": "training"
+   }
+  },
+  {
+   "name": "B-same-key-own-ledger",
+   "status": 200,
+   "response": {
+    "newRev": 1,
+    "ok": true,
+    "subsystem": "training"
+   }
+  },
+  {
+   "name": "B-raw-patch-of-A-denied",
+   "status": 404,
+   "response": "The requested resource wasn't found."
+  },
+  {
+   "name": "A-record-unaffected",
+   "status": 200,
+   "response": {
+    "trainingRev": 1,
+    "trainingUntouched": true
+   }
+  }
+ ],
+ "pbVersionFromHealth": {
+  "message": "API is healthy.",
+  "code": 200,
+  "data": {
+   "canBackup": true,
+   "possibleProxyHeader": "",
+   "realIP": "172.18.0.1"
+  }
+ },
+ "appdataSchema": {
+  "fields": [
+   {
+    "name": "id",
+    "type": "text"
+   },
+   {
+    "name": "user",
+    "type": "relation"
+   },
+   {
+    "name": "data",
+    "type": "json"
+   },
+   {
+    "name": "training",
+    "type": "json"
+   },
+   {
+    "name": "created",
+    "type": "autodate"
+   },
+   {
+    "name": "updated",
+    "type": "autodate"
+   },
+   {
+    "name": "health",
+    "type": "json"
+   },
+   {
+    "name": "coachreq",
+    "type": "json"
+   },
+   {
+    "name": "coreRev",
+    "type": "number"
+   },
+   {
+    "name": "trainingRev",
+    "type": "number"
+   }
+  ],
+  "listRule": "@request.auth.id != \"\" && user = @request.auth.id",
+  "viewRule": "@request.auth.id != \"\" && user = @request.auth.id",
+  "createRule": "@request.auth.id != \"\" && user = @request.auth.id",
+  "updateRule": "@request.auth.id != \"\" && user = @request.auth.id",
+  "deleteRule": "@request.auth.id != \"\" && user = @request.auth.id"
+ },
+ "cleanup": {
+  "A": true,
+  "B": true
+ }
+}
+PBVER:unavailable

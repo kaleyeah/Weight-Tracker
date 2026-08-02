@@ -1,0 +1,401 @@
+{
+ "cases": [
+  {
+   "name": "fresh-commit",
+   "request": {
+    "subsystem": "training",
+    "expectedRev": 0,
+    "idempotencyKey": "m8-gate-fresh-1785657158203",
+    "payload": {
+     "cardioTypes": [
+      "Peloton"
+     ],
+     "exercises": [
+      {
+       "id": "e1",
+       "muscle": "back",
+       "name": "Row",
+       "notes": []
+      }
+     ],
+     "liftSessions": {},
+     "routines": [],
+     "sessions": {}
+    }
+   },
+   "status": 200,
+   "response": {
+    "newRev": 1,
+    "ok": true,
+    "subsystem": "training"
+   }
+  },
+  {
+   "name": "identical-key-replay",
+   "request": {
+    "subsystem": "training",
+    "expectedRev": 0,
+    "idempotencyKey": "m8-gate-fresh-1785657158203",
+    "payload": {
+     "cardioTypes": [
+      "Peloton"
+     ],
+     "exercises": [
+      {
+       "id": "e1",
+       "muscle": "back",
+       "name": "Row",
+       "notes": []
+      }
+     ],
+     "liftSessions": {},
+     "routines": [],
+     "sessions": {}
+    }
+   },
+   "status": 200,
+   "response": {
+    "newRev": 1,
+    "ok": true,
+    "replay": true,
+    "subsystem": "training"
+   }
+  },
+  {
+   "name": "same-key-different-body",
+   "request": {
+    "subsystem": "training",
+    "expectedRev": 0,
+    "idempotencyKey": "m8-gate-fresh-1785657158203",
+    "payload": {
+     "cardioTypes": [
+      "Peloton"
+     ],
+     "exercises": [
+      {
+       "id": "e1",
+       "muscle": "back",
+       "name": "Row",
+       "notes": []
+      },
+      {
+       "id": "e2",
+       "muscle": "chest",
+       "name": "Press",
+       "notes": []
+      }
+     ],
+     "liftSessions": {},
+     "routines": [],
+     "sessions": {}
+    }
+   },
+   "status": 409,
+   "response": {
+    "error": "idempotency key reused with a different request",
+    "ok": false
+   }
+  },
+  {
+   "name": "stale-revision-conflict",
+   "request": {
+    "subsystem": "training",
+    "expectedRev": 0,
+    "idempotencyKey": "m8-gate-stale-1785657158233",
+    "payload": {
+     "cardioTypes": [
+      "Peloton"
+     ],
+     "exercises": [
+      {
+       "id": "e1",
+       "muscle": "back",
+       "name": "Row",
+       "notes": []
+      },
+      {
+       "id": "e2",
+       "muscle": "chest",
+       "name": "Press",
+       "notes": []
+      }
+     ],
+     "liftSessions": {},
+     "routines": [],
+     "sessions": {}
+    }
+   },
+   "status": 409,
+   "response": {
+    "conflict": true,
+    "ok": false,
+    "payload": {
+     "cardioTypes": [
+      "Peloton"
+     ],
+     "exercises": [
+      {
+       "id": "e1",
+       "muscle": "back",
+       "name": "Row",
+       "notes": []
+      }
+     ],
+     "liftSessions": {},
+     "routines": [],
+     "sessions": {}
+    },
+    "serverRev": 1,
+    "subsystem": "training"
+   }
+  },
+  {
+   "name": "lost-response-original",
+   "request": {
+    "subsystem": "training",
+    "expectedRev": 1,
+    "idempotencyKey": "m8-gate-lost-1785657158239",
+    "payload": {
+     "cardioTypes": [
+      "Peloton"
+     ],
+     "exercises": [
+      {
+       "id": "e1",
+       "muscle": "back",
+       "name": "Row",
+       "notes": []
+      },
+      {
+       "id": "e2",
+       "muscle": "chest",
+       "name": "Press",
+       "notes": []
+      }
+     ],
+     "liftSessions": {},
+     "routines": [],
+     "sessions": {}
+    }
+   },
+   "status": 200,
+   "response": {
+    "newRev": 2,
+    "ok": true,
+    "subsystem": "training"
+   }
+  },
+  {
+   "name": "lost-response-replay",
+   "request": {
+    "subsystem": "training",
+    "expectedRev": 1,
+    "idempotencyKey": "m8-gate-lost-1785657158239",
+    "payload": {
+     "cardioTypes": [
+      "Peloton"
+     ],
+     "exercises": [
+      {
+       "id": "e1",
+       "muscle": "back",
+       "name": "Row",
+       "notes": []
+      },
+      {
+       "id": "e2",
+       "muscle": "chest",
+       "name": "Press",
+       "notes": []
+      }
+     ],
+     "liftSessions": {},
+     "routines": [],
+     "sessions": {}
+    }
+   },
+   "status": 200,
+   "response": {
+    "newRev": 2,
+    "ok": true,
+    "replay": true,
+    "subsystem": "training"
+   }
+  },
+  {
+   "name": "unapplied-key-executes-fresh",
+   "request": {
+    "subsystem": "training",
+    "expectedRev": 2,
+    "idempotencyKey": "m8-gate-unapplied-1785657158250",
+    "payload": {
+     "cardioTypes": [
+      "Peloton"
+     ],
+     "exercises": [
+      {
+       "id": "e1",
+       "muscle": "back",
+       "name": "Row",
+       "notes": []
+      }
+     ],
+     "liftSessions": {},
+     "routines": [],
+     "sessions": {}
+    }
+   },
+   "status": 200,
+   "response": {
+    "newRev": 3,
+    "ok": true,
+    "subsystem": "training"
+   }
+  },
+  {
+   "name": "unauthenticated",
+   "request": {
+    "subsystem": "training",
+    "expectedRev": 3,
+    "idempotencyKey": "m8-gate-noauth",
+    "payload": {
+     "cardioTypes": [
+      "Peloton"
+     ],
+     "exercises": [
+      {
+       "id": "e1",
+       "muscle": "back",
+       "name": "Row",
+       "notes": []
+      }
+     ],
+     "liftSessions": {},
+     "routines": [],
+     "sessions": {}
+    }
+   },
+   "status": 401,
+   "response": {
+    "data": {},
+    "message": "The request requires valid record authorization token.",
+    "status": 401
+   }
+  },
+  {
+   "name": "concurrent-core-patch",
+   "request": {
+    "data": "weights[1]"
+   },
+   "status": 200,
+   "response": {
+    "coreRev": 1,
+    "trainingRev": 3
+   }
+  },
+  {
+   "name": "commit-after-core-patch",
+   "request": {
+    "subsystem": "training",
+    "expectedRev": 3,
+    "idempotencyKey": "m8-gate-isolation-1785657158691",
+    "payload": {
+     "cardioTypes": [
+      "Peloton"
+     ],
+     "exercises": [
+      {
+       "id": "e1",
+       "muscle": "back",
+       "name": "Row",
+       "notes": []
+      },
+      {
+       "id": "e2",
+       "muscle": "chest",
+       "name": "Press",
+       "notes": []
+      }
+     ],
+     "liftSessions": {},
+     "routines": [],
+     "sessions": {}
+    }
+   },
+   "status": 200,
+   "response": {
+    "newRev": 4,
+    "ok": true,
+    "subsystem": "training"
+   }
+  },
+  {
+   "name": "whole-record-field-isolation",
+   "request": {
+    "permitted": [
+     "training",
+     "trainingRev",
+     "updated"
+    ]
+   },
+   "status": 200,
+   "response": {
+    "changedFields": [
+     "training",
+     "trainingRev",
+     "updated"
+    ],
+    "onlyPermitted": true
+   }
+  }
+ ],
+ "identities": {
+  "pbHealth": {
+   "message": "API is healthy.",
+   "code": 200,
+   "data": {}
+  },
+  "hooks": {
+   "cf_cas.pb.js": "db09d8f2ea66f647c010400c6f9ea7ec4445f4f4ac8c08c64dba92ba5d1a9814",
+   "cf_cas_shared.js": "7bc856cf3e1774aa2090abe4fba52b0df036917db840926f0bd97fe5d0f7592f"
+  },
+  "disposableUser": {
+   "id": "qgbealhiz9l1faf",
+   "email": "disposable-m8-1785657157830@disposable.invalid"
+  }
+ },
+ "beforeState": null,
+ "afterState": {
+  "coachreq": null,
+  "collectionId": "pbc_1605969588",
+  "collectionName": "appdata",
+  "coreRev": 0,
+  "created": "2026-08-02 07:52:38.215Z",
+  "data": null,
+  "health": null,
+  "id": "ok5lflao6d2nx9y",
+  "training": {
+   "cardioTypes": [
+    "Peloton"
+   ],
+   "exercises": [
+    {
+     "id": "e1",
+     "muscle": "back",
+     "name": "Row",
+     "notes": []
+    }
+   ],
+   "liftSessions": {},
+   "routines": [],
+   "sessions": {}
+  },
+  "trainingRev": 3,
+  "updated": "2026-08-02 07:52:38.253Z",
+  "user": "qgbealhiz9l1faf"
+ },
+ "cleanup": {
+  "userDeleted": true,
+  "recordGone": true
+ }
+}

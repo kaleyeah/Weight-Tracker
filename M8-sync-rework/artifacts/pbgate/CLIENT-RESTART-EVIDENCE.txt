@@ -1,0 +1,12 @@
+** WARNING: connection is not using a post-quantum key exchange algorithm.
+** This session may be vulnerable to "store now, decrypt later" attacks.
+** The server may need to be upgraded. See https://openssh.com/pq.html
+disposable user: disposable-restart-1785657331845@disposable.invalid
+authenticated, uid: jiez8jcwd6ckdn0
+phase1 (crashed mid-push): {"state":"dirty","journal":true}
+phase2 (after restart): {"state":"clean","journal":false,"dirty":false,"base":{"canon":1,"rev":1,"body":"{\"cardioTypes\":[\"Peloton\",\"Treadmill\",\"Rowing\",\"Bike\",\"Elliptical\",\"Outdoor run\"],\"exercises\":[{\"id\":\"real\",\"muscle\":\"back\",\"name\":\"Real Push\",\"notes\":[]}],\"liftSessions\":{},\"routines\":[],\"sessions\":{}}","owner":"jiez8jcwd6ckdn0","mark":"m8.1"},"editSurvives":true}
+** WARNING: connection is not using a post-quantum key exchange algorithm.
+** This session may be vulnerable to "store now, decrypt later" attacks.
+** The server may need to be upgraded. See https://openssh.com/pq.html
+server truth + cleanup: {"trainingRev":1,"hasRealEdit":true,"cleanupUserGone":true}
+CLIENT-RESTART RECOVERY: PASSED against the real ledger
