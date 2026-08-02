@@ -81,6 +81,10 @@ A high-level, human- and AI-readable log of how the **product** has evolved — 
 ### `2026-08-02.416-fx` — today doesn't skew the averages
 - **Changed** Steps and Calories "More stats" charts: today renders as an outlined pending bar and is excluded from averages until the day is completed (nightly recap) or has passed — a partial day no longer drags the numbers down. Weight and Sleep are unaffected (they don't accumulate through the day).
 
+### `2026-08-02.417-fx` — clearer choices, offline reassurance
+- **Changed** the training-review card: when both copies contain identical workouts, it now says so and recommends "Keep this device's copy" as the simple option.
+- **Added** an offline save toast — the first training save with no connection shows "Saved on this phone — will sync when you're back online" (once per offline stretch).
+
 ### In progress (not yet in any live build)
 - **M8 sync rework** — the real fix for the July 31 loss class. Design v7 approved as the implementation contract by the Architect after 8 review rounds and 4 Owner rulings (2026-08-02); implementation under way. Nothing ships without the Owner's publish decision.
 
