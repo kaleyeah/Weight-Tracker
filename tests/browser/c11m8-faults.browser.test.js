@@ -19,8 +19,9 @@ const OLDT={cardioTypes:["Peloton"],exercises:[],liftSessions:{},routines:[],ses
     const ctx=await browser.newContext();
     await ctx.addInitScript((cfg)=>{
       // controllable storage faults
-      window.__denySet=cfg.denySet||[];window.__denyRemove=cfg.denyRemove||[];
-      const oSet=Storage.prototype.setItem,oRem=Storage.prototype.removeItem;
+      window.__denySet=cfg.denySet||[];window.__denyRemove=cfg.denyRemove||[];window.__denyGet=cfg.denyGet||[];
+      const oSet=Storage.prototype.setItem,oRem=Storage.prototype.removeItem,oGet=Storage.prototype.getItem;
+      Storage.prototype.getItem=function(k){if(window.__denyGet.some(rx=>new RegExp(rx).test(k)))throw new DOMException('io','InvalidStateError');return oGet.call(this,k);};
       Storage.prototype.setItem=function(k,v){if(window.__denySet.some(rx=>new RegExp(rx).test(k)))throw new DOMException('quota','QuotaExceededError');return oSet.call(this,k,v);};
       Storage.prototype.removeItem=function(k){if(window.__denyRemove.some(rx=>new RegExp(rx).test(k)))return;return oRem.call(this,k);};
       // share control
@@ -102,25 +103,22 @@ const OLDT={cardioTypes:["Peloton"],exercises:[],liftSessions:{},routines:[],ses
      ()=>ok(r2.state==='clean'&&!r2.journal&&!r2.conflict&&r2.base&&r2.base.rev===1,JSON.stringify(r2)));
    await b2.ctx.close();}
 
-  // E: choose-server journals seeded at every phase -> recovery completes all postconditions
-  for(const ph of ['intent','k1','k2']){
-    const scanon=JSON.stringify(OLDT,Object.keys(OLDT).sort());
+  // E (R11-8, authentic): a VALID choose-server journal seeded before page
+  // load at every phase incl. the k3/k4 boundary — the FIRST boot must
+  // complete every postcondition, with page errors asserted
+  const OLDC='{"cardioTypes":["Peloton"],"exercises":[],"liftSessions":{},"routines":[],"sessions":{}}';
+  for(const ph of ['intent','k1','k2','k3']){
     const j=['wl_training_journal__userA',JSON.stringify({owner:'userA',mark:'m8.1',op:'choose-server',phase:ph,startedAt:Date.now(),
-      expect:{serverRev:5,serverCanon:null,discardedLocalGen:3}})];
-    // serverCanon must be the app's canon — learn once via a probe? use m8Canon in-page after boot instead:
-    const b=await boot({seed:[j,CX(),['wl_training_dirty__userA',JSON.stringify({owner:'userA',mark:'m8.1',gen:3,persistedGen:3,ts:1})]]});
-    const r=await b.page.evaluate(async()=>{
-      // fix up the journal's serverCanon with the app's own canon, then re-run recovery
-      const jj=JSON.parse(localStorage.getItem('wl_training_journal__userA'));
-      jj.expect.serverCanon=m8Canon({cardioTypes:["Peloton"],exercises:[],liftSessions:{},routines:[],sessions:{}}).canon;
-      localStorage.setItem('wl_training_journal__userA',JSON.stringify(jj));
-      await new Promise(x=>m8Boot(x));
-      return {state:m8State(),journal:!!localStorage.getItem('wl_training_journal__userA'),
-        conflict:!!localStorage.getItem('wl_training_conflict__userA'),dirty:!!localStorage.getItem('wl_training_dirty__userA'),
-        base:JSON.parse(localStorage.getItem('wl_training_base__userA')||'null'),
-        localIsAdopted:m8Canon(state.training).canon===JSON.parse(localStorage.getItem('wl_training_base__userA')||'{}').body};});
-    test(`E(${ph}): choose-server crash recovery completes every postcondition`,
+      expect:{serverRev:5,serverCanon:OLDC,discardedLocalGen:3}})];
+    const b=await boot({seed:[j,CX(),['wl_training_dirty__userA',JSON.stringify({owner:'userA',mark:'m8.1',gen:3,persistedGen:3,ts:1})]],
+      serverTraining:JSON.parse('{"cardioTypes":["Peloton"],"exercises":[],"liftSessions":{},"routines":[],"sessions":{}}'),serverRev:5});
+    const r=await b.page.evaluate(()=>({state:m8State(),journal:!!localStorage.getItem('wl_training_journal__userA'),
+      conflict:!!localStorage.getItem('wl_training_conflict__userA'),dirty:!!localStorage.getItem('wl_training_dirty__userA'),
+      base:JSON.parse(localStorage.getItem('wl_training_base__userA')||'null'),
+      localIsAdopted:m8Canon(state.training).canon===JSON.parse(localStorage.getItem('wl_training_base__userA')||'{}').body}));
+    test(`E(${ph}): FIRST boot completes every choose-server postcondition`,
       ()=>ok(r.state==='clean'&&!r.journal&&!r.conflict&&!r.dirty&&r.base&&r.base.rev===5&&r.localIsAdopted,JSON.stringify(r)));
+    test(`E(${ph}): no page errors`,()=>ok(!b.errs.length,b.errs.join(';')));
     await b.ctx.close();}
 
   // F: quarantine copy failure (setItem denied for corrupt keys) -> original retained, sync blocked
@@ -136,6 +134,77 @@ const OLDT={cardioTypes:["Peloton"],exercises:[],liftSessions:{},routines:[],ses
    const r=await b.page.evaluate(()=>({orig:!!localStorage.getItem('wl_training_base__userA'),
      blocked:m8StorageBlocked,corrupt:Object.keys(localStorage).filter(k=>/corrupt/.test(k)).length}));
    test('F2: original-removal failure keeps BOTH copies and blocks',()=>ok(r.orig&&r.blocked&&r.corrupt===1,JSON.stringify(r)));
+   await b.ctx.close();}
+
+  // G (R11-9): getItem failure can never become absence, quarantine, bootstrap, or network
+  {const good=['wl_training_base__userA',JSON.stringify({owner:'userA',mark:'m8.1',canon:1,rev:1,body:'{}'})];
+   const b=await boot({seed:[good],denyGet:['^wl_training_base__userA$']});
+   const r=await b.page.evaluate(()=>({blocked:m8StorageBlocked,state:m8State(),
+     corrupt:Object.keys(localStorage).filter(k=>/corrupt/.test(k)).length}));
+   test('G: a READ failure blocks — no absence, no quarantine, no bootstrap',
+     ()=>ok(r.blocked&&r.state==='blocked'&&r.corrupt===0,JSON.stringify(r)));
+   test('G: zero training commits under read failure',()=>ok(b.commits()===0,'commits='+b.commits()));
+   await b.ctx.close();}
+  // H (R11-10a): journal-removal failure after a completed ack — transition
+  // completes, boot retries only cleanup
+  {const b=await boot({seed:[]});
+   const r=await b.page.evaluate(async()=>{
+     await new Promise(x=>trainingPull(x));
+     window.__denyRemove=['^wl_training_journal__userA$'];/* fault begins AFTER a clean boot */
+     state.training.exercises.push({id:'e1',name:'Row',muscle:'back',notes:[]});
+     saveTraining();m8Push();await new Promise(x=>setTimeout(x,400));
+     return {base:JSON.parse(localStorage.getItem('wl_training_base__userA')||'null'),
+       dirty:!!localStorage.getItem('wl_training_dirty__userA'),
+       journal:!!localStorage.getItem('wl_training_journal__userA'),
+       blocked:m8StorageBlocked};});
+   test('H: cleanup failure after a completed ack — base advanced, dirty cleared, journal survives, NOT blocked',
+     ()=>ok(r.base&&r.base.rev===1&&!r.dirty&&r.journal&&!r.blocked,JSON.stringify(r)));
+   const r2=await b.page.evaluate(async()=>{
+     window.__denyRemove=[];await new Promise(x=>m8Boot(x));
+     return {journal:!!localStorage.getItem('wl_training_journal__userA'),state:m8State(),
+       base:JSON.parse(localStorage.getItem('wl_training_base__userA')||'null')};});
+   test('H: after the fault lifts, boot retries ONLY cleanup (journal gone, base untouched)',
+     ()=>ok(!r2.journal&&r2.state==='clean'&&r2.base.rev===1,JSON.stringify(r2)));
+   await b.ctx.close();}
+  // I (R11-10c): the finisher's own malformed-dirty guard, invoked directly —
+  // boot's copy-first quarantine heals a malformed key BEFORE resolution (that
+  // path is covered in the accounts suite), so the guard is driven in-page
+  {const b=await boot({seed:[]});
+    const r=await b.page.evaluate(async(oldc)=>{
+      await new Promise(x=>trainingPull(x));
+      const j={owner:'userA',mark:'m8.1',op:'ack',phase:'net-done',startedAt:Date.now(),
+        expect:{oldBaseCanon:'{}',expectedRev:0,pushedCanon:oldc,gen:4,requestId:'kx',newRev:1}};
+      localStorage.setItem('wl_training_journal__userA',JSON.stringify(j));
+      localStorage.setItem('wl_training_dirty__userA','{{{corrupt');
+      m8FinishAck(j);
+      return {blocked:m8StorageBlocked,journal:!!localStorage.getItem('wl_training_journal__userA'),
+        dirtyPreserved:localStorage.getItem('wl_training_dirty__userA')==='{{{corrupt'};
+    },'{"cardioTypes":["Peloton"],"exercises":[],"liftSessions":{},"routines":[],"sessions":{}}');
+    test('I: malformed dirty during ack completion blocks, journal AND malformed bytes preserved',
+      ()=>ok(r.blocked&&r.journal&&r.dirtyPreserved,JSON.stringify(r)));
+    await b.ctx.close();}
+  // J (R11-10d): base-write failure during adoption — blocked, journal preserved
+  {const b=await boot({seed:[],serverTraining:JSON.parse('{"cardioTypes":["Peloton"],"exercises":[],"liftSessions":{},"routines":[],"sessions":{}}'),serverRev:7,denySet:['^wl_training_base__userA$']});
+   const r=await b.page.evaluate(()=>({blocked:m8StorageBlocked,journal:!!localStorage.getItem('wl_training_journal__userA'),
+     base:!!localStorage.getItem('wl_training_base__userA')}));
+   test('J: adoption base-write failure blocks with the journal preserved',
+     ()=>ok(r.blocked&&r.journal&&!r.base,JSON.stringify(r)));
+   await b.ctx.close();}
+  // K (R11-10f): an ack landing while a NEWER generation exists reschedules
+  {const b=await boot({seed:[]});
+   const r=await b.page.evaluate(async()=>{
+     await new Promise(x=>trainingPull(x));
+     state.training.exercises.push({id:'e1',name:'Row',muscle:'back',notes:[]});
+     saveTraining();
+     m8Push();
+     // race a second edit in before the (immediate) mock response is processed
+     state.training.exercises.push({id:'e2',name:'Curl',muscle:'biceps',notes:[]});
+     saveTraining();
+     await new Promise(x=>setTimeout(x,3200));/* the finisher's reschedule fires the debounced second push */
+     return {state:m8State(),base:JSON.parse(localStorage.getItem('wl_training_base__userA')||'null'),
+       dirty:!!localStorage.getItem('wl_training_dirty__userA')};});
+   test('K: a newer generation after an ack is rescheduled by the finisher to a second ack (rev 2, clean)',
+     ()=>ok(r.state==='clean'&&r.base&&r.base.rev===2&&!r.dirty,JSON.stringify(r)));
    await b.ctx.close();}
 
   await browser.close();server.close();
