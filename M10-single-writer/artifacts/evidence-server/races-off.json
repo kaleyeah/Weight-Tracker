@@ -1,0 +1,50 @@
+{
+ "mode": "off",
+ "when": "2026-08-02T20:59:32.235Z",
+ "N": 100,
+ "pairs": {
+  "txholdBarrier": {
+   "blockedMs": 583,
+   "pass": true
+  },
+  "stealWrite": {
+   "N": 100,
+   "commitFirst": 100,
+   "stealFirst": 0,
+   "pass": true
+  },
+  "stealSteal": {
+   "N": 100,
+   "distinct": 100,
+   "pass": true
+  },
+  "renewSteal": {
+   "N": 100,
+   "renewWon": 50,
+   "renewStaled": 50,
+   "pass": true
+  },
+  "releaseWrite": {
+   "N": 100,
+   "releaseOk": 100,
+   "writeLanded": 100,
+   "writeRejected": 0,
+   "pass": true
+  },
+  "expiryWrite": {
+   "N": 100,
+   "acquireOk": 100,
+   "writeLanded": 100,
+   "writeRejected": 0,
+   "pass": true
+  }
+ },
+ "anomalyCount": 0,
+ "anomalies": [],
+ "monotonicMaxFence": 702,
+ "cleanup": {
+  "userGone": true,
+  "ledgerRows": 0
+ },
+ "allPass": true
+}

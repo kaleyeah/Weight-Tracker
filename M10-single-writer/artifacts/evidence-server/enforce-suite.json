@@ -1,8 +1,8 @@
 {
  "mode": "enforce",
  "base": "http://127.0.0.1:8099",
- "when": "2026-08-02T20:52:14.048Z",
- "total": 87,
+ "when": "2026-08-02T20:59:13.729Z",
+ "total": 92,
  "failures": 0,
  "results": [
   {
@@ -19,7 +19,7 @@
      "holderDeviceId": null,
      "ok": true,
      "renewedAt": null,
-     "serverNow": 1785703930129,
+     "serverNow": 1785704349544,
      "ttlMs": 86400000
     }
    }
@@ -38,8 +38,8 @@
      "granted": true,
      "holderDeviceId": "devA",
      "ok": true,
-     "renewedAt": "2026-08-02 20:52:10.132Z",
-     "serverNow": 1785703930132,
+     "renewedAt": "2026-08-02 20:59:09.549Z",
+     "serverNow": 1785704349548,
      "ttlMs": 86400000
     }
    }
@@ -58,8 +58,8 @@
      "granted": true,
      "holderDeviceId": "devA",
      "ok": true,
-     "renewedAt": "2026-08-02 20:52:10.136Z",
-     "serverNow": 1785703930136,
+     "renewedAt": "2026-08-02 20:59:09.551Z",
+     "serverNow": 1785704349551,
      "ttlMs": 86400000
     }
    }
@@ -78,8 +78,8 @@
      "held": true,
      "holderDeviceId": "devA",
      "ok": false,
-     "renewedAt": "2026-08-02 20:52:10.136Z",
-     "serverNow": 1785703930138,
+     "renewedAt": "2026-08-02 20:59:09.551Z",
+     "serverNow": 1785704349554,
      "ttlMs": 86400000
     }
    }
@@ -97,8 +97,8 @@
      "fence": 1,
      "holderDeviceId": "devA",
      "ok": true,
-     "renewedAt": "2026-08-02 20:52:10.142Z",
-     "serverNow": 1785703930141,
+     "renewedAt": "2026-08-02 20:59:09.557Z",
+     "serverNow": 1785704349557,
      "ttlMs": 86400000
     }
    }
@@ -130,8 +130,8 @@
      "granted": true,
      "holderDeviceId": "devB",
      "ok": true,
-     "renewedAt": "2026-08-02 20:52:10.148Z",
-     "serverNow": 1785703930147,
+     "renewedAt": "2026-08-02 20:59:09.563Z",
+     "serverNow": 1785704349563,
      "ttlMs": 86400000
     }
    }
@@ -162,8 +162,8 @@
      "fence": 3,
      "holderDeviceId": null,
      "ok": true,
-     "renewedAt": "2026-08-02 20:52:10.153Z",
-     "serverNow": 1785703930153,
+     "renewedAt": "2026-08-02 20:59:09.569Z",
+     "serverNow": 1785704349569,
      "ttlMs": 86400000
     }
    }
@@ -195,8 +195,8 @@
      "granted": true,
      "holderDeviceId": "devA",
      "ok": true,
-     "renewedAt": "2026-08-02 20:52:10.158Z",
-     "serverNow": 1785703930158,
+     "renewedAt": "2026-08-02 20:59:09.574Z",
+     "serverNow": 1785704349574,
      "ttlMs": 86400000
     }
    }
@@ -215,8 +215,8 @@
      "granted": true,
      "holderDeviceId": "devB",
      "ok": true,
-     "renewedAt": "2026-08-02 20:52:10.163Z",
-     "serverNow": 1785703930163,
+     "renewedAt": "2026-08-02 20:59:09.579Z",
+     "serverNow": 1785704349579,
      "ttlMs": 86400000
     }
    }
@@ -262,9 +262,9 @@
        "deviceName": "iPad",
        "fence": 5,
        "holderDeviceId": "devB",
-       "id": "85195v19jgn40c2",
-       "renewedAt": "2026-08-01 19:52:10.166Z",
-       "user": "1dzox8nl500ow2i"
+       "id": "tb0zi618owurtnv",
+       "renewedAt": "2026-08-01 19:59:09.581Z",
+       "user": "zzrq8z1nqlshmfa"
       }
      ],
      "page": 1,
@@ -328,8 +328,8 @@
      "fence": 5,
      "holderDeviceId": "devB",
      "ok": true,
-     "renewedAt": "2026-08-01 19:52:10.166Z",
-     "serverNow": 1785703930355,
+     "renewedAt": "2026-08-01 19:59:09.581Z",
+     "serverNow": 1785704349769,
      "ttlMs": 86400000
     }
    }
@@ -369,14 +369,14 @@
      "clientBuild": "t3-m10",
      "collectionId": "pbc_2708271774",
      "collectionName": "cf_commit_log",
-     "created": "2026-08-02 20:52:10.538Z",
+     "created": "2026-08-02 20:59:09.952Z",
      "deviceHash": "36d5b7eead3effc9",
      "expectedRev": 0,
      "fileByteLength": 0,
      "fileSha256": "",
      "holderDeviceHash": "36d5b7eead3effc98b153be2fab922dc9eecac9aa2fb9567ef0bd7a448e649da",
-     "id": "c8eplvyumxdhkw8",
-     "key": "m10-4c1b1050781ebda0bf327e2aa966fc83e5d64b587a69c02a",
+     "id": "w9gmgfd7l37lgiu",
+     "key": "m10-6edfc93a26a30ba82c3d1933e84fb31e48b42657d497ded5",
      "op": "",
      "requestHash": "73b5ee9663aa8146b8ce5ed4ac6a30009d0d38657580c95afa5e4e1591a77c33",
      "responseStatus": 200,
@@ -384,7 +384,7 @@
      "resultRecordId": "",
      "resultingRev": 1,
      "subsystem": "core",
-     "user": "7xpyd9ly4gnr0gj",
+     "user": "xd7b4w67coz4xfd",
      "writerFence": 1
     }
    ]
@@ -427,8 +427,8 @@
      "fence": 2,
      "holderDeviceId": "devC2",
      "ok": true,
-     "renewedAt": "2026-08-02 20:52:10.543Z",
-     "serverNow": 1785703930548,
+     "renewedAt": "2026-08-02 20:59:09.957Z",
+     "serverNow": 1785704349962,
      "ttlMs": 86400000
     }
    }
@@ -470,10 +470,10 @@
        "ts": "1754170000000",
        "week": ""
       },
-      "sha256": "4d1f0aa6809910a58510184e02a7de9d752e78e2739dda00f5d4af39cf018db4"
+      "sha256": "d60015e09eac6af6d43eb1386020277c8a3b16878b79e9e8a1774e3d1c749b75"
      },
      "ok": true,
-     "recordId": "7senahnjyabwywh"
+     "recordId": "8f86ja5q807e6rn"
     }
    }
   },
@@ -485,22 +485,22 @@
     "clientBuild": "t4",
     "collectionId": "pbc_2708271774",
     "collectionName": "cf_commit_log",
-    "created": "2026-08-02 20:52:10.800Z",
+    "created": "2026-08-02 20:59:10.206Z",
     "deviceHash": "a0066e1a6b694924",
     "expectedRev": 0,
     "fileByteLength": 2055,
-    "fileSha256": "4d1f0aa6809910a58510184e02a7de9d752e78e2739dda00f5d4af39cf018db4",
+    "fileSha256": "d60015e09eac6af6d43eb1386020277c8a3b16878b79e9e8a1774e3d1c749b75",
     "holderDeviceHash": "a0066e1a6b6949240eaa5f6b5738af384bab5f0146db65f2aee9f1888175f326",
-    "id": "o7ot7gjxkwxyaxb",
-    "key": "m10-5f4216bc422b15058a76a39613273004e1598c88cc62bd71",
+    "id": "kamer46kt9dhh58",
+    "key": "m10-94264ba100353f58d22405aa5b64728698f5647972da3f20",
     "op": "photo-upload",
-    "requestHash": "f7df2dbb937ed1cb380ea9ffee003e564a747c9ccc6305b3d1bb030ff762a53a",
+    "requestHash": "14a40e08457f2563c4e956b8c2f969ec1c5528592cb2beac1fd597451ba2e0bd",
     "responseStatus": 200,
-    "resultIdentity": "{\"localId\":\"l-1\",\"byteLength\":2055,\"sha256\":\"4d1f0aa6809910a58510184e02a7de9d752e78e2739dda00f5d4af39cf018db4\",\"meta\":{\"date\":\"2026-08-02\",\"kind\":\"food\",\"meal\":\"lunch\",\"pose\":\"\",\"ts\":\"1754170000000\",\"week\":\"\"}}",
-    "resultRecordId": "7senahnjyabwywh",
+    "resultIdentity": "{\"localId\":\"l-1\",\"byteLength\":2055,\"sha256\":\"d60015e09eac6af6d43eb1386020277c8a3b16878b79e9e8a1774e3d1c749b75\",\"meta\":{\"date\":\"2026-08-02\",\"kind\":\"food\",\"meal\":\"lunch\",\"pose\":\"\",\"ts\":\"1754170000000\",\"week\":\"\"}}",
+    "resultRecordId": "8f86ja5q807e6rn",
     "resultingRev": 0,
     "subsystem": "photos",
-    "user": "qyzhdz8cwq81kdt",
+    "user": "neuqgs871xtqaxi",
     "writerFence": 1
    }
   },
@@ -522,10 +522,10 @@
        "ts": "1754170000000",
        "week": ""
       },
-      "sha256": "4d1f0aa6809910a58510184e02a7de9d752e78e2739dda00f5d4af39cf018db4"
+      "sha256": "d60015e09eac6af6d43eb1386020277c8a3b16878b79e9e8a1774e3d1c749b75"
      },
      "ok": true,
-     "recordId": "7senahnjyabwywh",
+     "recordId": "8f86ja5q807e6rn",
      "replay": true
     }
    }
@@ -567,7 +567,7 @@
    "detail": null
   },
   {
-   "name": "T4 no file 400",
+   "name": "T4 no file: status 400 + zero record/ledger/storage",
    "pass": true,
    "mode": "enforce",
    "detail": {
@@ -575,11 +575,14 @@
     "body": {
      "error": "exactly one file part required (none received)",
      "ok": false
-    }
+    },
+    "recs": 0,
+    "rows": 0,
+    "storageDelta": 0
    }
   },
   {
-   "name": "T4 two files 400",
+   "name": "T4 two files: status 400 + zero record/ledger/storage",
    "pass": true,
    "mode": "enforce",
    "detail": {
@@ -587,11 +590,14 @@
     "body": {
      "error": "exactly one file part required (multiple received)",
      "ok": false
-    }
+    },
+    "recs": 0,
+    "rows": 0,
+    "storageDelta": 0
    }
   },
   {
-   "name": "T4 length mismatch 400",
+   "name": "T4 length mismatch: status 400 + zero record/ledger/storage",
    "pass": true,
    "mode": "enforce",
    "detail": {
@@ -601,11 +607,14 @@
      "declared": 2060,
      "error": "byteLength mismatch",
      "ok": false
-    }
+    },
+    "recs": 0,
+    "rows": 0,
+    "storageDelta": 0
    }
   },
   {
-   "name": "T4 bad kind 400",
+   "name": "T4 bad kind: status 400 + zero record/ledger/storage",
    "pass": true,
    "mode": "enforce",
    "detail": {
@@ -613,11 +622,14 @@
     "body": {
      "error": "kind must be food|progress",
      "ok": false
-    }
+    },
+    "recs": 0,
+    "rows": 0,
+    "storageDelta": 0
    }
   },
   {
-   "name": "T4 oversize 413",
+   "name": "T4 oversize: status 413 + zero record/ledger/storage",
    "pass": true,
    "mode": "enforce",
    "detail": {
@@ -626,37 +638,40 @@
      "error": "file too large",
      "maxBytes": 15728640,
      "ok": false
-    }
+    },
+    "recs": 0,
+    "rows": 0,
+    "storageDelta": 0
    }
   },
   {
-   "name": "T4 malformed left no records",
+   "name": "T4 unreadable temp (injected): status 400 + zero record/ledger/storage",
    "pass": true,
    "mode": "enforce",
    "detail": {
-    "before": {
-     "recs": 1,
-     "rows": 1
+    "status": 400,
+    "body": {
+     "error": "uploaded file unreadable",
+     "ok": false
     },
-    "after": {
-     "recs": 2,
-     "rows": 2
-    }
+    "recs": 0,
+    "rows": 0,
+    "storageDelta": 0
    }
   },
   {
-   "name": "T4 malformed left no ledger rows",
+   "name": "T4 digest failure (injected): status 500 + zero record/ledger/storage",
    "pass": true,
    "mode": "enforce",
    "detail": {
-    "before": {
-     "recs": 1,
-     "rows": 1
+    "status": 500,
+    "body": {
+     "error": "digest computation failed",
+     "ok": false
     },
-    "after": {
-     "recs": 2,
-     "rows": 2
-    }
+    "recs": 0,
+    "rows": 0,
+    "storageDelta": 0
    }
   },
   {
@@ -676,7 +691,7 @@
       "week": ""
      },
      "ok": true,
-     "recordId": "7senahnjyabwywh"
+     "recordId": "8f86ja5q807e6rn"
     }
    }
   },
@@ -697,7 +712,7 @@
       "week": ""
      },
      "ok": true,
-     "recordId": "7senahnjyabwywh",
+     "recordId": "8f86ja5q807e6rn",
      "replay": true
     }
    }
@@ -760,7 +775,7 @@
      "alreadyGone": false,
      "deleted": true,
      "ok": true,
-     "recordId": "7senahnjyabwywh"
+     "recordId": "8f86ja5q807e6rn"
     }
    }
   },
@@ -774,7 +789,7 @@
      "alreadyGone": false,
      "deleted": true,
      "ok": true,
-     "recordId": "7senahnjyabwywh",
+     "recordId": "8f86ja5q807e6rn",
      "replay": true
     }
    }
@@ -1005,10 +1020,10 @@
      "health": {
       "steps": []
      },
-     "id": "88tosoutwwbvb9w",
+     "id": "b5hgfqfl694aa56",
      "training": null,
      "trainingRev": 0,
-     "user": "ae1m2hpwn4vthns"
+     "user": "zm4g5r20e2vtgcx"
     }
    }
   },
@@ -1031,10 +1046,10 @@
      "health": {
       "steps": []
      },
-     "id": "88tosoutwwbvb9w",
+     "id": "b5hgfqfl694aa56",
      "training": null,
      "trainingRev": 0,
-     "user": "ae1m2hpwn4vthns"
+     "user": "zm4g5r20e2vtgcx"
     }
    }
   },
@@ -1130,7 +1145,20 @@
    }
   },
   {
-   "name": "T7 superuser raw write passes (bypass)",
+   "name": "T7 superuser raw CONTENT rejected (J1)",
+   "pass": true,
+   "mode": "enforce",
+   "detail": {
+    "status": 400,
+    "body": {
+     "data": {},
+     "message": "Superuser content writes must use the platform route.",
+     "status": 400
+    }
+   }
+  },
+  {
+   "name": "T7 superuser mailbox write passes",
    "pass": true,
    "mode": "enforce",
    "detail": {
@@ -1143,30 +1171,64 @@
      "collectionName": "appdata",
      "coreRev": 1,
      "data": {
-      "fromSuper": true
+      "a": 1
      },
      "health": {
-      "steps": []
+      "cleared": true
      },
-     "id": "88tosoutwwbvb9w",
+     "id": "b5hgfqfl694aa56",
      "training": null,
      "trainingRev": 0,
-     "user": "ae1m2hpwn4vthns"
+     "user": "zm4g5r20e2vtgcx"
     }
    }
   },
   {
-   "name": "T7 fenceless-rev not bumped under enforcement",
+   "name": "T7 superuser raw create rejected (J1)",
+   "pass": true,
+   "mode": "enforce",
+   "detail": {
+    "status": 400,
+    "body": {
+     "data": {},
+     "message": "Appdata rows are created by the commit route.",
+     "status": 400
+    }
+   }
+  },
+  {
+   "name": "T7 superuser raw photo create rejected (J1)",
+   "pass": true,
+   "mode": "enforce",
+   "detail": {
+    "status": 400,
+    "body": {
+     "data": {},
+     "message": "Photo writes must use the photo routes.",
+     "status": 400
+    }
+   }
+  },
+  {
+   "name": "T7 rev not bumped by any raw write under enforcement",
    "pass": true,
    "mode": "enforce",
    "detail": 1
+  },
+  {
+   "name": "T7 content untouched by rejected superuser write",
+   "pass": true,
+   "mode": "enforce",
+   "detail": {
+    "a": 1
+   }
   },
   {
    "name": "T8 steal blocked by open write tx (serialization)",
    "pass": true,
    "mode": "enforce",
    "detail": {
-    "stealMs": 582,
+    "stealMs": 583,
     "fence": 2
    }
   },
@@ -1190,7 +1252,7 @@
    }
   },
   {
-   "name": "cleanup m10-lease-cab31309@disposable.test",
+   "name": "cleanup m10-lease-cf6ebfe9@disposable.test",
    "pass": true,
    "mode": "enforce",
    "detail": {
@@ -1201,7 +1263,7 @@
    }
   },
   {
-   "name": "cleanup m10-leaseB-47053b93@disposable.test",
+   "name": "cleanup m10-leaseB-0a370ce1@disposable.test",
    "pass": true,
    "mode": "enforce",
    "detail": {
@@ -1212,7 +1274,7 @@
    }
   },
   {
-   "name": "cleanup m10-commit-75014f3d@disposable.test",
+   "name": "cleanup m10-commit-abf94bc6@disposable.test",
    "pass": true,
    "mode": "enforce",
    "detail": {
@@ -1223,7 +1285,7 @@
    }
   },
   {
-   "name": "cleanup m10-photo-ec5a691b@disposable.test",
+   "name": "cleanup m10-malformed-5b10ef72@disposable.test",
    "pass": true,
    "mode": "enforce",
    "detail": {
@@ -1234,7 +1296,7 @@
    }
   },
   {
-   "name": "cleanup m10-plat-65fe07d3@disposable.test",
+   "name": "cleanup m10-photo-a2dacb40@disposable.test",
    "pass": true,
    "mode": "enforce",
    "detail": {
@@ -1245,7 +1307,7 @@
    }
   },
   {
-   "name": "cleanup m10-platB-264d1890@disposable.test",
+   "name": "cleanup m10-plat-12c45066@disposable.test",
    "pass": true,
    "mode": "enforce",
    "detail": {
@@ -1256,7 +1318,7 @@
    }
   },
   {
-   "name": "cleanup m10-mail-c23ccd8f@disposable.test",
+   "name": "cleanup m10-platB-dd421495@disposable.test",
    "pass": true,
    "mode": "enforce",
    "detail": {
@@ -1267,7 +1329,18 @@
    }
   },
   {
-   "name": "cleanup m10-race-f7fc54f5@disposable.test",
+   "name": "cleanup m10-mail-566e98f4@disposable.test",
+   "pass": true,
+   "mode": "enforce",
+   "detail": {
+    "user": 404,
+    "ledger": 0,
+    "lease": 0,
+    "photos": 0
+   }
+  },
+  {
+   "name": "cleanup m10-race-d25a374a@disposable.test",
    "pass": true,
    "mode": "enforce",
    "detail": {

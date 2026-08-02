@@ -1,5 +1,5 @@
 {
- "when": "2026-08-02T20:51:32.666Z",
+ "when": "2026-08-02T21:00:07.364Z",
  "total": 16,
  "failures": 0,
  "results": [
@@ -16,7 +16,7 @@
   {
    "name": "T9 down without marker refused",
    "pass": true,
-   "detail": "ailed to revert migration 1754179200_m10_single_writer.js: Error: M10 down: refused. Set M10_DOWN_CONFIRM=yes only per the runbook, AFTER the sequenced client rollback. at /tmp/claude-1002/-home-griffin-projects-Weight-Tracker/1f705b64-4ec5-4496-b9c7-41ce63fb03b8/scratchpad/m10mig5/pb.js:110:11(27)\n"
+   "detail": "ailed to revert migration 1754179200_m10_single_writer.js: Error: M10 down: refused. Set M10_DOWN_CONFIRM=yes only per the runbook, AFTER the sequenced client rollback. at /tmp/claude-1002/-home-griffin-projects-Weight-Tracker/1f705b64-4ec5-4496-b9c7-41ce63fb03b8/scratchpad/m10mig6/pb.js:110:11(27)\n"
   },
   {
    "name": "T9 refused down: schema identical",

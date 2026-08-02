@@ -1,8 +1,8 @@
 {
  "mode": "off",
  "base": "http://127.0.0.1:8098",
- "when": "2026-08-02T20:52:09.812Z",
- "total": 70,
+ "when": "2026-08-02T20:59:09.226Z",
+ "total": 71,
  "failures": 0,
  "results": [
   {
@@ -19,7 +19,7 @@
      "holderDeviceId": null,
      "ok": true,
      "renewedAt": null,
-     "serverNow": 1785703926089,
+     "serverNow": 1785704345364,
      "ttlMs": 86400000
     }
    }
@@ -38,8 +38,8 @@
      "granted": true,
      "holderDeviceId": "devA",
      "ok": true,
-     "renewedAt": "2026-08-02 20:52:06.093Z",
-     "serverNow": 1785703926093,
+     "renewedAt": "2026-08-02 20:59:05.368Z",
+     "serverNow": 1785704345367,
      "ttlMs": 86400000
     }
    }
@@ -58,8 +58,8 @@
      "granted": true,
      "holderDeviceId": "devA",
      "ok": true,
-     "renewedAt": "2026-08-02 20:52:06.097Z",
-     "serverNow": 1785703926096,
+     "renewedAt": "2026-08-02 20:59:05.370Z",
+     "serverNow": 1785704345370,
      "ttlMs": 86400000
     }
    }
@@ -78,8 +78,8 @@
      "held": true,
      "holderDeviceId": "devA",
      "ok": false,
-     "renewedAt": "2026-08-02 20:52:06.097Z",
-     "serverNow": 1785703926100,
+     "renewedAt": "2026-08-02 20:59:05.370Z",
+     "serverNow": 1785704345373,
      "ttlMs": 86400000
     }
    }
@@ -97,8 +97,8 @@
      "fence": 1,
      "holderDeviceId": "devA",
      "ok": true,
-     "renewedAt": "2026-08-02 20:52:06.103Z",
-     "serverNow": 1785703926103,
+     "renewedAt": "2026-08-02 20:59:05.376Z",
+     "serverNow": 1785704345376,
      "ttlMs": 86400000
     }
    }
@@ -130,8 +130,8 @@
      "granted": true,
      "holderDeviceId": "devB",
      "ok": true,
-     "renewedAt": "2026-08-02 20:52:06.110Z",
-     "serverNow": 1785703926109,
+     "renewedAt": "2026-08-02 20:59:05.382Z",
+     "serverNow": 1785704345382,
      "ttlMs": 86400000
     }
    }
@@ -162,8 +162,8 @@
      "fence": 3,
      "holderDeviceId": null,
      "ok": true,
-     "renewedAt": "2026-08-02 20:52:06.116Z",
-     "serverNow": 1785703926115,
+     "renewedAt": "2026-08-02 20:59:05.388Z",
+     "serverNow": 1785704345388,
      "ttlMs": 86400000
     }
    }
@@ -195,8 +195,8 @@
      "granted": true,
      "holderDeviceId": "devA",
      "ok": true,
-     "renewedAt": "2026-08-02 20:52:06.121Z",
-     "serverNow": 1785703926121,
+     "renewedAt": "2026-08-02 20:59:05.393Z",
+     "serverNow": 1785704345393,
      "ttlMs": 86400000
     }
    }
@@ -215,8 +215,8 @@
      "granted": true,
      "holderDeviceId": "devB",
      "ok": true,
-     "renewedAt": "2026-08-02 20:52:06.126Z",
-     "serverNow": 1785703926126,
+     "renewedAt": "2026-08-02 20:59:05.398Z",
+     "serverNow": 1785704345398,
      "ttlMs": 86400000
     }
    }
@@ -262,9 +262,9 @@
        "deviceName": "iPad",
        "fence": 5,
        "holderDeviceId": "devB",
-       "id": "qm5piqzbsrx0gmu",
-       "renewedAt": "2026-08-01 19:52:06.129Z",
-       "user": "nbf8mpuxjl9sm21"
+       "id": "pw5mc60ruwujcd3",
+       "renewedAt": "2026-08-01 19:59:05.401Z",
+       "user": "cpcz1lr07w8xpxa"
       }
      ],
      "page": 1,
@@ -328,8 +328,8 @@
      "fence": 5,
      "holderDeviceId": "devB",
      "ok": true,
-     "renewedAt": "2026-08-01 19:52:06.129Z",
-     "serverNow": 1785703926319,
+     "renewedAt": "2026-08-01 19:59:05.401Z",
+     "serverNow": 1785704345590,
      "ttlMs": 86400000
     }
    }
@@ -369,14 +369,14 @@
      "clientBuild": "t3-m10",
      "collectionId": "pbc_2708271774",
      "collectionName": "cf_commit_log",
-     "created": "2026-08-02 20:52:06.503Z",
+     "created": "2026-08-02 20:59:05.773Z",
      "deviceHash": "36d5b7eead3effc9",
      "expectedRev": 1,
      "fileByteLength": 0,
      "fileSha256": "",
      "holderDeviceHash": "36d5b7eead3effc98b153be2fab922dc9eecac9aa2fb9567ef0bd7a448e649da",
-     "id": "ckgm7j9prc6rz8k",
-     "key": "m10-4420b613cb62816b9ce1a321b5644998cd840a18ee0b24c3",
+     "id": "b61rxtauu0d99b1",
+     "key": "m10-db6ef6d6f9dd190e3ef62462fd92240a67fd89645bda1353",
      "op": "",
      "requestHash": "46096a88fedf1a982fbad8326fceb4538c70bd6a320b22d355d0fa78b725140d",
      "responseStatus": 200,
@@ -384,7 +384,7 @@
      "resultRecordId": "",
      "resultingRev": 2,
      "subsystem": "core",
-     "user": "phzzcg43pjvw67c",
+     "user": "77k0pmx5uy26pl4",
      "writerFence": 1
     }
    ]
@@ -432,10 +432,10 @@
        "ts": "1754170000000",
        "week": ""
       },
-      "sha256": "b57ff78bcb67b1546035e12779a6f3f4ab0ca3681f302bc0db1d97d01f7d7021"
+      "sha256": "47dd41f7789214bd3b3b791315b702ea62c41f252b85a8b372dbaff9f096fef5"
      },
      "ok": true,
-     "recordId": "7n59p85obtujns8"
+     "recordId": "irz44nqephfbcee"
     }
    }
   },
@@ -447,22 +447,22 @@
     "clientBuild": "t4",
     "collectionId": "pbc_2708271774",
     "collectionName": "cf_commit_log",
-    "created": "2026-08-02 20:52:06.749Z",
+    "created": "2026-08-02 20:59:06.019Z",
     "deviceHash": "a0066e1a6b694924",
     "expectedRev": 0,
     "fileByteLength": 2055,
-    "fileSha256": "b57ff78bcb67b1546035e12779a6f3f4ab0ca3681f302bc0db1d97d01f7d7021",
+    "fileSha256": "47dd41f7789214bd3b3b791315b702ea62c41f252b85a8b372dbaff9f096fef5",
     "holderDeviceHash": "a0066e1a6b6949240eaa5f6b5738af384bab5f0146db65f2aee9f1888175f326",
-    "id": "bm51u55o9yz87eb",
-    "key": "m10-ce136a37cc3ec832f29cfeed8b2a5a6e8daef5647155c2c3",
+    "id": "4ffj0hz4nkkoxdi",
+    "key": "m10-3be1fffc21cd7b4a2d0b9dff95297aa1495f09c629ee5560",
     "op": "photo-upload",
-    "requestHash": "6602adbdec49bbfd9e9ecd1e0c666712b9cf471c2c746293f9fe4f0d4140db36",
+    "requestHash": "86093c2d8e909058dc8266348eac12ad3994d9c7c86f7a8335db29448084b13e",
     "responseStatus": 200,
-    "resultIdentity": "{\"localId\":\"l-1\",\"byteLength\":2055,\"sha256\":\"b57ff78bcb67b1546035e12779a6f3f4ab0ca3681f302bc0db1d97d01f7d7021\",\"meta\":{\"date\":\"2026-08-02\",\"kind\":\"food\",\"meal\":\"lunch\",\"pose\":\"\",\"ts\":\"1754170000000\",\"week\":\"\"}}",
-    "resultRecordId": "7n59p85obtujns8",
+    "resultIdentity": "{\"localId\":\"l-1\",\"byteLength\":2055,\"sha256\":\"47dd41f7789214bd3b3b791315b702ea62c41f252b85a8b372dbaff9f096fef5\",\"meta\":{\"date\":\"2026-08-02\",\"kind\":\"food\",\"meal\":\"lunch\",\"pose\":\"\",\"ts\":\"1754170000000\",\"week\":\"\"}}",
+    "resultRecordId": "irz44nqephfbcee",
     "resultingRev": 0,
     "subsystem": "photos",
-    "user": "jh0hp82hzm8u39k",
+    "user": "naj1ex1050bq5b0",
     "writerFence": 1
    }
   },
@@ -484,10 +484,10 @@
        "ts": "1754170000000",
        "week": ""
       },
-      "sha256": "b57ff78bcb67b1546035e12779a6f3f4ab0ca3681f302bc0db1d97d01f7d7021"
+      "sha256": "47dd41f7789214bd3b3b791315b702ea62c41f252b85a8b372dbaff9f096fef5"
      },
      "ok": true,
-     "recordId": "7n59p85obtujns8",
+     "recordId": "irz44nqephfbcee",
      "replay": true
     }
    }
@@ -529,7 +529,7 @@
    "detail": null
   },
   {
-   "name": "T4 no file 400",
+   "name": "T4 no file: status 400 + zero record/ledger/storage",
    "pass": true,
    "mode": "off",
    "detail": {
@@ -537,11 +537,14 @@
     "body": {
      "error": "exactly one file part required (none received)",
      "ok": false
-    }
+    },
+    "recs": 0,
+    "rows": 0,
+    "storageDelta": 0
    }
   },
   {
-   "name": "T4 two files 400",
+   "name": "T4 two files: status 400 + zero record/ledger/storage",
    "pass": true,
    "mode": "off",
    "detail": {
@@ -549,11 +552,14 @@
     "body": {
      "error": "exactly one file part required (multiple received)",
      "ok": false
-    }
+    },
+    "recs": 0,
+    "rows": 0,
+    "storageDelta": 0
    }
   },
   {
-   "name": "T4 length mismatch 400",
+   "name": "T4 length mismatch: status 400 + zero record/ledger/storage",
    "pass": true,
    "mode": "off",
    "detail": {
@@ -563,11 +569,14 @@
      "declared": 2060,
      "error": "byteLength mismatch",
      "ok": false
-    }
+    },
+    "recs": 0,
+    "rows": 0,
+    "storageDelta": 0
    }
   },
   {
-   "name": "T4 bad kind 400",
+   "name": "T4 bad kind: status 400 + zero record/ledger/storage",
    "pass": true,
    "mode": "off",
    "detail": {
@@ -575,11 +584,14 @@
     "body": {
      "error": "kind must be food|progress",
      "ok": false
-    }
+    },
+    "recs": 0,
+    "rows": 0,
+    "storageDelta": 0
    }
   },
   {
-   "name": "T4 oversize 413",
+   "name": "T4 oversize: status 413 + zero record/ledger/storage",
    "pass": true,
    "mode": "off",
    "detail": {
@@ -588,37 +600,40 @@
      "error": "file too large",
      "maxBytes": 15728640,
      "ok": false
-    }
+    },
+    "recs": 0,
+    "rows": 0,
+    "storageDelta": 0
    }
   },
   {
-   "name": "T4 malformed left no records",
+   "name": "T4 unreadable temp (injected): status 400 + zero record/ledger/storage",
    "pass": true,
    "mode": "off",
    "detail": {
-    "before": {
-     "recs": 1,
-     "rows": 1
+    "status": 400,
+    "body": {
+     "error": "uploaded file unreadable",
+     "ok": false
     },
-    "after": {
-     "recs": 2,
-     "rows": 2
-    }
+    "recs": 0,
+    "rows": 0,
+    "storageDelta": 0
    }
   },
   {
-   "name": "T4 malformed left no ledger rows",
+   "name": "T4 digest failure (injected): status 500 + zero record/ledger/storage",
    "pass": true,
    "mode": "off",
    "detail": {
-    "before": {
-     "recs": 1,
-     "rows": 1
+    "status": 500,
+    "body": {
+     "error": "digest computation failed",
+     "ok": false
     },
-    "after": {
-     "recs": 2,
-     "rows": 2
-    }
+    "recs": 0,
+    "rows": 0,
+    "storageDelta": 0
    }
   },
   {
@@ -638,7 +653,7 @@
       "week": ""
      },
      "ok": true,
-     "recordId": "7n59p85obtujns8"
+     "recordId": "irz44nqephfbcee"
     }
    }
   },
@@ -659,7 +674,7 @@
       "week": ""
      },
      "ok": true,
-     "recordId": "7n59p85obtujns8",
+     "recordId": "irz44nqephfbcee",
      "replay": true
     }
    }
@@ -722,7 +737,7 @@
      "alreadyGone": false,
      "deleted": true,
      "ok": true,
-     "recordId": "7n59p85obtujns8"
+     "recordId": "irz44nqephfbcee"
     }
    }
   },
@@ -736,7 +751,7 @@
      "alreadyGone": false,
      "deleted": true,
      "ok": true,
-     "recordId": "7n59p85obtujns8",
+     "recordId": "irz44nqephfbcee",
      "replay": true
     }
    }
@@ -929,7 +944,7 @@
    "pass": true,
    "mode": "off",
    "detail": {
-    "stealMs": 585,
+    "stealMs": 583,
     "fence": 2
    }
   },
@@ -953,7 +968,7 @@
    }
   },
   {
-   "name": "cleanup m10-lease-a9d443e4@disposable.test",
+   "name": "cleanup m10-lease-5cb01e5a@disposable.test",
    "pass": true,
    "mode": "off",
    "detail": {
@@ -964,7 +979,7 @@
    }
   },
   {
-   "name": "cleanup m10-leaseB-63d865ef@disposable.test",
+   "name": "cleanup m10-leaseB-5c1f9342@disposable.test",
    "pass": true,
    "mode": "off",
    "detail": {
@@ -975,7 +990,7 @@
    }
   },
   {
-   "name": "cleanup m10-commit-b842e502@disposable.test",
+   "name": "cleanup m10-commit-b0962f21@disposable.test",
    "pass": true,
    "mode": "off",
    "detail": {
@@ -986,7 +1001,7 @@
    }
   },
   {
-   "name": "cleanup m10-photo-87233980@disposable.test",
+   "name": "cleanup m10-malformed-459be654@disposable.test",
    "pass": true,
    "mode": "off",
    "detail": {
@@ -997,7 +1012,7 @@
    }
   },
   {
-   "name": "cleanup m10-plat-eca323ce@disposable.test",
+   "name": "cleanup m10-photo-d8a95d2d@disposable.test",
    "pass": true,
    "mode": "off",
    "detail": {
@@ -1008,7 +1023,7 @@
    }
   },
   {
-   "name": "cleanup m10-platB-00826554@disposable.test",
+   "name": "cleanup m10-plat-60a530a4@disposable.test",
    "pass": true,
    "mode": "off",
    "detail": {
@@ -1019,7 +1034,18 @@
    }
   },
   {
-   "name": "cleanup m10-race-18d1adb1@disposable.test",
+   "name": "cleanup m10-platB-4ac1fad5@disposable.test",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "user": 404,
+    "ledger": 0,
+    "lease": 0,
+    "photos": 0
+   }
+  },
+  {
+   "name": "cleanup m10-race-ff571aba@disposable.test",
    "pass": true,
    "mode": "off",
    "detail": {

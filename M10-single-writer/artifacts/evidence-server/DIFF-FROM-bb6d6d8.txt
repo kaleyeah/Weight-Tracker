@@ -1,0 +1,17 @@
+M10-single-writer/00-PROMPT.md
+M10-single-writer/DESIGN.md
+M10-single-writer/artifacts/evidence-server/enforce-suite.json
+M10-single-writer/artifacts/evidence-server/migration-suite.json
+M10-single-writer/artifacts/evidence-server/off-suite.json
+M10-single-writer/artifacts/evidence-server/races-enforce.json
+M10-single-writer/artifacts/evidence-server/races-off.json
+M10-single-writer/server/CAS-DIFF.patch
+M10-single-writer/server/MANIFEST-NOTES.md
+M10-single-writer/server/MANIFEST.txt
+M10-single-writer/server/pb_hooks/cf_cas.pb.js
+M10-single-writer/server/pb_hooks/cf_m10_enforce.pb.js
+M10-single-writer/server/pb_hooks/cf_m10_photos.pb.js
+M10-single-writer/server/pb_hooks/cf_m10_shared.js
+M10-single-writer/server/tests/run-races.mjs
+M10-single-writer/server/tests/run-suite.mjs
+M10-single-writer/server/tests/setup-instance.sh

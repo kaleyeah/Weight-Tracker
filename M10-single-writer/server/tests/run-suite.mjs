@@ -10,6 +10,7 @@ import fs from "node:fs";
 const args = process.argv.slice(2);
 const BASE = args.includes("--base") ? args[args.indexOf("--base") + 1] : "http://127.0.0.1:8098";
 const MODE = args.includes("--mode") ? args[args.indexOf("--mode") + 1] : "off";
+const IDIR = args.includes("--dir") ? args[args.indexOf("--dir") + 1] : null;   // instance dir for storage-orphan checks
 const SU = { identity: "probe@local.test", password: "probe-password-1" };
 
 const results = [];
@@ -56,8 +57,18 @@ function photoForm(fields, fileBytes, extraFiles = 0) {
   for (let i = 0; i < extraFiles; i++) fd.append("file", new Blob([Buffer.from("x")]), "extra.jpg");
   return fd;
 }
-async function upload(fields, fileBytes, t, extraFiles = 0) {
-  return api("/api/cf/photos/upload", { method: "POST", body: photoForm(fields, fileBytes, extraFiles) }, t);
+async function upload(fields, fileBytes, t, extraFiles = 0, faultHeader = null) {
+  const opts = { method: "POST", body: photoForm(fields, fileBytes, extraFiles) };
+  if (faultHeader) opts.headers = { "x-cf-test-fault": faultHeader };
+  return api("/api/cf/photos/upload", opts, t);
+}
+function storageFileCount() {
+  if (!IDIR) return -1;
+  let n = 0;
+  const walk = (d) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+    if (e.isDirectory()) walk(d + "/" + e.name); else n++; } };
+  try { walk(IDIR + "/pb_data/storage"); } catch (_) {}
+  return n;
 }
 async function ledgerRows(su, filter) {
   const r = await api("/api/collections/cf_commit_log/records?perPage=500&filter=" + encodeURIComponent(filter), {}, su);
@@ -163,7 +174,7 @@ async function t3(su) {
 }
 
 /* ================= T4/T5: photo routes ================= */
-async function t45(su) {
+async function t45(su, users) {
   const u = await mkUser(su, "photo");
   const acq = await lease("acquire", { deviceId: "devP", deviceName: "iPhone" }, u.token);
   const fence = acq.body.fence;
@@ -197,23 +208,31 @@ async function t45(su) {
   assert("T4 same key same length different content 409", r.status === 409, r);
   assert("T4 no record leaked by reuse attempts", (await photoRecords(su, u.id)).length === 1, null);
 
-  // malformed matrix (H4) — each leaves no record, no ledger row
-  const before = { recs: (await photoRecords(su, u.id)).length, rows: (await ledgerRows(su, `user="${u.id}"`)).length };
-  r = await upload({ ...fields, idempotencyKey: key() }, null, u.token);
-  assert("T4 no file 400", r.status === 400, r);
-  r = await upload({ ...fields, idempotencyKey: key() }, bytes, u.token, 0);   // control
-  r = await upload({ ...fields, idempotencyKey: key(), localId: "l-2" }, bytes, u.token, 1);
-  assert("T4 two files 400", r.status === 400, r);
-  r = await upload({ ...fields, idempotencyKey: key(), byteLength: bytes.length + 5 }, bytes, u.token);
-  assert("T4 length mismatch 400", r.status === 400 && /mismatch/.test(r.body.error || ""), r);
-  r = await upload({ ...fields, idempotencyKey: key(), kind: "selfie" }, bytes, u.token);
-  assert("T4 bad kind 400", r.status === 400, r);
-  const big = Buffer.alloc(15728641);
-  r = await upload({ ...fields, idempotencyKey: key(), byteLength: big.length }, big, u.token);
-  assert("T4 oversize 413", r.status === 413, r);
-  const after = { recs: (await photoRecords(su, u.id)).length, rows: (await ledgerRows(su, `user="${u.id}"`)).length };
-  assert("T4 malformed left no records", after.recs === before.recs + 1, { before, after }); // +1 = the control upload
-  assert("T4 malformed left no ledger rows", after.rows === before.rows + 1, { before, after });
+  /* malformed matrix (H4, J6-isolated): a FRESH user with zero prior state;
+     after EVERY case: zero photo records, zero ledger rows, zero new storage
+     files — no control upload interleaved in the accounting. */
+  const mal = await mkUser(su, "malformed");
+  const malAcq = await lease("acquire", { deviceId: "devMal", deviceName: "m" }, mal.token);
+  const mf = { ...meta, byteLength: bytes.length, fence: malAcq.body.fence, deviceId: "devMal" };
+  const storage0 = storageFileCount();
+  const malCase = async (name, expStatus, fieldsX, fileX, extra = 0, fault = null) => {
+    const r2 = await upload({ ...mf, ...fieldsX, idempotencyKey: key() }, fileX, mal.token, extra, fault);
+    const recs = (await photoRecords(su, mal.id)).length;
+    const rows = (await ledgerRows(su, `user="${mal.id}"`)).length;
+    const st = storageFileCount();
+    assert(`T4 ${name}: status ${expStatus} + zero record/ledger/storage`,
+      r2.status === expStatus && recs === 0 && rows === 0 && st === storage0,
+      { status: r2.status, body: r2.body, recs, rows, storageDelta: st - storage0 });
+  };
+  await malCase("no file", 400, {}, null);
+  await malCase("two files", 400, { localId: "l-2" }, bytes, 1);
+  await malCase("length mismatch", 400, { byteLength: bytes.length + 5 }, bytes);
+  await malCase("bad kind", 400, { kind: "selfie" }, bytes);
+  await malCase("oversize", 413, { byteLength: 15728641 }, Buffer.alloc(15728641));
+  await malCase("unreadable temp (injected)", 400, {}, bytes, 0, "unreadable");
+  await malCase("digest failure (injected)", 500, {}, bytes, 0, "digest");
+  users.push(mal);
+  const after = { recs: (await photoRecords(su, u.id)).length };
 
   /* T5: update + delete + cross-account byte-identical (G3/I7) */
   const stranger = await mkUser(su, "photoB");
@@ -332,9 +351,20 @@ async function t7(su) {
   r = await post("/api/collections/appdata/records", { user: u.id, data: { x: 1 } }, u.token);
   assert("T7 raw create rejected", r.status === 400, r);
   r = await patch({ data: { fromSuper: true } }, su);
-  assert("T7 superuser raw write passes (bypass)", r.status === 200, r);
+  assert("T7 superuser raw CONTENT rejected (J1)", r.status === 400, r);
+  r = await patch({ health: { cleared: true } }, su);
+  assert("T7 superuser mailbox write passes", r.status === 200, r);
+  r = await post("/api/collections/appdata/records", { user: u.id, data: { x: 1 } }, su);
+  assert("T7 superuser raw create rejected (J1)", r.status === 400, r);
+  const fdSup = new FormData();
+  fdSup.append("user", u.id); fdSup.append("kind", "food"); fdSup.append("date", "2026-08-02");
+  fdSup.append("localId", "sup-1"); fdSup.append("file", new Blob([Buffer.from("supbytes")]), "s.jpg");
+  r = await api("/api/collections/photos/records", { method: "POST", body: fdSup }, su);
+  assert("T7 superuser raw photo create rejected (J1)", r.status === 400, r);
   const rd2 = await api(`/api/collections/appdata/records/${rowId}`, {}, su);
-  assert("T7 fenceless-rev not bumped under enforcement", rd2.body.coreRev === 1, rd2.body.coreRev);
+  assert("T7 rev not bumped by any raw write under enforcement", rd2.body.coreRev === 1, rd2.body.coreRev);
+  const d2 = rd2.body.data;
+  assert("T7 content untouched by rejected superuser write", !d2.fromSuper && d2.a === 1, d2);
   return [u];
 }
 
@@ -415,7 +445,7 @@ async function cleanup(su, users) {
   const users = [];
   users.push(...await t1(su));
   users.push(await t3(su));
-  users.push(await t45(su));
+  users.push(await t45(su, users));
   users.push(...await t6(su));
   users.push(...await t7(su));
   users.push(...await t8(su));
