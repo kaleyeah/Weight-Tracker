@@ -183,6 +183,17 @@ the exchange transcripts, and are marked (r) where reconstructed.
   `node --check` passed, watcher untouched (spawns fresh node per run), and
   the Weight-data repo re-synced to the deployed bytes so repo == NAS.
 
+- **2026-08-02, build `2026-08-02.405-fx` published.** Owner ruling: the GLP
+  Symptoms chart on Progress "isn't really saying anything" (his three logs
+  all sit under one type — two real nausea plus the pre-.402 mislabelled
+  headache — so the chart had one chip and no contrast). The chart card, its
+  type-chip action, and the severity word table were removed; symptom
+  logging, storage, export, and the day pill's symptom lines are untouched —
+  the metrics keep accumulating for later surfacing (likely the coach).
+  Owner authorized; `main` `6f1aaaf..3551bc3` pushed; served bytes verified
+  at 00:55:51Z (sha256 `d040fd3c…6dd59802`). C14 at 40 assertions; C12/C13
+  VM+browser green.
+
 ## §2 Owner actions on record
 
 1. 2026-07-30 — direction change (sync simplification, review narrowing).
