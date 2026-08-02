@@ -74,12 +74,13 @@ in-session. Established 2026-08-01 at the Owner's request.
 
 ## Current gate
 
-**M10 single-writer — server-package design review** (Architect rounds
-1–4 complete; STRICT Owner ruling on record; design v5 + consolidated
-matrix required before the server package may be implemented against
-disposable infrastructure). M9 is deferred behind M10 by Owner
-direction; M7b remains parked for Maestro and gates only M10's
-HealthKit-import half.
+**M10 single-writer — server-package design review** (Architect design
+rounds ongoing — 6 completed as of 2026-08-02 evening; STRICT Owner
+ruling on record; the CURRENT consolidated design version in
+`Weight-Tracker/M10-single-writer/DESIGN.md` plus its matrix must pass
+review before even LOCAL implementation is authorized). M9 is deferred
+behind M10 by Owner direction; M7b remains parked for Maestro and
+gates only M10's HealthKit-import half.
 
 **The accepted release:** build `2026-08-02.415-m8` (release commit
 `425f70e`, tag `v2026-08-02.415-m8`, sha256 `5bda0da5…1ba35ee3`) is
