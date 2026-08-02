@@ -194,6 +194,15 @@ the exchange transcripts, and are marked (r) where reconstructed.
   at 00:55:51Z (sha256 `d040fd3c…6dd59802`). C14 at 40 assertions; C12/C13
   VM+browser green.
 
+- **2026-08-02, build `2026-08-02.406-fx` published.** The rest-timer
+  preview, to the Owner's four-field spec ("Just those four"): every rest
+  shows the next exercise, set number of total, rep target (RPT per-set
+  ranges honored), and the set's weight — including same-exercise rests,
+  which the old name-only "Up next" suppressed. This closes Build 2 except
+  the replace-exercise prompt. Owner authorized; `main` `3551bc3..a2b4234`
+  pushed; served bytes verified at 01:11:48Z (sha256 `76fef3f1…6ec773ef`).
+  C14 at 42; C12/C13 VM+browser green.
+
 ## §2 Owner actions on record
 
 1. 2026-07-30 — direction change (sync simplification, review narrowing).
