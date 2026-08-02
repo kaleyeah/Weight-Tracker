@@ -44,20 +44,21 @@ C11-M8 faults — DOM gating, ambiguity+restart, phase crashes, storage faults
   ✓ Q: the verified re-save releases the soft block and journal resolution resumes safely
   ✓ R: a done-record with failing removal survives with zero training-originated requests
   ✓ R: once removal succeeds, boot performed ONLY the verified cleanup (no commits, clean)
-  ✓ S(done-missing-outcome): invalid journal quarantined (preserved, not executed)
-  ✓ S(done-missing-outcome): request count reported and bounded to the post-quarantine pull (1)
-  ✓ S(done-newRev-no-outcome (R16 regression)): invalid journal quarantined (preserved, not executed)
-  ✓ S(done-newRev-no-outcome (R16 regression)): request count reported and bounded to the post-quarantine pull (1)
-  ✓ S(unknown-op): invalid journal quarantined (preserved, not executed)
-  ✓ S(unknown-op): request count reported and bounded to the post-quarantine pull (1)
-  ✓ S(impossible-phase): invalid journal quarantined (preserved, not executed)
-  ✓ S(impossible-phase): request count reported and bounded to the post-quarantine pull (1)
-  ✓ S(netdone-missing-newRev): invalid journal quarantined (preserved, not executed)
-  ✓ S(netdone-missing-newRev): request count reported and bounded to the post-quarantine pull (1)
-  ✓ S(garbage-serverCanon): invalid journal quarantined (preserved, not executed)
-  ✓ S(garbage-serverCanon): request count reported and bounded to the post-quarantine pull (1)
-  ✓ S(negative-rev): invalid journal quarantined (preserved, not executed)
-  ✓ S(negative-rev): request count reported and bounded to the post-quarantine pull (1)
+  ✓ S(done-missing-outcome): quarantined byte-identical, active key gone, BLOCKED, others untouched
+  ✓ S(done-missing-outcome): ZERO record fetches and ZERO commits after quarantine
+  ✓ S(done-newRev-no-outcome (R16 regression)): quarantined byte-identical, active key gone, BLOCKED, others untouched
+  ✓ S(done-newRev-no-outcome (R16 regression)): ZERO record fetches and ZERO commits after quarantine
+  ✓ S(unknown-op): quarantined byte-identical, active key gone, BLOCKED, others untouched
+  ✓ S(unknown-op): ZERO record fetches and ZERO commits after quarantine
+  ✓ S(impossible-phase): quarantined byte-identical, active key gone, BLOCKED, others untouched
+  ✓ S(impossible-phase): ZERO record fetches and ZERO commits after quarantine
+  ✓ S(netdone-missing-newRev): quarantined byte-identical, active key gone, BLOCKED, others untouched
+  ✓ S(netdone-missing-newRev): ZERO record fetches and ZERO commits after quarantine
+  ✓ S(garbage-serverCanon): quarantined byte-identical, active key gone, BLOCKED, others untouched
+  ✓ S(garbage-serverCanon): ZERO record fetches and ZERO commits after quarantine
+  ✓ S(negative-rev): quarantined byte-identical, active key gone, BLOCKED, others untouched
+  ✓ S(negative-rev): ZERO record fetches and ZERO commits after quarantine
+  ✓ S(reload): the block re-derives from the corrupt namespace after reload, zero requests
   ✓ S2: quarantine copy failure keeps the invalid journal, blocks, and makes ZERO requests
 
-OK — 58 passed
+OK — 59 passed

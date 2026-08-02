@@ -8830,7 +8830,7 @@ function m8Quarantine(kind,uid){
   catch(e){m8Block("storage unreadable during preservation");return false;/* R11-9: a read failure is never nothing-to-do */}
   if(orig==null)return true;
   var qk,n=0;
-  do{qk="wl_training_corrupt__"+uid+"."+Date.now()+"."+n;n++;}
+  do{qk="wl_training_corrupt__"+uid+"."+kind+"."+Date.now()+"."+n;n++;}
   while((function(){try{return localStorage.getItem(qk)!=null;}catch(e){return true;}})()&&n<50);
   try{localStorage.setItem(qk,orig);}catch(e){m8Block("storage full while preserving a damaged record");return false;}
   var back;try{back=localStorage.getItem(qk);}catch(e){back=null;}
@@ -8881,10 +8881,21 @@ function m8ValidateJournal(j){
     if(!m8JCanonStr(e.serverCanon,j.op==="bootstrap-base"))return "bad serverCanon";
     if(j.op==="choose-server"&&!m8JNat(e.discardedLocalGen))return "bad discardedLocalGen";}
   return null;}
-/* invalid journal -> the copy-verify-delete quarantine; failure blocks */
+/* invalid journal -> the copy-verify-delete quarantine. EITHER WAY sync
+   stops (R17): a preserved-but-uninterpretable transition journal is
+   unknown transition state — no pull, push, bootstrap, adoption, or
+   further resolution may follow. Release requires an explicit reviewed
+   recovery, not an ordinary save. Returns false always. */
 function m8QuarantineInvalidJournal(reason){
-  if(m8Quarantine("journal"))return true;
-  /* quarantine already blocked with its own reason */
+  m8Quarantine("journal");/* on failure it blocked with its own reason */
+  m8Block("a damaged sync record was preserved and needs review");
+  return false;}
+/* the block persists across reload: derived from the quarantined-journal
+   namespace on every boot (R17-8) */
+function m8CorruptJournalPresent(uid){
+  uid=uid||m8Uid();if(!uid)return false;
+  try{for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);
+    if(k&&k.indexOf("wl_training_corrupt__"+uid+".journal.")===0)return true;}}catch(e){return true;}
   return false;}
 function m8JournalStart(op,expect){
   var j={op:op,phase:"intent",startedAt:Date.now(),expect:expect};
@@ -9073,12 +9084,13 @@ var m8Pushing=false;
 function m8Push(){
   if(m8Pushing)return;
   if(trainingQuarantined()||m8StorageBlocked)return;
+  if(m8CorruptJournalPresent()){m8Block("a damaged sync record was preserved and needs review");return;}
   if(!syncOn())return;
   var st=m8State();
   if(st==="conflict"||st==="blocked"||st==="signedout")return;
   var jr=m8Read("journal");
   if(jr.st==="malformed"){if(!m8Quarantine("journal"))return;jr={st:"absent"};}
-  if(jr.st==="ok"&&m8ValidateJournal(jr.val)){if(!m8QuarantineInvalidJournal())return;jr={st:"absent"};}
+  if(jr.st==="ok"&&m8ValidateJournal(jr.val)){m8QuarantineInvalidJournal();return;/* full stop (R17) */}
   if(jr.st==="ok"){m8ResolveJournal(jr.val,function(){
     /* re-enter only when the journal is actually GONE — a cleanup-pending
        journal must not recurse (caught by fault case H: sync stack overflow);
@@ -9242,11 +9254,12 @@ function m8ResolveJournal(j,cb){
 /* ---- §4 pull ---- */
 function m8Pull(cb){
   if(trainingQuarantined()||m8StorageBlocked){cb&&cb();return;}
+  if(m8CorruptJournalPresent()){m8Block("a damaged sync record was preserved and needs review");cb&&cb();return;}
   if(!syncOn()){cb&&cb();return;}
   var st=m8State();
   if(st==="blocked"||st==="signedout"){cb&&cb();return;}
   var jr=m8Read("journal");
-  if(jr.st==="ok"&&m8ValidateJournal(jr.val)){if(!m8QuarantineInvalidJournal()){cb&&cb();return;}jr={st:"absent"};}
+  if(jr.st==="ok"&&m8ValidateJournal(jr.val)){m8QuarantineInvalidJournal();cb&&cb();return;/* full stop (R17) */}
   if(jr.st==="ok"){m8ResolveJournal(jr.val,function(){
     var jr2=m8Read("journal");
     if(jr2.st==="absent")m8Pull(cb);else cb&&cb();});return;}
@@ -9283,8 +9296,10 @@ function m8Boot(cb){
     var lc=m8Canon(state.training);
     /* clear only with PROOF the dirty generation's bytes persisted (R10-1) */
     if(lc.ok&&lc.canon===b.val.body&&d.val.persistedGen===d.val.gen)m8Remove("dirty");}
+  if(m8CorruptJournalPresent()){
+    m8Block("a damaged sync record was preserved and needs review");cb&&cb();return;}
   var jr=m8Read("journal");
-  if(jr.st==="malformed"){m8Quarantine("journal");cb&&cb();return;}
+  if(jr.st==="malformed"){m8QuarantineInvalidJournal();cb&&cb();return;/* full stop */}
   if(jr.st==="ok"){
     var jerr=m8ValidateJournal(jr.val);
     if(jerr){m8QuarantineInvalidJournal();cb&&cb();return;/* preserved, never executed */}
