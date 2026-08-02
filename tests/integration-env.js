@@ -67,7 +67,11 @@ function createEnv(opts) {
   const sandbox = {
     console: { log(){}, warn(){}, error(){}, info(){} },
     document: doc,
-    localStorage: makeStorage(opts.localStorage),
+    /* opts.storagePatch(localStorage) runs BEFORE the app script, so a suite can
+       model a storage layer that throws, silently drops, or returns different
+       bytes than were written. Boot-time code runs against the patched object,
+       which is the only way to test a capture that happens during boot. */
+    localStorage: (function () { const s = makeStorage(opts.localStorage); if (opts.storagePatch) opts.storagePatch(s); return s; })(),
     sessionStorage: makeStorage(opts.sessionStorage),
     location: { origin: 'https://app.test', pathname: '/', hash: '', search: '', href: 'https://app.test/', replace(){}, reload(){} },
     history: { replaceState(){}, pushState(){} },
