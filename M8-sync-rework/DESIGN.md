@@ -5,7 +5,12 @@ Owner rulings taken via the decision channel. Round-2 items answered as
 B1–B14, round-3 as C1–C12, round-4 as D1–D9, round-5 as E1–E6, round-6/7 as F1–F8. The Owner logout decision artifact is at
 `decisions/DECISION-2026-08-02-M8-logout.md` (C1) and in the authoritative
 record (`compound-app/reports/PROJECT_LOG.md`, M8 rounds 2–3 entry). Base: live
-build `2026-08-02.407-fx` (commit `74a4777`). Brief: `BRIEF-round2-rulings.md`
+build `2026-08-02.407-fx` (commit `74a4777`) — HISTORICAL: the contract was
+written against `.407`; the live M8-free base moved to `.414`
+(`3b44f79c…3eb8b1e7`, published and byte-verified) as Owner-directed UI
+releases continued during review. Every rollback reference below means the
+CURRENT M8-free base `.414`, per the round-21 packaging ruling.
+Brief: `BRIEF-round2-rulings.md`
 (R1–R10). Round-1 items answered inline as A1–A12.
 
 ## 0. Rulings on record (round 1)
@@ -328,7 +333,8 @@ functional, dirty state accumulating, a visible recovery banner, hashed,
 release-packaged, and tested to boot from clean, dirty, and conflict
 states without mutating any training or sync key. The recovery artifact's
 identity goes in the release records before deployment. Rollback
-eligibility (D5): rolling back to `.407` is legal only when a prefix scan
+eligibility (D5): rolling back to `.414` (the current M8-free published
+base) is legal only when a prefix scan
 proves **no M8 sync key of any kind has ever been written for any
 account** — no dirty, no base, no conflict, no journal, and no
 quarantined/corrupt M8 key. Any single M8 key on the device makes recovery
@@ -357,7 +363,8 @@ rule in this contract.
   recovery falling back to fetch-and-compare; the dirty-clear retry
   without server traffic (C7); logout refusal from dirty, bootstrap, AND
   conflict (B5); §5b tag-provenance cases incl. `migrateOrphanLiftTags`
-  (C10). Suite must fail against `.407`.
+  (C10). Suite must fail against the live M8-free base (originally `.407`,
+  `.414` at packaging time — re-proven against `.414`).
 - **Browser suite**: Playwright, shipping file, mocked endpoint; boot
   ordering, timers, the conflict view driven through real DOM including
   export-gating and the re-disable-on-edit rule.

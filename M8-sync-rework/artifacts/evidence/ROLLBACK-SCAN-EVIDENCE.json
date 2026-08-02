@@ -1,0 +1,37 @@
+{
+ "cleanDevice": {
+  "eligible": true,
+  "matches": []
+ },
+ "with-dirty": {
+  "eligible": false,
+  "matches": [
+   "wl_training_dirty__userA"
+  ]
+ },
+ "with-base": {
+  "eligible": false,
+  "matches": [
+   "wl_training_base__userB"
+  ]
+ },
+ "with-conflict": {
+  "eligible": false,
+  "matches": [
+   "wl_training_conflict__userA"
+  ]
+ },
+ "with-journal": {
+  "eligible": false,
+  "matches": [
+   "wl_training_journal__userC"
+  ]
+ },
+ "with-corrupt": {
+  "eligible": false,
+  "matches": [
+   "wl_training_corrupt__userA.journal.123.0"
+  ]
+ }
+}
+SCAN SPEC VERIFIED: clean eligible; each of the five kinds (any account) forces roll-forward
