@@ -216,6 +216,25 @@ the exchange transcripts, and are marked (r) where reconstructed.
   `6018c038…87896bd9`). C14 at 49; C12/C13 VM+browser green. Next per
   Owner direction: M8 sync rework, through the Architect loop.
 
+- **2026-08-02, M8 round 1 — design review, Architect halt, Owner rulings.**
+  The round-2 rulings 1–10 (the M8 brief) were recovered verbatim from the
+  session transcript after the exchange scratch deletion and archived at
+  `Weight-Tracker/M8-sync-rework/BRIEF-round2-rulings.md`. The M8 design
+  (state model, bootstrap, CAS push, conflict workflow, roll-forward
+  recovery) went to the Architect, who correctly halted on sequencing: the
+  recorded M7b gate cannot be displaced by an unrecorded instruction. Owner
+  ruled via the decision channel: **M8 first** (record amended), **full
+  canonical copy** as the acknowledged base (R5 tradeoff: 29 KB today,
+  measured), **strict conflict** for the empty-server bootstrap. The
+  Architect also approved training-only scope and roll-forward recovery in
+  principle, rejected the retired-branch placement of the M8 files
+  (engineering work moves to a fresh branch off main), and required:
+  account-keyed sync state, immutable at-entry conflict copies with defined
+  edit-during-conflict semantics, a final-warning + fresh-export gate on
+  Choose Server, a versioned canonicalization spec, exact-equality stale-rev
+  retry, and the recovery artifact built and hashed before publication.
+  Engineer, with Owner rulings.
+
 ## §2 Owner actions on record
 
 1. 2026-07-30 — direction change (sync simplification, review narrowing).

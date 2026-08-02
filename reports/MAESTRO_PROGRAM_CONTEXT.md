@@ -74,11 +74,16 @@ in-session. Established 2026-08-01 at the Owner's request.
 
 ## Current gate
 
-**M7b — the reviewed HealthKit storage-migration package** (schema, migration,
-backup, rollback, tests), per standing ruling 3; it may not be displaced by
-M8, which remains separately outstanding (the sync rework brief, Architect
-round-2 rulings 1–10). The Owner-directed session-date correction is held
-pending its own reviewed package.
+**M8 — the sync rework** (brief: Architect round-2 rulings 1–10, archived in
+`Weight-Tracker/M8-sync-rework/BRIEF-round2-rulings.md`). **Owner ruling
+2026-08-02, via the decision channel:** M8 formally precedes M7b, amending
+the earlier sequencing; M7b (HealthKit) stays parked for the Maestro project
+per the Owner's 2026-08-01 direction. Companion Owner rulings the same
+night: the per-device acknowledged-base is the **full canonical copy** (not
+a digest; R5 tradeoff decided, ~29 KB today measured from the Owner's data),
+and the empty-server bootstrap case is a **strict conflict** (no auto-push).
+The session-date correction closed 2026-08-01: solved by the `.402` session
+editor, no DB mutation.
 
 **The accepted release:** The
 build `2026-08-01.401-bk` (commit `e4abbae…`, tag `v2026-08-01.401-bk`,
