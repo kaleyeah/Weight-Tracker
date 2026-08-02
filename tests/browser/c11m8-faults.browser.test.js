@@ -438,19 +438,36 @@ const OLDT={cardioTypes:["Peloton"],exercises:[],liftSessions:{},routines:[],ses
     ['negative-rev',{owner:'userA',mark:'m8.1',op:'ack',phase:'intent',startedAt:1,expect:{oldBaseCanon:'{}',expectedRev:-1,pushedCanon:'{}',gen:1,requestId:'k'}}]];
   for(const [name,bj] of badJournals){
     const b=await boot({seed:[['wl_training_journal__userA',JSON.stringify(bj)]]});
-    const r=await b.page.evaluate(async()=>{
-      /* ALL training-originated requests, not merely commits (R16-6): the
-         quarantine happens inside the forced pull, whose own delta we count */
+    const r=await b.page.evaluate(async(bj)=>{
+      const before={local:localStorage.getItem('wl_training_v1'),
+        base:localStorage.getItem('wl_training_base__userA'),
+        dirty:localStorage.getItem('wl_training_dirty__userA'),
+        conflict:localStorage.getItem('wl_training_conflict__userA')};
       const f0=performance.getEntriesByType('resource').length;
       await new Promise(x=>trainingPull(x));m8Push();await new Promise(x=>setTimeout(x,250));
       const requests=performance.getEntriesByType('resource').length-f0;
+      const qk=Object.keys(localStorage).find(k=>/^wl_training_corrupt__userA\.journal\./.test(k));
       return {gone:!localStorage.getItem('wl_training_journal__userA'),
-        preserved:Object.keys(localStorage).some(k=>/^wl_training_corrupt__userA/.test(k)),
-        requests};});
-    test(`S(${name}): invalid journal quarantined (preserved, not executed)`,
-      ()=>ok(r.gone&&r.preserved,JSON.stringify(r)));
-    test(`S(${name}): request count reported and bounded to the post-quarantine pull (${r.requests})`,
-      ()=>ok(r.requests<=1,'requests='+r.requests));
+        qBytes:qk?localStorage.getItem(qk)===JSON.stringify(bj):false,
+        blocked:m8StorageBlocked,requests,
+        othersUntouched:localStorage.getItem('wl_training_v1')===before.local
+          &&localStorage.getItem('wl_training_base__userA')===before.base
+          &&localStorage.getItem('wl_training_dirty__userA')===before.dirty
+          &&localStorage.getItem('wl_training_conflict__userA')===before.conflict};},bj);
+    test(`S(${name}): quarantined byte-identical, active key gone, BLOCKED, others untouched`,
+      ()=>ok(r.gone&&r.qBytes&&r.blocked&&r.othersUntouched,JSON.stringify(r)));
+    test(`S(${name}): ZERO record fetches and ZERO commits after quarantine`,
+      ()=>ok(r.requests===0,'requests='+r.requests));
+    if(name==='negative-rev'){
+      await b.page.reload({waitUntil:'load'});
+      await b.page.waitForFunction(()=>typeof window.m8State==='function',null,{timeout:15000});
+      await b.page.waitForTimeout(1500);
+      const rr=await b.page.evaluate(async()=>{
+        const f0=performance.getEntriesByType('resource').length;
+        await new Promise(x=>trainingPull(x));m8Push();await new Promise(x=>setTimeout(x,250));
+        return {blocked:m8StorageBlocked,requests:performance.getEntriesByType('resource').length-f0};});
+      test('S(reload): the block re-derives from the corrupt namespace after reload, zero requests',
+        ()=>ok(rr.blocked&&rr.requests===0,JSON.stringify(rr)));}
     await b.ctx.close();}
   // S2: quarantine COPY failure for an invalid journal — original retained, blocked
   {const bj={owner:'userA',mark:'m8.1',op:'mystery',phase:'intent',startedAt:1,expect:{}};
