@@ -39,17 +39,25 @@ const ok=(v,m)=>{if(!v)throw new Error(m||'expected truthy');};
     await page.goto('http://127.0.0.1:'+server.address().port,{waitUntil:'load'});
     await page.waitForFunction(()=>typeof window.SYNC_SAFE!=='undefined',null,{timeout:15000});
     await page.waitForTimeout(1800);
-    const out=await page.evaluate((seed)=>{
-      const keys={};seed.forEach(p=>{keys[p[0]]=localStorage.getItem(p[0]);});
+    const out=await page.evaluate(async(seed)=>{
+      // 9: byte-preservation asserted BEFORE any deliberate edit, no exemption
+      const preKeys={};seed.forEach(p=>{preKeys[p[0]]=localStorage.getItem(p[0]);});
+      // 8: force the training path explicitly — it must make no fetch
+      const f0=performance.getEntriesByType('resource').length;
+      await new Promise(r=>trainingPull(r));m8Push();
+      await new Promise(r=>setTimeout(r,300));
+      const f1=performance.getEntriesByType('resource').length;
       // local edits still work and accumulate dirty
       state.training.exercises.push({id:'r1',name:'Row',muscle:'back',notes:[]});
       saveTraining();
-      return {keys,banner:!!document.getElementById('m8-recovery-banner'),
+      return {keys:preKeys,banner:!!document.getElementById('m8-recovery-banner'),
+        trainingFetches:f1-f0,
         editSaved:JSON.parse(localStorage.getItem('wl_training_v1')).exercises.length===1,
         dirtyNow:!!localStorage.getItem('wl_training_dirty__userA')};
     },states[name]);
     test(`${name}: boots with banner, zero training WRITES (CAS calls)`,()=>ok(out.banner&&trainingNet===0,'net='+trainingNet));
-    test(`${name}: seeded sync keys byte-untouched`,()=>ok(states[name].every(p=>out.keys[p[0]]===p[1]||(p[0]==='wl_training_dirty__userA')),'mutated'));
+    test(`${name}: EVERY seeded sync key byte-identical before any edit`,()=>ok(states[name].every(p=>out.keys[p[0]]===p[1]),'mutated'));
+    test(`${name}: a forced training pull+push makes ZERO network requests`,()=>ok(out.trainingFetches===0,'fetches='+out.trainingFetches));
     test(`${name}: local editing works and marks dirty`,()=>ok(out.editSaved&&out.dirtyNow));
     test(`${name}: no page errors`,()=>ok(errs.length===0,errs.join('; ')));
     await ctx.close();

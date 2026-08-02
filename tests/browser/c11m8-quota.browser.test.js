@@ -44,11 +44,18 @@ const ok=(v,m)=>{if(!v)throw new Error(m||'expected truthy');};
     state.training.exercises.push({id:'over',name:'Overflow',muscle:'back',notes:[]});
     let threw=false;try{saveTraining();}catch(e){threw=true;}
     await new Promise(rr=>setTimeout(rr,200));
+    // 13: the verified marker (or explicit block) must exist BEFORE any
+    // network action — captured before the push is even attempted
+    const preNet={state:m8State(),dirtyRaw:localStorage.getItem('wl_training_dirty__userA')};
+    r.preNetState=preNet.state;
+    r.preNetDirtyVerified=(function(){try{const d=JSON.parse(preNet.dirtyRaw);return d&&d.owner==='userA'&&d.gen>=1;}catch(e){return false;}})();
     m8Push();await new Promise(rr=>setTimeout(rr,500));
     const disk=(function(){try{return JSON.parse(localStorage.getItem('wl_training_v1')||'{}');}catch(e){return {};}})();
     r.liveIntact=state.training.exercises.some(x=>x.id==='over');
     r.stateNow=m8State();
-    r.blockedOrDirtyOrClean=['blocked','dirty','clean'].indexOf(r.stateNow)>=0;
+    // 13: after an edit under exhaustion the state must be a VERIFIED dirty
+    // marker or an explicit block — never clean-with-changes
+    r.dirtyOrBlocked=(r.preNetState==='blocked')||(r.preNetState==='dirty'&&r.preNetDirtyVerified);
     r.noThrow=!threw;
     r.baseParses=(function(){try{const b=localStorage.getItem('wl_training_base__userA');if(!b)return true;JSON.parse(b);return true;}catch(e){return false;}})();
     r.dirtyParses=(function(){try{const d=localStorage.getItem('wl_training_dirty__userA');if(!d)return true;JSON.parse(d);return true;}catch(e){return false;}})();
@@ -63,7 +70,7 @@ const ok=(v,m)=>{if(!v)throw new Error(m||'expected truthy');};
   console.log('  ballast filled: ~'+out.filledKB+' KB; state under pressure: '+out.stateNow+'; after release: '+out.afterRelease);
   test('B6: exhaustion never throws through the save path',()=>ok(out.noThrow));
   test('B6: the live in-memory copy keeps the edit regardless',()=>ok(out.liveIntact));
-  test('B6: sync state stays coherent under pressure (blocked, dirty, or clean — never corrupt)',()=>ok(out.blockedOrDirtyOrClean,out.stateNow));
+  test('B6/13: BEFORE any network action the edit is a VERIFIED dirty marker or an explicit block',()=>ok(out.dirtyOrBlocked,out.preNetState));
   test('B6: no sync key is left half-written (base and dirty both parse)',()=>ok(out.baseParses&&out.dirtyParses));
   test('no page errors across the run',()=>ok(errs.length===0,errs.join('; ')));
   await browser.close();server.close();

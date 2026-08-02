@@ -32,11 +32,15 @@ const eq=(a,b,m)=>{if(JSON.stringify(a)!==JSON.stringify(b))throw new Error((m||
       localStorage.setItem('wl_training_journal__userA',JSON.stringify(Object.assign({owner:'userA',mark:'m8.1'},cfg.journal)));
     },opts.seed);
     let commitCalls=0,recordCalls=0;
+    let srvT=opts.serverTraining,srvR=opts.serverRev;/* stateful: a successful
+      commit updates what the record route serves, like the real server */
     await ctx.route('**/api/**',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[],token:'tok',record:{id:'userA'}})}));
     await ctx.route('**/api/collections/appdata/records**',r=>{recordCalls++;
-      r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[{id:'rec1',user:'userA',training:opts.serverTraining,trainingRev:opts.serverRev}]})});});
+      r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[{id:'rec1',user:'userA',training:srvT,trainingRev:srvR}]})});});
     await ctx.route('**/api/cf/appdata/commit',r=>{commitCalls++;
       if(opts.commit==='abort'){r.abort();return;}
+      try{const body=JSON.parse(opts.commit.body);
+        if(body.ok&&body.newRev!=null){srvT=JSON.parse(r.request().postData()).payload;srvR=body.newRev;}}catch(e){}
       r.fulfill(opts.commit);});
     const page=await ctx.newPage();
     const errs=[];page.on('pageerror',e=>errs.push(String(e)));
@@ -72,11 +76,18 @@ const eq=(a,b,m)=>{if(JSON.stringify(a)!==JSON.stringify(b))throw new Error((m||
     commit:{status:200,contentType:'application/json',body:JSON.stringify({ok:true,replay:true,subsystem:'training',newRev:4})}});
   test('F7-1: lost-response replay acks — base at the replayed rev, dirty cleared, journal gone',
     ()=>{eq(r1.state,'clean');eq(r1.base.rev,4);ok(!r1.dirty&&!r1.journal,JSON.stringify(r1));});
-  // F7-2: request never applied — replay says not-applied
+  // F7-2 (real route): an unexecuted request has NO ledger row — the replay
+  // simply executes as a fresh commit at the unchanged revision
   const r2=await boot({seed:Object.assign({journal:J('intent')},seedBase),serverTraining:JSON.parse(OLDC),serverRev:3,
-    commit:{status:200,contentType:'application/json',body:JSON.stringify({ok:false,replay:true,subsystem:'training',newRev:3})}});
-  test('F7-2: not-applied replay resolves the journal, dirty retained for a normal retry',
-    ()=>{ok(!r2.journal);ok(r2.dirty);ok(!r2.conflict,JSON.stringify(r2));});
+    commit:{status:200,contentType:'application/json',body:JSON.stringify({ok:true,subsystem:'training',newRev:4})}});
+  test('F7-2: no ledger row — the replay executes fresh and acks (base rev 4, clean)',
+    ()=>{ok(r2.state==='clean'&&r2.base.rev===4&&!r2.journal&&!r2.dirty,JSON.stringify({state:r2.state,rev:r2.base&&r2.base.rev,dirty:r2.dirty,journal:r2.journal,conflict:r2.conflict,blocked:r2.blocked,commits:r2.commitCalls,records:r2.recordCalls}));});
+  // F7-2b: not-applied is proven only by the fetch path (expired ledger,
+  // server untouched at the expected revision)
+  const r2b=await boot({seed:Object.assign({journal:Object.assign(J('intent'),{startedAt:Date.now()-31*24*3600*1000})},seedBase),
+    serverTraining:JSON.parse(OLDC),serverRev:3,commit:'abort'});
+  test('F7-2b: expired ledger + untouched server — not-applied resolves, dirty retained, no commit call',
+    ()=>{ok(!r2b.journal);ok(r2b.dirty);ok(!r2b.conflict);eq(r2b.commitCalls,0,'replay attempted');});
   // F7-3: replay conflicts but fetch shows the push actually landed
   const r3=await boot({seed:Object.assign({journal:J('intent')},seedBase),serverTraining:JSON.parse(NEWC),serverRev:6,
     commit:{status:409,contentType:'application/json',body:JSON.stringify({ok:false,conflict:true,subsystem:'training',serverRev:6,payload:JSON.parse(NEWC)})}});
