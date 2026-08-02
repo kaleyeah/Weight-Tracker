@@ -498,6 +498,23 @@ the exchange transcripts, and are marked (r) where reconstructed.
   pushed (carrying the M8 closure/records commits — their authorized
   publication); served bytes verified (sha256 `08a3f6bd…36dc1489`).
 
+- **2026-08-02, build `2026-08-02.417-fx` published (22:29Z).**
+  Client-only, outside the loop per standing rule; wording
+  Owner-approved via Taildrop, publish authorized in-session. Two
+  changes: the training-review card now adds, ONLY when the two
+  copies' workouts are identical, "Both copies contain the same
+  workouts. Either choice keeps them all — 'Keep this device's copy'
+  is the simple option"; and the first training save of an offline
+  stretch toasts "Saved on this phone — will sync when you're back
+  online" (once per stretch, reset on reconnect). Both behaviors
+  browser-verified (incl. recommendation absent on genuinely divergent
+  copies); M8 upgrade + matrix suites green against the release bytes.
+  Served bytes verified sha256 `dc2cd56f…` at 22:29:29Z. Note: two
+  records commits pushed alongside carried mislabeled messages (the
+  M10 gate-closure text under "Record the .417 release", the §4
+  cleanup under the correction message); their content is accurate,
+  the labels were not — recorded here for the audit trail.
+
 ## §2 Owner actions on record
 
 1. 2026-07-30 — direction change (sync simplification, review narrowing).
