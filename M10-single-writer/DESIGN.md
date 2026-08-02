@@ -1,10 +1,10 @@
-# M10 — strict single writer: design v8 (CONSOLIDATED)
+# M10 — strict single writer: design v9 (CONSOLIDATED)
 
 Engineer, 2026-08-02. THE authoritative server-package contract —
 self-contained; v2–v4 are history, not references. Owner ruling STRICT
 (recorded). Base: released `2026-08-02.415-m8`. Companions:
 `WRITE-SURFACE-MATRIX.md` v5 (fully rewritten this round, G14) and `artifacts/PB-SEMANTICS-PROBE.md`
-(corrected). Round-4 items answered as D1–D13, round-5 as E1–E12, round-6 as F1–F15, round-7 as G1–G16 inline.
+(corrected). Round-4 items answered as D1–D13, round-5 as E1–E12, round-6 as F1–F15, round-7 as G1–G16, round-8 as H1–H8 inline.
 
 ## 1. Invariant, stated exactly (E2)
 
@@ -274,25 +274,43 @@ preserves both; committed delete removes both):
 - `POST /api/cf/photos/delete` (by server id).
 Raw user mutation of the photos collection REJECTS under enforcement.
 
-**Idempotency (F4, G1, G2)**: each op carries a requestId into the
-SAME ledger (subsystem `photos`). Upload identity BINDS THE BYTES
-(G1): `op + authenticated user + localId + canonical metadata +
-exact byte length + sha256(file bytes)` — the SERVER computes the
-digest from the received file inside the transaction and stores it
-in the ledger row; the same key presented with different bytes (or
-different length/metadata) returns the typed key-reuse 409, never a
-silent replay of the first upload. Update identity =
-op+user+serverId+old→new canonical metadata; delete =
-op+user+serverId+captured record identity.
-**Replay results (G2)**: photo ledger rows persist the RESULT —
-`resultRecordId` + result identity — so the original response, an
-in-retention replay, and the retention-expired fallback all return
-the SAME usable contract: upload → `{ok, recordId, identity}` (the
-id `wl_photomap` needs), the expired fallback reconstructing it
-transactionally by authenticated `(user, localId)` lookup; metadata
-→ `{ok, recordId, applied}`; delete → `{ok, deleted, alreadyGone}`
-(already-deleted replays as success). Files are cleaned by the
-transactional route (proven).
+**Idempotency (F4, G1, G2, H1, H2)**: each op carries a requestId
+into the SAME ledger (subsystem `photos`).
+**Request identity vs result identity (H2)** — the existing
+`requestHash` column (sha256 hex, 64 chars) stores the hash of the
+canonical REQUEST identity: upload = `op + authenticated user +
+localId + canonical metadata + exact byte length + sha256(file
+bytes)`; update = `op + user + serverId + old→new canonical
+metadata`; delete = `op + user + serverId + captured record
+identity`. It binds the operation; it cannot identify the created
+record — that is the job of the two RESULT columns:
+`resultRecordId` (the created/target photos record id) and
+`resultIdentity` (the canonical JSON of the typed result body).
+Reconstruction: upload replay returns `{ok:true,
+recordId:resultRecordId, identity:parse(resultIdentity)}` (identity
+= `{localId, byteLength, sha256, meta}` — what `wl_photomap`
+needs); update replay `{ok, recordId, applied, newMeta}`; delete
+replay `{ok, recordId, deleted, alreadyGone}` (already-deleted
+replays as success). The retention-expired fallback reconstructs
+the same shapes transactionally by authenticated `(user, localId)`
+/ record-id lookup.
+**Upload hashing, operationally (G1, H4, H5)**: the route parses the
+multipart and hashes the received bytes FIRST — before any ledger
+short-circuit decision (H5); a prior key is never replayed from
+multipart metadata alone. In-transaction order: (1) read the file
+part, compute exact byte length + sha256; (2) ledger lookup by
+(user, `photos`, key); (3) prior row present → recompute the full
+request identity from the fresh bytes and compare to `requestHash`
+— equal → return the stored typed result; different → typed
+key-reuse 409; (4) no prior row → ownership + lease/fence
+validation → mutation + ledger row (with result fields) → commit.
+Malformed uploads all roll back with NO photo record, NO managed
+file, NO ledger row (H4): no file part → typed 400; more than one
+file part → typed 400; unreadable temporary upload → typed 400;
+oversized file (cap `PHOTO_MAX_BYTES = 15_728_640`, ~8× the
+client's processImage output ceiling) → typed 413; declared-vs-
+actual byte-length mismatch → typed 400; digest computation failure
+→ typed 500. Each is in the evidence plan with file-orphan checks.
 **Target binding (G3)**: update and delete resolve the target record
 INSIDE the transaction and require `record.user === authenticated
 user` BEFORE lease validation and before any mutation; a valid fence
@@ -418,20 +436,51 @@ Superuser writes: §2 bypass, logged, payload-free logs.
 
 ## 7. Migration, backup, compatibility, rollback
 
-- **Migration up** (E10, full enumeration): (1) create `writer_lease`
-  (closed rules); (2) add `writerFence`+`deviceLabelHash` nullable
-  columns to the commit ledger — integrity sentinel over EVERY
-  existing row (F12): before/after row count plus a deterministic
-  in-memory digest of ALL pre-existing columns per row (computed and
-  compared, never logged — health-adjacent contents stay out of
-  logs); the migration alters no existing ledger value or appdata
-  record, and the sentinel proves it;
+- **Migration up** (E10, H1 — the COMPLETE enumeration): (1) create
+  `writer_lease` (closed rules); (2) add SEVEN nullable columns to
+  `cf_commit_log` (existing schema for reference: user relation
+  required/cascade, subsystem text 16, key text 96, requestHash
+  text 64, expectedRev/resultingRev/responseStatus int ≥0,
+  clientBuild text 64, deviceHash text 16, created autodate; unique
+  index `idx_cf_commit_key (user, subsystem, key)`):
+  | field | PB type | bounds | populated by |
+  |---|---|---|---|
+  | `op` | text | max 24 | result discriminator: `photo-upload` / `photo-update` / `photo-delete` / `platform-patch`; NULL on core/training CAS rows (absent = legacy commit shape) |
+  | `writerFence` | number | int ≥ 0, nullable | fenced device commits (core, training, photos): the fence validated in the same transaction; NULL on platform rows (lease-exempt) and legacy rows |
+  | `deviceLabelHash` | text | max 64, nullable | fenced device commits: sha256 of the lease row's holder label read INSIDE the commit transaction — server-derived evidence, distinct from the client-supplied `deviceHash` |
+  | `resultRecordId` | text | max 15 (PB id), nullable | photo routes only (upload: created id; update/delete: target id) |
+  | `resultIdentity` | text | max 1024, nullable | photo routes only: canonical JSON of the typed result (H2) |
+  | `fileSha256` | text | max 64, nullable | photo upload only: server-computed digest of the received bytes |
+  | `fileByteLength` | number | int ≥ 0, nullable | photo upload only: exact received byte count |
+  No new or changed index: `idx_cf_commit_key` remains the only
+  ledger index and is asserted identical before/after. All seven
+  columns are nullable with NO default written to existing rows.
+  **Sentinel (F12, H3)**: before/after row count plus a
+  deterministic in-memory digest of ALL pre-existing columns per
+  row (user, subsystem, key, requestHash, expectedRev, resultingRev,
+  responseStatus, clientBuild, deviceHash, created) — computed and
+  compared, never logged; plus the index-list assertion; the
+  migration alters no existing ledger value, index, or appdata
+  record, and the sentinel proves it.
   (3) no appdata transforms; (4) the three transactional photo
   routes ship in the hook package (code, not schema; §photo routes —
-  request-hook photo fencing is rejected and not deployed). **Down**: refuses while FENCING_ENFORCED is on
-  or any M10 client is known deployed (operational rule recorded in
-  the runbook); otherwise: drop ledger columns, delete `writer_lease`,
-  remove hooks — in that order, after the sequenced client rollback.
+  request-hook photo fencing is rejected and not deployed).
+  **Down (H3, H7)**: removes ONLY the seven M10 columns (existing
+  CAS ledger fields, all rows, and `idx_cf_commit_key` preserved —
+  asserted), deletes `writer_lease`, removes M10 hooks — in that
+  order. The refusal gate is stated HONESTLY (H7): the
+  mechanically-enforced part is an explicit operator confirmation —
+  down throws unless the environment variable
+  `M10_DOWN_CONFIRM=yes` is set for the migrate invocation (tested:
+  down without the marker throws and leaves the schema byte-
+  identical) and additionally throws if it can read
+  `FENCING_ENFORCED=true` from the deployed hook constant. The
+  "no M10 client still deployed" precondition is NOT mechanically
+  testable from schema — it is an OPERATOR GATE recorded in the
+  runbook (down is invoked only after the sequenced client
+  rollback), and the runbook precondition itself is what review
+  checks. No code-enforced refusal is claimed beyond the marker and
+  the readable constant.
 - **Backup**: lease excluded from athlete exports (operational,
   valueless to restore); included in PB full backups trivially.
 - **Compatibility (enforcement OFF)**: `.415-m8` devices see zero
@@ -500,8 +549,12 @@ Local instance first, then the NAS disposable gate:
    IndexedDB blob-write failure voids the intent (G5); partial clear
    + restart resumption; non-holder photoSync → zero local AND zero
    server mutations; displaced photo add/delete/update review incl.
-   drifted-server refresh instead of apply (G6); file-orphan checks
-   after every rollback path.
+   drifted-server refresh instead of apply (G6); the H4 malformed-
+   upload matrix (no file, two files, unreadable temp, oversize,
+   length mismatch, digest failure — each proving no record, no
+   managed file, no ledger row); replay decided only AFTER hashing
+   the fresh bytes (H5); file-orphan checks after every rollback
+   path.
 7. Core client suites (F13, G15): the `.416`→M10 bootstrap four
    cases, splitting server-absent into coreRev 0 (first push) vs
    positive coreRev (review) (G10); the G9 emptiness predicate incl.
@@ -511,7 +564,12 @@ Local instance first, then the NAS disposable gate:
    full F9 state-model permission matrix incl. takeover REFUSED from
    corrupt/blocked and deferred during journal recovery (G11, G12);
    coach ‖ device in both orders proving both field sets survive.
-8. Enforcement-boundary suite (G15): a legacy fence-less journal
+8. Migration suite (H3, H7): up on a populated disposable ledger —
+   sentinel digests + row count + index list identical, seven new
+   columns null on every pre-existing row; down without
+   `M10_DOWN_CONFIRM` throws, schema byte-identical; confirmed down
+   removes only the seven columns, preserving rows + unique index.
+9. Enforcement-boundary suite (G15): a legacy fence-less journal
    (M8-shape and core-shape) present at the boundary resolves to a
    verified terminal state while enforcement is OFF and never gains
    an invented fence; the G13 gate checklist executes end-to-end on
