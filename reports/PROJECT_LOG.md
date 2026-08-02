@@ -295,6 +295,15 @@ the exchange transcripts, and are marked (r) where reconstructed.
   served bytes verified (sha256 `a986ac38…e79eac20`). C14 at 56; C12/C13
   VM+browser green.
 
+- **2026-08-02, build `2026-08-02.410-fx` published.** Owner-driven spacing
+  iteration on the new nav, closed with a hard requirement: the chevrons
+  are FIXED — a 148px label slot (short-month dates) with an 8px gap, so
+  they sit close and never move as the label changes. Measured x-position
+  invariance across Today/Yesterday/date is a C14 assertion (suite at 57).
+  Same M8-extraction discipline. Owner authorized; pushed; served bytes
+  verified (sha256 `10a85222…5dd50c2`... full `10a85222f2217cd50aebff3569
+  b6f905e25260894b320aeded0de3efa5dd50c2`). C12/C13 VM+browser green.
+
 ## §2 Owner actions on record
 
 1. 2026-07-30 — direction change (sync simplification, review narrowing).
