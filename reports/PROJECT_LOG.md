@@ -235,6 +235,25 @@ the exchange transcripts, and are marked (r) where reconstructed.
   retry, and the recovery artifact built and hashed before publication.
   Engineer, with Owner rulings.
 
+- **2026-08-02, M8 rounds 2–3.** Round 2 (14 findings) rejected v2's
+  account-state model (global keys cannot hold two accounts), required
+  quota fail-closed behavior, explicit write ordering, a fully
+  network-disabled recovery build, fresh-fetch validation on Choose Server,
+  and halted for a fourth Owner ruling. **Owner logout ruling (decision
+  channel): Option A — a verified logout requires server acknowledgement
+  of training state; export never authorizes erasure; applies to dirty,
+  bootstrap, and conflict.** Decision artifact:
+  `Weight-Tracker/M8-sync-rework/decisions/DECISION-2026-08-02-M8-logout.md`.
+  Round 3 (no Owner input needed) approved the branch plan and all policy
+  choices, rejected v3's persistence mechanics (the single-value "seal"
+  cannot detect multi-key partial writes — a transition journal is
+  required), and specified: all five adoption transitions journaled,
+  ack-after-storage-failure recovery via fetch-and-compare (never stale
+  CAS), original-value canonical validation before JSON round-trip,
+  copy-verify-delete quarantine for malformed keys, provenance-safe
+  (`auto:true`) activity-tag cleanup including `migrateOrphanLiftTags()`,
+  and realistic combined-occupancy quota tests. Engineer.
+
 ## §2 Owner actions on record
 
 1. 2026-07-30 — direction change (sync simplification, review narrowing).
