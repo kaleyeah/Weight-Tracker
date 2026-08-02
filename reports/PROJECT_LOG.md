@@ -588,9 +588,14 @@ Candidate identity: base `e5f38c3` (build `2026-07-30.400-pb`, sha256
    as M10 (Owner direction 2026-08-02, STRICT ruling; its after-M8
    prerequisite is met). The M7b storage-migration package remains
    prerequisite ONLY for M10's HealthKit-import half (parked for
-   Maestro). Server-package gate CLOSED at Architect round 12 (12 rounds
-   2026-08-02); not even local implementation authorized until the
-   consolidated design passes.
+   Maestro). Design approved v9.1 (round 9 + corrections); the LOCAL
+   server package (writer_lease, fenced commits, transactional photo
+   routes, platform route, gated migration) passed review and the
+   server-package gate CLOSED at Architect round 12 (2026-08-02,
+   21:04Z; 12 rounds total). LOCAL client implementation is authorized
+   and underway in the engineering checkout (increment 1 = the
+   writer-lease client, C15 suite). NAS deployment, coach migration,
+   and enforcement each remain behind their own Owner gates.
 6. **Server hardening (raw-PATCH lockdown + M10 fence enforcement)** —
    still OFF, by design: it awaits M8 stability plus the M10 client on
    both Owner devices, then ONE separately Owner-authorized server
