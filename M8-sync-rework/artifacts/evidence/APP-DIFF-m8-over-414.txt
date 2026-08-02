@@ -1,5 +1,5 @@
 diff --git a/index.html b/index.html
-index 27ee114..ee51713 100644
+index 27ee114..6274c8f 100644
 --- a/index.html
 +++ b/index.html
 @@ -1115,7 +1115,11 @@ var DEFAULT_CARDIO_TYPES=["Peloton","Treadmill","Rowing","Bike","Elliptical","Ou
@@ -15,7 +15,7 @@ index 27ee114..ee51713 100644
  function saveTraining(){saveTrainingLocal();scheduleTrainingPush();}
  function loadTraining(){try{var t=JSON.parse(localStorage.getItem(TKEY));if(t&&typeof t==="object"){state.training={cardioTypes:(Array.isArray(t.cardioTypes)&&t.cardioTypes.length)?t.cardioTypes:DEFAULT_CARDIO_TYPES.slice(),sessions:t.sessions||{},exercises:t.exercises||[],routines:t.routines||[],liftSessions:t.liftSessions||{}};}}catch(e){}}
  function syncCardioTags(date){var kept=normActs(date).filter(function(a){return !(a.cat==="cardio"&&a.auto);});
-@@ -8731,6 +8735,563 @@ function cloudPush(manual){
+@@ -8731,6 +8735,570 @@ function cloudPush(manual){
      setSync(err==="offline"?"offline":"error",err==="auth"?"session expired — log in again":"");
      if(manual)toast(err==="offline"?"No connection":err==="auth"?"Please log in again":"Save failed");});}
  
@@ -135,28 +135,35 @@ index 27ee114..ee51713 100644
 +  adopt:["intent","k1","k2"],"adopt-fresh":["intent","k1","k2"],
 +  "bootstrap-base":["intent"],"choose-server":["intent","k1","k2","k3","k4"]};
 +var M8_J_OUTCOMES=["conflict","auth","not-applied"];
++function m8JNat(v){return typeof v==="number"&&isFinite(v)&&v>=0&&Math.floor(v)===v;}
++function m8JCanonStr(v,allowNull){
++  if(v===null)return !!allowNull;
++  if(typeof v!=="string")return false;
++  /* the string must parse to the canonical value class (a plain object)
++     before it may drive adoption or comparison (R16-5) */
++  try{var o=JSON.parse(v);return !!o&&typeof o==="object"&&!Array.isArray(o);}catch(e){return false;}}
 +function m8ValidateJournal(j){
 +  if(!j||typeof j!=="object")return "not an object";
 +  var ph=M8_J_PHASES[j.op];
 +  if(!ph)return "unknown op";
 +  if(ph.indexOf(j.phase)<0)return "impossible phase for op";
-+  if(typeof j.startedAt!=="number")return "missing startedAt";
++  if(!(typeof j.startedAt==="number"&&isFinite(j.startedAt)&&j.startedAt>=0))return "bad startedAt";
 +  var e=j.expect;
 +  if(!e||typeof e!=="object")return "missing expect";
 +  if(j.op==="ack"){
-+    if(!(e.oldBaseCanon===null||typeof e.oldBaseCanon==="string"))return "bad oldBaseCanon";
-+    if(!(typeof e.expectedRev==="number"&&e.expectedRev>=0))return "bad expectedRev";
-+    if(typeof e.pushedCanon!=="string")return "bad pushedCanon";
-+    if(typeof e.gen!=="number")return "bad gen";
-+    if(typeof e.requestId!=="string"||!e.requestId)return "bad requestId";
-+    if(j.phase!=="intent"&&j.phase!=="done"&&typeof e.newRev!=="number")return "missing newRev";
-+    if(j.phase==="done"&&(typeof e.newRev!=="number")&&M8_J_OUTCOMES.indexOf(e.outcome)<0)return "bad terminal outcome";
-+    if(j.phase==="done"&&typeof e.newRev!=="number"&&M8_J_OUTCOMES.indexOf(e.outcome)<0)return "bad terminal outcome";
++    if(!m8JCanonStr(e.oldBaseCanon,true))return "bad oldBaseCanon";
++    if(!m8JNat(e.expectedRev))return "bad expectedRev";
++    if(!m8JCanonStr(e.pushedCanon,false))return "bad pushedCanon";
++    if(!m8JNat(e.gen))return "bad gen";
++    if(typeof e.requestId!=="string"||!e.requestId||e.requestId.length>96)return "bad requestId";
++    if(j.phase!=="intent"&&j.phase!=="done"&&!m8JNat(e.newRev))return "missing newRev";
++    /* a done record is ALWAYS a terminal outcome — no successful-ack path
++       creates one, so newRev never substitutes for the outcome (R16-2) */
++    if(j.phase==="done"&&M8_J_OUTCOMES.indexOf(e.outcome)<0)return "bad terminal outcome";
 +  }else{
-+    if(!(typeof e.serverRev==="number"&&e.serverRev>=0))return "bad serverRev";
-+    if(j.op==="bootstrap-base"){if(!(e.serverCanon===null||typeof e.serverCanon==="string"))return "bad serverCanon";}
-+    else{if(typeof e.serverCanon!=="string")return "bad serverCanon";}
-+    if(j.op==="choose-server"&&typeof e.discardedLocalGen!=="number")return "bad discardedLocalGen";}
++    if(!m8JNat(e.serverRev))return "bad serverRev";
++    if(!m8JCanonStr(e.serverCanon,j.op==="bootstrap-base"))return "bad serverCanon";
++    if(j.op==="choose-server"&&!m8JNat(e.discardedLocalGen))return "bad discardedLocalGen";}
 +  return null;}
 +/* invalid journal -> the copy-verify-delete quarantine; failure blocks */
 +function m8QuarantineInvalidJournal(reason){
@@ -579,7 +586,7 @@ index 27ee114..ee51713 100644
  function trainingPush(){
    /* Blocked in BOTH directions. Pulling can destroy the local copy; pushing an
       unverified local copy can destroy newer training on the server. With the
-@@ -8756,6 +9317,232 @@ function trainingPull(cb){
+@@ -8756,6 +9324,232 @@ function trainingPull(cb){
  
  
  /* =============== end M8 wiring =============== */
