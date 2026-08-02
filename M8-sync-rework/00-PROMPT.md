@@ -1,43 +1,43 @@
-# M8 sync rework — round 2: revised design, halt cleared by the Owner
+# M8 sync rework — round 3: design v3, the logout ruling is in
 
-You are the Architect for the Compound project (read-only; rulings bind the
-Engineer; the Owner alone authorizes deployment and live-data mutation).
+You are the Architect for the Compound project (read-only; rulings bind
+the Engineer; the Owner alone authorizes deployment and live-data
+mutation).
 
-## Since round 1 (hours ago)
+## Since round 2
 
-Your halt was taken to the Owner on the decision channel. Three rulings on
-record: **M8 formally precedes M7b** (program record amended, commit
-`bc4d5ff` in compound-app/reports); **full canonical copy** as the
-acknowledged base (your item 6 / R5 — cost measured: 29,805 bytes today);
-**strict conflict** for the empty-server bootstrap (your item 4). Your
-placement rejection is executed: the retired ref is untouched; engineering
-work lives on `engineering/m8` branched from the retired head `e379783`
-(commits `4e436c0`, `1cfaf94` — the latter also lands the containment-era
-C11–C13 suites that were never committed). The records-path correction is
-accepted (authoritative records = compound-app/reports).
+The Owner ruled on your item 5 via the decision channel: **Option A — a
+verified logout requires server acknowledgement; otherwise it aborts and
+the device stays signed in.** Export is protection, never permission to
+erase. Applied to dirty, bootstrap, AND conflict states (§1).
+
+`DESIGN.md` is v3; your items B1–B14 are answered inline:
+- B2: compound-app HEAD facts corrected (`bc4d5ff` local records HEAD,
+  `74a4777:index.html` the live base, records preserved).
+- B4: per-uid key names, enumeration by prefix scan, retention, malformed
+  entries preserved as `.corrupt.<ts>`, no interpretable global keys.
+- B6: fail-closed per transition on any sync-state setItem failure, with
+  read-back verification and a storage-failure banner.
+- B7: explicit write ordering with seals, and boot reconciliation that can
+  only move toward conflict or dirty, never silent adoption.
+- B8: recovery build performs NO training network activity at all.
+- B9/B10: Choose Server re-fetches and must match rev AND canonical
+  content; any newer copy replaces the conflict and resets every gate;
+  Choose Local mismatch does the same.
+- B11: §5b specifies activity-tag derivation (acknowledged training only,
+  cannot touch sync keys, cannot delete unrelated tags, tested).
+- B12: canon v1 domain validation — fail-closed on non-finite/undefined,
+  `-0` fixture, legacy-malformed handled by normalizers or conflict-grade
+  preserved.
+- B13: disposable-PB isolation = whole-record compare minus permitted
+  fields, with a concurrent core mutation between fetch and commit.
+- B3: the legacy-conflict UI explains the cause without recommending a
+  side.
 
 ## This round
 
-`DESIGN.md` is now v2. Your items 7–12 are folded in: account-enveloped
-sync keys with login/logout/switch semantics and a stop-and-ask logout when
-dirty (§1); mandatory at-entry copies, current-local semantics for Choose
-Local, export-gating that re-disables on any local edit (§5); final-warning
-+ fresh-export + gen/rev gates on Choose Server (§5); a versioned
-canonicalization spec with test vectors, array order preserved,
-absent ≠ empty (§6); exact-equality-only stale-rev retry using the fresh
-revision (§3); recovery artifact built/hashed/packaged as a gate before
-publication (§7). The migration-stamp consequence of strict bootstrap
-equality (one-time conflict on legacy devices) is stated in §2, eyes open.
-
-Rule on:
-1. Design v2 as the implementation contract — approve, or name the gaps.
-2. The branch plan in §0/A2 (explicitly flagged for your confirmation).
-3. The §2 stated consequence — is the one-time legacy bootstrap conflict
-   acceptable as designed, given the Owner's strict ruling?
-4. Anything in §1's logout-with-dirty policy that needs the Owner rather
-   than us (it extends his interrupted-logout "stop and ask" ruling; if you
-   think it is a new policy, say DECISION_REQUIRED).
-
-On approval, implementation begins on the stated branches; nothing is
-committed to the app lineage, no server record is touched, disposable-PB
-comes as its own later round with the A5 field-isolation demonstration.
+Rule on design v3 as the implementation contract. If it passes, say so
+plainly and implementation begins exactly as specified (§9 sequence;
+nothing committed to the app lineage, no server record touched,
+disposable-PB as its own later round). If anything remains, name it —
+another round costs an hour; a wrong contract costs the data.
