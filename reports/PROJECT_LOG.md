@@ -465,6 +465,14 @@ the exchange transcripts, and are marked (r) where reconstructed.
   the UX wording follow-up (reviewed), the Owner-authorized raw-PATCH
   lockdown, then M9/M10. Engineer.
 
+- **2026-08-02 — Owner direction: M10 next.** "I want m10." The
+  single-active-writing-device rule proceeds ahead of M9 (M9 defers;
+  the Owner directs sequencing as with M8-before-M7b). Scope note: M10's
+  single-writer rule depends only on M8 (done); its HealthKit-import
+  half still requires the reviewed M7b storage-migration package
+  (parked for Maestro) and is NOT started by this direction. Design
+  goes to the Architect before implementation. Engineer.
+
 ## §2 Owner actions on record
 
 1. 2026-07-30 — direction change (sync simplification, review narrowing).
