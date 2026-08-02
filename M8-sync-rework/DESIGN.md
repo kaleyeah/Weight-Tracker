@@ -1,8 +1,8 @@
-# M8 — training-sync rework: design v4
+# M8 — training-sync rework: design v5
 
 Engineer, 2026-08-02, revised per the Architect's rounds 1–3 and four
 Owner rulings taken via the decision channel. Round-2 items answered as
-B1–B14, round-3 items as C1–C12. The Owner logout decision artifact is at
+B1–B14, round-3 as C1–C12, round-4 as D1–D9. The Owner logout decision artifact is at
 `decisions/DECISION-2026-08-02-M8-logout.md` (C1) and in the authoritative
 record (`compound-app/reports/PROJECT_LOG.md`, M8 rounds 2–3 entry). Base: live
 build `2026-08-02.407-fx` (commit `74a4777`). Brief: `BRIEF-round2-rulings.md`
@@ -19,14 +19,15 @@ build `2026-08-02.407-fx` (commit `74a4777`). Brief: `BRIEF-round2-rulings.md`
   the retirement froze receives no commits; the new branch carries the whole
   engineering tree forward (commits `4e436c0`, `1cfaf94`, which also land
   the containment-era C11–C13 suites that had never been committed).
-  Application code is worked in the deployed-lineage checkout. Corrected
-  per B2: `compound-app/main` HEAD is the local records commit `bc4d5ff`,
-  two records commits ahead of `origin/main`; **`74a4777:index.html` is the
-  live application base**, not repository HEAD. The records commits are
-  preserved — implementation never resets or rewrites them; the M8
-  candidate is worked as an uncommitted change on top of `bc4d5ff` and the
-  eventual release commit follows the established records-then-candidate
-  pattern.
+  Application code is worked in the deployed-lineage checkout. Repository
+  facts as of this round (D2): `compound-app/main` HEAD is the local
+  records commit `3de02ee`, **three** records commits ahead of
+  `origin/main` (`74a4777`); **`74a4777:index.html` remains the live
+  application base**. All records commits are preserved — implementation
+  never resets or rewrites them; the M8 candidate is worked as an
+  uncommitted change on top of the current records HEAD and the eventual
+  release commit follows the established records-then-candidate pattern.
+  (These facts move as records land; each bundle restates them.)
 - **Records path (A3):** accepted — authoritative records are
   `compound-app/reports/`; the engineering repo holds working artifacts only.
 - **Empty-server bootstrap (A4, Owner):** strict — field-absent enters
@@ -81,31 +82,46 @@ States per account: **clean · dirty · bootstrap · conflict**.
   pre-release global test key is found, it is renamed to the corrupt form,
   never interpreted.
 
-**Logout (B5 — Owner ruling A, 2026-08-02, decision channel):** a verified
-logout requires the training state to be **clean** (server holds the acked
-copy). In dirty, bootstrap, or conflict state the logout screen explains
-what is unsynced, offers **push now** (retry) and **export** (protection
-only), and otherwise **aborts — the device stays signed in**. A delivered
-export never authorizes erasure. This extends the Owner's interrupted-logout
-"stop and ask" ruling with the explicit rule that only server
-acknowledgement releases the device.
+**Logout (B5 — Owner ruling A; state-specific per D4):** a verified
+logout requires the training state to be **clean**. Otherwise the logout
+screen explains what is unsynced and aborts — the device stays signed in.
+Its affordances differ by state: **dirty with a trusted base** offers
+"Push now" (an ordinary retry) and export; **bootstrap or conflict** offers
+NO generic push — the screen routes into the inspected, export-first
+conflict workflow (§5), because pushing over an uninspected difference is
+exactly what M8 exists to prevent. Export is protection only and never
+unlocks logout, in any state.
 
 **Quota / write failure (B6):** every sync-state `setItem` is wrapped and
 verified by read-back; failure is **fail-closed for the operation, never
-for the data**: a base that cannot persist → the push is treated as failed
-(dirty retained) even though the server acked — the next push is a no-op
-CAS at the same rev; a conflict copy that cannot persist → adoption is
+for the data**: a base that cannot persist after a server ack → dirty is
+retained and recovery is the journaled fetch-and-compare of transition 1
+(D3 — never a CAS retry at the stale rev); if the acknowledgement journal
+itself cannot persist **before** the network request, the push does not
+happen at all (journal-first ordering, §1 transitions); a conflict copy
+that cannot persist → adoption is
 refused AND the fetched copy is dropped (it is re-fetchable; local is
 authoritative-on-device and untouched); an export whose evidence cannot
 persist → the export is not marked done. A persistent storage-failure
 banner surfaces after any such refusal.
 
-**The transition journal (C4, C5):** every operation that touches more
-than one key runs journaled: write journal `{op, phase, expect}` → verify →
-perform the key writes in the op's stated order, each read-back verified →
-remove journal. Boot reconciliation reads a surviving journal and finishes
-or unwinds the op **toward dirty/conflict only** — never toward clean.
-Mismatched local/base content is never treated as clean (C5).
+**The transition journal (C4, C5; phases per D6):** every operation that
+touches more than one key — and every operation with a network side effect
+— runs journaled. Phases are explicit per op and each phase advance is
+itself persisted and read-back verified before the work of the next phase
+begins: `intent` (journal written, nothing else done — for ops with a
+network step this MUST be persisted before the request is sent, D3) →
+`net-done` (server responded; response identity recorded in the journal) →
+`k1..kN` (one phase per key write in the op's stated order) → removal.
+Boot recovery never trusts `phase` alone (D6): it compares the actual keys
+against `expect` and derives what completed; phase only tells it where to
+look first. Recovery moves **toward dirty/conflict only** — never toward
+clean; mismatched local/base content is never treated as clean (C5).
+**Journal-removal failure (D7):** if every data write verified but the
+journal delete fails, boot recognizes the completed transition by that
+key comparison, treats the op as done idempotently, and retries only the
+journal cleanup — it never replays an adoption and never clears dirty
+state newer than the journal's `expect.gen`.
 
 The five adoption/acknowledgement transitions, each with its ordering and
 its crash recovery (C5):
@@ -226,7 +242,10 @@ Patterns reused from the retired Commit 10 conflict centre where they fit.
 tags — a core write driven by training state, and therefore specified here
 even though M8 is otherwise training-only:
 - derivation reads **only** acknowledged or adopted training (never a
-  fetched-but-refused copy, never mid-transition state);
+  fetched-but-refused copy, never mid-transition state); on an ack whose
+  `gen` advanced mid-flight, derivation receives **the captured
+  acknowledged copy explicitly** (D8) — it may not read the newer live
+  `state.training` and call that acknowledged;
 - it runs strictly **after** a sync transition completes; its failure can
   neither clear dirty nor invalidate base (it has no access to sync keys);
 - cleanup removes **only derived entries carrying the existing provenance
@@ -270,7 +289,12 @@ functional, dirty state accumulating, a visible recovery banner, hashed,
 release-packaged, and tested to boot from clean, dirty, and conflict
 states without mutating any training or sync key. Rollback to `.407` remains legal only for devices that have
 never written an M8 key (all three absent). The recovery artifact's
-identity goes in the release records before deployment.
+identity goes in the release records before deployment. Rollback
+eligibility (D5): rolling back to `.407` is legal only when a prefix scan
+proves **no M8 sync key of any kind has ever been written for any
+account** — no dirty, no base, no conflict, no journal, and no
+quarantined/corrupt M8 key. Any single M8 key on the device makes recovery
+roll-forward-only.
 
 ## 8. Evidence plan (R3, R4, R9, R10; A5)
 
@@ -306,11 +330,14 @@ identity goes in the release records before deployment.
 2. ✅ Round 2: v2 review → 14 findings → Owner logout ruling (A: server
    acknowledgement or abort; artifact in `decisions/`).
 3. ✅ Round 3: v3 review → policies and branch plan approved → 12
-   technical corrections (journal, ack-recovery, original-value
-   validation, quarantine, tag provenance, combined-occupancy quota).
-4. Round 4 (this bundle): v4 as the implementation contract.
-5. Implementation; C11 revision; browser suite; evidence round(s).
-6. Disposable-PB integration round.
-7. Recovery artifact built, hashed, packaged (gate for 8).
-8. Owner decision file → publish → served-byte verify → device check.
-9. Owner-authorized server lockdown of raw training PATCH.
+   technical corrections.
+4. ✅ Round 4: v4 review → journal architecture accepted → 8 narrow
+   corrections (stale B6 sentence, journal phases and idempotent cleanup,
+   state-specific logout affordances, five-key rollback scan, captured-copy
+   tag derivation, repo facts).
+5. Round 5 (this bundle): v5 as the implementation contract.
+6. Implementation; C11 revision; browser suite; evidence round(s).
+7. Disposable-PB integration round.
+8. Recovery artifact built, hashed, packaged (gate for 9).
+9. Owner decision file → publish → served-byte verify → device check.
+10. Owner-authorized server lockdown of raw training PATCH.
