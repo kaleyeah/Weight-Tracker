@@ -50,12 +50,14 @@ routerAdd("POST", "/api/cf/photos/upload", (e) => {
      H4 unreadable-upload case. */
   let actualLen = -1, digest = "";
   try {
+    if (m10.testFault(e, "unreadable")) throw new Error("injected: unreadable temporary upload");
     const r = up.reader.open();
     try { digest = $security.sha256(readerToString(r)); } finally { try { r.close(); } catch (_) {} }
     actualLen = up.size;
   } catch (err) {
     return e.json(400, { ok: false, error: "uploaded file unreadable" });
   }
+  if (m10.testFault(e, "digest")) digest = "";                  // forces the H4 digest-failure arm
   if (actualLen !== declaredLen)
     return e.json(400, { ok: false, error: "byteLength mismatch", declared: declaredLen, actual: actualLen });
   if (!digest || digest.length !== 64)

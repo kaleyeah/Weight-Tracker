@@ -9,6 +9,7 @@ BIN="$HOME/.claude/jobs/1f705b64/tmp/pblocal/pocketbase"
 # Assemble fresh ONLY when the instance does not exist yet — a re-serve of an
 # existing dir must preserve pb_data (T9 inspects downed state across restarts).
 if [ -d "$DIR/pb_data" ]; then cd "$DIR";
+  export CF_M10_TEST_ENABLE=1
   if [ "$MODE" = "enforce" ]; then export CF_M10_ENFORCE_OVERRIDE=1; fi
   exec ./pocketbase serve --http 127.0.0.1:${PB_PORT:-8098} --dir pb_data
 fi
@@ -22,5 +23,6 @@ if ls "$PKG/tests/"probe-*.pb.js >/dev/null 2>&1; then cp "$PKG/tests/"probe-*.p
 cp "$BIN" "$DIR/pocketbase"
 cd "$DIR"
 ./pocketbase superuser upsert probe@local.test probe-password-1 --dir pb_data >/dev/null 2>&1 || true
+export CF_M10_TEST_ENABLE=1
 if [ "$MODE" = "enforce" ]; then export CF_M10_ENFORCE_OVERRIDE=1; fi
 exec ./pocketbase serve --http 127.0.0.1:${PB_PORT:-8098} --dir pb_data

@@ -180,13 +180,17 @@ onRecordUpdateRequest((e) => {
   const body = e.requestInfo().body || {};
   if ("coreRev" in body || "trainingRev" in body) throw new BadRequestError("revision fields are server-managed");
   if (m10.fencingEnforced()) {
-    /* M10 §2/§6: raw user content writes REJECT; only mailbox-only requests
-       pass unfenced. Superusers bypass (payload-free log). */
-    const isSuper = e.hasSuperuserAuth();
-    if (!isSuper && !m10.mailboxOnly(body))
-      throw new BadRequestError("content writes must use the commit route");
-    if (isSuper)
-      $app.logger().info("M10 superuser raw appdata write", "keys", Object.keys(body).join(","));
+    /* M10 §1/§2/§6 (round-10 item 1): authentication privilege does NOT
+       bypass content-write invariants. Raw writes pass ONLY when
+       mailbox-only, for users AND superusers alike; superuser CONTENT
+       writes go through /api/cf/platform/patch-data (field-scoped,
+       revision-safe) — never raw PATCH. */
+    if (!m10.mailboxOnly(body))
+      throw new BadRequestError(e.hasSuperuserAuth()
+        ? "superuser content writes must use the platform route"
+        : "content writes must use the commit route");
+    if (e.hasSuperuserAuth())
+      $app.logger().info("M10 superuser mailbox write", "keys", Object.keys(body).join(","));
     e.next();
     return;
   }
@@ -202,9 +206,10 @@ onRecordCreateRequest((e) => {
   const m10 = require(`${__hooks}/cf_m10_shared.js`);
   const body = e.requestInfo().body || {};
   if ("coreRev" in body || "trainingRev" in body) throw new BadRequestError("revision fields are server-managed");
-  if (m10.fencingEnforced() && !e.hasSuperuserAuth())
-    /* M10 §2: raw user CREATE rejects under enforcement — the commit route
-       provisions the row at rev 0; mailbox writers only PATCH existing rows. */
+  if (m10.fencingEnforced())
+    /* M10 §2 (round-10 item 1): raw CREATE rejects under enforcement for
+       users AND superusers — the commit route provisions the row at rev 0;
+       mailbox writers only PATCH existing rows. */
     throw new BadRequestError("appdata rows are created by the commit route");
   /* raw create cannot forge another owner: pin to the authenticated user */
   if (e.auth && e.record.getString("user") !== e.auth.id) e.record.set("user", e.auth.id);

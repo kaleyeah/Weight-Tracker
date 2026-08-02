@@ -1,10 +1,10 @@
-# M10 — strict single writer: design v9 (CONSOLIDATED)
+# M10 — strict single writer: design v9.1 (CONSOLIDATED)
 
 Engineer, 2026-08-02. THE authoritative server-package contract —
 self-contained; v2–v4 are history, not references. Owner ruling STRICT
 (recorded). Base: released `2026-08-02.415-m8`. Companions:
 `WRITE-SURFACE-MATRIX.md` v5 (fully rewritten this round, G14) and `artifacts/PB-SEMANTICS-PROBE.md`
-(corrected). Round-4 items answered as D1–D13, round-5 as E1–E12, round-6 as F1–F15, round-7 as G1–G16, round-8 as H1–H8 inline.
+(corrected). Round-4 items answered as D1–D13, round-5 as E1–E12, round-6 as F1–F15, round-7 as G1–G16, round-8 as H1–H8, round-10 corrections as J1–J3 inline.
 
 ## 1. Invariant, stated exactly (E2)
 
@@ -147,9 +147,17 @@ real 0.39.8: probe Q1/Q1b/Q1c, steal blocked 652ms):
 4. `expectedRev` check against the subsystem's rev → else
    `409 {conflict, serverRev, payload}`;
 5. content mutation + rev increment + ledger row — the ledger row now
-   PERSISTS `writerFence` and a `deviceLabelHash` (sha256 of deviceId,
-   privacy-preserving) for every user content commit (E4): the durable
-   commit oracle the race evidence reads. Migration adds the two
+   PERSISTS `writerFence` and `holderDeviceHash` for every user content
+   commit (E4): the durable commit oracle the race evidence reads.
+   **Explicit rename (J3, adopting round-9 item 3's preferred name)**:
+   the column approved in v9 as `deviceLabelHash` is `holderDeviceHash`
+   everywhere — defined as sha256 of the LEASE ROW's `holderDeviceId`
+   read inside the commit transaction (server-derived authority
+   evidence; never the display `deviceName`, never an unverified client
+   value, deliberately distinct from the client-supplied `deviceHash`).
+   Consumers, all using this one name: the migration column, the commit
+   route, the three photo routes, the race-oracle assertions, and the
+   T3/T4 ledger-evidence tests. No other consumer exists. Migration adds the two
    nullable columns (existing rows default null = pre-M10);
    enforcement-OFF writes record them when supplied; down-migration
    drops the columns only under the sequenced rollback rules;
@@ -432,7 +440,14 @@ null-valued content keys count as present (reject); unknown keys
 reject; duplicated transport values reject; CREATEs are never
 mailbox-only (see §2). Mailbox-only user writes pass unfenced (a
 read-only device may request a recap; the Shortcut may deliver).
-Superuser writes: §2 bypass, logged, payload-free logs.
+**Superuser rule (J1/J2 — one rule, no ambiguity): authentication
+privilege does NOT bypass content-write invariants.** A superuser's
+raw PATCH passes ONLY when mailbox-only, exactly like a user's
+(payload-free log); superuser CONTENT writes use the platform route
+(field-scoped, revision-safe) and nothing else; raw CREATE and raw
+photo mutation reject under enforcement for superusers too (relation
+cascades are unaffected — request hooks fire only for API requests).
+The lease is the only thing platform authentication bypasses.
 
 ## 7. Migration, backup, compatibility, rollback
 
@@ -447,7 +462,7 @@ Superuser writes: §2 bypass, logged, payload-free logs.
   |---|---|---|---|
   | `op` | text | max 24 | result discriminator: `photo-upload` / `photo-update` / `photo-delete` / `platform-patch`; NULL on core/training CAS rows (absent = legacy commit shape) |
   | `writerFence` | number | int ≥ 0, nullable | fenced device commits (core, training, photos): the fence validated in the same transaction; NULL on platform rows (lease-exempt) and legacy rows |
-  | `deviceLabelHash` | text | max 64, nullable | fenced device commits: sha256 of the lease row's holder label read INSIDE the commit transaction — server-derived evidence, distinct from the client-supplied `deviceHash` |
+  | `holderDeviceHash` | text | max 64, nullable | fenced device commits: sha256 of the lease row's `holderDeviceId` read INSIDE the commit transaction — server-derived evidence, distinct from the client-supplied `deviceHash` (renamed from v9's `deviceLabelHash`, J3) |
   | `resultRecordId` | text | max 15 (PB id), nullable | photo routes only (upload: created id; update/delete: target id) |
   | `resultIdentity` | text | max 1024, nullable | photo routes only: canonical JSON of the typed result (H2) |
   | `fileSha256` | text | max 64, nullable | photo upload only: server-computed digest of the received bytes |
@@ -531,8 +546,9 @@ Local instance first, then the NAS disposable gate:
    steal‖steal, renew‖steal, release‖write, expiry-acquire‖write;
    100 iterations each.
 3. Fenced commit route: fence/device/expectedRev/ledger validation
-   matrix incl. spoofed/malformed/missing transport; superuser bypass
-   positive + user-token negative; subsystem-`core` creation at rev 0;
+   matrix incl. spoofed/malformed/missing transport; superuser tokens
+   REJECTED on this users-only route (I4; superuser-positive lives on
+   the platform route only); subsystem-`core` creation at rev 0;
    whole-record field isolation per subsystem (M8-gate standard).
 4. Raw rejection (enforcement ON, disposable-scoped build): content
    PATCH/CREATE rejected; mailbox matrix (§6) both directions; mixed

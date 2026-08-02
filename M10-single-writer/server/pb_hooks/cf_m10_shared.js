@@ -143,7 +143,18 @@ function writePhotoLedger(txApp, uid, key, requestHash, op, resultRecordId, resu
 }
 
 
+/* DISPOSABLE-ONLY fault injection (round-10 item 4): honored ONLY when the
+   instance environment sets CF_M10_TEST_ENABLE=1 (setup-instance.sh does;
+   no real deployment does). Ships inert. */
+function testFault(e, stage) {
+  try {
+    if ($os.getenv("CF_M10_TEST_ENABLE") !== "1") return false;
+    return e.request.header.get("x-cf-test-fault") === stage;
+  } catch (_) { return false; }
+}
+
 module.exports = {
+  testFault,
   FENCING_ENFORCED_DEFAULT, fencingEnforced,
   LEASE_TTL_MS, FENCE_MAX, PHOTO_MAX_BYTES,
   PLATFORM_FIELDS, MAILBOX_FIELDS, CONTENT_FIELDS, REV_FIELDS,
