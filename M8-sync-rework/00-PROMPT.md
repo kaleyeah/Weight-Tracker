@@ -1,35 +1,52 @@
-# M8 sync rework — round 19: malformed journals full-stop everywhere
+# M8 sync rework — round 20: the disposable-PocketBase gate package
 
 You are the Architect for the Compound project (read-only; rulings bind
 the Engineer; the Owner alone authorizes deployment and live-data
 mutation).
 
-## Your round-18 correction, as landed (verify in the tree; hashes in
-## artifacts/evidence/IDENTITIES.txt)
+## The gate, as executed (artifacts/pbgate/; verify raw evidence, not
+## this summary)
 
-2/3/4. `m8Push` no longer converts a malformed journal to absence and
-   continues; `m8Pull` gains the malformed branch it lacked. Both route
-   through the same transition-specific quarantine-and-block full stop
-   as semantic invalidity, in the SAME invocation — no bootstrap, no
-   dispatch, no fetch follows.
-5. T cases: a malformed-JSON journal driven through direct `m8Push`,
-   direct `m8Pull`, and the boot-backed `trainingPull` — each proves
-   byte-identical preservation in the kind-tagged corrupt namespace,
-   active-key removal, the persistent block, ZERO record fetches and
-   ZERO CAS commits, and untouched local/base/dirty/conflict bytes;
-   the reload case proves the block re-derives; T2 reaches the
-   quarantine copy-failure path via direct `m8Push` (original retained,
-   blocked, zero requests).
+All runs used ONLY disposable users/records on the production
+PocketBase, created and deleted with VERIFIED absence inside each run.
+Griffin's account, records, deployment, and release identity were never
+addressed. Raw request/response JSON for every case, before/after
+record state, hook sha256 identities, and the captured appdata schema
+and rules are in the package; the PocketBase binary self-report was
+unavailable without sudo, so the version stands on the cutover record
+(v0.39.8) and is stated as such, not claimed.
 
-## Evidence
+- **The real CAS hook + ledger** (RAW-EVIDENCE.json): fresh commit →
+  rev 1; identical-key replay → `replay:true` at the stored rev;
+  same-key/different-body → 409 key-reuse; stale revision → 409
+  conflict carrying the server payload; committed-with-response-lost →
+  replay acks at the committed rev; a never-executed key executes
+  fresh (no ledger row — exactly as the client models it);
+  unauthenticated → 401.
+- **Whole-record field isolation**: a concurrent core PATCH bumps only
+  `coreRev`; the following training commit changes ONLY
+  `[training, trainingRev, updated]` — `onlyPermitted:true` by
+  full-record comparison.
+- **Account isolation** (RAW-EVIDENCE-2.json): the same idempotency key
+  lands on each user's OWN ledger; a cross-account raw PATCH is denied
+  by rule (404); the first user's record byte-untouched.
+- **Client recovery after restart** (CLIENT-RESTART-EVIDENCE.txt): the
+  REAL application in Chromium (ts.net name host-mapped), signed in as
+  a disposable user, crashed 60ms after dispatching a REAL push; on
+  restart the journal recovered through the REAL ledger — clean at
+  rev 1, edit present on the device AND the server record.
 
-128 cases, 8 suites, all green on the candidate (hash in IDENTITIES);
-the recovery artifact is rebuilt from THIS candidate, 25/25; the
-authentic upgrade baseline still fails 1/4. Full gates unchanged and
-re-run. Raw outputs in artifacts/evidence/. Desktop Chromium, mocked
-endpoints: real engine, modeled server.
+## Records
+
+`MAESTRO_PROGRAM_CONTEXT.md` and `PROJECT_LOG.md` were corrected per
+your round-19 item 7 (commit `c44662c`) preserving the
+client-evidence-accepted vs PB-gate distinction; this package is the
+PB-gate submission.
 
 ## This round
 
-Rule on the implementation and, if it passes, confirm the
-disposable-PocketBase gate as next.
+Rule on the disposable-PocketBase gate. If it passes, name what remains
+before the release-packaging phase (which we understand still requires
+its own review, the recovery artifact in the release records, the
+five-kind rollback scan documentation, and the Owner's publish
+decision — none of which is requested now).
