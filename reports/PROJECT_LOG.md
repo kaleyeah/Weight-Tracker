@@ -410,6 +410,29 @@ the exchange transcripts, and are marked (r) where reconstructed.
   users/records only. No publication, production mutation, release
   packaging, or lockdown is authorized. Engineer.
 
+- **2026-08-02, M8 rounds 20–21 — THE REAL-POCKETBASE GATE PASSES.** The
+  disposable gate ran against the production PocketBase using ONLY
+  disposable users/records, every one deleted with independent
+  postconditions (user 404, record-by-id 404, records-by-relation 0).
+  The live CAS hooks match the committed server kit byte-for-byte
+  (cf_cas.pb.js `db09d8f2…`, cf_cas_shared.js `7bc856cf…`). Evidenced
+  against the real hook and ledger: fresh commit, identical-key replay,
+  same-key/different-body rejection, stale-revision conflict,
+  lost-response replay, unapplied-key fresh execution, unauthenticated
+  rejection, whole-record field isolation under a concurrent core PATCH
+  (only training/trainingRev/updated changed), cross-account isolation
+  (same key on separate ledgers; cross-account PATCH rule-denied;
+  record byte-untouched), and REAL-CLIENT restart recovery: the actual
+  app in Chromium, crashed 60ms after dispatching a real push, recovered
+  through the real idempotency ledger to clean rev 1 with the edit on
+  device and server. Gate artifacts under
+  `Weight-Tracker/M8-sync-rework/artifacts/pbgate/`. Round-21 verdict:
+  gate passed; M8 advances to RELEASE PACKAGING (candidate freeze,
+  recovery-artifact package, the `.414` rollback-basis correction of the
+  design's stale `.407` references, five-kind rollback-scan evidence,
+  and the full Owner-facing package). Publication, production mutation,
+  lockdown, and live verification remain unauthorized. Engineer.
+
 ## §2 Owner actions on record
 
 1. 2026-07-30 — direction change (sync simplification, review narrowing).
