@@ -1,168 +1,179 @@
-# M8 — training-sync rework: design for review
+# M8 — training-sync rework: design v2
 
-Engineer draft v1, 2026-08-02. Base: live build `2026-08-02.407-fx`
-(commit `74a4777`, served bytes verified). Brief: `BRIEF-round2-rulings.md`
-(the round-2 verdict; rulings cited as R1–R10 below).
+Engineer, 2026-08-02, revised per the Architect's round-1 reply and three
+Owner rulings taken the same night via the decision channel. Base: live
+build `2026-08-02.407-fx` (commit `74a4777`). Brief: `BRIEF-round2-rulings.md`
+(R1–R10). Round-1 items answered inline as A1–A12.
 
-The withdrawn round-2 candidate's dirty/snapshot/generation core was ruled
-"directionally sound"; its containment test, upgrade path, and rollback plan
-were ruled unsound. This design keeps the sound core, removes containment
-entirely, and adds what R2/R6/R7/R8 require. The candidate diff no longer
-exists (scratch deleted); the rework will be re-implemented against the
-current head, which has since gained the session editor, GLP changes, LBM,
-and the containment-release protections (recovery snapshot, ownership gates,
-journalled logout) that did not exist when the round-2 candidate was written.
+## 0. Rulings on record (round 1)
 
-## 1. States and stores
+- **Sequencing (A1, Owner):** M8 formally precedes M7b; the program record
+  (`compound-app/reports/MAESTRO_PROGRAM_CONTEXT.md`) is amended, commit
+  `bc4d5ff`. M7b stays parked for Maestro.
+- **Placement (A2):** the retired `integration/commit10-lineage-a` ref is
+  untouched. Engineering work (this design, tests) lives on
+  **`engineering/m8`**, branched from the retired head `e379783` — the ref
+  the retirement froze receives no commits; the new branch carries the whole
+  engineering tree forward (commits `4e436c0`, `1cfaf94`, which also land
+  the containment-era C11–C13 suites that had never been committed).
+  Application code is worked in the deployed-lineage checkout
+  (`compound-app`, `main`, head `74a4777`) and stays uncommitted until the
+  release gates. **Question for this round: confirm this branch plan.**
+- **Records path (A3):** accepted — authoritative records are
+  `compound-app/reports/`; the engineering repo holds working artifacts only.
+- **Empty-server bootstrap (A4, Owner):** strict — field-absent enters
+  conflict like any other difference. No auto-push path exists.
+- **Scope (A5):** training-only confirmed. The disposable-PB round will
+  include the demonstration that the CAS route writes only the training
+  field and its revision (core fields byte-compared before/after).
+- **Base representation (A6, Owner):** full canonical copy. Measured on the
+  Owner's live export: 29,805 bytes today; ~3.4 MB/copy at 4 sessions/week
+  for 5 years. Session archiving is future work regardless of this choice.
 
-One training sync state per signed-in account, derived from three keys:
+## 1. States and stores (revised per A7)
 
-| Key | Content | Written when |
-|---|---|---|
-| `wl_training_dirty` | `{gen, ts}` | synchronously in `saveTraining()`, before the debounce, before any `syncOn()` gate (R-sound core) |
-| `wl_training_base` | the **full canonical JSON string** of the last server copy this device acknowledged, plus the server revision it carried | on acked push; on clean adopt |
-| `wl_training_conflict` | `{serverCopy, serverRev, localSnapshot?, enteredAt, reason}` | on any refused adoption/push |
+All three keys are **account-enveloped**: `{owner:<uid>, canon:<ver>, ...}`.
+A key whose `owner` differs from the signed-in uid is treated as absent for
+sync decisions and is **never deleted** on mismatch — it is quarantined
+in place for the account it names, consistent with the containment release's
+ownership model (`wl_last_owner`, `ownershipAmbiguous()`).
 
-States: **clean** (base known, not dirty) · **dirty** (local edits pending) ·
-**bootstrap** (local training exists, no base) · **conflict** (both copies
-retained, Owner decision pending).
+| Key | Content |
+|---|---|
+| `wl_training_dirty` | `{owner, gen, ts}` — set synchronously in `saveTraining()` before debounce and gates |
+| `wl_training_base` | `{owner, canon, rev, body}` — body = full canonical string of the last acknowledged server copy (Owner ruling A6) |
+| `wl_training_conflict` | `{owner, canon, enteredAt, reason, serverRev, serverAtEntry, localAtEntry, exports:{localGen?, serverDone?, localDone?}}` |
 
-**Base representation (R5):** full canonical copy, not a hash. Exact string
-equality is then the only identity test anywhere in a data-loss decision.
-Cost: one more copy of training in localStorage (~tens of KB for the Owner's
-data today). The digest alternative saves that space but reintroduces a lossy
-identity. **Owner decision point** per R5; full-copy is the Engineer's
-recommendation and the design assumes it.
+States per account: **clean · dirty · bootstrap · conflict**.
 
-## 2. Bootstrap (R2, R3, R4)
+**Account lifecycle (A7):**
+- Login/adoption: sync state for the new uid starts from that uid's own
+  enveloped keys (usually absent → bootstrap rules apply).
+- Account switch: prior account's keys stay quarantined in place.
+- **Logout with dirty state: the journalled logout stops and asks** — the
+  Owner's standing interrupted-logout policy extended to unsynced training:
+  the logout screen names the unsynced work and offers export or abort; a
+  verified logout that proceeds only does so after the dirty copy is either
+  pushed (acked) or exported with delivery evidence. No silent discard.
 
-On boot, signed in, quarantine/ownership gates already passed, local
-training present, **no base**:
+## 2. Bootstrap (R2–R4; strict per Owner ruling)
 
-1. Fetch the server record. Local is not modified by the fetch.
-2. Server training **canonically equal** to local → write base, state clean.
-3. Server training **differs** → retain both (`wl_training_conflict` holds
-   the server copy), state conflict. No subset inference, ever.
-4. Server record **has no training field at all** (never written by any
-   client): this is the one case equality cannot decide. Proposed: treat as
-   push-candidate — push local through the CAS route (§3), which fails
-   closed into conflict if any other writer has appeared between fetch and
-   commit. **Question 1 to the Architect:** is that acceptable, or must
-   field-absent also park in conflict for the Owner to release?
+On boot: signed in, ownership established, local training present, no base
+for this uid → fetch server without modifying local, then:
 
-Fresh device (no local training) with server training: adopt server, write
-base — unchanged from today, and already protected by the containment
-release's ownership gates.
+- server training canonically equal to local → establish base, clean;
+- anything else — differing content, **or the training field absent** —
+  → conflict, both copies retained. Never any subset or authority inference.
 
-## 3. Push protocol (R1, R7)
+Fresh device (no local training): adopt server, establish base (unchanged,
+already behind the ownership gates).
 
-Trigger: dirty, debounced, plus boot retry when dirty. Never a blind push.
+**Stated consequence, eyes open:** legacy devices whose local copy carries
+migration-stamped fields (`migrateProgressionTypes()` adds `movement`) will
+canonically differ from the server and will enter a one-time bootstrap
+conflict, resolved through the full workflow (§5) — export, then Choose
+Local. This is the ruled outcome: a false conflict with a real resolution
+path is preferred to any equality-weakening cleverness. The conflict view's
+difference list will show "fields present locally only" so the Owner sees
+why it fired.
 
-1. Capture `{gen, deep copy}` of local training.
-2. Push **through the server CAS commit route** (deployed on the NAS in
-   July, live, 401 unauthenticated, unused by Lineage A): send the copy plus
-   the expected server revision (from base). The route commits only if the
-   revision matches, and returns the new revision.
-3. Success + `gen` unchanged → clear dirty, write base (copy + new rev).
-4. Success + `gen` advanced (edit landed mid-flight) → base updates, dirty
-   stays, reschedule.
-5. Revision mismatch → fetch; if the server copy equals base (stale-rev
-   race, no actual writer) retry once; else → conflict with the fetched
-   copy. No overwrite.
-6. Transport/5xx/401 → dirty persists, sync state shows the failure,
-   retry on next boot/debounce. (The July 31 loss class dies here: a failed
-   push can no longer be followed by an overwriting pull, because —)
+## 3. Push protocol (R1, R7; A11)
+
+1. Capture `{gen, deep copy}`.
+2. Push via the **server CAS commit route** with expected `rev` from base.
+3. Ack → base := `{copy, newRev}`; dirty cleared only if `gen` unchanged;
+   else base updates, dirty stays, reschedule.
+4. Revision mismatch → fetch. Retry **once**, only if the fetched content
+   is exactly equal to base under the same canon version, using the freshly
+   fetched revision (A11). Anything else → conflict with the fetched copy.
+5. Transport/5xx/401 → dirty persists, failure visible in sync status,
+   retry on next debounce/boot. No pull can follow a failed push into an
+   overwrite, because —
 
 ## 4. Pull protocol (R4)
 
-`trainingPull()` adopts the server copy **only** in state clean and only
-with ownership established. Dirty or bootstrap-with-difference or existing
-conflict → the server copy goes to `wl_training_conflict` (or is discarded
-if identical to base), local is never overwritten. `resyncAllActivityTags()`
-(the round-2 "separate defect": a stale training read can delete published
-activity tags) is fixed in the same change: tag derivation runs only after
-an adoption actually completes, never from a fetched-but-refused copy.
+Adoption happens only in state clean. Dirty, bootstrap-difference, or
+existing conflict → the fetched copy goes to conflict (or is dropped if
+identical to base). `resyncAllActivityTags()` is re-anchored in the same
+change: tag derivation runs only after an adoption or acked push actually
+completes, never from a fetched-but-refused copy (closes the round-2
+"separate defect": a stale read deleting published activity tags).
 
-## 5. Conflict resolution (R6, R7)
+## 5. Conflict resolution (R6, R7; A8, A9)
 
-Every existing installation may enter bootstrap conflict on first boot, so
-the workflow ships in the same build. Non-blocking: a persistent banner on
-the Training tab (the app stays usable; local edits continue accumulating in
-the local copy). The conflict view:
+Non-blocking banner on the Training tab; the app stays usable; local editing
+continues on the live local copy. Conflict entry freezes **both**
+`serverAtEntry` and `localAtEntry` (mandatory, A8).
 
-- **Inspect both**: per-copy summary — session count, dates, exercises,
-  latest entry — and a per-date difference list (dates only in local, only
-  in server, differing).
-- **Export both first**: one tap produces two backup files (existing
-  format-2 envelope, marked `conflict-local` / `conflict-server`). The
-  choice buttons stay disabled until both exports have been delivered
-  (the same delivered-file evidence pattern the backup work established).
-- **Choose Local** → CAS-push local (expected rev = the conflict's
-  serverRev); mismatch re-enters conflict with the newer copy.
-- **Choose Server** → adopt server copy, write base, local copy is included
-  in the exports taken above.
-- **Defer** → keep everything, banner persists.
+- **Inspect:** per-copy summaries plus a difference list by date, including
+  a "local-only fields" class so migration-stamp conflicts are legible.
+- **Export before choice:** the view exports **the exact copies the
+  decision will preserve or discard** (A8d): current local (not merely
+  at-entry) and serverAtEntry, format-2 envelopes marked
+  `conflict-local` / `conflict-server`, delivery-evidenced. The export
+  records the local `gen` it captured; **any later local edit re-disables
+  the choice buttons until a fresh local export** (A8c).
+- **Choose Local** = the **current** local copy (A8a — the live copy the
+  Owner has been editing; localAtEntry remains inside the conflict record
+  and the export trail): CAS-push with the conflict's `serverRev`; mismatch
+  re-enters conflict with the newer server copy.
+- **Choose Server** (A9): shows a final warning that names what will be
+  discarded — including the count of edits made since conflict entry
+  (gen delta) — takes one more fresh delivered export of current local,
+  re-checks gen and rev immediately before adopting, then adopts and
+  establishes base.
+- **Defer:** everything persists.
 
-The retired Commit 10 lineage carried a reviewed conflict-centre UI with 56
-browser assertions (`tests/browser/conflict-center.browser.test.js`); its
-interaction patterns are reused where they fit the much narrower M8 scope.
+Patterns reused from the retired Commit 10 conflict centre where they fit.
 
-## 6. Recovery plan (R8) — roll-forward only
+## 6. Canonicalization, versioned (A10)
 
-Once M8's keys exist on devices, serving the old client again is not a safe
-rollback: its unconditional pull ignores dirty/conflict and can destroy the
-protected copy. Recovery from a bad M8 build is **roll-forward**: a minimal
-patch build derived from M8 with `trainingPull()` adoption disabled entirely
-(`SYNC_SAFE`), leaving reads/writes local-only and dirty accumulating, until
-a fixed build ships. The recovery build is prepared and byte-identified
-**before** M8 deploys; tests must show it boots from clean, dirty, and
-conflict states without mutating any training key. Rollback-to-`.407` stays
-available only for a build that has never written an M8 key (detectable:
-none of the three keys present).
+`canonV1(training)`: UTF-8 JSON; object keys sorted lexicographically at
+every level; **array order preserved** (order is data here — sets within an
+exercise, items within a routine); numbers serialized per ECMA-404 JSON
+(as `JSON.stringify` emits); strings uninterpreted (no Unicode
+normalization); no member elision — **absent and empty are distinct and
+never coerced**; no whitespace. Every stored envelope carries `canon:1`.
+Comparisons are defined only between equal canon versions; a future client
+whose canon differs re-derives by parsing the stored `body` and
+re-canonicalizing under its version before comparing. The spec lives in the
+code as a pure function with its own test vectors (including
+key-order-insensitivity, array-order-sensitivity, absent-vs-empty, and
+unicode-string identity).
 
-## 7. Scope boundaries
+## 7. Recovery (R8; A12) — roll-forward only, artifact built first
 
-- **Training only.** Core data (weights/food/steps/…) keeps its existing
-  raw-PATCH path and revision counter; reworking it is not in M8. The CAS
-  kit only takes over the training field. **Question 2 to the Architect:**
-  confirm this boundary, or require core in the same pass.
-- **Server lockdown** (rule-blocking raw PATCH of training) remains OFF
-  until M8 is deployed and verified on the Owner's device; turning it on is
-  a separate Owner-authorized step, after which old clients cannot write
-  training at all — which is exactly the point.
-- Single-writer (M10) still comes after; M8 must be correct without it,
-  which the CAS route provides at the training field.
+Before M8 publishes, the recovery build exists as an artifact: derived from
+the M8 candidate with server adoption disabled (`SYNC_SAFE`: pulls fetch
+nothing into training, pushes may continue), hashed, release-packaged, and
+tested to boot from clean, dirty, and conflict states without mutating any
+training key. Rollback to `.407` remains legal only for devices that have
+never written an M8 key (all three absent). The recovery artifact's
+identity goes in the release records before deployment.
 
-## 8. Evidence plan (R3, R4, R9, R10)
+## 8. Evidence plan (R3, R4, R9, R10; A5)
 
-- **C11 revised**: the containment cases (old C11-10) become conflict
-  expectations; the sound-core cases stay; the R3 authentic-upgrade test
-  (old-client localStorage: unsynced session, no dirty/base/conflict keys,
-  stale server, session must survive on disk) and the seven R4 matrix cases
-  are added. Suite must fail against `.407` and pass against the candidate.
-- **Browser suite**: Playwright, shipping file, mocked PB endpoint; boot
-  ordering, timers, localStorage persistence, the conflict view driven
-  through real DOM, export-delivery gating.
-- **Disposable-PB round**: real PocketBase against a disposable record
-  (Owner authorized 2026-08-01), covering the CAS route's auth, revision
-  behavior, and failure handling per R7.
-- Wording discipline per R10 throughout: VM = modeled, browser = real
-  engine, device claims only from the device.
+- **C11 revised on `engineering/m8`**: sound-core cases kept; containment
+  cases become conflict expectations; the authentic-upgrade regression (R3:
+  old-client localStorage, unsynced session, no new keys, stale server —
+  session survives on disk) and the seven R4 matrix cases added; plus
+  account-envelope cases (wrong-owner keys ignored and preserved) and
+  logout-with-dirty (stop-and-ask). Suite must fail against `.407`.
+- **Browser suite**: Playwright, shipping file, mocked endpoint; boot
+  ordering, timers, the conflict view driven through real DOM including
+  export-gating and the re-disable-on-edit rule.
+- **Disposable-PB round** (Owner-authorized): CAS auth, revision behavior,
+  failure handling; plus the A5 demonstration that the route touches only
+  training + its revision (byte-compare of untouched fields).
+- Wording per R10: VM = modeled; browser = real engine; device claims only
+  from the device; no live-URL claims without the served-byte comparison.
 
 ## 9. Sequence
 
-1. This design → Architect review (this round).
-2. Implement per rulings; revise C11; new browser suite.
-3. Evidence round(s) with the Architect.
+1. ✅ Round 1: design review → halt → Owner rulings → this revision.
+2. Round 2 (this bundle): confirm v2 + branch plan → implementation begins.
+3. Implementation; C11 revision; browser suite; evidence round(s).
 4. Disposable-PB integration round.
-5. Owner decision file → publish → served-byte verify → device check.
-6. Owner-authorized server lockdown of raw training PATCH.
-
-## Questions collected
-
-1. §2.4 — may field-absent-on-server bootstrap push via CAS, or must it
-   park in conflict?
-2. §7 — confirm training-only scope for M8.
-3. §1 — base as full canonical copy (Engineer recommendation) vs digest:
-   flagged for the Owner per R5; does the Architect see a reason to forbid
-   full-copy?
+5. Recovery artifact built, hashed, packaged (gate for 6).
+6. Owner decision file → publish → served-byte verify → device check.
+7. Owner-authorized server lockdown of raw training PATCH.
