@@ -304,6 +304,14 @@ the exchange transcripts, and are marked (r) where reconstructed.
   verified (sha256 `10a85222…5dd50c2`... full `10a85222f2217cd50aebff3569
   b6f905e25260894b320aeded0de3efa5dd50c2`). C12/C13 VM+browser green.
 
+- **2026-08-02, build `2026-08-02.411-fx` published.** Final nav sizing per
+  Owner: the fixed slot equals the measured widest possible label
+  ("Mon, May 28", 93px, canvas-measured in the app's own font) plus
+  padding and a cross-font margin (118px); chevrons tighter (x 100/262),
+  still pinned, widest label proven untruncated. Owner authorized; pushed;
+  served bytes verified (sha256 `36a680fe…bdc8ebecf`). C14 57; C12/C13
+  green. Same M8-extraction discipline.
+
 ## §2 Owner actions on record
 
 1. 2026-07-30 — direction change (sync simplification, review narrowing).
