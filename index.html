@@ -856,7 +856,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-02.404-fx";
+var APP_BUILD="2026-08-02.405-fx";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -1625,7 +1625,6 @@ function buildChart(c,goal,unit,compact,rmin,rmax){
    GLP_EXPECT_WK — the "expected weeks at a level" used only for the in-progress footnote
                    copy ("X of an expected Y weeks"). Spec suggests a fixed 4. */
 var GLP_WIN_DAYS=14, GLP_EXPECT_WK=4;
-var GLP_SEV_WORD=["","minimal","mild","moderate","marked","severe"];
 function glpProgEnabled(){return !!(state.glp&&state.glp.settings&&state.glp.settings.enabled);}
 function glpNonSkipDoses(){return (state.glp&&state.glp.doses?state.glp.doses:[]).filter(function(d){return !d.skipped&&d.takenAt!=null;}).slice().sort(function(a,b){return a.takenAt-b.takenAt;});}
 /* Level periods: a maximal run of consecutive non-skipped doses at one value. The run ends
@@ -1682,56 +1681,9 @@ function glpBandOpacity(rank,total){
   return 0.10+(rank/(total-1))*(0.34-0.10);
 }
 /* 7a — symptom severity vs dose timing */
-function glpSymptomCardHTML(){
-  if(!glpProgEnabled()||!(state.glp.settings&&state.glp.settings.symptomLogging))return "";
-  var syms=(state.glp.symptoms||[]).slice();
-  var typesWithLogs={};syms.forEach(function(l){typesWithLogs[l.symptomTypeId]=1;});
-  var types=(state.glp.symptomTypes||[]).filter(function(t){return !t.archived&&typesWithLogs[t.id];});
-  var h='<div class="wl-card"><div class="wl-card-head"><span>Symptoms</span></div><div class="wl-glpcsub">Severity 1–5 · amber ticks mark dose days</div>';
-  if(!syms.length){h+='<div class="wl-empty">Log a few symptoms to see the pattern — severity plotted against your dose days.</div>';return h+'</div>';}
-  /* selector: logged symptom types + All */
-  var sel=state.glpProgSym;
-  var valid=(sel==="all")||types.some(function(t){return t.id===sel;});
-  if(!valid)sel=types.length?types[0].id:"all";
-  state.glpProgSym=sel;
-  h+='<div class="wl-seg wl-seg-wide" style="flex-wrap:wrap;margin-top:12px">';
-  types.forEach(function(t){h+='<button class="'+(sel===t.id?"on":"")+'" data-act="glp:prog:sym" data-id="'+esc(t.id)+'">'+esc(t.label)+'</button>';});
-  h+='<button class="'+(sel==="all"?"on":"")+'" data-act="glp:prog:sym" data-id="all">All</button></div>';
-  /* build the plotted series */
-  var picked=(sel==="all")?syms:syms.filter(function(l){return l.symptomTypeId===sel;});
-  picked=picked.slice().sort(function(a,b){return a.occurredAt-b.occurredAt;});
-  var pts;
-  if(sel==="all"){ /* one point per day = daily average, single-line look */
-    var byday={},dkeys=[];picked.forEach(function(l){var k=glpDayKey(l.occurredAt);if(!byday[k]){byday[k]={sum:0,n:0,ts:parseISO(toISO(new Date(l.occurredAt))).getTime()};dkeys.push(k);}byday[k].sum+=l.severity;byday[k].n++;});
-    pts=dkeys.map(function(k){return {ts:byday[k].ts,sev:byday[k].sum/byday[k].n};}).sort(function(a,b){return a.ts-b.ts;});
-  }else{
-    pts=picked.map(function(l){return {ts:l.occurredAt,sev:l.severity};});
-  }
-  if(pts.length<2){h+='<div class="wl-empty">Log a few more '+(sel==="all"?"symptoms":"of these")+' to see the pattern.</div>';return h+'</div>';}
-  /* readout stats from the underlying logs */
-  var sevs=picked.map(function(l){return l.severity;});
-  var avg=sevs.reduce(function(a,b){return a+b;},0)/sevs.length;
-  var peak=picked[0],pk=picked[0].severity;picked.forEach(function(l){if(l.severity>pk){pk=l.severity;peak=l;}});
-  h+='<div class="wl-glpread">Avg <b>'+r1(avg)+'</b> · peak <b>'+pk+'</b> on '+fmtShort(new Date(peak.occurredAt))+' · <b>'+picked.length+'</b> logs</div>';
-  /* chart */
-  var doseDays=glpNonSkipDoses().map(function(d){return d.takenAt;});
-  var allTs=pts.map(function(p){return p.ts;}).concat(doseDays);
-  var xMin=Math.min.apply(null,allTs),xMax=Math.max.apply(null,allTs);if(xMin===xMax){xMin-=DAY;xMax+=DAY;}
-  var W=340,H=175,padL=26,padR=12,padT=16,padB=24;
-  function sx(t){return padL+(t-xMin)/(xMax-xMin)*(W-padL-padR);}
-  function sy(v){return padT+(5-v)/(5-1)*(H-padT-padB);}
-  var s='<svg class="wl-chart" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="height:'+H+'px">';
-  for(var lv=1;lv<=5;lv++){var y=sy(lv);s+='<line x1="'+padL+'" y1="'+y+'" x2="'+(W-padR)+'" y2="'+y+'" stroke="'+CH.grid+'" stroke-dasharray="2 4"/>';s+='<text x="'+(padL-5)+'" y="'+(y+3)+'" fill="'+CH.axis+'" font-size="9" text-anchor="end">'+lv+'</text>';}
-  doseDays.forEach(function(t){if(t<xMin||t>xMax)return;var X=sx(t);s+='<line x1="'+X+'" y1="'+padT+'" x2="'+X+'" y2="'+(H-padB)+'" stroke="'+CH.avg+'" stroke-width="1.3" stroke-dasharray="3 3" opacity=".5"/>';});
-  var d="";pts.forEach(function(p,i){d+=(i?"L":"M")+sx(p.ts)+" "+sy(p.sev)+" ";});
-  s+='<path d="'+d+'" fill="none" stroke="#C77DFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>';
-  pts.forEach(function(p){s+='<circle cx="'+sx(p.ts)+'" cy="'+sy(p.sev)+'" r="3.4" fill="#C77DFF"/>';});
-  [[xMin,"start"],[(xMin+xMax)/2,"middle"],[xMax,"end"]].forEach(function(pr){s+='<text x="'+sx(pr[0])+'" y="'+(H-7)+'" fill="'+CH.axis+'" font-size="9" text-anchor="'+pr[1]+'">'+fmtShort(new Date(pr[0]))+'</text>';});
-  s+='</svg>';h+=s;
-  var lastLog=picked[picked.length-1];
-  h+='<div class="wl-readout"><b>'+lastLog.severity+'</b> · '+GLP_SEV_WORD[lastLog.severity]+' · '+fmtShort(new Date(lastLog.occurredAt))+' (latest)</div>';
-  return h+'</div>';
-}
+/* The symptom severity chart was retired 2026-08-02 (Owner: "It isn't really
+   saying anything"). Symptom LOGGING stays; the data (glp.symptoms) is kept,
+   exported, and available to the coach or a future view. Git holds the chart. */
 /* 7b — weight lost by dose level */
 function glpWeightByDoseCardHTML(){
   if(!glpProgEnabled())return "";
@@ -1778,7 +1730,7 @@ function u2dose(b){var c=state.glp&&state.glp.compound;return (c&&c.unit)||"mg";
 /* the two Progress cards + the timeline expander, injected into view_weight */
 function glpProgressHTML(){
   if(!glpProgEnabled())return "";
-  var h=glpSymptomCardHTML()+glpWeightByDoseCardHTML();
+  var h=glpWeightByDoseCardHTML();
   if(glpDoseBars().length||glpNonSkipDoses().length){
     h+='<button class="wl-glpexpand" data-act="glp:timeline"><span>Weight timeline with dose bands</span><span class="wl-glpgo">›</span></button>';
   }
@@ -7289,7 +7241,6 @@ document.addEventListener("click",function(e){
   if(a==="glp:sym:newsave"){glpNormalize();glpSheetSync();var _s2=state.glpSheet;if(!_s2)return;var _lbl=(_s2.newLabel||"").trim();if(!_lbl){toast("Enter a symptom name");return;}var _nid=glpNewId("sym");state.glp.symptomTypes.push({id:_nid,label:_lbl,isBuiltIn:false,archived:false});_s2.symptomTypeId=_nid;_s2.newOpen=false;_s2.newLabel="";save();render();return;}
   if(a==="glp:sym:save"){glpNormalize();glpSheetSync();var _s3=state.glpSheet;if(!_s3)return;if(!_s3.symptomTypeId){toast("Pick a symptom");return;}if(!_s3.severity){toast("Pick a severity");return;}state.glp.symptoms.push({id:glpNewId("slog"),symptomTypeId:_s3.symptomTypeId,severity:parseInt(_s3.severity,10),occurredAt:(_s3.at||Date.now()),note:(_s3.note||"").trim()});save();state.glpSheet=null;render();toast("Logged: "+glpSymLabel(_s3.symptomTypeId)+" \u00b7 severity "+_s3.severity);return;}
   if(a==="glp:sheetclose"){state.glpSheet=null;render();return;}
-  if(a==="glp:prog:sym"){state.glpProgSym=el.getAttribute("data-id");render();return;}
   if(a==="glp:prog:mode"){state.glpProgMode=el.getAttribute("data-mode");render();return;}
   if(a==="glp:timeline"){if(!glpProgEnabled())return;state.view="glptimeline";render();return;}
   if(a==="go"){var _gv=el.getAttribute("data-view");if(_gv==="exlib"&&state.view!=="exlib")state.exlibFrom=state.view;if(_gv==="settings"){if(state.view==="settings"){_gv=state.setFrom||"overview";}else{state.setFrom=state.view;state.setPage=null;}}state.view=_gv;if(state.view==="diary")state.diaryWeeks=1;if(state.view==="settings"){state.open={};state.manageOpen=false;}state.alertDismissed=false;state.confirmReset=false;state.pasteOpen=false;state.syncPasteOpen=false;state.inviteCode=null;state.joinOpen=false;render();return;}
