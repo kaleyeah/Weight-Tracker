@@ -861,7 +861,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-02.412-fx";
+var APP_BUILD="2026-08-02.413-fx";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -1734,12 +1734,27 @@ function glpWeightByDoseCardHTML(){
 /* unit label for a dose bar (denormalised at log time; fall back to compound unit) */
 function u2dose(b){var c=state.glp&&state.glp.compound;return (c&&c.unit)||"mg";}
 /* the two Progress cards + the timeline expander, injected into view_weight */
+/* Symptom journal list on Progress, where the retired chart lived (Owner ask
+   2026-08-02). Rows reuse the day pill's look and its edit action. */
+function glpSymptomListHTML(){
+  if(!glpProgEnabled()||!(state.glp.settings&&state.glp.settings.symptomLogging))return "";
+  var syms=(state.glp.symptoms||[]).slice().sort(function(a,b){return b.occurredAt-a.occurredAt;});
+  if(!syms.length)return "";
+  var h='<div class="wl-card"><div class="wl-card-head"><span>Symptoms</span><span class="wl-count">'+syms.length+'</span></div>';
+  syms.forEach(function(x){
+    var sev=parseInt(x.severity,10)||0;var pips="";for(var i=1;i<=5;i++)pips+='<span class="wl-glppip'+(i<=sev?" on":"")+'"></span>';
+    h+='<button class="wl-glpsev" style="width:100%;background:none;border:none;padding:6px 0;font:inherit;color:inherit;text-align:left;border-bottom:1px solid var(--line)" data-act="glp:sym:edit" data-id="'+esc(x.id)+'">'
+      +'<b>'+esc(glpSymLabel(x.symptomTypeId))+'</b>'+pips
+      +'<div class="wl-glpentry-l2" style="margin-top:2px">'+esc(glpFmtWhen(x.occurredAt))+(x.note?(' \u00b7 '+esc(x.note)):'')+'</div></button>';
+  });
+  return h+'<div class="wl-hint" style="margin-top:8px">Tap an entry to edit or delete it.</div></div>';}
 function glpProgressHTML(){
   if(!glpProgEnabled())return "";
   var h=glpWeightByDoseCardHTML();
   if(glpDoseBars().length||glpNonSkipDoses().length){
     h+='<button class="wl-glpexpand" data-act="glp:timeline"><span>Weight timeline with dose bands</span><span class="wl-glpgo">›</span></button>';
   }
+  h+=glpSymptomListHTML();
   return h;
 }
 /* 7c — weight timeline with dose bands (detail screen) */
