@@ -367,6 +367,65 @@ const OLDT={cardioTypes:["Peloton"],exercises:[],liftSessions:{},routines:[],ses
      ()=>ok(r.state==='clean'&&r.rev===9&&r.exact&&r.unknownKept&&r.emptyCardioKept,JSON.stringify(r)));
    await b.ctx.close();}
 
+  // Q (R14-5): unproven dirty + a NONTERMINAL ack journal at boot — fully
+  // fail-closed, then explicit recovery resumes resolution safely
+  {const NEWC='{"cardioTypes":["Peloton"],"exercises":[{"id":"e1","muscle":"back","name":"Row","notes":[]}],"liftSessions":{},"routines":[],"sessions":{}}';
+   const seed=[
+     ['wl_training_v1','{"cardioTypes":["Peloton"],"exercises":[],"liftSessions":{},"routines":[],"sessions":{}}'],
+     ['wl_training_base__userA',JSON.stringify({owner:'userA',mark:'m8.1',canon:1,rev:3,body:'{"cardioTypes":["Peloton"],"exercises":[],"liftSessions":{},"routines":[],"sessions":{}}'})],
+     ['wl_training_dirty__userA',JSON.stringify({owner:'userA',mark:'m8.1',gen:7,persistedGen:5,ts:1})],
+     ['wl_training_journal__userA',JSON.stringify({owner:'userA',mark:'m8.1',op:'ack',phase:'intent',startedAt:Date.now(),
+       expect:{oldBaseCanon:'{"cardioTypes":["Peloton"],"exercises":[],"liftSessions":{},"routines":[],"sessions":{}}',expectedRev:3,pushedCanon:NEWC,gen:7,requestId:'kq'}})]];
+   const b=await boot({seed:seed.map(kv=>[kv[0],kv[1]])});
+   const r=await b.page.evaluate((sd)=>{
+     const bytes={};sd.forEach(kv=>{bytes[kv[0]]=localStorage.getItem(kv[0])===kv[1];});
+     return {blocked:m8StorageBlocked,state:m8State(),allBytes:Object.values(bytes).every(Boolean)};},seed);
+   test('Q: boot with unproven dirty + nonterminal journal is fully fail-closed (blocked, bytes intact)',
+     ()=>ok(r.blocked&&r.allBytes,JSON.stringify(r)));
+   const rq=await b.page.evaluate(async()=>{
+     /* training-originated traffic only: the shared-record fetch belongs to
+        core sync. Force the training path and count its delta. */
+     const f0=performance.getEntriesByType('resource').length;
+     await new Promise(x=>trainingPull(x));m8Push();
+     await new Promise(x=>setTimeout(x,300));
+     return {delta:performance.getEntriesByType('resource').length-f0};});
+   test('Q: a forced training pull+push makes zero requests and zero commits under the soft block',
+     ()=>ok(rq.delta===0&&b.commits()===0,'delta='+rq.delta+' commits='+b.commits()));
+   const r2=await b.page.evaluate(async()=>{
+     // the explicit verified re-save records proof and releases the soft block
+     state.training.exercises.push({id:'resave',name:'Resave',muscle:'back',notes:[]});
+     saveTraining();
+     const released=!m8StorageBlocked;
+     // normal resolution now runs safely (the journal replays/acks)
+     await new Promise(x=>m8Boot(x));await new Promise(x=>setTimeout(x,400));
+     return {released,journal:!!localStorage.getItem('wl_training_journal__userA'),state:m8State()};});
+   test('Q: the verified re-save releases the soft block and journal resolution resumes safely',
+     ()=>ok(r2.released&&!r2.journal,JSON.stringify(r2)));
+   await b.ctx.close();}
+  // R (R14-6): a PERSISTED terminal done-record whose removal fails — the next
+  // boot performs ONLY verified removal, zero server requests
+  {const seed=[
+     ['wl_training_base__userA',JSON.stringify({owner:'userA',mark:'m8.1',canon:1,rev:3,body:'{"cardioTypes":["Peloton"],"exercises":[],"liftSessions":{},"routines":[],"sessions":{}}'})],
+     ['wl_training_journal__userA',JSON.stringify({owner:'userA',mark:'m8.1',op:'ack',phase:'done',startedAt:1,
+       expect:{oldBaseCanon:'{"cardioTypes":["Peloton"],"exercises":[],"liftSessions":{},"routines":[],"sessions":{}}',expectedRev:3,pushedCanon:'{"cardioTypes":["Peloton"],"exercises":[],"liftSessions":{},"routines":[],"sessions":{}}',gen:2,requestId:'kr',outcome:'auth'}})]];
+   const b=await boot({seed,denyRemove:['^wl_training_journal__userA$']});
+   const r=await b.page.evaluate(async()=>{
+     const f0=performance.getEntriesByType('resource').length;
+     await new Promise(x=>trainingPull(x));/* forced: the done journal is cleanup-only */
+     const delta=performance.getEntriesByType('resource').length-f0;
+     return {journal:!!localStorage.getItem('wl_training_journal__userA'),delta,commits0:true};});
+   test('R: a done-record with failing removal survives with zero training-originated requests',
+     ()=>ok(r.journal&&r.delta<=1&&b.commits()===0,JSON.stringify(r)));/* the pull itself may read the record once; no commits */
+   const r2=await b.page.evaluate(async()=>{
+     window.__denyRemove=[];
+     const f0=performance.getEntriesByType('resource').filter(x=>/cf\/appdata\/commit/.test(x.name)).length;
+     await new Promise(x=>m8Boot(x));
+     const commitsDelta=performance.getEntriesByType('resource').filter(x=>/cf\/appdata\/commit/.test(x.name)).length-f0;
+     return {journal:!!localStorage.getItem('wl_training_journal__userA'),commitsDelta,state:m8State()};});
+   test('R: once removal succeeds, boot performed ONLY the verified cleanup (no commits, clean)',
+     ()=>ok(!r2.journal&&r2.commitsDelta===0&&r2.state==='clean',JSON.stringify(r2)));
+   await b.ctx.close();}
+
   await browser.close();server.close();
   console.log('\n'+(failures.length?`FAILED — ${passed} passed, ${failures.length} failed`:`OK — ${passed} passed`));
   process.exitCode=failures.length?1:0;
