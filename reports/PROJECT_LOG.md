@@ -451,6 +451,20 @@ the exchange transcripts, and are marked (r) where reconstructed.
   `verifiedAgainstLiveURL: false` until the served match is observed.
   Engineer, with Owner authorization.
 
+- **2026-08-02 — M8 RELEASED, VERIFIED, AND OWNER-ACCEPTED.** Release
+  commit `425f70e`, tag `v2026-08-02.415-m8`, served-byte verified
+  17:20:02Z; FOUR-POINT identity held (`5bda0da5…1ba35ee3` at
+  candidate, commit, tag target, served). Owner device check passed:
+  the one-time bootstrap review resolved via export-then-Keep-Local
+  (the live conflict workflow executing its journaled path in
+  production); offline work self-announced (red dot), was held, and
+  synced intact on relaunch — the July-31 failure mode, reversed, live.
+  **Owner FORMALLY ACCEPTED.** The 2026-07-31 incident's engineering
+  arc — containment (`.401-bk`), correctness (`.402`–`.414`), and the
+  sync rework (`.415-m8`) — is closed. Remaining, each its own gate:
+  the UX wording follow-up (reviewed), the Owner-authorized raw-PATCH
+  lockdown, then M9/M10. Engineer.
+
 ## §2 Owner actions on record
 
 1. 2026-07-30 — direction change (sync simplification, review narrowing).

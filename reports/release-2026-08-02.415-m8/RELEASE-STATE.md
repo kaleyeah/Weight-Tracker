@@ -23,3 +23,17 @@
   5bda0da514c512ce1674aaff5cd78eb81f7fd0519388d78875a5f1bc1ba35ee3
   (candidate = release commit 425f70e = tag v2026-08-02.415-m8 target
   = served artifact; four-point byte identity held).
+
+- OWNER DEVICE CHECK (2026-08-02): build confirmed; the one-time
+  bootstrap review card appeared on the Activity tab (sessions matched;
+  migration-stamped local fields; Owner exported both copies then chose
+  Keep this device's copy — cleared cleanly). Online quick-log synced
+  green unprompted; offline quick-log turned the dot red BY ITSELF
+  (unsynced-hold announced); on reconnect + relaunch the retry fired and
+  BOTH sessions survived intact to the server; dot green confirmed.
+- OWNER ACCEPTANCE: FORMALLY ACCEPTED, 2026-08-02 (decision channel +
+  in-session). Follow-up queued (not part of this release): humane
+  conflict-card wording for the sessions-match case and an offline
+  "saved on this phone" toast — through review before shipping.
+- Raw-PATCH lockdown: still OFF; a later, separately Owner-authorized
+  decision.
