@@ -1,0 +1,43 @@
+{
+ "when": "2026-08-02T20:52:05.773Z",
+ "runtime": "PocketBase v0.39.8 goja JSVM",
+ "conclusion": "readerToString(reader) is byte-faithful for $security.sha256 (digest equals Node sha256 of raw bytes in every case); string .length is NOT the byte count (multibyte merges) so byte length must come from file.size (server-derived).",
+ "cases": [
+  {
+   "name": "all-byte-values",
+   "byteLen": 1024,
+   "nodeSha256": "785b0751fc2c53dc14a4ce3d800e69ef9ce1009eb327ccf458afe09c242c26c9",
+   "server": {
+    "sha256": "785b0751fc2c53dc14a4ce3d800e69ef9ce1009eb327ccf458afe09c242c26c9",
+    "strLen": 1024
+   },
+   "serverSize": 1024,
+   "faithful": true,
+   "sizeCorrect": true
+  },
+  {
+   "name": "jpeg-magic+multibyte-utf8+invalid",
+   "byteLen": 24,
+   "nodeSha256": "c2b7e77d36051dcedbe005cd4d977ef70ad951174260438074d834310a53358d",
+   "server": {
+    "sha256": "c2b7e77d36051dcedbe005cd4d977ef70ad951174260438074d834310a53358d",
+    "strLen": 18
+   },
+   "serverSize": 24,
+   "faithful": true,
+   "sizeCorrect": true
+  },
+  {
+   "name": "random-2MB",
+   "byteLen": 2097152,
+   "nodeSha256": "205a91b9cbf86a62c0df8c08d292bef8c9cb3896a80bcb762b327670e5273c9a",
+   "server": {
+    "sha256": "205a91b9cbf86a62c0df8c08d292bef8c9cb3896a80bcb762b327670e5273c9a",
+    "strLen": 2019757
+   },
+   "serverSize": 2097152,
+   "faithful": true,
+   "sizeCorrect": true
+  }
+ ]
+}

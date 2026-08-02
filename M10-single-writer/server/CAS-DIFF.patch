@@ -1,0 +1,109 @@
+--- ../../server/pb_hooks/cf_cas.pb.js	2026-07-28 19:49:44.422905996 +0000
++++ pb_hooks/cf_cas.pb.js	2026-08-02 20:45:14.188315757 +0000
+@@ -13,7 +13,20 @@
+      - Payload cap 256 KiB, request envelope 320 KiB (Architect ruling).
+    The route's public contract is UNCHANGED — request fields and the
+    200/400/401/409/413/426/500 semantics are exactly as the approved client
+-   build 2026-07-27.342-pb-c1h expects. */
++   build 2026-07-27.342-pb-c1h expects.
++
++   M10 (design v9, Architect-approved round 9): the route becomes the fenced
++   commit primitive. Optional body fields `fence` (number) ride in; inside the
++   SAME transaction the lease row is loaded and, when enforcement is ON,
++   `active && holderDeviceId === deviceId && fence === body.fence` is required
++   or the commit rejects 409 {fenceStale, fence} BEFORE any mutation. The
++   ledger row persists `writerFence` (the validated fence) and
++   `holderDeviceHash` (sha256 of the LEASE ROW's holderDeviceId read inside
++   this transaction — server-derived authority evidence, distinct from the
++   client-supplied deviceHash; I3). Enforcement OFF: fence-less `.415-m8`
++   writes pass untouched; supplied fences are recorded, not validated.
++   This route authenticates USER records only — there is no superuser path
++   here (I4); platform writes use /api/cf/platform/patch-data. */
+ 
+ /* Top-level require is fine — this scope DOES exist at registration time, and
+    bodyLimit must be resolved when the route is registered. The handler below
+@@ -51,9 +64,29 @@
+   const requestHash = $security.sha256(
+     body.subsystem + "|" + expectedRev + "|" + cf.canonicalJson(body.payload));
+ 
++  const m10 = require(`${__hooks}/cf_m10_shared.js`);
++  const enforced = m10.fencingEnforced();
++  const reqFence = (typeof body.fence === "number" && Math.floor(body.fence) === body.fence) ? body.fence : null;
++  const rawDeviceId = body.deviceId ? String(body.deviceId) : "";
++
+   let out = null;
+   const run = (allowCreate) => {
+     $app.runInTransaction((txApp) => {
++      /* M10 fence validation — inside the SAME transaction as the mutation,
++         BEFORE the idempotency lookup so a stale holder's replay cannot
++         resurrect a displaced request as authorized. */
++      let leaseRec = null;
++      try { leaseRec = txApp.findFirstRecordByFilter("writer_lease", "user = {:u}", { u: uid }); } catch (_) {}
++      if (enforced) {
++        const lf = leaseRec ? leaseRec.getInt("fence") : 0;
++        const ok = leaseRec && leaseRec.getBool("active") &&
++                   leaseRec.getString("holderDeviceId") === rawDeviceId &&
++                   reqFence !== null && reqFence === lf;
++        if (!ok) { out = { status: 409, body: m10.fenceStale(lf) }; return; }
++      }
++      const holderDeviceHash = (leaseRec && leaseRec.getString("holderDeviceId"))
++        ? $security.sha256(leaseRec.getString("holderDeviceId")).slice(0, 64) : "";
++
+       let prior = null;
+       try {
+         prior = txApp.findFirstRecordByFilter("cf_commit_log",
+@@ -96,6 +129,11 @@
+       log.set("requestHash", requestHash); log.set("expectedRev", expectedRev);
+       log.set("resultingRev", serverRev + 1); log.set("responseStatus", 200);
+       log.set("clientBuild", clientBuild); log.set("deviceHash", deviceHash);
++      /* M10 evidence columns (H1): op stays NULL on CAS rows (legacy shape);
++         writerFence only when the client supplied one; holderDeviceHash from
++         the lease row read in THIS transaction. */
++      if (reqFence !== null) log.set("writerFence", reqFence);
++      if (holderDeviceHash) log.set("holderDeviceHash", holderDeviceHash);
+       txApp.save(log);
+       out = { status: 200, body: cf.okCommit(body.subsystem, serverRev + 1) };
+     });
+@@ -138,8 +176,21 @@
+    These handlers use only globals (e, $app, BadRequestError), so they are
+    unaffected by the handler-runtime scoping rule. */
+ onRecordUpdateRequest((e) => {
++  const m10 = require(`${__hooks}/cf_m10_shared.js`);
+   const body = e.requestInfo().body || {};
+   if ("coreRev" in body || "trainingRev" in body) throw new BadRequestError("revision fields are server-managed");
++  if (m10.fencingEnforced()) {
++    /* M10 §2/§6: raw user content writes REJECT; only mailbox-only requests
++       pass unfenced. Superusers bypass (payload-free log). */
++    const isSuper = e.hasSuperuserAuth();
++    if (!isSuper && !m10.mailboxOnly(body))
++      throw new BadRequestError("content writes must use the commit route");
++    if (isSuper)
++      $app.logger().info("M10 superuser raw appdata write", "keys", Object.keys(body).join(","));
++    e.next();
++    return;
++  }
++  /* transitional bridge (enforcement OFF): `.415-m8` raw snapshot writes pass */
+   if ("data" in body)     e.record.set("coreRev",     e.record.getInt("coreRev") + 1);
+   if ("training" in body) e.record.set("trainingRev", e.record.getInt("trainingRev") + 1);
+   if (("data" in body) || ("training" in body))
+@@ -148,8 +199,13 @@
+ }, "appdata");
+ 
+ onRecordCreateRequest((e) => {
++  const m10 = require(`${__hooks}/cf_m10_shared.js`);
+   const body = e.requestInfo().body || {};
+   if ("coreRev" in body || "trainingRev" in body) throw new BadRequestError("revision fields are server-managed");
++  if (m10.fencingEnforced() && !e.hasSuperuserAuth())
++    /* M10 §2: raw user CREATE rejects under enforcement — the commit route
++       provisions the row at rev 0; mailbox writers only PATCH existing rows. */
++    throw new BadRequestError("appdata rows are created by the commit route");
+   /* raw create cannot forge another owner: pin to the authenticated user */
+   if (e.auth && e.record.getString("user") !== e.auth.id) e.record.set("user", e.auth.id);
+   e.record.set("coreRev",     ("data" in body) ? 1 : 0);
+@@ -172,5 +228,5 @@
+   } catch (err) { $app.logger().error("CF ledger prune failed", "err", String(err).slice(0, 200)); }
+ });
+ 
+-$app.logger().info("CF CAS hook loaded", "build", "cas-3", "maxPayloadBytes", cfBoot.MAX_PAYLOAD_BYTES,
++$app.logger().info("CF CAS hook loaded", "build", "cas-4-m10", "maxPayloadBytes", cfBoot.MAX_PAYLOAD_BYTES,
+   "requestLimitBytes", cfBoot.REQUEST_LIMIT_BYTES, "minClientBuild", cfBoot.MIN_CLIENT_BUILD || "(none)");

@@ -1,0 +1,23 @@
+M10 server package — file identities (2026-08-02T20:52:46Z)
+base kit: server/pb_hooks (deployed lineage, unchanged on NAS)
+
+2a74c1e02a4eeaa9003071bc165782aa86228845ef85db1c29e592a568e5fca3  pb_hooks/cf_cas.pb.js
+7bc856cf3e1774aa2090abe4fba52b0df036917db840926f0bd97fe5d0f7592f  pb_hooks/cf_cas_shared.js
+5b62773c87cbde132588ffb5ddef343fa2856689d731058d7d61e10d43ac999c  pb_hooks/cf_m10_enforce.pb.js
+49d58b3618e0966fab62bb34e6f5c6ef623dcf282f0a17294819209623e7be4b  pb_hooks/cf_m10_lease.pb.js
+05283739841e4de8ea3fdd72fc941258ab77215e31fbb66b90629bf289967069  pb_hooks/cf_m10_photos.pb.js
+1c8321a2c1405f3080c53eda3884c8413e25b06061dcd8d30b81640ac939ec41  pb_hooks/cf_m10_platform.pb.js
+be388c54a65c9f55324555bef79b360ddd285ad778ff05bf8bdaf0a39157bfe5  pb_hooks/cf_m10_shared.js
+8f4ac198b6e8e60673ece8d074113de8d0f4ebcf0ef952ce5328fb1729efbcf0  pb_migrations/1754179200_m10_single_writer.js
+3ade9c2fd41e4aa0ec110d85db156712566fc23ca55fa76fb46328be4b2baba4  tests/run-migration-test.mjs
+4057dd37975ce725be88a0d7dc0b29fe54315d86c2388a42b7d7ed2d73b017ce  tests/run-suite.mjs
+df358a63eca821e263ca4bb3460cfa6732c24e47fa962c0035e21279db34529b  tests/setup-instance.sh
+9693515715777660429830fe9919c64f8397d233b6d4fb5f8777e6b5449ef304  tests/fixture-base.js
+c83a3c2c820607e4f3a58a6121120ef5422c9bd22f451e878008f97e75d4bd3b  tests/fixture-photos.js
+1b289f6d681dd71e26283ac3958d3765e618a42ccc992ede9ec301336ede9d91  tests/probe-bytes.pb.js
+1a6fda1eac81859071dd48fb934e7a1358eec44077889259e6be64b77559a4d1  tests/probe-txhold.pb.js
+
+unchanged-from-deployed check:
+  cf_cas_shared.js: IDENTICAL
+  cf_cas.pb.js: MODIFIED (fence validation + evidence columns + enforcement-aware bridge) — see CAS-DIFF.patch
+  1753400000_cf_cas.js: IDENTICAL

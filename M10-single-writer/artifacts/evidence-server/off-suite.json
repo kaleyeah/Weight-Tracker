@@ -1,0 +1,1033 @@
+{
+ "mode": "off",
+ "base": "http://127.0.0.1:8098",
+ "when": "2026-08-02T20:52:09.812Z",
+ "total": 70,
+ "failures": 0,
+ "results": [
+  {
+   "name": "T1 status empty",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 200,
+    "body": {
+     "active": false,
+     "deviceName": null,
+     "exists": false,
+     "fence": 0,
+     "holderDeviceId": null,
+     "ok": true,
+     "renewedAt": null,
+     "serverNow": 1785703926089,
+     "ttlMs": 86400000
+    }
+   }
+  },
+  {
+   "name": "T1 first acquire fence=1",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 200,
+    "body": {
+     "active": true,
+     "deviceName": "iPhone",
+     "exists": true,
+     "fence": 1,
+     "granted": true,
+     "holderDeviceId": "devA",
+     "ok": true,
+     "renewedAt": "2026-08-02 20:52:06.093Z",
+     "serverNow": 1785703926093,
+     "ttlMs": 86400000
+    }
+   }
+  },
+  {
+   "name": "T1 no-op reacquire fence stays 1",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 200,
+    "body": {
+     "active": true,
+     "deviceName": "iPhone",
+     "exists": true,
+     "fence": 1,
+     "granted": true,
+     "holderDeviceId": "devA",
+     "ok": true,
+     "renewedAt": "2026-08-02 20:52:06.097Z",
+     "serverNow": 1785703926096,
+     "ttlMs": 86400000
+    }
+   }
+  },
+  {
+   "name": "T1 competing acquire held 409",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 409,
+    "body": {
+     "active": true,
+     "deviceName": "iPhone",
+     "exists": true,
+     "fence": 1,
+     "held": true,
+     "holderDeviceId": "devA",
+     "ok": false,
+     "renewedAt": "2026-08-02 20:52:06.097Z",
+     "serverNow": 1785703926100,
+     "ttlMs": 86400000
+    }
+   }
+  },
+  {
+   "name": "T1 renew ok",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 200,
+    "body": {
+     "active": true,
+     "deviceName": "iPhone",
+     "exists": true,
+     "fence": 1,
+     "holderDeviceId": "devA",
+     "ok": true,
+     "renewedAt": "2026-08-02 20:52:06.103Z",
+     "serverNow": 1785703926103,
+     "ttlMs": 86400000
+    }
+   }
+  },
+  {
+   "name": "T1 renew wrong device 409",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 409,
+    "body": {
+     "fence": 1,
+     "ok": false,
+     "stale": true
+    }
+   }
+  },
+  {
+   "name": "T1 steal fence=2",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 200,
+    "body": {
+     "active": true,
+     "deviceName": "iPad",
+     "exists": true,
+     "fence": 2,
+     "granted": true,
+     "holderDeviceId": "devB",
+     "ok": true,
+     "renewedAt": "2026-08-02 20:52:06.110Z",
+     "serverNow": 1785703926109,
+     "ttlMs": 86400000
+    }
+   }
+  },
+  {
+   "name": "T1 old holder renew 409",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 409,
+    "body": {
+     "fence": 2,
+     "ok": false,
+     "stale": true
+    }
+   }
+  },
+  {
+   "name": "T1 release bumps fence=3 inactive",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 200,
+    "body": {
+     "active": false,
+     "deviceName": "iPad",
+     "exists": true,
+     "fence": 3,
+     "holderDeviceId": null,
+     "ok": true,
+     "renewedAt": "2026-08-02 20:52:06.116Z",
+     "serverNow": 1785703926115,
+     "ttlMs": 86400000
+    }
+   }
+  },
+  {
+   "name": "T1 released fence never validates (D-ABA)",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 409,
+    "body": {
+     "fence": 3,
+     "ok": false,
+     "stale": true
+    }
+   }
+  },
+  {
+   "name": "T1 acquire after release fence=4",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 200,
+    "body": {
+     "active": true,
+     "deviceName": "iPhone",
+     "exists": true,
+     "fence": 4,
+     "granted": true,
+     "holderDeviceId": "devA",
+     "ok": true,
+     "renewedAt": "2026-08-02 20:52:06.121Z",
+     "serverNow": 1785703926121,
+     "ttlMs": 86400000
+    }
+   }
+  },
+  {
+   "name": "T1 expired acquire succeeds fence=5",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 200,
+    "body": {
+     "active": true,
+     "deviceName": "iPad",
+     "exists": true,
+     "fence": 5,
+     "granted": true,
+     "holderDeviceId": "devB",
+     "ok": true,
+     "renewedAt": "2026-08-02 20:52:06.126Z",
+     "serverNow": 1785703926126,
+     "ttlMs": 86400000
+    }
+   }
+  },
+  {
+   "name": "T1 expired renew 409",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 409,
+    "body": {
+     "fence": 5,
+     "ok": false,
+     "stale": true
+    }
+   }
+  },
+  {
+   "name": "T1 closed create",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 403,
+    "body": {
+     "data": {},
+     "message": "Only superusers can perform this action.",
+     "status": 403
+    }
+   }
+  },
+  {
+   "name": "T1 owner can list own lease",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 200,
+    "body": {
+     "items": [
+      {
+       "active": true,
+       "collectionId": "pbc_1689119284",
+       "collectionName": "writer_lease",
+       "deviceName": "iPad",
+       "fence": 5,
+       "holderDeviceId": "devB",
+       "id": "qm5piqzbsrx0gmu",
+       "renewedAt": "2026-08-01 19:52:06.129Z",
+       "user": "nbf8mpuxjl9sm21"
+      }
+     ],
+     "page": 1,
+     "perPage": 30,
+     "totalItems": 1,
+     "totalPages": 1
+    }
+   }
+  },
+  {
+   "name": "T1 closed update",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 403,
+    "body": {
+     "data": {},
+     "message": "Only superusers can perform this action.",
+     "status": 403
+    }
+   }
+  },
+  {
+   "name": "T1 closed delete",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 403,
+    "body": {
+     "data": {},
+     "message": "Only superusers can perform this action.",
+     "status": 403
+    }
+   }
+  },
+  {
+   "name": "T1 foreign list empty",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 200,
+    "body": {
+     "items": [],
+     "page": 1,
+     "perPage": 30,
+     "totalItems": 0,
+     "totalPages": 0
+    }
+   }
+  },
+  {
+   "name": "T1 final fence 5",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 200,
+    "body": {
+     "active": true,
+     "deviceName": "iPad",
+     "exists": true,
+     "fence": 5,
+     "holderDeviceId": "devB",
+     "ok": true,
+     "renewedAt": "2026-08-01 19:52:06.129Z",
+     "serverNow": 1785703926319,
+     "ttlMs": 86400000
+    }
+   }
+  },
+  {
+   "name": "T3 fence-less commit passes (OFF)",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 200,
+    "body": {
+     "newRev": 1,
+     "ok": true,
+     "subsystem": "core"
+    }
+   }
+  },
+  {
+   "name": "T3 fenced commit 200",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 200,
+    "body": {
+     "newRev": 2,
+     "ok": true,
+     "subsystem": "core"
+    }
+   }
+  },
+  {
+   "name": "T3 ledger writerFence recorded",
+   "pass": true,
+   "mode": "off",
+   "detail": [
+    {
+     "clientBuild": "t3-m10",
+     "collectionId": "pbc_2708271774",
+     "collectionName": "cf_commit_log",
+     "created": "2026-08-02 20:52:06.503Z",
+     "deviceHash": "36d5b7eead3effc9",
+     "expectedRev": 1,
+     "fileByteLength": 0,
+     "fileSha256": "",
+     "holderDeviceHash": "36d5b7eead3effc98b153be2fab922dc9eecac9aa2fb9567ef0bd7a448e649da",
+     "id": "ckgm7j9prc6rz8k",
+     "key": "m10-4420b613cb62816b9ce1a321b5644998cd840a18ee0b24c3",
+     "op": "",
+     "requestHash": "46096a88fedf1a982fbad8326fceb4538c70bd6a320b22d355d0fa78b725140d",
+     "responseStatus": 200,
+     "resultIdentity": "",
+     "resultRecordId": "",
+     "resultingRev": 2,
+     "subsystem": "core",
+     "user": "phzzcg43pjvw67c",
+     "writerFence": 1
+    }
+   ]
+  },
+  {
+   "name": "T3 ledger holderDeviceHash server-derived",
+   "pass": true,
+   "mode": "off",
+   "detail": "36d5b7eead3effc98b153be2fab922dc9eecac9aa2fb9567ef0bd7a448e649da"
+  },
+  {
+   "name": "T3 ledger op NULL on CAS rows",
+   "pass": true,
+   "mode": "off",
+   "detail": ""
+  },
+  {
+   "name": "T3 superuser rejected on users-only route (I4)",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 403,
+    "body": {
+     "data": {},
+     "message": "The authorized record is not allowed to perform this action.",
+     "status": 403
+    }
+   }
+  },
+  {
+   "name": "T4 upload 200 + identity",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 200,
+    "body": {
+     "identity": {
+      "byteLength": 2055,
+      "localId": "l-1",
+      "meta": {
+       "date": "2026-08-02",
+       "kind": "food",
+       "meal": "lunch",
+       "pose": "",
+       "ts": "1754170000000",
+       "week": ""
+      },
+      "sha256": "b57ff78bcb67b1546035e12779a6f3f4ab0ca3681f302bc0db1d97d01f7d7021"
+     },
+     "ok": true,
+     "recordId": "7n59p85obtujns8"
+    }
+   }
+  },
+  {
+   "name": "T4 ledger row complete",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "clientBuild": "t4",
+    "collectionId": "pbc_2708271774",
+    "collectionName": "cf_commit_log",
+    "created": "2026-08-02 20:52:06.749Z",
+    "deviceHash": "a0066e1a6b694924",
+    "expectedRev": 0,
+    "fileByteLength": 2055,
+    "fileSha256": "b57ff78bcb67b1546035e12779a6f3f4ab0ca3681f302bc0db1d97d01f7d7021",
+    "holderDeviceHash": "a0066e1a6b6949240eaa5f6b5738af384bab5f0146db65f2aee9f1888175f326",
+    "id": "bm51u55o9yz87eb",
+    "key": "m10-ce136a37cc3ec832f29cfeed8b2a5a6e8daef5647155c2c3",
+    "op": "photo-upload",
+    "requestHash": "6602adbdec49bbfd9e9ecd1e0c666712b9cf471c2c746293f9fe4f0d4140db36",
+    "responseStatus": 200,
+    "resultIdentity": "{\"localId\":\"l-1\",\"byteLength\":2055,\"sha256\":\"b57ff78bcb67b1546035e12779a6f3f4ab0ca3681f302bc0db1d97d01f7d7021\",\"meta\":{\"date\":\"2026-08-02\",\"kind\":\"food\",\"meal\":\"lunch\",\"pose\":\"\",\"ts\":\"1754170000000\",\"week\":\"\"}}",
+    "resultRecordId": "7n59p85obtujns8",
+    "resultingRev": 0,
+    "subsystem": "photos",
+    "user": "jh0hp82hzm8u39k",
+    "writerFence": 1
+   }
+  },
+  {
+   "name": "T4 replay same recordId",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 200,
+    "body": {
+     "identity": {
+      "byteLength": 2055,
+      "localId": "l-1",
+      "meta": {
+       "date": "2026-08-02",
+       "kind": "food",
+       "meal": "lunch",
+       "pose": "",
+       "ts": "1754170000000",
+       "week": ""
+      },
+      "sha256": "b57ff78bcb67b1546035e12779a6f3f4ab0ca3681f302bc0db1d97d01f7d7021"
+     },
+     "ok": true,
+     "recordId": "7n59p85obtujns8",
+     "replay": true
+    }
+   }
+  },
+  {
+   "name": "T4 replay no duplicate record",
+   "pass": true,
+   "mode": "off",
+   "detail": null
+  },
+  {
+   "name": "T4 same key different bytes 409",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 409,
+    "body": {
+     "error": "idempotency key reused with a different request",
+     "ok": false
+    }
+   }
+  },
+  {
+   "name": "T4 same key same length different content 409",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 409,
+    "body": {
+     "error": "idempotency key reused with a different request",
+     "ok": false
+    }
+   }
+  },
+  {
+   "name": "T4 no record leaked by reuse attempts",
+   "pass": true,
+   "mode": "off",
+   "detail": null
+  },
+  {
+   "name": "T4 no file 400",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 400,
+    "body": {
+     "error": "exactly one file part required (none received)",
+     "ok": false
+    }
+   }
+  },
+  {
+   "name": "T4 two files 400",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 400,
+    "body": {
+     "error": "exactly one file part required (multiple received)",
+     "ok": false
+    }
+   }
+  },
+  {
+   "name": "T4 length mismatch 400",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 400,
+    "body": {
+     "actual": 2055,
+     "declared": 2060,
+     "error": "byteLength mismatch",
+     "ok": false
+    }
+   }
+  },
+  {
+   "name": "T4 bad kind 400",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 400,
+    "body": {
+     "error": "kind must be food|progress",
+     "ok": false
+    }
+   }
+  },
+  {
+   "name": "T4 oversize 413",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 413,
+    "body": {
+     "error": "file too large",
+     "maxBytes": 15728640,
+     "ok": false
+    }
+   }
+  },
+  {
+   "name": "T4 malformed left no records",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "before": {
+     "recs": 1,
+     "rows": 1
+    },
+    "after": {
+     "recs": 2,
+     "rows": 2
+    }
+   }
+  },
+  {
+   "name": "T4 malformed left no ledger rows",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "before": {
+     "recs": 1,
+     "rows": 1
+    },
+    "after": {
+     "recs": 2,
+     "rows": 2
+    }
+   }
+  },
+  {
+   "name": "T5 update 200 applied",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 200,
+    "body": {
+     "applied": true,
+     "newMeta": {
+      "date": "2026-08-02",
+      "kind": "food",
+      "meal": "dinner",
+      "pose": "",
+      "ts": "1754170000000",
+      "week": ""
+     },
+     "ok": true,
+     "recordId": "7n59p85obtujns8"
+    }
+   }
+  },
+  {
+   "name": "T5 update replay",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 200,
+    "body": {
+     "applied": true,
+     "newMeta": {
+      "date": "2026-08-02",
+      "kind": "food",
+      "meal": "dinner",
+      "pose": "",
+      "ts": "1754170000000",
+      "week": ""
+     },
+     "ok": true,
+     "recordId": "7n59p85obtujns8",
+     "replay": true
+    }
+   }
+  },
+  {
+   "name": "T5 foreign vs nonexistent byte-identical (update)",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "fr": {
+     "status": 404,
+     "body": {
+      "notFound": true,
+      "ok": false
+     }
+    },
+    "nr": {
+     "status": 404,
+     "body": {
+      "notFound": true,
+      "ok": false
+     }
+    }
+   }
+  },
+  {
+   "name": "T5 foreign vs nonexistent byte-identical (delete)",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "fd2": {
+     "status": 404,
+     "body": {
+      "notFound": true,
+      "ok": false
+     }
+    },
+    "nd2": {
+     "status": 404,
+     "body": {
+      "notFound": true,
+      "ok": false
+     }
+    }
+   }
+  },
+  {
+   "name": "T5 foreign attempts mutated nothing",
+   "pass": true,
+   "mode": "off",
+   "detail": null
+  },
+  {
+   "name": "T5 delete 200",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 200,
+    "body": {
+     "alreadyGone": false,
+     "deleted": true,
+     "ok": true,
+     "recordId": "7n59p85obtujns8"
+    }
+   }
+  },
+  {
+   "name": "T5 delete replay success",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 200,
+    "body": {
+     "alreadyGone": false,
+     "deleted": true,
+     "ok": true,
+     "recordId": "7n59p85obtujns8",
+     "replay": true
+    }
+   }
+  },
+  {
+   "name": "T5 record gone",
+   "pass": true,
+   "mode": "off",
+   "detail": null
+  },
+  {
+   "name": "T6 superuser patch 200 rev2",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 200,
+    "body": {
+     "coreRev": 2,
+     "ok": true
+    }
+   }
+  },
+  {
+   "name": "T6 athlete fields survive",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "nightlySummary": {
+     "s": 1
+    },
+    "settings": {
+     "units": "lb"
+    },
+    "weights": [
+     {
+      "d": "2026-08-01",
+      "w": 200
+     }
+    ]
+   }
+  },
+  {
+   "name": "T6 platform field landed",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "nightlySummary": {
+     "s": 1
+    },
+    "settings": {
+     "units": "lb"
+    },
+    "weights": [
+     {
+      "d": "2026-08-01",
+      "w": 200
+     }
+    ]
+   }
+  },
+  {
+   "name": "T6 replay no double increment",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 200,
+    "body": {
+     "coreRev": 2,
+     "ok": true,
+     "replay": true
+    }
+   }
+  },
+  {
+   "name": "T6 rev still 2 after replay",
+   "pass": true,
+   "mode": "off",
+   "detail": 2
+  },
+  {
+   "name": "T6 same key different patch 409",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 409,
+    "body": {
+     "error": "idempotency key reused with a different request",
+     "ok": false
+    }
+   }
+  },
+  {
+   "name": "T6 same key different target 409 (I5)",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 409,
+    "body": {
+     "error": "idempotency key reused with a different request",
+     "ok": false
+    }
+   }
+  },
+  {
+   "name": "T6 athlete field rejected",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 400,
+    "body": {
+     "error": "field not platform-owned: weights",
+     "ok": false
+    }
+   }
+  },
+  {
+   "name": "T6 missing target 404",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 404,
+    "body": {
+     "notFound": true,
+     "ok": false
+    }
+   }
+  },
+  {
+   "name": "T6 user token rejected (I4/I11)",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 403,
+    "body": {
+     "data": {},
+     "message": "The authorized record is not allowed to perform this action.",
+     "status": 403
+    }
+   }
+  },
+  {
+   "name": "T6 device commit after platform (rev3)",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 200,
+    "body": {
+     "newRev": 3,
+     "ok": true,
+     "subsystem": "core"
+    }
+   }
+  },
+  {
+   "name": "T6 platform after device (rev4)",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "status": 200,
+    "body": {
+     "coreRev": 4,
+     "ok": true
+    }
+   }
+  },
+  {
+   "name": "T6 both orders: all fields survive",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "nightlySummary": {
+     "s": 1
+    },
+    "settings": {
+     "units": "lb"
+    },
+    "weeklySummary": {
+     "w": 1
+    },
+    "weights": [
+     {
+      "d": "2026-08-01",
+      "w": 200
+     }
+    ]
+   }
+  },
+  {
+   "name": "T8 steal blocked by open write tx (serialization)",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "stealMs": 585,
+    "fence": 2
+   }
+  },
+  {
+   "name": "T8 zero anomalies (OFF: commits always land)",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "commitFirst": 60,
+    "stealFirst": 0,
+    "anomalies": []
+   }
+  },
+  {
+   "name": "T8 simultaneous steals distinct monotonic fences",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "f1": 63,
+    "f2": 64
+   }
+  },
+  {
+   "name": "cleanup m10-lease-a9d443e4@disposable.test",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "user": 404,
+    "ledger": 0,
+    "lease": 0,
+    "photos": 0
+   }
+  },
+  {
+   "name": "cleanup m10-leaseB-63d865ef@disposable.test",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "user": 404,
+    "ledger": 0,
+    "lease": 0,
+    "photos": 0
+   }
+  },
+  {
+   "name": "cleanup m10-commit-b842e502@disposable.test",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "user": 404,
+    "ledger": 0,
+    "lease": 0,
+    "photos": 0
+   }
+  },
+  {
+   "name": "cleanup m10-photo-87233980@disposable.test",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "user": 404,
+    "ledger": 0,
+    "lease": 0,
+    "photos": 0
+   }
+  },
+  {
+   "name": "cleanup m10-plat-eca323ce@disposable.test",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "user": 404,
+    "ledger": 0,
+    "lease": 0,
+    "photos": 0
+   }
+  },
+  {
+   "name": "cleanup m10-platB-00826554@disposable.test",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "user": 404,
+    "ledger": 0,
+    "lease": 0,
+    "photos": 0
+   }
+  },
+  {
+   "name": "cleanup m10-race-18d1adb1@disposable.test",
+   "pass": true,
+   "mode": "off",
+   "detail": {
+    "user": 404,
+    "ledger": 0,
+    "lease": 0,
+    "photos": 0
+   }
+  }
+ ]
+}
