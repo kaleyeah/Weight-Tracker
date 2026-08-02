@@ -588,7 +588,7 @@ Candidate identity: base `e5f38c3` (build `2026-07-30.400-pb`, sha256
    as M10 (Owner direction 2026-08-02, STRICT ruling; its after-M8
    prerequisite is met). The M7b storage-migration package remains
    prerequisite ONLY for M10's HealthKit-import half (parked for
-   Maestro). Architect design rounds ongoing (6 completed
+   Maestro). Server-package gate CLOSED at Architect round 12 (12 rounds
    2026-08-02); not even local implementation authorized until the
    consolidated design passes.
 6. **Server hardening (raw-PATCH lockdown + M10 fence enforcement)** —
