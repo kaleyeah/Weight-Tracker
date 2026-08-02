@@ -369,6 +369,20 @@ the exchange transcripts, and are marked (r) where reconstructed.
   status memory; disposable-PB and packaging remain blocked until a
   revised round passes. Engineer.
 
+- **2026-08-02, M8 round 10 — revised evidence REJECTED again.** Findings
+  1–13 were addressed (dirty-first ordering, verified k-phases on the
+  happy path, journaled Choose Local/Server, delivery-evidenced export
+  gate, crypto request ids, real-route replay modeling, strengthened
+  quota/recovery suites — 54 cases green, candidate `bb2d8899…`), but
+  the Architect correctly identified that the recovery paths remain a
+  second, weaker implementation: the ruling is ONE phase-aware
+  transition finisher shared by the live callback and journal recovery,
+  verified postconditions on every write/remove including
+  `saveTrainingLocal` itself, phase-aware crash recovery for every
+  choose/adopt boundary, and fault-injection evidence showing
+  postcondition bytes. Round 11 will carry the finisher refactor.
+  Engineer.
+
 ## §2 Owner actions on record
 
 1. 2026-07-30 — direction change (sync simplification, review narrowing).
