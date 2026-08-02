@@ -1,6 +1,6 @@
 # Compound Fitness — Changelog
 
-**Last Updated:** 2026-07-27
+**Last Updated:** 2026-08-02
 
 **Status:** Active
 
@@ -14,6 +14,48 @@ A high-level, human- and AI-readable log of how the **product** has evolved — 
 - Internal builds are tracked as `YYYY-MM-DD.NNN`; those numbers are referenced where useful.
 
 > **Provenance note:** History before 2026-07-20 predates the current git clone and is summarized from the Product History doc and internal build numbers (the athlete app was already near build .270+ by then). Entries from 2026-07-20 onward are grounded in git history.
+
+---
+
+## Live releases 2026-08-01 → 2026-08-02 (every one published, byte-verified against the served URL, and Owner-authorized)
+
+### `2026-08-01.401-bk` — the containment release (after the July 31 training loss)
+- **Added** a verified pre-sync recovery snapshot: before any load, migration, or sync runs, the app captures a byte-verified copy of the device's training so no later step can silently destroy the only copy.
+- **Added** training to every backup. `backupJSON()` had never included exercises, routines, or lift sessions — the one category with no second copy anywhere was the one the backup omitted. Restores apply training only when the backup actually carries it.
+- **Added** account-ownership gates: a device that has held another account's data stops and asks before adopting; interrupted logouts stop and ask; an unreadable logout journal stays locked with no erase path (all three behaviors are Owner rulings).
+- **What it deliberately does NOT do:** prevent the failed-push-then-pull overwrite of *visible* training — that is M8 (in progress). The protected copy survives and exports; the display can still lose until then.
+
+### `2026-08-01.402-fx` — correctness batch + the session editor
+- **Fixed** symptom logging recording the wrong type: the sheet no longer preselects Nausea, refuses to save without an explicit choice, and the toast names what it saved. (Root cause of the mislabeled July 31 headache.)
+- **Fixed** bodyweight exercises loading last session's bodyweight instead of today's weigh-in.
+- **Fixed** pinned notes opening blank from inside a workout.
+- **Fixed** the bottom nav detaching and floating while scrolling on iOS.
+- **Added** the session editor: date, start time, and duration editable on any lift session — built so the Owner could move his reconstructed 8/01 workout back to 7/31 himself instead of anyone editing the database.
+
+### `2026-08-01.403-fx` — GLP pill day-scoping
+- **Fixed** the start-time field overflowing its row (same intrinsic-width fix the date field already had).
+- **Fixed** the GLP activity pill listing every shot ever taken: it now shows only the viewed day's shot and symptoms, with "No shot this day · last was N days ago" on shot-free days.
+- **Added** the full shot journal (compound, dose, time, site, notes) under the Weight & dose chart.
+
+### `2026-08-02.404-fx` — Lean Body Mass end-to-end
+- **Added** a Lean mass field on the Weight check-in, an LBM tab on the Body composition chart, and `leanmass` throughout storage, backups, and import.
+- **Added** Health-import support for LBM and waist with forgiving key names (`leanmass`, `lbm`, `Lean Body Mass`, `Waist Circumference`), single values or per-day lines.
+- **Changed** the Progress page: all sections start expanded (Owner request).
+- **Fixed** "Erase all data" and "Join as new person" never clearing body fat or waist; all three body-comp stores now clear.
+- **Also that night (not an app push):** the Coach Max scripts on the Synology were updated to build `2026-08-02.177` — lean mass in the nightly data row and the weekly CSV, with muscle-preservation guidance — via the new SSH deploy channel from the VPS, after rebasing onto the NAS's live script lineage.
+
+### `2026-08-02.405-fx` — Symptoms chart retired
+- **Removed** the GLP Symptoms chart from Progress (Owner ruling: with all logs under one type it said nothing). Symptom logging, storage, exports, and the day pill's symptom lines are untouched; the data keeps accumulating for later surfacing (likely the coach).
+
+### `2026-08-02.406-fx` — rest timer previews the next work
+- **Added** the Owner-spec rest preview: every rest screen shows the next exercise, set number of total, rep target (RPT per-set ranges honored), and weight — including same-exercise rests, which the old name-only "Up next" suppressed.
+
+### `2026-08-02.407-fx` — the bug list closes
+- **Added** the replace-exercise prompt: swapping an exercise mid-workout asks "save to the routine going forward, or today only"; saving updates the routine in place with ranges and notes kept.
+- **Added** editable symptom logs: tap any logged symptom to relabel, re-time, or delete it in place — the self-serve path for fixing the mislabeled headache, same Owner-validates-the-feature pattern as the session editor.
+
+### In progress (not yet in any live build)
+- **M8 sync rework** — the real fix for the July 31 loss class. Design v7 approved as the implementation contract by the Architect after 8 review rounds and 4 Owner rulings (2026-08-02); implementation under way. Nothing ships without the Owner's publish decision.
 
 ---
 
