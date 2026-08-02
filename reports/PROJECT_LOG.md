@@ -288,6 +288,13 @@ the exchange transcripts, and are marked (r) where reconstructed.
   bytes verified at 02:08:43Z (sha256 `a09d87c8…b457d5f2`). C14 at 55;
   C12/C13 VM+browser green.
 
+- **2026-08-02, build `2026-08-02.409-fx` published.** The month calendar's
+  header nav matches the day nav: centered bare chevrons, month name in the
+  middle, boxed buttons gone; behavior unchanged. Same M8-extraction
+  discipline as `.408`. Owner authorized; `main` `0e7d1ff..HEAD` pushed;
+  served bytes verified (sha256 `a986ac38…e79eac20`). C14 at 56; C12/C13
+  VM+browser green.
+
 ## §2 Owner actions on record
 
 1. 2026-07-30 — direction change (sync simplification, review narrowing).
