@@ -312,6 +312,17 @@ the exchange transcripts, and are marked (r) where reconstructed.
   served bytes verified (sha256 `36a680fe…bdc8ebecf`). C14 57; C12/C13
   green. Same M8-extraction discipline.
 
+- **2026-08-02, Owner verifications + build `2026-08-02.412-fx` published.**
+  Owner confirmed on-device: the workout move persists (accepted as
+  sufficient — the DB-verification loose end is CLOSED by Owner ruling
+  "seems good enough to me"); the mislabelled headache is relabelled via
+  the `.407` symptom editor by the Owner's own hand (CLOSED); the `.411`
+  nav approved ("arrows are great"). New Owner report: no visible way to
+  cancel the GLP symptom sheet — `.412` adds a circled ✕ to both GLP
+  sheets (symptom and dose), closing without saving; backdrop tap stays.
+  C14 at 59; C12/C13 VM+browser green. Owner authorized; pushed; served
+  bytes verified (sha256 `f0ed14e7…225d6472`).
+
 ## §2 Owner actions on record
 
 1. 2026-07-30 — direction change (sync simplification, review narrowing).
