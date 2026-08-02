@@ -473,6 +473,21 @@ the exchange transcripts, and are marked (r) where reconstructed.
   (parked for Maestro) and is NOT started by this direction. Design
   goes to the Architect before implementation. Engineer.
 
+- **2026-08-02, M10 round 1 — design v1 rejected; Owner ruling: STRICT.**
+  The Architect correctly identified that an advisory lease with offline
+  write fallback is not single-writer enforcement, and halted for the
+  Owner. **Owner ruling (decision channel): Option A — strict.** Offline
+  non-holder devices are read-only; the holder may continue offline only
+  on a cached valid lease; every server commit carries a fencing token
+  checked atomically server-side; displaced dirty work is preserved for
+  explicit conflict recovery and never auto-applies. Round-1 technical
+  requirements for v2: a separate locked lease collection (the appdata
+  field is raw-PATCHable pre-lockdown), server-side fencing across every
+  writable path, pre-mutation client gates with a complete write-surface
+  inventory, policy-derived TTL/cadence, and full
+  schema/migration/backup/rollback/compatibility packages before any
+  server mutation. Engineer, with Owner ruling.
+
 ## §2 Owner actions on record
 
 1. 2026-07-30 — direction change (sync simplification, review narrowing).
