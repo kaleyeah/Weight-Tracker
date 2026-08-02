@@ -3,7 +3,7 @@
 Engineer, 2026-08-02. THE authoritative server-package contract —
 self-contained; v2–v4 are history, not references. Owner ruling STRICT
 (recorded). Base: released `2026-08-02.415-m8`. Companions:
-`WRITE-SURFACE-MATRIX.md` (current version in the tree) and `artifacts/PB-SEMANTICS-PROBE.md`
+`WRITE-SURFACE-MATRIX.md` v5 (fully rewritten this round, G14) and `artifacts/PB-SEMANTICS-PROBE.md`
 (corrected). Round-4 items answered as D1–D13, round-5 as E1–E12, round-6 as F1–F15, round-7 as G1–G16 inline.
 
 ## 1. Invariant, stated exactly (E2)
@@ -350,7 +350,7 @@ acked (or the member is queued displaced); restart resumes from
 recorded outcomes; photos added AFTER the intent snapshot are NOT
 part of the clear and survive; partial failure leaves a resumable
 journal, never a half-truth.
-- Composites (7 in matrix v3): one global pre-gate; each side of a
+- Composites (7 in matrix v5 §1): one global pre-gate; each side of a
   split-across-steal lands in its own subsystem's displaced flow.
 - Non-holder UX: "Another session is the active writer ("<deviceName>")
   — take over here?" [Take over]/[Not now]. NEVER claims which
