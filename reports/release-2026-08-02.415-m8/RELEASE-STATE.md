@@ -18,4 +18,8 @@
   2026-08-02 17:17Z, API-verified); nightly 18:00 schedule active.
 - Owner publication decision: PUBLISH, 2026-08-02, via the decision
   channel (Taildrop) and in-session confirmation.
-- verifiedAgainstLiveURL: false   <-- updated only on an observed match
+- verifiedAgainstLiveURL: TRUE — observed 2026-08-02 17:20:02Z:
+  served sha256 equals the release identity
+  5bda0da514c512ce1674aaff5cd78eb81f7fd0519388d78875a5f1bc1ba35ee3
+  (candidate = release commit 425f70e = tag v2026-08-02.415-m8 target
+  = served artifact; four-point byte identity held).
