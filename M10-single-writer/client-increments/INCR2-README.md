@@ -1,13 +1,47 @@
 # M10 client increment 2 — core durability protocol
 
-## Package identity
+## Package identity (through round-17 rulings)
 - **Base**: `3e7a0d0` — the accepted increment-1 authority head.
-- **Increment head**: `5359060` — index.html sha256
-  `2a1f48400257465746261bc047d0e5dda1f4d118251651790b35d2d7fbcf2d77`.
-- **Cumulative diff** `INCR2-DIFF.patch` = 3e7a0d0 → 5359060
-  (439 lines). Everything sits in `M10-BLOCK-2 … M10-BLOCK-2-END` plus
-  the delimited `M10 WIRING (increment 2)` section and one boot-line
-  edit (core journal recovery after the lease settles).
+- **Increment head**: `f78d2e0` — index.html sha256 prefix `682714e7…`.
+- **Cumulative diff** `INCR2-DIFF.patch` = 3e7a0d0 → f78d2e0
+  (529 lines); **narrow round-17 diff**
+  `INCR2-DIFF-FROM-5359060.patch` (389 lines). Everything sits in
+  `M10-BLOCK-2 … M10-BLOCK-2-END` plus the delimited wiring section
+  and one boot-line edit.
+
+## Round-17 rulings, as landed (N1–N9 = rulings 1–9)
+- N1/N4: `m10cCtx()` captures `{uid, session generation}` at the start
+  of EVERY core operation (push, recovery, bootstrap, pull, adoption);
+  every asynchronous continuation verifies both before touching
+  anything. A→B→A yields a new generation, so an original-session
+  response can never complete under the new session (tested).
+- N2: journal completion, advancement, terminalization, quarantine,
+  and every read/write in those paths operate on the JOURNAL's
+  validated owner or the explicitly captured uid — `m8Uid()` is never
+  consulted after dispatch.
+- N3: a push response arriving after an account switch leaves A's
+  intent journal BYTE-IDENTICAL for replay under A's next session and
+  makes zero writes under B (tested: no `wl_core_*__userB` keys).
+- N5/N6: pull and bootstrap capture the local bytes before the GET
+  and revalidate AFTER it (session context, storage block, dirty
+  marker, byte-identical local) before any decision; the adoption
+  intent phase re-proves the preconditions immediately before the
+  `wl_v1` replacement and ANNULS itself (journal removed, nothing
+  written) if an edit or dirty marker appeared — local always wins.
+- N7: the edit-during-pull race is a dedicated test (delayed GET,
+  mid-flight verified edit → zero adoption, dirty + bytes + base all
+  preserved).
+- N8: canon validates the ORIGINAL graph before projection —
+  `undefined` allowed ONLY as an object-property omission;
+  arrays reject undefined and holes; NaN/±Infinity, functions,
+  symbols, BigInt, cycles, and non-plain objects (e.g. Date) all fail
+  closed. Positive `auto: undefined` case + negative case per lossy
+  category, plus a push-path case proving hard block with dirty
+  preserved and zero commits.
+- N9: a commit success requires a safe nonnegative integer `newRev`
+  EQUAL to expectedRev+1 (the route's exact postcondition); malformed
+  successes (fractional / missing / wrong increment) block with the
+  journal at intent, dirty preserved, base unmoved (three tests).
 
 ## What it implements (design v9.1 §2, round-16 ruling 7 scope)
 - **Account-keyed core stores** with M8-grade verified read/write/
@@ -61,7 +95,7 @@
   cloudPull, autoSync).
 
 ## Evidence
-- `INCR2-C16-OUTPUT.txt` — C16 29/29: bootstrap ×5 (equal /
+- `INCR2-C16-OUTPUT.txt` — C16 39/39 (29 prior +10 ruling cases): bootstrap ×5 (equal /
   fresh-adopt with unknown-field survival / differing-preserved /
   no-row-first-push / absent-at-positive-rev), happy push, lost-response
   replay (same requestId, server committed EXACTLY once), crash
@@ -74,4 +108,4 @@
   fail → soft block + shared union), clean adoption, newer-gen-in-
   flight.
 - `INCR2-C15-RERUN.txt` — increment-1 suite still 35/35.
-- `INCR2-M8-REGRESSION.txt` — full client matrix vs `5359060`.
+- `INCR2-M8-REGRESSION.txt` — full client matrix vs `f78d2e0`.

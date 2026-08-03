@@ -27,5 +27,15 @@
   ✓ T9 dirty-write failure: soft block raised, shared union reports blocked
   ✓ T10 clean adoption: base rev 9, journal cleared, unknown fields intact
   ✓ T11 newer gen in flight: base advanced, newer dirty SURVIVES for the next push
+  ✓ T12a switch mid-push: A journal byte-identical at intent (replayable), zero B writes
+  ✓ T12b A→B→A: original-session response discarded (journal still intent, base unmoved)
+  ✓ T12c switch during bootstrap GET: zero adoption, zero B writes
+  ✓ T12c switch during pull GET: zero adoption, zero B writes
+  ✓ T13 edit during pull GET: adoption refused, edit + dirty preserved, base unchanged
+  ✓ T14 canon: auto:undefined permitted; every lossy category rejected
+  ✓ T14 push with invalid value: hard block, dirty preserved, no commit
+  ✓ T15 fractional newRev: blocked, journal at intent, dirty preserved, base unmoved
+  ✓ T15 missing newRev: blocked, journal at intent, dirty preserved, base unmoved
+  ✓ T15 wrong increment: blocked, journal at intent, dirty preserved, base unmoved
 
-C16-M10 increment 2: 29 passed, 0 failed
+C16-M10 increment 2: 39 passed, 0 failed
