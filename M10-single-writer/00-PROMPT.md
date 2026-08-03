@@ -1,49 +1,37 @@
-# M10 single-writer — round 15: rulings 2–5 landed (authority layer)
+# M10 single-writer — round 16: the corrected increment-1 records package
 
 You are the Architect for the Compound project (read-only; rulings bind
 the Engineer; the Owner alone authorizes deployment and live-data
 mutation).
 
-The narrow revision you specified — rulings 2–5 only. Commit 3e7a0d0;
-exact diff from 08e1280: `client-increments/INCR1-DIFF-FROM-08e1280.patch`
-(137 lines, all inside M10-BLOCK-1 and the C15 suite).
+Per your closing instruction: the records package ONLY. No authority
+code was modified (the records head's `index.html` is byte-identical
+to accepted head `3e7a0d0` —
+`0d26b1da5ba1a0d34607918e69be0d6e6906cf168140de34820738c7f0bceef8` —
+asserted in the manifest). Records commit: 749d494.
 
-- **Ruling 2 (generation guard)** — `M10.gen` increments on every
-  reset AND at the start of every superseding operation (boot's reset,
-  each takeover). Every async continuation — boot acquire, renew,
-  takeover, and their catch arms — captures `(uid, gen)` and discards
-  its response unless BOTH still match. Renew captures without
-  bumping (it supersedes nothing; a newer op invalidates it).
-  Focused tests, all green: same-uid logout/relogin mid-acquire (stale
-  response not installed, state stays reset); two overlapping boots
-  (later gen owns, no post-hoc overwrite); two overlapping takeovers
-  with responses in REVERSE order (the superseded op's later response
-  cannot install — state keeps the newer op's grant); a late VALID
-  renew arriving after a newer takeover (discarded: neither extends
-  nor revokes — the takeover's deadline survives).
-- **Ruling 3 (no insecure fallback)** — the Math.random branch is
-  gone; without `crypto.getRandomValues` the device fails closed: no
-  id created or persisted, NO lease request leaves the device (tested
-  against a zero-traffic mock), gate blocks.
-- **Ruling 4 (one strict validator)** — `m10ValidGrantBody` now also
-  requires finite `serverNow`, and renew uses THE SAME validator as
-  acquire/steal plus the unchanged-fence requirement — so a 200
-  naming another installation revokes as `malformed-response`
-  (tested) instead of extending the deadline.
-- **Ruling 5 (typed held body)** — `m10ValidHeldBody`: held===true,
-  safe integer fence, bounded ttl, finite serverNow, nonempty bounded
-  holderDeviceId, string-or-null deviceName. An invalid held body
-  yields `known=null` + reason `malformed-response`, never
-  authoritative takeover information (tested).
+- **Ruling 6 (cumulative artifact)** — `INCR1-DIFF.patch` regenerated
+  as base `0389770` → authority head `3e7a0d0`. It contains the
+  generation guard and the unified strict validators, and ZERO
+  `Math.random` occurrences (grep-asserted).
+  `INCR1-PATCH-VERIFY.txt` is the reproduction proof: the base file
+  from `0389770` with the cumulative patch applied hashes EXACTLY to
+  the authority-head bytes (both sha256 lines shown, equal).
+- **Ruling 7 (identity)** — `INCR1-README.md` now opens with the
+  three-way identity: base `0389770` (= served `.417-fx`, your
+  ruling-1 verification), authority implementation head `3e7a0d0`
+  (the accepted code), and the records/bundle head carrying the final
+  evidence — with patch roles and hashes.
+- **Ruling 8 (self-consistency)** — at THIS single head: the README,
+  the cumulative patch, the narrow round-14 patch, `INCR1-C15-OUTPUT`
+  (35/35), `INCR1-M8-REGRESSION` (171/171 vs `3e7a0d0`, plus the
+  artifact-scope recovery 25/25), `INCR1-MANIFEST.txt` (sha256 of
+  every artifact plus the source-bytes hash), and the source itself
+  all agree. No working-tree or later-commit knowledge is needed.
 
-Evidence: `INCR1-C15-OUTPUT.txt` — 35/35 (the 28 prior cases plus the
-seven new ordering/validation cases above);
-`INCR1-M8-REGRESSION.txt` — fresh full client regression record
-against 3e7a0d0 (numbers inside). Base identity unchanged from your
-ruling-1 verification (0389770 = served `.417-fx`, dc2cd56f…).
+Rulings 1–4 (code) were accepted last round and nothing touched the
+code since. Ruling 9 honored: no production action taken or
+requested.
 
-Passed: rulings 2–5, locally. Deferred: increments 2–5;
-NAS/coach/enforcement/publication behind their Owner gates.
-
-Requested ruling: acceptance of increment 1 and authorization for
-increment 2 (core durability protocol) on this foundation.
+Requested ruling: acceptance of increment 1 as a reproducible package
+and authorization for increment 2 (core durability protocol).
