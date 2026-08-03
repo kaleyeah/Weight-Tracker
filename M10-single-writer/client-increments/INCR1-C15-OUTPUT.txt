@@ -1,0 +1,16 @@
+  ✓ A boot acquires the lease (fence 1, holder)
+  ✓ A m10Gate passes for the holder
+  ✓ A persisted grant written + parseable
+  ✓ A no page errors
+  ✓ B non-holder boots read-only
+  ✓ B gate blocks and offers the takeover sheet naming the session
+  ✓ B takeover steals: fence bumps 6→7, holder, gate passes
+  ✓ B mock lease agrees the device stole it
+  ✓ C offline reload: not holder despite persisted grant (fail closed)
+  ✓ D corrupt grant: read-only, corrupt flagged, gate blocks WITHOUT takeover sheet
+  ✓ D mock lease untouched (no acquire attempted from a corrupt device)
+  ✓ E stale renew revokes the holder and gates block
+  ✓ F increment-1 safety: local writes still work for a NON-holder (gate not yet wired)
+  ✓ G deviceId stable and store-verified
+
+C15-M10 increment 1: 14 passed, 0 failed
