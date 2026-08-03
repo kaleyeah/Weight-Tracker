@@ -719,47 +719,154 @@ const ADD=`async function(id){
     await ctx.close();
   }
 
-  /* T25 (rulings 3/4): adoption crash after the local write, before `blob-ok` */
+  /* T25 (round-25 ruling 1): adoption identity phases */
   {
     const st=mkSt();
     const {ctx,page}=await boot(browser,server,st);
-    st.photos={'pidxxxxxxxxxx3':{id:'pidxxxxxxxxxx3',localId:'srv-3',file:'p.jpg',date:'2026-08-02',kind:'food',meal:'lunch',ts:'1'}};
     const s=await page.evaluate(async()=>{
-      /* seed the crash state: an adopt intent whose blob is already local but
-         whose mapping was never recorded */
       const bytes=new Uint8Array(128);for(let i=0;i<128;i++)bytes[i]=i;
-      await idbAddLocal({id:'srv-3',date:'2026-08-02',blob:new Blob([bytes]),ts:1,kind:'food'});
+      const blob=new Blob([bytes]);
+      await idbAddLocal({id:'srv-3',date:'2026-08-02',blob:blob,ts:1,kind:'food'});
+      const buf=await blob.arrayBuffer();
+      const h=await crypto.subtle.digest('SHA-256',buf);
+      const hex=Array.from(new Uint8Array(h)).map(b=>('0'+b.toString(16)).slice(-2)).join('');
+      /* crash AFTER the durable identity phase, before the mapping */
       m10pMutate(m8Uid(),function(ops){ops.push({id:'pop-adopt00001',op:'adopt',localId:'srv-3',
         serverId:'pidxxxxxxxxxx3',file:'p.jpg',requestId:'m10c-seedado0000000000000000',
-        state:'intent',meta:{kind:'food',date:'2026-08-02',week:'',pose:'',meal:'lunch',ts:'1'}});});
+        state:'fetched',blobSha256:hex,blobByteLength:buf.byteLength,
+        meta:{kind:'food',date:'2026-08-02',week:'',pose:'',meal:'lunch',ts:'1'}});});
       m10pDispatch();
-      await new Promise(r=>setTimeout(r,1200));
-      return {ops:m10pOps().length,mapped:pbPhotoMap()['srv-3']||null,
-        blob:!!(await idbGetLocal('srv-3'))};
+      await new Promise(r=>setTimeout(r,1000));
+      return {ops:m10pOps().length,mapped:pbPhotoMap()['srv-3']||null,blob:!!(await idbGetLocal('srv-3'))};
     });
-    test('T25 adopt crash before blob-ok: recovery COMPLETES the mapping (never a silent clear)',()=>{
-      eq(s.ops,0);eq(s.mapped,'pidxxxxxxxxxx3','mapping durable');ok(s.blob);});
+    test('T25a adopt crash at `fetched` with MATCHING bytes: mapping completed',()=>{
+      eq(s.ops,0);eq(s.mapped,'pidxxxxxxxxxx3');ok(s.blob);});
     await ctx.close();
   }
   {
     const st=mkSt();
     const {ctx,page}=await boot(browser,server,st);
     const s=await page.evaluate(async()=>{
-      /* an UNRELATED local record already owns that id: review, never cleanup */
       const bytes=new Uint8Array(64);for(let i=0;i<64;i++)bytes[i]=255-i;
       await idbAddLocal({id:'srv-4',date:'2026-08-02',blob:new Blob([bytes]),ts:1,kind:'food'});
       m10pMutate(m8Uid(),function(ops){ops.push({id:'pop-adopt00002',op:'adopt',localId:'srv-4',
         serverId:'pidxxxxxxxxxx4',file:'p.jpg',requestId:'m10c-seedado0000000000000001',
-        state:'intent',blobSha256:'b'.repeat(64),blobByteLength:999,
+        state:'fetched',blobSha256:'b'.repeat(64),blobByteLength:999,
         meta:{kind:'food',date:'2026-08-02',week:'',pose:'',meal:'lunch',ts:'1'}});});
       m10pDispatch();
       await new Promise(r=>setTimeout(r,900));
       const ops=m10pOps();
       return {state:ops[0]&&ops[0].state,reason:ops[0]&&ops[0].unverifiedReason,
-        blob:!!(await idbGetLocal('srv-4'))};
+        mapped:pbPhotoMap()['srv-4']||null,blob:!!(await idbGetLocal('srv-4'))};
     });
-    test('T25 adopt intent vs UNRELATED local bytes: unverified for review, local kept',()=>{
-      eq(s.state,'unverified');eq(s.reason,'adopt-local-differs');ok(s.blob);});
+    test('T25b adopt `fetched` vs DIFFERENT local bytes: unverified, no mapping, local kept',()=>{
+      eq(s.state,'unverified');eq(s.reason,'adopt-local-differs');ok(!s.mapped);ok(s.blob);});
+    await ctx.close();
+  }
+  {
+    const st=mkSt();
+    const {ctx,page}=await boot(browser,server,st);
+    const s=await page.evaluate(async()=>{
+      const bytes=new Uint8Array(32);
+      await idbAddLocal({id:'srv-5',date:'2026-08-02',blob:new Blob([bytes]),ts:1,kind:'food'});
+      /* an `intent` has NO recorded identity — an existing blob can never be
+         proven to be this adoption's bytes */
+      m10pMutate(m8Uid(),function(ops){ops.push({id:'pop-adopt00003',op:'adopt',localId:'srv-5',
+        serverId:'pidxxxxxxxxxx5',file:'p.jpg',requestId:'m10c-seedado0000000000000002',
+        state:'intent',meta:{kind:'food',date:'2026-08-02',week:'',pose:'',meal:'lunch',ts:'1'}});});
+      m10pDispatch();
+      await new Promise(r=>setTimeout(r,900));
+      const ops=m10pOps();
+      return {state:ops[0]&&ops[0].state,reason:ops[0]&&ops[0].unverifiedReason,
+        mapped:pbPhotoMap()['srv-5']||null};
+    });
+    test('T25c adopt `intent` with an existing local record: never guessed — unverified',()=>{
+      eq(s.state,'unverified');eq(s.reason,'adopt-local-exists');ok(!s.mapped);});
+    await ctx.close();
+  }
+
+  /* T27 (rulings 2/7): metadata crash arms on BOTH sides */
+  {
+    const st=mkSt({updateDelay:600});
+    const {ctx,page}=await boot(browser,server,st);
+    const s=await page.evaluate(async(addSrc)=>{
+      await eval('('+addSrc+')')('l-27');
+      await new Promise(r=>setTimeout(r,800));
+      const sid=pbPhotoMap()['l-27'];
+      m10pQueueMeta(sid,'l-27',{kind:'food',date:'2026-08-02',week:'',pose:'',meal:'lunch',ts:'1'},
+                               {kind:'food',date:'2026-08-02',week:'',pose:'',meal:'dinner',ts:'1'});
+      m10pDispatch();
+      await new Promise(r=>setTimeout(r,350));
+      const mid=m10pOps();
+      const rec=await idbGetLocal('l-27');
+      return {midState:mid[0]&&mid[0].state,localApplied:rec&&rec.meal};
+    },ADD);
+    test('T27 metadata: the LOCAL side lands in its own phase before the server ack',()=>{
+      eq(s.midState,'local-applied');eq(s.localApplied,'dinner','local metadata already applied');});
+    /* crash here: reload must complete the server side */
+    await page.reload({waitUntil:'load'});
+    await page.waitForTimeout(1600);
+    const s2=await page.evaluate(async()=>({ops:m10pOps().length,
+      meal:(await idbGetLocal('l-27')||{}).meal}));
+    test('T27 reload at `local-applied`: the server side completes, entry clears',()=>{
+      eq(s2.ops,0);eq(s2.meal,'dinner');eq(st.updates,2,'the interrupted update was replayed');});
+    await ctx.close();
+  }
+  {
+    const st=mkSt();
+    const {ctx,page}=await boot(browser,server,st);
+    const s=await page.evaluate(async(addSrc)=>{
+      await eval('('+addSrc+')')('l-28');
+      await new Promise(r=>setTimeout(r,800));
+      const sid=pbPhotoMap()['l-28'];
+      const origAdd=idbAddLocal;
+      idbAddLocal=function(){return Promise.reject(new Error('idb down'));};
+      m10pQueueMeta(sid,'l-28',{kind:'food',date:'2026-08-02',week:'',pose:'',meal:'lunch',ts:'1'},
+                               {kind:'food',date:'2026-08-02',week:'',pose:'',meal:'dinner',ts:'1'});
+      m10pDispatch();
+      await new Promise(r=>setTimeout(r,700));
+      idbAddLocal=origAdd;
+      const ops=m10pOps();
+      return {state:ops[0]&&ops[0].state,meal:(await idbGetLocal('l-28')||{}).meal,updates:0};
+    },ADD);
+    test('T28 metadata local-write failure: entry parked at intent, NO server update',()=>{
+      eq(s.state,'intent');eq(s.meal,'lunch','local unchanged');eq(st.updates||0,0,'server untouched');});
+    await ctx.close();
+  }
+
+  /* T29 (ruling 3/4): no pre-displacement identity ⇒ no destructive dispatch */
+  {
+    const st=mkSt({fenceRequired:true,fence:1});
+    const {ctx,page}=await boot(browser,server,st);
+    const s=await page.evaluate(async(addSrc)=>{
+      await eval('('+addSrc+')')('l-29');
+      await new Promise(r=>setTimeout(r,700));
+      await window.__set('fence',5);
+      /* the listing fails exactly at displacement, so no pre-image exists */
+      const origList=pbPhotoList;
+      pbPhotoList=function(){return Promise.reject(new Error('offline'));};
+      idbDelete('l-29');
+      await new Promise(r=>setTimeout(r,900));
+      pbPhotoList=origList;
+      const ops=m10pOps();
+      const d=m10pDisplaced();
+      M10.fence=5;
+      m10pExport(d[0].id);
+      await new Promise(r=>setTimeout(r,300));
+      if(state.pendingConfirm){const fn=state.pendingConfirm.fn;state.pendingConfirm=null;fn();}
+      await new Promise(r=>setTimeout(r,300));
+      m10pReviewApply(d[0].id);
+      await new Promise(r=>setTimeout(r,400));
+      const msg=state.pendingConfirm?state.pendingConfirm.message:'';
+      if(state.pendingConfirm){const fn=state.pendingConfirm.fn;state.pendingConfirm=null;fn();}
+      await new Promise(r=>setTimeout(r,900));
+      const after=m10pOps();
+      return {state:ops[0]&&ops[0].state,reason:ops[0]&&ops[0].unverifiedReason,
+        afterState:after[0]&&after[0].state,blob:!!(await idbGetLocal('l-29')),deletes:0};
+    },ADD);
+    test('T29 identity uncaptured at displacement: unverified, destructive Apply refuses, photo kept',()=>{
+      eq(s.state,'unverified');eq(s.reason,'identity-uncaptured');
+      ok(s.blob,'photo not deleted');eq(st.deletes||0,1,'only the original displaced attempt');});
     await ctx.close();
   }
 
