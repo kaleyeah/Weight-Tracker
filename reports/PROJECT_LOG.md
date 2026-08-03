@@ -498,6 +498,21 @@ the exchange transcripts, and are marked (r) where reconstructed.
   pushed (carrying the M8 closure/records commits — their authorized
   publication); served bytes verified (sha256 `08a3f6bd…36dc1489`).
 
+- **2026-08-03, M10 client increments 1-4 ACCEPTED (Architect rounds
+  16, 20, 22, 28).** The single-writer client is built and reviewed in
+  four accepted pieces on the engineering branch: the writer-lease
+  client (authority head 3e7a0d0), the core durability protocol
+  (3056e8d), displaced-core review (b92d418), and the photo operation
+  queue (249fd0e, index.html sha 369c21da…). Gates at acceptance: C15
+  35/35, C16 49/49, C17 37/37, C18 52/52, the M8+C14 client matrix
+  171/171, artifact-scope recovery 25/25. Increment 5 (complete
+  m10Gate action coverage, delayed-boundary revalidation, logout
+  coupling, fail-closed gate/storage behavior) is authorized LOCALLY.
+  Nothing is deployed, published, or enforced: the reviewed server
+  package still awaits the Owner's enforcement-OFF NAS authorization,
+  and the client release to both devices plus the combined enforcement
+  decision remain Owner-gated.
+
 - **2026-08-02, build `2026-08-02.417-fx` published (22:29Z).**
   Client-only, outside the loop per standing rule; wording
   Owner-approved via Taildrop, publish authorized in-session. Two

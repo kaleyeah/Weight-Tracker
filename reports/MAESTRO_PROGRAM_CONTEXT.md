@@ -70,23 +70,25 @@ in-session. Established 2026-08-01 at the Owner's request.
 | M7b | Reviewed HealthKit storage-migration package (schema, migration, backup, rollback, tests) per standing ruling | Required ONLY before M10's HealthKit-import half (Owner split ruling 2026-08-02); the single-writer half does not depend on it; parked for Maestro |
 | M8 | Sync rework (design v7 contract) | **COMPLETE.** 129 final-byte client cases; real-PocketBase gate passed (round 21); release commit `425f70e`, tag `v2026-08-02.415-m8`, sha256 `5bda0da5…1ba35ee3`, served-byte verified 2026-08-02 17:20:02Z; **Owner accepted** same day after a production check (bootstrap review resolved via the live workflow; online sync; offline hold + relaunch retry — a subset of the packaged checklist; the logout-refusal and deletion-cycle steps rest on the automated evidence). Raw-PATCH lockdown remains separately gated. Local records HEAD is ahead of `origin/main` (=`425f70e`) by the post-release records commits, unpushed pending Owner authorization |
 | M9 | Conflict/recovery resolution UI; snapshot reconciliation | Follows M8 |
-| M10 | "One active writing device"; then HealthKit import | SPLIT by Owner direction 2026-08-02: single-writer half IN CLIENT IMPLEMENTATION (increment 3 of 5 as of 2026-08-03): design v9.1 approved; server-package gate CLOSED at round 12; client increments 1 (lease client, accepted round 16) and 2 (core durability, accepted round 20) are CLOSED; increment 3 (displaced-core review) authorized locally; NAS deployment/coach migration/enforcement remain behind Owner gates; the HealthKit-import half still requires the reviewed M7b package (parked for Maestro) |
+| M10 | "One active writing device"; then HealthKit import | SPLIT by Owner direction 2026-08-02: single-writer half IN CLIENT IMPLEMENTATION (increment 5 of 5 as of 2026-08-03): design v9.1 approved; server-package gate CLOSED at round 12; client increments 1-4 CLOSED (rounds 16, 20, 22, 28); increment 5 (gate surface + logout coupling) authorized locally; NAS deployment/coach migration/enforcement remain behind Owner gates; the HealthKit-import half still requires the reviewed M7b package (parked for Maestro) |
 
 ## Current gate
 
-**M10 single-writer — LOCAL client implementation, increment 3 of 5**
+**M10 single-writer — LOCAL client implementation, increment 5 of 5**
 (STRICT Owner ruling on record; design v9.1 approved; server-package
 gate closed at Architect round 12, 2026-08-02 — the reviewed LOCAL
 server package awaits the Owner's enforcement-OFF NAS authorization).
-Client increment 1 (the writer-lease client) was ACCEPTED and closed
-at round 16 (identities: base 0389770 = served .417-fx, authority
-3e7a0d0, records 749d494); client increment 2 (the core durability
-protocol) was ACCEPTED at round 20 (head 3056e8d; C16 49/49, C15
-35/35, regressions 171/171). Increment 3 — displaced/conflicted-core
-review flows — is authorized for LOCAL implementation and evidence
-only. Remaining after it: photo queue (4), gate surface + logout
-coupling (5), then release to BOTH Owner devices, then the ONE
-combined enforcement decision. M9 is deferred behind M10 by Owner
+Client increments 1-4 are ACCEPTED and closed: 1 (writer-lease client,
+round 16; authority head 3e7a0d0), 2 (core durability, round 20; head
+3056e8d), 3 (displaced-core review, round 22; head b92d418), 4 (photo
+operation queue, round 28; head 249fd0e, index.html sha 369c21da…).
+Increment 5 — complete m10Gate action coverage, fresh validation at
+delayed async boundaries, logout coupling, fail-closed gate/storage
+behavior — is authorized for LOCAL implementation and evidence only
+(Architect round 28). Remaining after it: release to BOTH Owner
+devices, then the ONE combined enforcement decision. Every production
+action (NAS deploy, coach migration, enforcement, publication) remains
+Owner-gated and unauthorized. M9 is deferred behind M10 by Owner
 direction; M7b remains parked for Maestro and gates only M10's
 HealthKit-import half.
 
