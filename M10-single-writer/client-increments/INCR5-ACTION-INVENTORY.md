@@ -22,12 +22,25 @@ remainder. Nothing in the second group is described as non-persisting.
 treated as substrate. It normalises in memory always, and PERSISTS only with
 the pen — see INCR5-DURABLE-WRITERS.md.
 
+**Merge of `main` (2026-08-03, `.428-bcweight`) — re-audit.** `main` shipped
+the six daily subjective ratings (`state.ratings`) and the weekly check-in
+(`state.checkins`) while the M10 client sat on `.417`. Eight new dispatcher
+actions arrived and none of them existed when the inventory was last
+regenerated. They were classified on the same basis as everything else —
+follow the callees to a persistence primitive — which moved FOUR of them into
+`M10_GATED` (128 → **132**) and left four in the read-only remainder. The
+check-in draft `<textarea class="wl-ci-input">` is a NEW member of the
+`input`/`change` boundary, not of the click boundary, and is covered there.
+One durable writer arrived that is not an action at all: the boot-time
+check-in anchor, `ciAnchorSince()` — see the boundary table below.
+
 ## Mutation boundaries — all of them
 
 | boundary | gate | tests |
 |---|---|---|
 | dispatcher `click` on `[data-act]` | capture-phase interceptor → `m10GateAction` | C19 T1–T4, T9 |
-| global `input` / `change` on form controls | capture-phase interceptor; prior value restored; only individually identified recovery controls exempt (round-30 ruling 5) | C19 T8 ×3 |
+| global `input` / `change` on form controls | capture-phase interceptor; prior value restored; only individually identified recovery controls exempt (round-30 ruling 5). The check-in draft `textarea.wl-ci-input` (writes `state.checkins[wk].answers[q]` + `save()`) carries no id and no recovery ancestor, so it is refused and reverted like any other application field. | C19 T8 ×3, **T20** |
+| **the boot check-in anchor** (`ciAnchorSince`) | in-memory normalisation always; the durable write goes through the gated `save()`, so a non-holder anchors nothing. It AMENDS an existing `wl_v1` and never CREATES one — otherwise the boot that follows a completed logout wipe would resurrect the store the wipe had just verified as gone — and it is deliberately NOT re-run after `m10Boot()` settles, for the same reason. | C19 T15c, **T20** |
 | **snapshot writers** (save/saveLocal/saveTraining/saveWorkout) | gated at source (`m10AuthNow`), refusals counted on `window.__m10WriteRefused`. The withdrawn `m10InternalWrite` guard is gone — it was declared and never set (round-31 ruling 3). | C19 T4, T13, and every accepted suite |
 | **the boot training migration** (`migrateProgressionTypes` → `saveTrainingLocal`) | in-memory normalisation always; the durable write requires `m10AuthNow().ok`. Idempotent, and re-run once `m10Boot()` settles the lease, so the holder still persists it. (round-33 item 6) | C19 T13 ×5 |
 | file pickers + their post-async continuations | authority captured at open AND change; revalidated after `FileReader.onload`, after `processImage`/`idbAll`, before every delete/add | C19 T5 ×2, T11 |
@@ -36,7 +49,7 @@ the pen — see INCR5-DURABLE-WRITERS.md.
 | photo/core/training transport | M10-BLOCK-2/3/4 (fenced routes, journals, queue) | C15–C18 |
 | logout | every M10 obligation blocks, including a MALFORMED photo queue via the typed read | C19 T7 ×5, T12 |
 
-## Gated actions (128) — the contents of `M10_GATED`
+## Gated actions (132) — the contents of `M10_GATED`
 
 | action | why gated | tests |
 |---|---|---|
@@ -51,6 +64,9 @@ the pen — see INCR5-DURABLE-WRITERS.md.
 | `cardio:del` | direct | C19 T1/T2/T3/T4 |
 | `cardio:save` | direct | C19 T1/T2/T3/T4 |
 | `cf:newtype` | direct | C19 T1/T2/T3/T4 |
+| `ci:send` | direct — writes `state.checkins[wk]` via `ciDraft`+`save()`, snapshots the adherence and the 14-day ratings, then starts a network push (`pushDataPromise`, `photoSync`) | C19 T1, **T20** |
+| `ci:skipyes` | direct — `ciDraft(wk).status="skipped"` + `save()` | C19 T1, **T20** |
+| `ci:unskip` | direct — `ciDraft(wk).status="draft"` + `save()` | C19 T1, **T20** |
 | `conn:remove` | direct | C19 T1/T2/T3/T4 |
 | `day:clear` | direct | C19 T1/T2/T3/T4 |
 | `day:reopendo` | via reopenDay | C19 T1/T2/T3/T4 + T9 |
@@ -106,6 +122,7 @@ the pen — see INCR5-DURABLE-WRITERS.md.
 | `photo:add` | deferred-open | C19 T1/T2/T3/T4 + T5/T10/T11 |
 | `pphoto:add` | deferred-open | C19 T1/T2/T3/T4 + T5/T10/T11 |
 | `preset:del` | direct | C19 T1/T2/T3/T4 |
+| `rat:set` | via `ratSet` — writes `state.ratings[iso][q]` (or prunes the day) and `save()` | C19 T1, **T20** |
 | `reminder:add` | direct | C19 T1/T2/T3/T4 |
 | `reset:ask` | deferred-open | C19 T1/T2/T3/T4 + T5/T10/T11 |
 | `reset:do` | direct | C19 T1/T2/T3/T4 |
@@ -201,7 +218,7 @@ handler, and each is listed here with what it writes.
 | `pb:logout` | `pbLogout` | destructive: wipes the local stores and the session | Journaled (`wl_logout_journal`) and phase-verified, and COUPLED to every M10 obligation: refused while core sync is dirty/unproven, while any core journal or dx recovery is open, while a core review is pending or corrupt, and while ANY photo queue entry exists (including a malformed one, read typed). | C19 T7 ×5, T12; C17 T10 |
 | `confirm:yes` | dispatcher → `state.pendingConfirm.fn` | whatever the pending callback persists | A DELEGATED boundary, not a write of its own. `askConfirm` is wrapped: a sheet raised WHILE holding the pen revalidates account+fence+generation at confirm time; a sheet raised WITHOUT the pen is deliberately not wrapped, because those are the repair flows above. | C19 T6 ×3 |
 
-## Ungated actions — genuinely read-only (136)
+## Ungated actions — genuinely read-only (140)
 
 View, selection, navigation and sheet-open branches. Each was checked to reach
 NO persistence primitive through any callee (depth <= 5): they change
@@ -210,4 +227,20 @@ sheet. `photo:view` is deliberately here (round-30 ruling 7): opening the
 lightbox is READING, which STRICT allows, and the lightbox's own mutations
 (delete, relabel) are gated at their primitives instead.
 
-`act:addopen`, `act:editmode`, `act:pick`, `actpick:close`, `al:change`, `alert:dismiss`, `app:update`, `bc:tab`, `browse:close`, `browse:open`, `cal:expand`, `cal:next`, `cal:prev`, `cal:sel`, `card:toggle`, `cardio:add`, `cardio:cancel`, `cardio:edit`, `cardio:pick`, `cardio:repick`, `cf:type`, `cf:typeedit`, `cf:zone`, `chart:pt`, `confirm:no`, `copy`, `day:next`, `day:prev`, `day:reopenask`, `day:reopencancel`, `device:close`, `device:copylink`, `device:open`, `diary:older`, `dl:open`, `ex:add`, `ex:bw`, `ex:cancel`, `ex:edit`, `ex:muscle`, `ex:mv`, `export`, `food:pick`, `glp:compoundback`, `glp:prog:mode`, `glp:setup`, `glp:sev`, `glp:sheetclose`, `glp:site`, `glp:sym:new`, `glp:sym:pick`, `glp:timeline`, `glp:unit`, `go`, `hist:day`, `hist:more`, `hist:tab`, `hk:cancel`, `info`, `info:close`, `invite:copy`, `invite:joincancel`, `invite:open`, `lf:zone`, `lift:back`, `lift:cancel`, `lift:edit`, `lift:editcancel`, `lift:summaryback`, `lift:tofinish`, `lift:view`, `m10cx:close`, `m10cx:open`, `m8:cx:close`, `m8:cx:open`, `max:close`, `morestats`, `noop`, `note:add`, `note:cancel`, `note:edit`, `note:pin`, `ob:install`, `ob:next`, `ob:start`, `openday`, `opentoday`, `paste`, `paste:cancel`, `pb:pwtoggle`, `pbk:export`, `photo:view`, `qe:close`, `reset:cancel`, `ri:add`, `ri:pickclose`, `rt:open`, `rt:openedit`, `rt:openedit_dummy`, `set:back`, `set:page`, `status:close`, `status:open`, `status:type`, `sum:day`, `sum:next`, `sum:prev`, `sum:tocur`, `sync:copy`, `sync:paste`, `sync:pastecancel`, `syncdot`, `trend:mode`, `trend:next`, `trend:prev`, `trend:tocur`, `wo:bw`, `wo:bwcancel`, `wo:completethem`, `wo:exmenu`, `wo:exmenu:close`, `wo:exnote`, `wo:exreplace`, `wo:fbopen`, `wo:hist`, `wo:histclose`, `wo:promptcancel`, `wo:quick`, `wo:replacecancel`, `wo:replsave:once`, `wo:resumeask`, `wo:resumecancel`, `wo:setmenu`, `wo:setmenu:close`, `wof:zone`, `wt:add`
+The four check-in actions added by the 2026-08-03 merge sit here for the same
+reason. `ci:open` / `ci:close` set `state.ciWeek` / `state.ciFrom` /
+`state.view` and re-render; `ci:skipask` / `ci:skipcancel` set
+`state.ciSkipAsk` and re-render. None of them calls `ciDraft()`, and neither
+does `view_checkin()` — it reads through `ciRec()`, so merely opening the form
+creates no record. A read-only device may therefore still READ its check-in;
+every control inside the form that writes (`ci:send`, `ci:skipyes`,
+`ci:unskip`, and the draft textarea) is refused at its own boundary. C19 T20
+asserts both halves.
+
+`dl:open` was already here and stays here, including its new
+`data-sec="feel"` variant: it sets `state.quickEntry` and re-renders. The
+sheet it raises is made of `rat:set` chips, which ARE gated — exactly the
+existing treatment of `dl:open data-sec="calories"`, whose sheet is made of
+gated inputs.
+
+`act:addopen`, `act:editmode`, `act:pick`, `actpick:close`, `al:change`, `alert:dismiss`, `app:update`, `bc:tab`, `browse:close`, `browse:open`, `cal:expand`, `cal:next`, `cal:prev`, `cal:sel`, `card:toggle`, `cardio:add`, `cardio:cancel`, `cardio:edit`, `cardio:pick`, `cardio:repick`, `cf:type`, `cf:typeedit`, `cf:zone`, `chart:pt`, `ci:close`, `ci:open`, `ci:skipask`, `ci:skipcancel`, `confirm:no`, `copy`, `day:next`, `day:prev`, `day:reopenask`, `day:reopencancel`, `device:close`, `device:copylink`, `device:open`, `diary:older`, `dl:open`, `ex:add`, `ex:bw`, `ex:cancel`, `ex:edit`, `ex:muscle`, `ex:mv`, `export`, `food:pick`, `glp:compoundback`, `glp:prog:mode`, `glp:setup`, `glp:sev`, `glp:sheetclose`, `glp:site`, `glp:sym:new`, `glp:sym:pick`, `glp:timeline`, `glp:unit`, `go`, `hist:day`, `hist:more`, `hist:tab`, `hk:cancel`, `info`, `info:close`, `invite:copy`, `invite:joincancel`, `invite:open`, `lf:zone`, `lift:back`, `lift:cancel`, `lift:edit`, `lift:editcancel`, `lift:summaryback`, `lift:tofinish`, `lift:view`, `m10cx:close`, `m10cx:open`, `m8:cx:close`, `m8:cx:open`, `max:close`, `morestats`, `noop`, `note:add`, `note:cancel`, `note:edit`, `note:pin`, `ob:install`, `ob:next`, `ob:start`, `openday`, `opentoday`, `paste`, `paste:cancel`, `pb:pwtoggle`, `pbk:export`, `photo:view`, `qe:close`, `reset:cancel`, `ri:add`, `ri:pickclose`, `rt:open`, `rt:openedit`, `rt:openedit_dummy`, `set:back`, `set:page`, `status:close`, `status:open`, `status:type`, `sum:day`, `sum:next`, `sum:prev`, `sum:tocur`, `sync:copy`, `sync:paste`, `sync:pastecancel`, `syncdot`, `trend:mode`, `trend:next`, `trend:prev`, `trend:tocur`, `wo:bw`, `wo:bwcancel`, `wo:completethem`, `wo:exmenu`, `wo:exmenu:close`, `wo:exnote`, `wo:exreplace`, `wo:fbopen`, `wo:hist`, `wo:histclose`, `wo:promptcancel`, `wo:quick`, `wo:replacecancel`, `wo:replsave:once`, `wo:resumeask`, `wo:resumecancel`, `wo:setmenu`, `wo:setmenu:close`, `wof:zone`, `wt:add`

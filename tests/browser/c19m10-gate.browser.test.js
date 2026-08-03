@@ -129,9 +129,15 @@ function softSeed(uid){
       hasDeferred:!!M10_GATED['photo:add']&&!!M10_GATED['import']&&!!M10_GATED['reset:ask'],
       pureNotGated:!M10_GATED['nav:go']&&!M10_GATED['cal:sel'],
       photoViewOpen:!M10_GATED['photo:view'],
+      /* merge 2026-08-03: the ratings + weekly check-in actions that persist */
+      hasFeelCi:!!M10_GATED['rat:set']&&!!M10_GATED['ci:send']&&!!M10_GATED['ci:skipyes']&&!!M10_GATED['ci:unskip'],
+      ciViewOpen:!M10_GATED['ci:open']&&!M10_GATED['ci:close']&&!M10_GATED['ci:skipask']
+        &&!M10_GATED['ci:skipcancel']&&!M10_GATED['dl:open'],
       recoveryExempt:!M10_GATED['lrec:restore']&&!M10_GATED['lrec:finish']&&!M10_GATED['adopt:yes']}));
-    test('T1 gate inventory loaded (128 actions; boot-recovery + read-only viewing deliberately excluded)',()=>{
-      eq(s.gated,128);ok(s.hasCore);ok(s.hasDeferred);ok(s.pureNotGated);
+    test('T1 gate inventory loaded (132 actions; boot-recovery + read-only viewing deliberately excluded)',()=>{
+      eq(s.gated,132);ok(s.hasCore);ok(s.hasDeferred);ok(s.pureNotGated);
+      ok(s.hasFeelCi,'rat:set / ci:send / ci:skipyes / ci:unskip all persist and must be gated');
+      ok(s.ciViewOpen,'opening, closing and the skip prompt persist nothing and stay open');
       ok(s.photoViewOpen,'read-only photo viewing stays open (STRICT allows reading)');
       ok(s.recoveryExempt,'terminal boot-recovery actions exempt — they run pre-lease (round-31 ruling 5)');});
     test('T1 no page errors',()=>eq(errs.length,0,errs.join(';')));
@@ -1460,6 +1466,133 @@ function softSeed(uid){
       eq(s.otherKey,null,'and nothing was written under the new account');
       ok(!s.toasts.some(x=>/Both copies exported/.test(x)),'no success claim: '+JSON.stringify(s.toasts));});
     test('T19c no page errors',()=>eq(errs.length,0,errs.join(';')));
+    await ctx.close();
+  }
+
+  /* ---- T20 (merge 2026-08-03): the two features that arrived from main —
+     the six daily subjective ratings (state.ratings) and the weekly check-in
+     (state.checkins) — are durable writes and must obey the same gate.
+
+     Every arm below is run twice: NON-HOLDER (must change nothing at all, and
+     wl_v1 must stay byte-identical) and HOLDER (must actually work), so the
+     refusal can never be mistaken for the feature simply being broken. ---- */
+  const FEELCI=function(){
+    /* click a synthesised control the same way the real chips/buttons do */
+    return {
+      click:function(act,attrs){
+        const b=document.createElement('button');
+        b.setAttribute('data-act',act);
+        Object.keys(attrs||{}).forEach(function(k){b.setAttribute(k,attrs[k]);});
+        document.body.appendChild(b);b.click();b.remove();},
+      wk:function(){return toISO(weekStartFor(0));}};
+  }.toString();
+
+  for(const arm of [{name:'non-holder',st:{leaseHeld:true},holder:false},
+                    {name:'holder',    st:{},               holder:true}]){
+    const st=arm.st;
+    const {ctx,page,errs}=await boot(browser,server,st);
+    const s=await page.evaluate(async(src)=>{
+      const H=eval('('+src+')')();
+      const today=todayISO(),wk=H.wk();
+      /* Every snapshot carries BOTH the in-memory objects and the stored bytes,
+         so a holder assertion can name the exact durable record it expects
+         instead of settling for "wl_v1 changed at some point" — which an
+         earlier step in the same run would satisfy on its own. */
+      const stored=()=>{try{return JSON.parse(localStorage.getItem('wl_v1'))||{};}catch(e){return {};}};
+      const snap=()=>({ratings:JSON.stringify(state.ratings||{}),
+                       checkins:JSON.stringify(state.checkins||{}),
+                       sRatings:JSON.stringify(stored().ratings||{}),
+                       sCheckins:JSON.stringify(stored().checkins||{}),
+                       v:localStorage.getItem('wl_v1')});
+      const before=snap();
+
+      /* (1) a ratings chip */
+      H.click('rat:set',{'data-date':today,'data-q':'energy','data-v':'good'});
+      await new Promise(r=>setTimeout(r,150));
+      const afterRat=snap();
+
+      /* (2) the check-in draft textarea — the input/change boundary, not a click */
+      const ta=document.createElement('textarea');
+      ta.className='wl-ci-input';ta.setAttribute('data-ci','win');ta.setAttribute('data-week',wk);
+      document.body.appendChild(ta);
+      ta.focus();ta.dispatchEvent(new Event('focusin',{bubbles:true}));
+      ta.value='a good week';
+      ta.dispatchEvent(new Event('input',{bubbles:true}));
+      await new Promise(r=>setTimeout(r,150));
+      const afterDraft=Object.assign(snap(),{field:ta.value});
+      ta.remove();
+
+      /* (3) skip the week, (4) undo the skip, (5) send the check-in */
+      H.click('ci:skipask',{'data-week':wk});
+      H.click('ci:skipyes',{'data-week':wk});
+      await new Promise(r=>setTimeout(r,150));
+      const afterSkip=snap();
+      H.click('ci:unskip',{'data-week':wk});
+      await new Promise(r=>setTimeout(r,150));
+      const afterUnskip=snap();
+      H.click('ci:send',{'data-week':wk});
+      await new Promise(r=>setTimeout(r,400));
+      const afterSend=snap();
+
+      /* (6) opening/closing the view persists nothing on EITHER arm */
+      const vBeforeOpen=localStorage.getItem('wl_v1');
+      H.click('ci:open',{'data-week':wk});
+      const opened=state.view;
+      H.click('ci:close',{});
+      await new Promise(r=>setTimeout(r,150));
+
+      const rec=(JSON.parse(afterSend.sCheckins)||{})[wk]||null;
+      return {holder:M10.holder,before,afterRat,afterDraft,afterSkip,afterUnskip,afterSend,
+        opened,openClosePersistedNothing:localStorage.getItem('wl_v1')===vBeforeOpen,
+        sentStatus:rec&&rec.status,sentAnswers:rec&&rec.answers?rec.answers.win:null,
+        gatedNames:['rat:set','ci:send','ci:skipyes','ci:unskip'].map(a=>!!M10_GATED[a])};
+    },FEELCI);
+
+    if(!arm.holder){
+      test('T20 non-holder: the run really was read-only',()=>{
+        ok(!s.holder,'the device must NOT hold the pen for this arm');
+        eq(s.gatedNames.join(','),'true,true,true,true','all four actions are in M10_GATED');});
+      test('T20 non-holder: rat:set changes no rating and no stored byte',()=>{
+        eq(s.afterRat.ratings,s.before.ratings,'state.ratings unchanged');
+        eq(s.afterRat.sRatings,s.before.sRatings,'stored ratings unchanged');
+        eq(s.afterRat.v,s.before.v,'wl_v1 byte-identical');});
+      test('T20 non-holder: the check-in draft textarea is refused and the field reverted',()=>{
+        eq(s.afterDraft.checkins,s.before.checkins,'state.checkins unchanged');
+        eq(s.afterDraft.sCheckins,s.before.sCheckins,'stored checkins unchanged');
+        eq(s.afterDraft.v,s.before.v,'wl_v1 byte-identical');
+        eq(s.afterDraft.field,'','the typed text is restored to the prior value');});
+      test('T20 non-holder: ci:skipyes writes no check-in',()=>{
+        eq(s.afterSkip.checkins,s.before.checkins);eq(s.afterSkip.v,s.before.v,'wl_v1 byte-identical');});
+      test('T20 non-holder: ci:unskip writes no check-in',()=>{
+        eq(s.afterUnskip.checkins,s.before.checkins);eq(s.afterUnskip.v,s.before.v,'wl_v1 byte-identical');});
+      test('T20 non-holder: ci:send writes no check-in',()=>{
+        eq(s.afterSend.checkins,s.before.checkins);eq(s.afterSend.v,s.before.v,'wl_v1 byte-identical');
+        eq(s.sentStatus,null,'no record for the week exists at all');});
+      test('T20 non-holder: opening and closing the check-in view is still allowed and persists nothing',()=>{
+        eq(s.opened,'checkin','a read-only device may still read its check-in');
+        ok(s.openClosePersistedNothing,'wl_v1 byte-identical across open/close');});
+      test('T20 non-holder: no page errors',()=>eq(errs.length,0,errs.join(';')));
+    }else{
+      test('T20 holder: the contrast arm really does hold the pen',()=>ok(s.holder));
+      /* every holder assertion names the DURABLE record it expects — asserting
+         only "wl_v1 changed" would be satisfied by an earlier step in the run */
+      test('T20 holder: rat:set records the rating in memory AND on disk',()=>{
+        ok(/"energy":"good"/.test(s.afterRat.ratings),'state.ratings: '+s.afterRat.ratings);
+        ok(/"energy":"good"/.test(s.afterRat.sRatings),'stored ratings: '+s.afterRat.sRatings);});
+      test('T20 holder: the check-in draft textarea persists the answer',()=>{
+        ok(/a good week/.test(s.afterDraft.checkins),'state.checkins: '+s.afterDraft.checkins);
+        ok(/a good week/.test(s.afterDraft.sCheckins),'stored checkins: '+s.afterDraft.sCheckins);
+        eq(s.afterDraft.field,'a good week','the typed text stands');});
+      test('T20 holder: ci:skipyes then ci:unskip move the week skipped → draft',()=>{
+        ok(/"status":"skipped"/.test(s.afterSkip.checkins),s.afterSkip.checkins);
+        ok(/"status":"skipped"/.test(s.afterSkip.sCheckins),'stored: '+s.afterSkip.sCheckins);
+        ok(/"status":"draft"/.test(s.afterUnskip.checkins),s.afterUnskip.checkins);
+        ok(/"status":"draft"/.test(s.afterUnskip.sCheckins),'stored: '+s.afterUnskip.sCheckins);});
+      test('T20 holder: ci:send marks the week sent and keeps the draft answer',()=>{
+        eq(s.sentStatus,'sent','read back out of the stored record');
+        eq(s.sentAnswers,'a good week');});
+      test('T20 holder: no page errors',()=>eq(errs.length,0,errs.join(';')));
+    }
     await ctx.close();
   }
 

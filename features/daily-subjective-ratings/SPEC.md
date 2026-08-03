@@ -2,7 +2,13 @@
 
 Owner-approved 2026-08-03 from rendered mockups. Source brief:
 `compound-daily-subjective-ratings/00-PROMPT.md` (supplied zip), with the
-Owner decisions below overriding it where they differ. NOT YET BUILT.
+Owner decisions below overriding it where they differ.
+
+**BUILT 2026-08-03** in `2026-08-03.418-feel`, committed to `main` and NOT
+published — publication is an Owner-authorized action. Evidence:
+`tests/browser/c20-feelings-checkin.browser.test.js` 28/28, plus the M8
+client matrix and C14 67/67 green against the same bytes. Deviations from
+the spec below are recorded in the "As built" section at the end.
 
 ## The four questions
 
@@ -89,7 +95,19 @@ A "How you've felt" card on the **Progress** tab:
 - Below it, a **compound-phase strip**: every day since the current dose
   step, so a trend across a titration is visible rather than just the week.
 
-## Coach report — the trend block leads (Owner decision)
+## Coach report — data yes, chart no (Owner decision, superseded twice)
+
+**Final, 2026-08-03 (in force):** the daily recap displays NO rating chart.
+The Owner's words: *"Dont include the charts in the daily recap. That's too
+much. Coach can have the data and comment, but no need to display it."* The
+ratings sync to the server in the record, so the coach reads them and writes
+about them in his own prose. The charts live where they are asked for: the
+Progress tab and the weekly check-in form.
+
+The superseded version is kept below for the reasoning it records, but the
+recap block described in it was built and then removed the same day.
+
+### (superseded) Coach report — the trend block leads
 
 The trend goes at the TOP OF THE FOLD of the coach report, above training,
 nutrition and steps. Its purpose is explicit: let the coach see whether the
@@ -228,3 +246,53 @@ video needed"). Separate fatigue question — covered by Recovery/Energy.
 ## Sequencing
 
 Same as the daily ratings: land after the M10 client is accepted.
+
+---
+
+# As built (2026-08-03, `.418-feel`)
+
+Everything above landed as specified. The differences worth recording:
+
+**Sequencing was overridden by the Owner.** Both "land after the M10 client
+is accepted" notes are void: the Owner directed on 2026-08-03 that these
+features ship today. M10 continues in parallel on `engineering/m8` and will
+need a rebase onto this work — the M10 client already rebased onto `.417`
+once, so the cost is known.
+
+**Goodness scoring, 1..5.** Hunger is best in the middle and Stress is best
+at zero, so the raw option index does not chart in the same direction as
+Recovery/Energy/Digestion. Each option carries an explicit goodness score:
+Hunger maps `1,3,5,3,1` and Stress maps `5,4,3,2,1`. Every chart, colour and
+trend reads that score, so "taller and greener is better" holds everywhere.
+
+**The Watch line is ranked and capped.** Naming every low rating named
+nothing — an early render listed five. It now sorts by severity, shows at
+most three with an "N others also low" tail, and uses a per-question phrase
+("hunger *off target*", "stress *elevated*", the rest "*okay or worse*")
+because "hunger okay or worse" is meaningless.
+
+**A part-filled form is kept as a draft.** `state.checkins[week].status` is
+one of `draft` / `sent` / `skipped`; only `sent` and `skipped` resolve the
+week and clear the card. Typing persists immediately, so leaving the form
+never loses what was written, and the card reads "Finish check-in — N of 5
+answered" when returning.
+
+**Retroactive lateness is anchored.** `settings.ciSince` is stamped with the
+current check-in week the first time the feature runs, so an existing
+account does not open with months of "late" check-ins behind it.
+
+**Re-tapping a chosen chip clears it**, and a day whose ratings are all null
+is pruned from the store rather than kept as an empty object.
+
+**The sent record snapshots the ratings.** `ratings14` on the check-in holds
+the 14-day enum series as it stood when sent, so a later edit of a past day
+cannot silently rewrite what the coach was told.
+
+## Still open
+
+- The NAS coach job renders the recap text. It now receives `ratings` and
+  `checkins` in the synced record, and the athlete-facing recap already
+  leads with the trend block. Making the coach's own prose lead with it is a
+  coach-job prompt change on the NAS — an Owner-authorized deploy, not done.
+- The Owner has not answered whether "Send to Max" should also produce
+  something pasteable for his human coach's own form.
