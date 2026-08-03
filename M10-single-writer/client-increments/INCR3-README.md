@@ -2,8 +2,10 @@
 
 ## Package identity
 - **Base**: `3056e8d` — the accepted increment-2 head.
-- **Increment head**: `65e1d12` — index.html sha256 prefix `2b47374b…`.
-- **Cumulative diff** `INCR3-DIFF.patch` = 3056e8d → 65e1d12 (516
+- **Increment head**: `b92d418` — index.html sha256 prefix `4e6b8fb9…`
+  (prior head 65e1d12 revised by round-21 rulings; narrow diff
+  `INCR3-DIFF-FROM-65e1d12.patch`, 94 lines).
+- **Cumulative diff** `INCR3-DIFF.patch` = 3056e8d → b92d418 (544
   lines): the delimited `M10-BLOCK-3 … M10-BLOCK-3-END` (machinery +
   review UI + a wiring IIFE that only WRAPS increment-1/2 functions —
   no accepted code modified) and the delegated `m10cx:*` click
@@ -68,7 +70,7 @@ under the other account; lease expiry only disables the resolution
 buttons. All tested.
 
 ## Evidence
-- `INCR3-C17-OUTPUT.txt` — C17 30/30: handoff ×4 (conflict /
+- `INCR3-C17-OUTPUT.txt` — C17 37/37 (30 + the seven round-21 cases): handoff ×4 (conflict /
   fence-displaced / bootstrap-conflict / auth-cleanup-then-repush);
   G8 crash arms ×3; edit-during-review (envelope refresh + gate
   close); export gate; push-mine end-to-end + drift + mid-action
@@ -81,8 +83,32 @@ buttons. All tested.
   cleanup removal — each fail-closed with nothing lost).
 - `INCR3-C16-RERUN.txt` 49/49, `INCR3-C15-RERUN.txt` 35/35 — the
   accepted increments unchanged in behavior.
-- `INCR3-M8-REGRESSION.txt` — full client matrix vs `65e1d12`:
+- `INCR3-M8-REGRESSION.txt` — full client matrix vs `b92d418`:
   171/171 (+artifact-scope recovery 25/25).
+
+## Round-21 rulings — see above
+
+## Round-21 rulings, as landed (Q1–Q5 = rulings 3–7)
+- Q1: the pen is revalidated AFTER every asynchronous boundary — same
+  account-bound unexpired holder AND the same fence captured at
+  action entry, re-proven after the fresh fetch (and after the
+  Take-server confirmation pause) immediately before the resolution
+  journal; a change refuses with envelope and exports conservatively
+  retained (tested for both actions with a delayed fetch and a
+  mid-fetch lease loss: zero journals, zero commits, zero
+  replacement).
+- Q2: fenceStale is authoritative ONLY with a safe integer fence —
+  malformed leaves the dx journal at intent (recoverable) and the
+  envelope untouched (tested).
+- Q3: a conflict replaces the preserved server copy ONLY with a safe
+  serverRev AND a payload passing strict canonicalization — missing
+  or invalid payloads leave the journal and envelope untouched
+  (tested ×2).
+- Q4: the auth-arm cleanup is verified; a failed removal hard-blocks
+  with the journal preserved (removal-failure injection test).
+- Q5: fresh-fetch revisions are validated (safe nonnegative integer),
+  never defaulted — a malformed revision refuses the action with the
+  envelope untouched (fractional-revision test).
 
 ## Fixes found by this increment's own tests
 - The boot generation sync ran only on the no-journal path, so a

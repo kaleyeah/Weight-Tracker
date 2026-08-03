@@ -28,5 +28,12 @@
   ✓ T14b refresh write failure: block raised, the edit itself is safe in wl_v1
   ✓ T14c cleanup failure mid-resolution: hard block (fail closed), base already durable at 10
   ✓ T15 lost-response push-mine: reload replays the captured request, single commit, clean
+  ✓ T16 pen lost during Keep-local fetch: no journal, no replacement, envelope kept
+  ✓ T16 pen lost during Take-server fetch: no journal, no replacement, envelope kept
+  ✓ T17b fenceStale without fence: dx journal SURVIVES for replay, envelope untouched
+  ✓ T17b conflict missing payload: dx journal SURVIVES for replay, envelope untouched
+  ✓ T17b conflict invalid payload: dx journal SURVIVES for replay, envelope untouched
+  ✓ T17c auth cleanup removal failure: hard block, journal preserved
+  ✓ T17d malformed fresh-fetch revision: refused, envelope untouched, no journal
 
-C17-M10 increment 3: 30 passed, 0 failed
+C17-M10 increment 3: 37 passed, 0 failed

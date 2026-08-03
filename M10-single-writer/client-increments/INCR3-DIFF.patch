@@ -1,8 +1,8 @@
 diff --git a/index.html b/index.html
-index 6eaa616..5019142 100644
+index 6eaa616..4a5e15e 100644
 --- a/index.html
 +++ b/index.html
-@@ -10325,6 +10325,511 @@ function autoSync(){
+@@ -10325,6 +10325,539 @@ function autoSync(){
      try{render();}catch(e){}});}
  /* =============== M10-WIRING-END (increment 2) =============== */
  
@@ -265,7 +265,14 @@ index 6eaa616..5019142 100644
 +    if(err){toast("No connection — try again");cb(null);return;}
 +    var env=m10cxEnvelope(ctx.uid);
 +    if(env.st!=="ok"){cb(null);return;}
-+    var srev=rec?(rec.coreRev||0):0;
++    /* Q5 (round-21 ruling 7): the revision is VALIDATED, not defaulted — a
++       malformed record must never seed an envelope or a destructive journal */
++    var srev=0;
++    if(rec){
++      if(!(typeof rec.coreRev==="number"&&isFinite(rec.coreRev)&&rec.coreRev>=0&&
++           Math.floor(rec.coreRev)===rec.coreRev&&rec.coreRev<=9007199254740991)){
++        toast("The server answer was malformed — try again");cb(null);return;}
++      srev=rec.coreRev;}
 +    var scanon=null;
 +    if(rec&&rec.data!=null){
 +      var sc=m10cCanon(rec.data);
@@ -287,8 +294,14 @@ index 6eaa616..5019142 100644
 +  if(env.st!=="ok")return;
 +  if(!m10cxExportGateOpen(env.val)){toast("Export both copies first");try{render();}catch(e){}return;}
 +  if(!m10cxHolder()){toast("Take over as the active writer first");return;}
++  var entryFence=M10.fence;
 +  m10cxFreshCheck(ctx,function(fresh){
 +    if(!fresh)return;
++    /* Q1 (round-21 ruling 3): the pen must still be held — same account,
++       same session, unexpired, SAME fence as at action entry — after the
++       asynchronous fetch, immediately before the resolution journal */
++    if(!m10cxHolder()||M10.fence!==entryFence){
++      toast("The active-writer pen changed — take over and review again");return;}
 +    var lc=m10cCanon(payload());
 +    if(!lc.ok){m10cBlock("core data failed validation ("+lc.error+")");return;}
 +    var rid=m10cRequestId();if(!rid)return;
@@ -313,14 +326,19 @@ index 6eaa616..5019142 100644
 +    if(r.status===200&&r.body&&r.body.ok===true&&natRes(r.body.newRev)&&r.body.newRev===e.expectedRev+1){
 +      if(!m10cxDxAdvance(j,"net-done",{newRev:r.body.newRev},uid)){cb&&cb(false);return;}
 +      m10cxPushMineComplete(j,uid,cb);return;}
-+    if(r.status===409&&r.body&&r.body.conflict===true&&natRes(r.body.serverRev)){
-+      /* the server moved again: envelope gets the NEWER copy, gate resets,
-+         review stays open — nothing lost */
++    if(r.status===409&&r.body&&r.body.conflict===true){
++      /* Q3 (ruling 5): a typed conflict needs a safe serverRev AND a
++         payload passing strict canonicalization — anything else is a
++         malformed response: the dx journal SURVIVES for replay and the
++         preserved server copy is untouched */
++      var scOk=null;
++      if(natRes(r.body.serverRev)&&r.body.payload!=null){
++        var sc=m10cCanon(r.body.payload);
++        if(sc.ok)scOk=sc.canon;}
++      if(scOk===null){setSync("error","core sync received a malformed response");cb&&cb(false);return;}
 +      var env=m10cxEnvelope(uid);
 +      if(env.st==="ok"){
-+        var scanon=null;
-+        if(r.body.payload!=null){var sc=m10cCanon(r.body.payload);if(sc.ok)scanon=sc.canon;}
-+        env.val.coreRevSeen=r.body.serverRev;env.val.serverData=scanon;env.val.exports=null;
++        env.val.coreRevSeen=r.body.serverRev;env.val.serverData=scOk;env.val.exports=null;
 +        if(!m10cWrite("displaced",env.val,uid)){m10cBlock("could not record the fresher server copy");cb&&cb(false);return;}}
 +      m10cRemove("dxjournal",uid);
 +      if(m10cRead("dxjournal",uid).st!=="absent"){m10cBlock("could not clear a finished review record");cb&&cb(false);return;}
@@ -328,12 +346,17 @@ index 6eaa616..5019142 100644
 +      try{render();}catch(ex){}
 +      cb&&cb(false);return;}
 +    if(r.status===409&&r.body&&r.body.fenceStale===true){
++      /* Q2 (ruling 4): displacement is authoritative ONLY with a typed
++         fence; malformed → the journal survives as a recoverable request */
++      if(!natRes(r.body.fence)){setSync("error","core sync received a malformed response");cb&&cb(false);return;}
 +      m10cRemove("dxjournal",uid);
 +      if(m10cRead("dxjournal",uid).st!=="absent"){m10cBlock("could not clear a finished review record");cb&&cb(false);return;}
 +      toast("Another device took over — take over again to resolve");
 +      cb&&cb(false);return;}
 +    if(r.status===401||r.status===403){
++      /* Q4 (ruling 6): cleanup is VERIFIED — a failed removal blocks */
 +      m10cRemove("dxjournal",uid);
++      if(m10cRead("dxjournal",uid).st!=="absent"){m10cBlock("could not clear a finished review record");cb&&cb(false);return;}
 +      cb&&cb(false);return;}
 +    /* ambiguity: the dx journal survives for replay-first */
 +    cb&&cb(false);
@@ -369,9 +392,14 @@ index 6eaa616..5019142 100644
 +  if(!m10cxExportGateOpen(env.val)){toast("Export both copies first");try{render();}catch(e){}return;}
 +  if(!m10cxHolder()){toast("Take over as the active writer first");return;}
 +  if(env.val.serverData===null){toast("The server holds no copy — keep this device’s copy instead");return;}
++  var entryFence=M10.fence;
 +  askConfirm("Replace EVERYTHING on this device — weights, food, steps, settings, all of it — with the server’s copy? Your export is the only remaining copy of this device’s data.",function(){
 +    m10cxFreshCheck(ctx,function(fresh){
 +      if(!fresh||fresh.canon===null)return;
++      /* Q1: pen revalidated after BOTH asynchronous boundaries (the confirm
++         pause and the fetch) — no pen, no replacement */
++      if(!m10cxHolder()||M10.fence!==entryFence){
++        toast("The active-writer pen changed — take over and review again");return;}
 +      var j={op:"core-take-server",phase:"intent",startedAt:Date.now(),
 +        expect:{serverRev:fresh.rev,serverCanon:fresh.canon}};
 +      if(!m10cxDxWrite(j,ctx.uid))return;
