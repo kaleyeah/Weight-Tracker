@@ -68,6 +68,7 @@ function photoMock(st){
       st.ledger[b.idempotencyKey]=res;
       return reply(200,res);}
     if(/cf\/photos\/update/.test(url)){
+      if(st.updateDelay)await new Promise(r=>setTimeout(r,st.updateDelay));
       if(st.forceUpdate){const f=st.forceUpdate;st.forceUpdate=null;return reply(f.status,f.body);}
       const b=JSON.parse(route.request().postData());
       st.updates=(st.updates||0)+1;
@@ -670,6 +671,131 @@ const ADD=`async function(id){
     });
     test('T23 fence replaced during the sweep: no adoption, no queue entries',()=>{
       ok(!s.adopted);eq(s.ops,0);});
+    await ctx.close();
+  }
+
+  /* T24 (ruling 7/2): the REAL lightbox relabel path — journal before the
+     local mutation, transactional route, ZERO raw collection PATCHes */
+  {
+    const st=mkSt({updateDelay:500});
+    const {ctx,page}=await boot(browser,server,st);
+    let rawPatches=0;
+    page.on('request',(r)=>{if(/collections\/photos\/records\//.test(r.url())&&r.method()==='PATCH')rawPatches++;});
+    const s=await page.evaluate(async(addSrc)=>{
+      await eval('('+addSrc+')')('l-24');
+      await new Promise(r=>setTimeout(r,800));
+      /* drive the production lightbox: open it and click the meal chip */
+      state.view='photos';
+      openLightbox('l-24');
+      await new Promise(r=>setTimeout(r,500));
+      const edit=document.querySelector('[data-lb="mealedit"]');
+      if(edit)edit.click();
+      await new Promise(r=>setTimeout(r,250));
+      const chips=Array.from(document.querySelectorAll('[data-lb="meal"]'));
+      const chip=chips.find(c=>c.getAttribute('data-meal')&&c.getAttribute('data-meal')!=='lunch');
+      const before=m10pOps().length;
+      /* prove the ordering: capture the queue depth at the instant the local
+         store is written */
+      window.__opsAtLocalWrite=null;
+      const origAddLocal=idbAddLocal;
+      idbAddLocal=function(rec){if(window.__opsAtLocalWrite===null)window.__opsAtLocalWrite=m10pOps().length;return origAddLocal(rec);};
+      if(chip)chip.click();
+      await new Promise(r=>setTimeout(r,250));
+      const during=m10pOps();
+      await new Promise(r=>setTimeout(r,900));
+      idbAddLocal=origAddLocal;
+      const rec=await idbGetLocal('l-24');
+      return {chipFound:!!chip,before,opsAtLocalWrite:window.__opsAtLocalWrite,
+        queuedOp:during[0]&&during[0].op,
+        hadOldNew:!!(during[0]&&during[0].oldMeta&&during[0].newMeta),
+        after:m10pOps().length,localMeal:rec&&rec.meal};
+    },ADD);
+    test('T24 lightbox relabel: a real UI click journals a meta op (old+new) BEFORE the local write',()=>{
+      ok(s.chipFound,'meal chip present');eq(s.before,0);eq(s.queuedOp,'meta');ok(s.hadOldNew);
+      eq(s.opsAtLocalWrite,1,'the verified queue entry existed when the local store was written');});
+    test('T24 relabel completes through the transactional route with ZERO raw PATCHes',()=>{
+      eq(s.after,0);eq(st.updates,1,'one transactional update');eq(rawPatches,0,'no raw collection PATCH');
+      ok(s.localMeal&&s.localMeal!=='lunch','local label changed');});
+    await ctx.close();
+  }
+
+  /* T25 (rulings 3/4): adoption crash after the local write, before `blob-ok` */
+  {
+    const st=mkSt();
+    const {ctx,page}=await boot(browser,server,st);
+    st.photos={'pidxxxxxxxxxx3':{id:'pidxxxxxxxxxx3',localId:'srv-3',file:'p.jpg',date:'2026-08-02',kind:'food',meal:'lunch',ts:'1'}};
+    const s=await page.evaluate(async()=>{
+      /* seed the crash state: an adopt intent whose blob is already local but
+         whose mapping was never recorded */
+      const bytes=new Uint8Array(128);for(let i=0;i<128;i++)bytes[i]=i;
+      await idbAddLocal({id:'srv-3',date:'2026-08-02',blob:new Blob([bytes]),ts:1,kind:'food'});
+      m10pMutate(m8Uid(),function(ops){ops.push({id:'pop-adopt00001',op:'adopt',localId:'srv-3',
+        serverId:'pidxxxxxxxxxx3',file:'p.jpg',requestId:'m10c-seedado0000000000000000',
+        state:'intent',meta:{kind:'food',date:'2026-08-02',week:'',pose:'',meal:'lunch',ts:'1'}});});
+      m10pDispatch();
+      await new Promise(r=>setTimeout(r,1200));
+      return {ops:m10pOps().length,mapped:pbPhotoMap()['srv-3']||null,
+        blob:!!(await idbGetLocal('srv-3'))};
+    });
+    test('T25 adopt crash before blob-ok: recovery COMPLETES the mapping (never a silent clear)',()=>{
+      eq(s.ops,0);eq(s.mapped,'pidxxxxxxxxxx3','mapping durable');ok(s.blob);});
+    await ctx.close();
+  }
+  {
+    const st=mkSt();
+    const {ctx,page}=await boot(browser,server,st);
+    const s=await page.evaluate(async()=>{
+      /* an UNRELATED local record already owns that id: review, never cleanup */
+      const bytes=new Uint8Array(64);for(let i=0;i<64;i++)bytes[i]=255-i;
+      await idbAddLocal({id:'srv-4',date:'2026-08-02',blob:new Blob([bytes]),ts:1,kind:'food'});
+      m10pMutate(m8Uid(),function(ops){ops.push({id:'pop-adopt00002',op:'adopt',localId:'srv-4',
+        serverId:'pidxxxxxxxxxx4',file:'p.jpg',requestId:'m10c-seedado0000000000000001',
+        state:'intent',blobSha256:'b'.repeat(64),blobByteLength:999,
+        meta:{kind:'food',date:'2026-08-02',week:'',pose:'',meal:'lunch',ts:'1'}});});
+      m10pDispatch();
+      await new Promise(r=>setTimeout(r,900));
+      const ops=m10pOps();
+      return {state:ops[0]&&ops[0].state,reason:ops[0]&&ops[0].unverifiedReason,
+        blob:!!(await idbGetLocal('srv-4'))};
+    });
+    test('T25 adopt intent vs UNRELATED local bytes: unverified for review, local kept',()=>{
+      eq(s.state,'unverified');eq(s.reason,'adopt-local-differs');ok(s.blob);});
+    await ctx.close();
+  }
+
+  /* T26 (ruling 6): the destructive requeue is ONE verified transition */
+  {
+    const st=mkSt({fenceRequired:true,fence:1});
+    const {ctx,page}=await boot(browser,server,st);
+    const s=await page.evaluate(async(addSrc)=>{
+      await eval('('+addSrc+')')('l-26');
+      await new Promise(r=>setTimeout(r,700));
+      await window.__set('fence',5);
+      idbDelete('l-26');
+      await new Promise(r=>setTimeout(r,900));
+      const d=m10pDisplaced();
+      const captured=!!(d[0]&&d[0].capturedServerIdentity&&d[0].capturedServerIdentity.file);
+      M10.fence=5;
+      m10pExport(d[0].id);
+      await new Promise(r=>setTimeout(r,300));
+      if(state.pendingConfirm){const fn=state.pendingConfirm.fn;state.pendingConfirm=null;fn();}
+      await new Promise(r=>setTimeout(r,300));
+      /* the identity+state write fails: the entry must NOT dispatch */
+      const orig=localStorage.setItem.bind(localStorage);
+      localStorage.setItem=function(k,v){if(/wl_photo_ops__/.test(k))throw new Error('quota');return orig(k,v);};
+      m10pReviewApply(d[0].id);
+      await new Promise(r=>setTimeout(r,500));
+      if(state.pendingConfirm){const fn=state.pendingConfirm.fn;state.pendingConfirm=null;fn();}
+      await new Promise(r=>setTimeout(r,700));
+      localStorage.setItem=orig;
+      const ops=m10pOps();
+      return {captured,state:ops[0]&&ops[0].state,blob:!!(await idbGetLocal('l-26')),
+        deletes:0};
+    },ADD);
+    test('T26 displacement captures the authoritative server identity (incl. file)',()=>ok(s.captured));
+    test('T26 failed identity+state write: no dispatch, photo intact',()=>{
+      ok(s.state==='displaced'||s.state==='unverified','still awaiting review: '+s.state);
+      ok(s.blob,'photo not deleted');});
     await ctx.close();
   }
 
