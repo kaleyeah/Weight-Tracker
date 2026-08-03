@@ -9795,6 +9795,412 @@ function m10Gate(tag){
 }
 /* =============== M10-BLOCK-1-END =============== */
 
+/* ================= M10-BLOCK-2: core durability protocol (design v9.1 §2, increment 2) =================
+   Authorized round 16 ruling 7 on authority head 3e7a0d0. Account-bound
+   wl_core_dirty/base/ack journals with M8-grade verified writes, fenced
+   route commits, replay-first recovery, the G9/G10 bootstrap, and adoption
+   postconditions. Ruling 8 honored: NO dispatcher gating here — this block
+   owns the core sync TRANSPORT (cloudPush/cloudPull are overridden in the
+   wiring section below), nothing else. Displaced/conflict REVIEW UI is
+   increment 3: this increment preserves every byte (dirty + terminal
+   journal) and blocks core sync pending that review. Reuses the proven M8
+   canonicalization functions verbatim (no M8 code is modified). */
+var M10C_MARK="m10.1", M10C_CANON_VER=1;
+var M10C_KINDS={dirty:"wl_core_dirty__",base:"wl_core_base__",journal:"wl_core_ack_journal__"};
+function m10cKey(kind,uid){return M10C_KINDS[kind]+(uid||m8Uid());}
+var m10cHardBlocked=false,m10cUnprovenBlocked=false,m10cBlockReason="";
+/* the SHARED fail-closed union (design: block classes shared): extend the
+   existing m8StorageBlocked getter so EITHER subsystem's hard/soft block
+   halts both engines — an override inside the M10 block, no M8 edits. */
+Object.defineProperty(window,"m8StorageBlocked",{configurable:true,
+  get:function(){return m8HardBlocked||m8UnprovenBlocked||m10cHardBlocked||m10cUnprovenBlocked;}});
+function m10cBlock(reason){m10cHardBlocked=true;m10cBlockReason=reason;
+  try{setSync("error","sync paused \u2014 "+reason);}catch(e){}}
+function m10cSoftBlock(reason){m10cUnprovenBlocked=true;m10cBlockReason=reason;
+  try{setSync("error","sync paused \u2014 "+reason);}catch(e){}}
+function m10cReleaseUnprovenIfProven(){
+  if(!m10cUnprovenBlocked)return;
+  var d=m10cRead("dirty");
+  if(d.st==="absent"||(d.st==="ok"&&d.val.persistedGen===d.val.gen))m10cUnprovenBlocked=false;}
+
+function m10cRead(kind,uid){
+  uid=uid||m8Uid();if(!uid)return {st:"absent"};
+  var raw;
+  try{raw=localStorage.getItem(m10cKey(kind,uid));}
+  catch(e){m10cBlock("storage unreadable");return {st:"malformed"};}
+  if(raw==null)return {st:"absent"};
+  var v;try{v=JSON.parse(raw);}catch(e){return {st:"malformed",raw:raw};}
+  if(!v||typeof v!=="object"||v.owner!==uid||v.mark!==M10C_MARK)return {st:"malformed",raw:raw};
+  return {st:"ok",val:v};}
+function m10cWrite(kind,obj,uid){
+  uid=uid||m8Uid();if(!uid)return false;
+  obj.owner=uid;obj.mark=M10C_MARK;
+  var ser;try{ser=JSON.stringify(obj);}catch(e){return false;}
+  try{localStorage.setItem(m10cKey(kind,uid),ser);}catch(e){return false;}
+  var back;try{back=localStorage.getItem(m10cKey(kind,uid));}catch(e){return false;}
+  return back===ser;}
+function m10cRemove(kind,uid){uid=uid||m8Uid();try{localStorage.removeItem(m10cKey(kind,uid));}catch(e){}
+  try{return localStorage.getItem(m10cKey(kind,uid))==null;}catch(e){return false;}}
+function m10cQuarantine(kind,uid){
+  uid=uid||m8Uid();if(!uid)return false;
+  var orig;
+  try{orig=localStorage.getItem(m10cKey(kind,uid));}
+  catch(e){m10cBlock("storage unreadable during preservation");return false;}
+  if(orig==null)return true;
+  var qk,n=0;
+  do{qk="wl_core_corrupt__"+uid+"."+kind+"."+Date.now()+"."+n;n++;}
+  while((function(){try{return localStorage.getItem(qk)!=null;}catch(e){return true;}})()&&n<50);
+  try{localStorage.setItem(qk,orig);}catch(e){m10cBlock("storage full while preserving a damaged record");return false;}
+  var back;try{back=localStorage.getItem(qk);}catch(e){back=null;}
+  if(back!==orig){m10cBlock("could not verify a preserved copy");return false;}
+  try{localStorage.removeItem(m10cKey(kind,uid));}catch(e){}
+  var gone;try{gone=localStorage.getItem(m10cKey(kind,uid))==null;}catch(e){gone=false;}
+  if(!gone){m10cBlock("could not clear a damaged record after preserving it");return false;}
+  return true;}
+
+/* ---- journal validation (operation-aware, M8 R15 standard) ---- */
+var M10C_J_PHASES={"core-ack":["intent","net-done","k1","k2","done"],
+  "core-bootstrap":["intent","done"],
+  "core-adopt":["intent","k1","k2","done"]};
+var M10C_J_OUTCOMES=["conflict","fence-displaced","auth","bootstrap-conflict"];
+function m10cValidateJournal(j){
+  if(!j||typeof j!=="object")return "not an object";
+  var ph=M10C_J_PHASES[j.op];
+  if(!ph)return "unknown op";
+  if(ph.indexOf(j.phase)<0)return "impossible phase for op";
+  if(!(typeof j.startedAt==="number"&&isFinite(j.startedAt)&&j.startedAt>=0))return "bad startedAt";
+  var e=j.expect;
+  if(!e||typeof e!=="object")return "missing expect";
+  var natOk=function(v){return typeof v==="number"&&isFinite(v)&&v>=0&&Math.floor(v)===v;};
+  var canonOk=function(v,allowNull){
+    if(v===null)return !!allowNull;
+    if(typeof v!=="string")return false;
+    try{var o=JSON.parse(v);return !!o&&typeof o==="object"&&!Array.isArray(o);}catch(ex){return false;}};
+  if(j.op==="core-ack"){
+    if(!canonOk(e.oldBaseCanon,true))return "bad oldBaseCanon";
+    if(!natOk(e.expectedRev))return "bad expectedRev";
+    if(!canonOk(e.pushedCanon))return "bad pushedCanon";
+    if(!natOk(e.gen))return "bad gen";
+    if(!(e.fence===null||natOk(e.fence)))return "bad fence";
+    if(!(typeof e.requestId==="string"&&e.requestId.length>0&&e.requestId.length<=96))return "bad requestId";
+    if(j.phase==="net-done"||j.phase==="k1"||j.phase==="k2"){if(!natOk(e.newRev))return "bad newRev";}
+    if(j.phase==="done"&&j.outcome!==undefined&&M10C_J_OUTCOMES.indexOf(j.outcome)<0)return "bad outcome";}
+  if(j.op==="core-bootstrap"){
+    if(!natOk(e.serverRev))return "bad serverRev";
+    if(!canonOk(e.serverCanon,true))return "bad serverCanon";}
+  if(j.op==="core-adopt"){
+    if(!natOk(e.serverRev))return "bad serverRev";
+    if(!canonOk(e.serverCanon))return "bad serverCanon";}
+  return null;}
+function m10cJournalWrite(j){
+  var err=m10cValidateJournal(j);
+  if(err){m10cBlock("refused to write an invalid core journal ("+err+")");return false;}
+  return m10cWrite("journal",j);}
+function m10cJournalAdvance(j,phase,extra){
+  j.phase=phase;
+  if(extra)for(var k in extra)j.expect[k]=extra[k];
+  return m10cJournalWrite(j);}
+
+/* ---- dirty generation with verified persistence proof ---- */
+var m10cGen=0;
+function m10cMarkDirty(){
+  m10cGen++;
+  var uid=m8Uid();if(!uid)return;
+  if(!m10cWrite("dirty",{gen:m10cGen,persistedGen:-1,ts:Date.now()}))
+    m10cSoftBlock("could not record an unsaved-changes marker");}
+function m10cProveGen(){
+  var uid=m8Uid();if(!uid)return;
+  var d=m10cRead("dirty");
+  if(d.st!=="ok")return;
+  if(d.val.gen!==m10cGen)return;                 /* a newer edit owns the marker */
+  d.val.persistedGen=d.val.gen;
+  if(m10cWrite("dirty",d.val))m10cReleaseUnprovenIfProven();
+  else m10cSoftBlock("could not verify the unsaved-changes marker");}
+
+/* ---- G9: the exact content-only emptiness predicate ---- */
+function m10cLocalEmpty(p){
+  var zk=function(o){return !o||Object.keys(o).length===0;};
+  var g=p.glp||{};
+  return (p.weights||[]).length===0&&zk(p.food)&&zk(p.workouts)&&zk(p.steps)&&
+    zk(p.notes)&&zk(p.sleep)&&zk(p.bodyfat)&&zk(p.waist)&&zk(p.leanmass)&&
+    (p.statuses||[]).length===0&&
+    ((g.doses||[]).length===0&&(g.symptoms||g.symptomLog||[]).length===0);}
+
+/* ---- states derived from KEYS (never phase alone) ---- */
+function m10cState(){
+  var j=m10cRead("journal");
+  if(j.st==="malformed")return "corrupt";
+  if(j.st==="ok"&&j.val.phase==="done"&&j.val.outcome)return "review-pending";
+  if(j.st==="ok")return "journal-recovery";
+  var b=m10cRead("base");
+  if(b.st==="malformed")return "corrupt";
+  var d=m10cRead("dirty");
+  if(d.st==="malformed")return "corrupt";
+  if(b.st==="absent")return "bootstrap";
+  if(d.st==="ok")return (d.val.persistedGen===d.val.gen)?"dirty":"dirty-unproven";
+  return "clean";}
+
+/* ---- the fenced route commit ---- */
+function m10cRoute(body){
+  var h={"Content-Type":"application/json"};var t=pbTok();if(t)h.Authorization=t;
+  return fetch(pbBase()+"/api/cf/appdata/commit",{method:"POST",headers:h,body:JSON.stringify(body)})
+    .then(function(r){return r.json().then(function(j){return {status:r.status,body:j};})
+      .catch(function(){return {status:r.status,body:null};});});}
+function m10cRequestId(){
+  var a=new Uint8Array(24);
+  if(!((window.crypto||{}).getRandomValues))return null;
+  crypto.getRandomValues(a);
+  var out="";for(var i=0;i<24;i++)out+="abcdefghijklmnopqrstuvwxyz0123456789"[a[i]%36];
+  return "m10c-"+out;}
+
+/* Completion of a landed commit from journal j (phases net-done→k1→k2→done).
+   Every advance is a verified write; failures block, never lose. */
+function m10cComplete(j,cb){
+  var e=j.expect;
+  if(j.phase==="net-done"){
+    if(!m10cWrite("base",{canon:M10C_CANON_VER,rev:e.newRev,body:e.pushedCanon})){m10cBlock("could not record the acknowledged copy");cb&&cb(false);return;}
+    var b=m10cRead("base");
+    if(!(b.st==="ok"&&b.val.rev===e.newRev&&b.val.body===e.pushedCanon)){m10cBlock("could not verify the acknowledged copy");cb&&cb(false);return;}
+    if(!m10cJournalAdvance(j,"k1")){m10cBlock("could not verify the base phase");cb&&cb(false);return;}}
+  if(j.phase==="k1"){
+    var d=m10cRead("dirty");
+    if(d.st==="ok"&&d.val.gen===e.gen){
+      m10cRemove("dirty");
+      var dNow=m10cRead("dirty");
+      if(dNow.st!=="absent"){m10cBlock("could not clear the unsaved-changes marker");cb&&cb(false);return;}}
+    /* newer-generation arm: base advanced, dirty (newer gen) STAYS; the next
+       push carries it */
+    if(!m10cJournalAdvance(j,"k2")){m10cBlock("could not verify the marker phase");cb&&cb(false);return;}}
+  if(j.phase==="k2"){
+    m10cRemove("journal");
+    var gone=m10cRead("journal");
+    if(gone.st!=="absent"){m10cBlock("could not clear a finished sync record");cb&&cb(false);return;}
+    try{markDirty(false);setLastSync();}catch(ex){}
+    cb&&cb(true);return;}
+  cb&&cb(true);}
+
+/* Terminalize the ack journal with a typed outcome (conflict / displacement /
+   auth). Dirty is NEVER touched here — no data loss; review is increment 3. */
+function m10cTerminalize(j,outcome,extra){
+  j.outcome=outcome;
+  if(extra)for(var k in extra)j.expect[k]=extra[k];
+  if(!m10cJournalAdvance(j,"done")){m10cBlock("could not record the sync outcome");return false;}
+  return true;}
+
+var m10cPushing=false;
+function m10cPush(manual,done){
+  var uid=m8Uid();
+  var fin=function(ok){m10cPushing=false;done&&done(ok);};
+  if(!uid||!syncOn()){if(manual)toast("Log in first");fin(false);return;}
+  if(window.m8StorageBlocked){if(manual)toast("Sync is paused \u2014 see the banner");fin(false);return;}
+  if(m10cPushing){fin(false);return;}
+  var st=m10cState();
+  if(st==="corrupt"){m10cBlock("a damaged core sync record was preserved and needs review");fin(false);return;}
+  if(st==="review-pending"){if(manual)toast("Core sync needs review");fin(false);return;}
+  if(st==="journal-recovery"){m10cRecover(function(){fin(false);});return;}
+  if(st==="bootstrap"){m10cBootstrap(function(ok){if(ok)m10cPush(manual,done);else fin(false);});return;}
+  if(st==="dirty-unproven"){m10cSoftBlock("recent changes could not be verified on this device");fin(false);return;}
+  if(st!=="dirty"){fin(true);return;}                       /* clean: nothing to push */
+  var d=m10cRead("dirty");if(d.st!=="ok"){fin(false);return;}
+  var b=m10cRead("base");if(b.st!=="ok"){fin(false);return;}
+  var pc=m8Canon(payload());
+  if(!pc.ok){m10cBlock("core data failed validation ("+pc.error+")");fin(false);return;}
+  var rid=m10cRequestId();
+  if(!rid){fin(false);return;}
+  var fence=(M10.holder&&M10.uid===uid&&performance.now()<M10.deadline)?M10.fence:null;
+  var j={op:"core-ack",phase:"intent",startedAt:Date.now(),
+    expect:{oldBaseCanon:b.val.body,expectedRev:b.val.rev,pushedCanon:pc.canon,
+      gen:d.val.gen,fence:fence,requestId:rid}};
+  if(!m10cJournalWrite(j)){fin(false);return;}
+  m10cPushing=true;setSync("saving");
+  m10cDispatch(j,JSON.parse(pc.canon),function(ok){
+    if(ok&&manual)toast("Saved to your server");
+    fin(ok);});}
+
+function m10cDispatch(j,payloadObj,cb){
+  var e=j.expect;
+  var body={subsystem:"core",expectedRev:e.expectedRev,idempotencyKey:e.requestId,
+    payload:payloadObj,clientBuild:(typeof APP_BUILD==="string"?APP_BUILD:"")};
+  if(e.fence!==null){body.fence=e.fence;body.deviceId=m10DeviceId();}
+  m10cRoute(body).then(function(r){
+    if(r.status===200&&r.body&&r.body.ok&&typeof r.body.newRev==="number"){
+      if(!m10cJournalAdvance(j,"net-done",{newRev:r.body.newRev})){m10cBlock("could not record the server acknowledgement");cb&&cb(false);return;}
+      m10cComplete(j,function(ok){if(ok)setSync("ok");cb&&cb(ok);});
+      return;}
+    if(r.status===409&&r.body&&r.body.fenceStale===true){
+      m10cTerminalize(j,"fence-displaced",{staleFence:r.body.fence});
+      setSync("error","another device is the active writer");cb&&cb(false);return;}
+    if(r.status===409&&r.body&&r.body.conflict===true){
+      m10cTerminalize(j,"conflict",{serverRev:r.body.serverRev});
+      setSync("error","core needs review");cb&&cb(false);return;}
+    if(r.status===409&&r.body&&/reused/.test(r.body.error||"")){
+      m10cBlock("a sync request identity was reused");cb&&cb(false);return;}
+    if(r.status===401||r.status===403){
+      m10cTerminalize(j,"auth");
+      setSync("error","session expired \u2014 log in again");cb&&cb(false);return;}
+    /* transport ambiguity / 5xx: the journal SURVIVES for replay-first */
+    setSync("offline");cb&&cb(false);
+  }).catch(function(){setSync("offline");cb&&cb(false);});}
+
+/* Replay-first recovery: an in-flight journal re-dispatches ITS OWN captured
+   request (same requestId + expectedRev + payload) — the server ledger
+   answers replays idempotently; the response is handled by the SAME arms. */
+function m10cRecover(cb){
+  var j=m10cRead("journal");
+  if(j.st==="malformed"){
+    if(m10cQuarantine("journal"))m10cBlock("a damaged core sync record was preserved and needs review");
+    cb&&cb(false);return;}
+  if(j.st!=="ok"){cb&&cb(true);return;}
+  var v=j.val;
+  var err=m10cValidateJournal(v);
+  if(err){if(m10cQuarantine("journal"))m10cBlock("an invalid core sync record was preserved and needs review");cb&&cb(false);return;}
+  if(v.op==="core-ack"){
+    if(v.phase==="done"&&v.outcome){cb&&cb(false);return;}     /* review-pending: increment 3 */
+    if(v.phase==="net-done"||v.phase==="k1"||v.phase==="k2"){m10cComplete(v,cb);return;}
+    var pobj;try{pobj=JSON.parse(v.expect.pushedCanon);}catch(ex){pobj=null;}
+    if(!pobj){if(m10cQuarantine("journal"))m10cBlock("an unreadable core sync record was preserved");cb&&cb(false);return;}
+    m10cDispatch(v,pobj,cb);return;}
+  if(v.op==="core-bootstrap"||v.op==="core-adopt"){m10cFinishBootAdopt(v,cb);return;}
+  cb&&cb(false);}
+
+/* ---- G9/G10 bootstrap ---- */
+function m10cBootstrap(cb){
+  var uid=m8Uid();if(!uid){cb&&cb(false);return;}
+  pbGetRecord(function(rec,err){
+    if(err){cb&&cb(false);return;}
+    var lp=payload();
+    var lc=m8Canon(lp);
+    if(!lc.ok){m10cBlock("core data failed validation ("+lc.error+")");cb&&cb(false);return;}
+    var serverData=rec?rec.data:null;
+    var serverRev=rec?(rec.coreRev||0):0;
+    if(!rec||(serverData==null&&serverRev===0)){
+      /* G10: no row, or absent data at rev 0 — the fenced first push may
+         create; the acknowledged state is rev 0 with NO server copy */
+      var jf={op:"core-bootstrap",phase:"intent",startedAt:Date.now(),expect:{serverRev:0,serverCanon:null}};
+      if(!m10cJournalWrite(jf)){cb&&cb(false);return;}
+      m10cFinishBootAdopt(jf,cb);return;}
+    if(serverData==null&&serverRev>0){
+      /* G10: deletion/change evidence — review, never a first push */
+      var jd={op:"core-bootstrap",phase:"intent",startedAt:Date.now(),expect:{serverRev:serverRev,serverCanon:null}};
+      if(m10cJournalWrite(jd))m10cTerminalize(jd,"bootstrap-conflict");
+      setSync("error","core needs review");cb&&cb(false);return;}
+    var sc=m8Canon(serverData);
+    if(!sc.ok){m10cBlock("the server core copy failed validation");cb&&cb(false);return;}
+    if(sc.canon===lc.canon){
+      var je={op:"core-bootstrap",phase:"intent",startedAt:Date.now(),expect:{serverRev:serverRev,serverCanon:sc.canon}};
+      if(!m10cJournalWrite(je)){cb&&cb(false);return;}
+      m10cFinishBootAdopt(je,cb);return;}
+    if(m10cLocalEmpty(lp)){
+      /* fresh device: journaled adoption of the server copy */
+      var ja={op:"core-adopt",phase:"intent",startedAt:Date.now(),expect:{serverRev:serverRev,serverCanon:sc.canon}};
+      if(!m10cJournalWrite(ja)){cb&&cb(false);return;}
+      m10cFinishBootAdopt(ja,cb);return;}
+    /* differing, local nonempty: BOTH copies preserved; review is increment 3 */
+    var jc={op:"core-bootstrap",phase:"intent",startedAt:Date.now(),expect:{serverRev:serverRev,serverCanon:sc.canon}};
+    if(m10cJournalWrite(jc))m10cTerminalize(jc,"bootstrap-conflict");
+    setSync("error","core needs review");cb&&cb(false);});}
+
+function m10cFinishBootAdopt(j,cb){
+  var e=j.expect;
+  if(j.op==="core-bootstrap"){
+    if(j.phase==="done"&&j.outcome){cb&&cb(false);return;}
+    if(!m10cWrite("base",{canon:M10C_CANON_VER,rev:e.serverRev,body:e.serverCanon})){m10cBlock("could not record the acknowledged copy");cb&&cb(false);return;}
+    var b=m10cRead("base");
+    if(!(b.st==="ok"&&b.val.rev===e.serverRev&&b.val.body===e.serverCanon)){m10cBlock("could not verify the acknowledged copy");cb&&cb(false);return;}
+    m10cRemove("journal");
+    if(m10cRead("journal").st!=="absent"){m10cBlock("could not clear a finished sync record");cb&&cb(false);return;}
+    cb&&cb(true);return;}
+  if(j.op==="core-adopt"){
+    /* k1: local bytes; k2: base; both verified; the exact parsed server
+       object is applied (unknown fields intact) */
+    var obj;try{obj=JSON.parse(e.serverCanon);}catch(ex){obj=null;}
+    if(!obj){if(m10cQuarantine("journal"))m10cBlock("an unreadable adoption record was preserved");cb&&cb(false);return;}
+    if(j.phase==="intent"){
+      try{localStorage.setItem("wl_v1",JSON.stringify(obj));}catch(ex){m10cBlock("could not store the adopted copy");cb&&cb(false);return;}
+      var back;try{back=localStorage.getItem("wl_v1");}catch(ex){back=null;}
+      if(back!==JSON.stringify(obj)){m10cBlock("could not verify the adopted copy");cb&&cb(false);return;}
+      if(!m10cJournalAdvance(j,"k1")){m10cBlock("could not verify the adoption phase");cb&&cb(false);return;}}
+    if(j.phase==="k1"){
+      if(!m10cWrite("base",{canon:M10C_CANON_VER,rev:e.serverRev,body:e.serverCanon})){m10cBlock("could not record the acknowledged copy");cb&&cb(false);return;}
+      if(!m10cJournalAdvance(j,"k2")){m10cBlock("could not verify the base phase");cb&&cb(false);return;}}
+    if(j.phase==="k2"){
+      m10cRemove("journal");
+      if(m10cRead("journal").st!=="absent"){m10cBlock("could not clear a finished adoption record");cb&&cb(false);return;}
+      try{load();render();}catch(ex){}
+      cb&&cb(true);return;}
+    cb&&cb(true);return;}
+  cb&&cb(false);}
+
+/* ---- pull/adoption: NEVER overwrites unresolved local dirty ---- */
+function m10cPull(manual,done){
+  var uid=m8Uid();
+  if(!uid||!syncOn()){done&&done(false);return;}
+  if(window.m8StorageBlocked){done&&done(false);return;}
+  var st=m10cState();
+  if(st==="corrupt"||st==="review-pending"||st==="journal-recovery"){
+    if(st==="journal-recovery"){m10cRecover(function(){done&&done(false);});return;}
+    done&&done(false);return;}
+  if(st==="bootstrap"){m10cBootstrap(done);return;}
+  if(st==="dirty"||st==="dirty-unproven"){
+    /* the proof case: adoption REFUSED while local dirty is unresolved */
+    if(manual)toast("This device has unsynced changes \u2014 they go up first");
+    done&&done(false);return;}
+  pbGetRecord(function(rec,err){
+    if(err||!rec){done&&done(false);return;}
+    var b=m10cRead("base");if(b.st!=="ok"){done&&done(false);return;}
+    var serverRev=rec.coreRev||0;
+    if(serverRev<=b.val.rev){done&&done(true);return;}       /* nothing newer */
+    var sc=m8Canon(rec.data||{});
+    if(!sc.ok){m10cBlock("the server core copy failed validation");done&&done(false);return;}
+    var ja={op:"core-adopt",phase:"intent",startedAt:Date.now(),expect:{serverRev:serverRev,serverCanon:sc.canon}};
+    if(!m10cJournalWrite(ja)){done&&done(false);return;}
+    m10cFinishBootAdopt(ja,done);});}
+
+/* boot-time core recovery: journal first (replay-first), then bootstrap */
+function m10cBoot(cb){
+  var uid=m8Uid();if(!uid||!syncOn()){cb&&cb();return;}
+  var j=m10cRead("journal");
+  if(j.st!=="absent"){m10cRecover(function(){cb&&cb();});return;}
+  var b=m10cRead("base");
+  if(b.st==="malformed"){if(m10cQuarantine("base"))m10cBlock("a damaged core record was preserved and needs review");cb&&cb();return;}
+  var d=m10cRead("dirty");
+  if(d.st==="malformed"){if(m10cQuarantine("dirty"))m10cBlock("a damaged core record was preserved and needs review");cb&&cb();return;}
+  if(d.st==="ok"){m10cGen=Math.max(m10cGen,d.val.gen);}
+  cb&&cb();}
+/* =============== M10-BLOCK-2-END =============== */
+
+/* ================= M10 WIRING (increment 2) =================
+   Core sync transport ownership (ruling 8: transport, not dispatcher
+   gating): save() marks the core dirty generation synchronously and proves
+   persistence; cloudPush/cloudPull route through the journaled fenced
+   protocol. Declared LAST, so these declarations are the live bindings. */
+function save(){
+  m10cMarkDirty();
+  saveLocal();
+  /* persistence proof: the primary store now carries this generation */
+  try{var expect=JSON.stringify(payload());
+    if(localStorage.getItem(KEY)===expect)m10cProveGen();}catch(e){}
+  scheduleCloudPush();}
+function cloudPush(manual){
+  if(ownershipAmbiguous()){if(manual)toast("Paused \u2014 this device holds data from another account");return;}
+  m10cPush(manual);}
+function cloudPull(manual,done){
+  if(ownershipAmbiguous()){done&&done(false);return;}
+  m10cPull(manual,done);}
+function autoSync(){
+  /* the retired newest-date recency heuristic is NEVER consulted (design
+     §2 bootstrap): core boot flows through the journaled protocol only */
+  if(ownershipAmbiguous())return;
+  if(!syncOn())return;
+  pullConnections();trainingPull(function(){if(state.view==="train")render();});
+  setSync("syncing");
+  m10cPull(false,function(){
+    var st=m10cState();
+    if(st==="dirty"){m10cPush(false,function(ok){if(ok)setSync("ok");try{render();}catch(e){}});return;}
+    if(st==="clean")setSync("ok");
+    try{render();}catch(e){}});}
+/* =============== M10-WIRING-END (increment 2) =============== */
+
 function cloudTest(){
   if(ownershipAmbiguous()){toast("Paused — this device holds data from another account");return;}
   setSync("syncing");
@@ -10306,7 +10712,7 @@ if(!logoutRecoveryPending())runRecoveryCapture();
 if(bootGated()){
   renderGate();
 }else{
-load();loadTraining();migrateProgressionTypes();loadWorkout();rptRetargetAll();ensureIdentity();try{refreshWeekPhotos();}catch(e){}if(resyncAllActivityTags())save();var _hasSetup=/[#&]setup=/.test(location.hash||"");if(_hasSetup){state.settings.onboarded=true;}else{if(state.settings.onboarded==null)state.settings.onboarded=(state.weights.length>0||num(state.settings.goalWeight)!=null||num(state.settings.startingWeight)!=null||!!(state.settings.name&&(""+state.settings.name).trim()));if(!state.settings.onboarded){state.onboarding=true;state.obStep=0;}}applyTheme(state.settings.theme||"dark");makeIcon();if(state.workout)state.view="train";render();if(syncOn()){pbRefresh(function(){m10Boot().then(function(){autoSync();photoSync();});});}/* M10 wiring (K3): the lease settles before any adoption runs */if(state.workout)startWoTick();if(_hasSetup)checkSetupLink();
+load();loadTraining();migrateProgressionTypes();loadWorkout();rptRetargetAll();ensureIdentity();try{refreshWeekPhotos();}catch(e){}if(resyncAllActivityTags())save();var _hasSetup=/[#&]setup=/.test(location.hash||"");if(_hasSetup){state.settings.onboarded=true;}else{if(state.settings.onboarded==null)state.settings.onboarded=(state.weights.length>0||num(state.settings.goalWeight)!=null||num(state.settings.startingWeight)!=null||!!(state.settings.name&&(""+state.settings.name).trim()));if(!state.settings.onboarded){state.onboarding=true;state.obStep=0;}}applyTheme(state.settings.theme||"dark");makeIcon();if(state.workout)state.view="train";render();if(syncOn()){pbRefresh(function(){m10Boot().then(function(){m10cBoot(function(){autoSync();photoSync();});});});}/* M10 wiring (K3+incr2): lease settles, core journal recovers, then adoption */if(state.workout)startWoTick();if(_hasSetup)checkSetupLink();
 endRecoveryFreeze();
 /* Everything below belongs ONLY to the clean path. A gated page is terminal:
    no persistence request, no announcement write, no update check, no visibility
