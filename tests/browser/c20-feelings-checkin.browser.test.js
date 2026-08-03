@@ -340,6 +340,48 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
     ok(t16.skip&&t16.send,'both send and skip must be present');
   });
 
+  /* ---- T16b: the auto-filled facts cover the week that just CLOSED ------
+       Owner, 2026-08-03: "it would be from last week Monday through Sunday".
+       The check-in is keyed by its own day, but every metric it reports comes
+       from the previous check-in day through the day before this one. ------ */
+  const t16b=await ev(()=>{
+    const wk=toISO(weekStartFor(0));
+    const covered=ciCoveredDays(wk);
+    const dayBefore=toISO(new Date(parseISO(wk).getTime()-86400000));
+    /* seed the CLOSED week with 7 known days, and today (the check-in day)
+       with a value that must NOT be counted */
+    state.steps={};state.food={};state.sleep={};state.weights=[];state.ratings={};
+    covered.forEach(function(d,i){state.steps[d]=1000*(i+1);state.food[d]={calories:2000};});
+    state.steps[wk]=999999;state.food[wk]={calories:999999};
+    save();
+    const f=ciFacts(wk);
+    const row=k=>(f.rows.filter(r=>r[0]===k)[0]||[])[1];
+    return {covered,dayBefore,
+      first:covered[0],last:covered[6],
+      len:covered.length,
+      startsBeforeWk:covered[0]<wk,endsDayBefore:covered[6]===dayBefore,
+      includesWk:covered.indexOf(wk)>=0,
+      days:f.days,tracked:f.tracked,
+      steps:row('Steps'),cal:row('Calories'),tracked7:row('Days tracked'),
+      label:ciCoveredLabel(wk),
+      startDow:parseISO(covered[0]).getDay(),endDow:parseISO(covered[6]).getDay(),
+      wkDow:parseISO(wk).getDay()};
+  });
+  test('T16b the auto-fill window is the closed week — previous check-in day to the day before',()=>{
+    eq(t16b.len,7,'a check-in covers exactly seven days');
+    ok(t16b.startsBeforeWk,'the window must start BEFORE the check-in day');
+    ok(t16b.endsDayBefore,'the window must end the day before the check-in day');
+    notOk(t16b.includesWk,'the check-in day itself must not be counted');
+    eq(t16b.startDow,t16b.wkDow,'the window starts on the previous check-in day (same weekday)');
+    eq(t16b.endDow,(t16b.wkDow+6)%7,'and ends the day before this one');
+    eq(t16b.days,7,'all seven closed days are reportable');
+    eq(t16b.tracked,7);
+    eq(t16b.tracked7,'7 of 7');
+    /* 1000..7000 averages 4000 — 999999 on the check-in day would blow this up */
+    eq(t16b.steps,'4,000 avg','the check-in day’s value leaked into the average');
+    ok(/^2,000 avg/.test(t16b.cal),'calories were '+t16b.cal);
+  });
+
   /* ---- T17: the four poses actually render as tiles --------------------- */
   await page.waitForFunction(()=>{const h=document.getElementById('wl-ciphotos');return h&&h.children.length===4;},null,{timeout:5000}).catch(()=>{});
   const t17=await ev(()=>{
@@ -407,6 +449,12 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
   /* ---- T21: sending resolves the week and records what was sent -------- */
   const t21=await ev(()=>{
     const wk=toISO(weekStartFor(0));
+    /* seed its own ratings — never inherit them from an earlier case */
+    state.ratings={};
+    const d=parseISO(todayISO());
+    for(let i=0;i<3;i++){const x=new Date(d);x.setDate(x.getDate()-i);
+      state.ratings[toISO(x)]={recovery:'good',energy:'okay'};}
+    save();
     state.ciWeek=wk;state.view='checkin';render();
     document.querySelector('[data-act="ci:send"]').click();
     const r=ciRec(wk);

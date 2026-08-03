@@ -921,7 +921,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-03.420-felt";
+var APP_BUILD="2026-08-03.421-week";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -2182,11 +2182,27 @@ function ciCardHTML(){
       '<button class="wl-btn wl-btn-ghost wl-full" data-act="ci:unskip" data-week="'+cur+'">Undo — I’ll do it after all</button></div>';
   return '';
 }
+/* The week a check-in REPORTS ON is the one that just closed: the previous
+   check-in day through the day before this one. A Monday check-in on Aug 3
+   covers Mon Jul 27 → Sun Aug 2 (Owner, 2026-08-03). The record stays keyed by
+   the check-in day itself, which is what the due/late logic counts from. */
+function ciCovered(wk){
+  var end=new Date(parseISO(wk).getTime()-86400000);
+  var start=new Date(end.getTime()-6*86400000);
+  return {start:toISO(start),end:toISO(end)};
+}
+function ciCoveredDays(wk){
+  var c=ciCovered(wk),out=[],d=parseISO(c.start);
+  for(var i=0;i<7;i++){out.push(toISO(d));d.setDate(d.getDate()+1);}
+  return out;
+}
+function ciCoveredLabel(wk){var c=ciCovered(wk);return fmtShort(parseISO(c.start))+" – "+fmtShort(parseISO(c.end));}
 /* What the app already knows, shown so the athlete never retypes it. */
 function ciFacts(wk){
-  var isos=[],d=parseISO(wk);for(var i=0;i<7;i++){isos.push(toISO(d));d.setDate(d.getDate()+1);}
   var u=state.settings.units,today=todayISO();
-  var past=isos.filter(function(x){return x<=today;});
+  /* the closed week is entirely in the past, but clamp anyway so an early or
+     back-dated check-in can never average days that have not happened */
+  var past=ciCoveredDays(wk).filter(function(x){return x<=today;});
   var wmap={};(state.weights||[]).forEach(function(x){wmap[x.date]=x.weight;});
   var ws=past.map(function(x){return num(wmap[x]);}).filter(function(v){return v!=null;});
   var stp=past.map(function(x){return num(state.steps[x]);}).filter(function(v){return v!=null;});
@@ -2212,10 +2228,10 @@ function view_checkin(){
   var r=ciRec(wk)||{},a=r.answers||{};
   var sent=(r.status==="sent");
   var f=ciFacts(wk);
-  var wkEnd=toISO(new Date(parseISO(wk).getTime()+6*86400000));
+  var cov=ciCovered(wk);
   var h='<div class="wl-stack">';
-  h+='<div class="wl-card"><div class="wl-ci-top"><span class="wl-ci-t">Week of '+fmtShort(parseISO(wk))+'</span><span class="wl-ci-st'+(sent?" ok":(ciDaysLate(wk)>=1?" late":""))+'">'+(sent?"✓ Sent "+ciTimeStr(r.updated||r.ts):ciStatusLine([wk]))+'</span></div>'+
-    '<div class="wl-hint">'+(sent?"Editing a sent check-in re-sends the corrected version to Max. The original stays in your record.":"Your week runs "+ciDayName(wk)+" through "+ciDayName(wkEnd)+". Answer what you can — nothing here is required.")+'</div></div>';
+  h+='<div class="wl-card"><div class="wl-ci-top"><span class="wl-ci-t">'+ciCoveredLabel(wk)+'</span><span class="wl-ci-st'+(sent?" ok":(ciDaysLate(wk)>=1?" late":""))+'">'+(sent?"✓ Sent "+ciTimeStr(r.updated||r.ts):ciStatusLine([wk]))+'</span></div>'+
+    '<div class="wl-hint">'+(sent?"Editing a sent check-in re-sends the corrected version to Max. The original stays in your record.":"This covers the week that just closed — "+ciDayName(cov.start)+" through "+ciDayName(cov.end)+". Answer what you can — nothing here is required.")+'</div></div>';
   if(feelAnyAnswered(feelDays(14,todayISO())))
     h+='<div class="wl-card"><div class="wl-card-head"><span>How you’ve felt</span><span class="wl-count">14 days</span></div>'+feelBarsHTML(todayISO(),14)+feelWatchHTML(todayISO())+'</div>';
   h+='<div class="wl-card"><div class="wl-card-head"><span>This week’s photos</span><span class="wl-count" id="wl-ciphoto-n">—</span></div>'+
@@ -2236,7 +2252,7 @@ function view_checkin(){
   h+='<div class="wl-ciskip">';
   if(state.ciSkipAsk===wk){
     h+='<div class="wl-card" style="border:1px solid var(--bad)"><div class="wl-ci-t" style="margin-bottom:8px">Skip this week’s check-in?</div>'+
-       '<div class="wl-hint">Nothing is sent to Max for the week of '+fmtShort(parseISO(wk))+' — no photos, no answers. Your daily logs keep flowing as normal, and you can undo this until your next check-in day.</div>'+
+       '<div class="wl-hint">Nothing is sent to Max for '+ciCoveredLabel(wk)+' — no photos, no answers. Your daily logs keep flowing as normal, and you can undo this until your next check-in day.</div>'+
        '<div class="wl-ck-reopen-btns" style="margin-top:12px"><button class="wl-btn wl-btn-ghost" data-act="ci:skipcancel">Cancel</button><button class="wl-btn wl-btn-primary" data-act="ci:skipyes" data-week="'+wk+'">Yes, skip this week</button></div></div>';
   }else if(!sent){
     h+='<button class="wl-btn wl-btn-ghost wl-full" data-act="ci:skipask" data-week="'+wk+'">Skip this week’s check-in</button>';
@@ -2279,7 +2295,7 @@ function ciHistoryHTML(){
   var h='<div class="wl-card"><div class="wl-card-head"><span>Weekly check-ins</span><span class="wl-count">'+wks.length+'</span></div>';
   wks.forEach(function(w,i){
     var r=ciRec(w),sent=(r.status==="sent");
-    h+='<div class="wl-cihist"'+(i===0?' style="border-top:0"':'')+'><div><div class="w">Week of '+fmtShort(parseISO(w))+'</div><div class="s '+(sent?"ok":"sk")+'">'+
+    h+='<div class="wl-cihist"'+(i===0?' style="border-top:0"':'')+'><div><div class="w">'+ciCoveredLabel(w)+'</div><div class="s '+(sent?"ok":"sk")+'">'+
       (sent?"✓ Sent "+ciTimeStr(r.updated||r.ts)+" · "+ciAnswered(r)+" of 5 answered":"Skipped")+'</div></div>'+
       '<button class="wl-link" data-act="ci:open" data-week="'+w+'">'+(sent?"Edit":"Open")+' ›</button></div>';
   });
