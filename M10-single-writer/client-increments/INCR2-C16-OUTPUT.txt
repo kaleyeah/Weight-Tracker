@@ -44,5 +44,8 @@
   ✓ T18 fenceStale fractional fence: journal stays at intent (recoverable), dirty preserved, NOT review state
   ✓ T18 conflict without serverRev: journal stays at intent (recoverable), dirty preserved, NOT review state
   ✓ T18 conflict non-integer serverRev: journal stays at intent (recoverable), dirty preserved, NOT review state
+  ✓ T19a live 409 with unsafe serverRev: journal stays at intent, dirty preserved
+  ✓ T19 seeded conflict terminal with unsafe serverRev: quarantined + blocked, never review state
+  ✓ T19 seeded displacement terminal with unsafe staleFence: quarantined + blocked, never review state
 
-C16-M10 increment 2: 46 passed, 0 failed
+C16-M10 increment 2: 49 passed, 0 failed

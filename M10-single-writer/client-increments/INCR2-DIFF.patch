@@ -1,8 +1,8 @@
 diff --git a/index.html b/index.html
-index f6e7d22..1284529 100644
+index f6e7d22..6eaa616 100644
 --- a/index.html
 +++ b/index.html
-@@ -9795,6 +9795,534 @@ function m10Gate(tag){
+@@ -9795,6 +9795,536 @@ function m10Gate(tag){
  }
  /* =============== M10-BLOCK-1-END =============== */
  
@@ -134,7 +134,9 @@ index f6e7d22..1284529 100644
 +  if(!(typeof j.startedAt==="number"&&isFinite(j.startedAt)&&j.startedAt>=0))return "bad startedAt";
 +  var e=j.expect;
 +  if(!e||typeof e!=="object")return "missing expect";
-+  var natOk=function(v){return typeof v==="number"&&isFinite(v)&&v>=0&&Math.floor(v)===v;};
++  /* round-19 ruling 4: a GENUINE safe-integer predicate — stored terminal
++     records must never carry a value that cannot be represented exactly */
++  var natOk=function(v){return typeof v==="number"&&isFinite(v)&&v>=0&&Math.floor(v)===v&&v<=9007199254740991;};
 +  var canonOk=function(v,allowNull){
 +    if(v===null)return !!allowNull;
 +    if(typeof v!=="string")return false;
@@ -537,7 +539,7 @@ index f6e7d22..1284529 100644
  function cloudTest(){
    if(ownershipAmbiguous()){toast("Paused — this device holds data from another account");return;}
    setSync("syncing");
-@@ -10306,7 +10834,7 @@ if(!logoutRecoveryPending())runRecoveryCapture();
+@@ -10306,7 +10836,7 @@ if(!logoutRecoveryPending())runRecoveryCapture();
  if(bootGated()){
    renderGate();
  }else{

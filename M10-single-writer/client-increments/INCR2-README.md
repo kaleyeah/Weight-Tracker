@@ -1,14 +1,29 @@
 # M10 client increment 2 — core durability protocol
 
-## Package identity (through round-18 rulings)
+## Package identity (through round-19 rulings)
 - **Base**: `3e7a0d0` — the accepted increment-1 authority head.
-- **Increment head**: `78cb17e`.
-- **Cumulative diff** `INCR2-DIFF.patch` = 3e7a0d0 → 78cb17e;
-  **narrow round-18 diff** `INCR2-DIFF-FROM-f78d2e0.patch`;
-  (round-17 narrow diff retained as
+- **Increment head**: `3056e8d` — index.html sha256 prefix `1bf63e59…`.
+- **Cumulative diff** `INCR2-DIFF.patch` = 3e7a0d0 → 3056e8d
+  (550 lines); **narrow round-19 diff**
+  `INCR2-DIFF-FROM-78cb17e.patch` (15 lines); prior narrow diffs
+  retained (`INCR2-DIFF-FROM-f78d2e0.patch`,
   `INCR2-DIFF-FROM-5359060.patch`). Everything sits in
   `M10-BLOCK-2 … M10-BLOCK-2-END` plus the delimited wiring section
   and one boot-line edit.
+
+## Round-19 rulings, as landed
+- Ruling 4: the journal validator's `natOk` is a GENUINE safe-integer
+  predicate (finite, nonnegative, integral, ≤ 9007199254740991 =
+  Number.MAX_SAFE_INTEGER), applied to every integer journal field
+  (expectedRev, newRev, gen, fence, serverRev, staleFence). Tests
+  (T19): MAX_SAFE_INTEGER+1 rejected in a live 409 (journal stays at
+  intent, dirty preserved); seeded conflict AND displacement
+  terminals carrying the unsafe value follow quarantine-and-block
+  (never review state; preserved in the corrupt namespace).
+- Ruling 5: this README's identity and evidence sections corrected
+  and audited (no stale head or count remains).
+- Ruling 6: `RECORDS-LOCATION-EVIDENCE.md` — repository-history proof
+  of the reports' location (nothing renamed, moved, or removed).
 
 ## Round-18 rulings, as landed (P1–P3 = rulings 3–5)
 - P1 (ruling 3): REAL plain-object validation —
@@ -120,7 +135,7 @@
   cloudPull, autoSync).
 
 ## Evidence
-- `INCR2-C16-OUTPUT.txt` — C16 39/39 (29 prior +10 ruling cases): bootstrap ×5 (equal /
+- `INCR2-C16-OUTPUT.txt` — C16 49/49 (all evidence arms through round 19): bootstrap ×5 (equal /
   fresh-adopt with unknown-field survival / differing-preserved /
   no-row-first-push / absent-at-positive-rev), happy push, lost-response
   replay (same requestId, server committed EXACTLY once), crash
@@ -133,4 +148,4 @@
   fail → soft block + shared union), clean adoption, newer-gen-in-
   flight.
 - `INCR2-C15-RERUN.txt` — increment-1 suite still 35/35.
-- `INCR2-M8-REGRESSION.txt` — full client matrix vs `f78d2e0`.
+- `INCR2-M8-REGRESSION.txt` — full client matrix vs `3056e8d`.
