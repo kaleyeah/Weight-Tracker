@@ -168,6 +168,65 @@ async function freshDevice(browser,routeHandler){
   });
   await d3.ctx.close();
 
+  /* ---------- T8: THE OWNER'S ACTUAL FLOW ------------------------------
+       A brand-new device boots SIGNED OUT — so the boot-time gate never sees
+       it and first-time setup is already on screen. He then logs in. Setup
+       must close on sign-in and never reappear, because signing in is proof
+       this is not a first run. This is the case .430 missed. ------------- */
+  const d4ctx=await browser.newContext({viewport:{width:390,height:844}});
+  await d4ctx.addInitScript(()=>{ /* NO wl_pb, NO wl_v1: a virgin device */ });
+  await d4ctx.route('**/api/**',async r=>{
+    const u=r.request().url();
+    if(/auth-with-password/.test(u))
+      return r.fulfill({status:200,contentType:'application/json',
+        body:JSON.stringify({token:'tok',record:{id:'userA',email:'a@x.com'}})});
+    if(/cf\/writer\/lease/.test(u)){
+      let b={};try{b=JSON.parse(r.request().postData()||'{}');}catch(e){}
+      return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,exists:true,granted:true,
+        fence:1,holderDeviceId:b.deviceId||'dev',deviceName:'x',active:true,serverNow:Date.now(),ttlMs:86400000})});
+    }
+    if(/collections\/appdata\/records/.test(u))
+      return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[{
+        id:'rec1',user:'userA',coreRev:300,trainingRev:28,
+        data:{settings:{onboarded:true,units:'lbs',weekStart:'1',name:'Griffin'},
+          weights:[{date:'2026-07-20',weight:189.2},{date:'2026-08-03',weight:183.6}],
+          food:{},steps:{'2026-08-01':9000},sleep:{},notes:{},bodyfat:{},waist:{},leanmass:{},
+          statuses:[],presets:[],skips:{},nightlyLog:{}}}]})});
+    return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[],token:'tok',record:{id:'userA'}})});
+  });
+  const p4=await d4ctx.newPage();
+  p4.on('pageerror',e=>errs.push(String(e)));
+  await p4.goto(URL,{waitUntil:'load'});
+  await p4.waitForFunction(()=>typeof window.pbDoLogin==='function',null,{timeout:20000});
+  await p4.waitForTimeout(600);
+  const signedOut=await p4.evaluate(()=>({loginVisible:!!document.getElementById('wl-pb-email'),
+    onboarding:!!state.onboarding}));
+  /* now sign in through the REAL form, exactly as he did */
+  await p4.evaluate(()=>{
+    document.getElementById('wl-pb-email').value='a@x.com';
+    document.getElementById('wl-pb-pass').value='pw';
+    const b=document.getElementById('wl-pb-base');if(b)b.value='https://pb.test';
+    pbDoLogin();
+  });
+  await p4.waitForTimeout(5000);
+  const afterLogin=await p4.evaluate(()=>({
+    onboarding:!!state.onboarding,
+    setupVisible:!!document.querySelector('[data-act="ob:skip"]'),
+    weighIns:state.weights.length,
+    onboarded:state.settings.onboarded,
+    name:state.settings.name||null,
+    deferred:!!state.obDeferred}));
+  test('T8 signing in on a virgin device closes first-time setup and never re-shows it',()=>{
+    ok(signedOut.loginVisible,'the fixture did not reach the login screen');
+    ok(afterLogin.weighIns>0,'the account data never arrived; got '+afterLogin.weighIns);
+    notOk(afterLogin.onboarding,'first-time setup was STILL showing after sign-in — the Owner\'s exact complaint');
+    notOk(afterLogin.setupVisible,'the Skip control was still on screen after sign-in');
+    eq(afterLogin.onboarded,true);
+    eq(afterLogin.name,'Griffin','the account settings must have been adopted');
+    notOk(afterLogin.deferred,'the gate must resolve, not stay pending');
+  });
+  await d4ctx.close();
+
   test('T7 no uncaught page errors',()=>{eq(errs,[],'page errors');});
 
   console.log('\nC22 — onboarding gate + review dead end: '+passed+' passed, '+failures.length+' failed');
