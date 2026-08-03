@@ -1,0 +1,39 @@
+  ✓ T1a conflict terminal → envelope (fresh server fetched), journals cleaned, banner
+  ✓ T1a no page errors
+  ✓ T1b fence-displaced terminal → envelope with the FETCHED server state
+  ✓ T1c bootstrap-conflict terminal → envelope (reason preserved)
+  ✓ T1d auth terminal: cleanup-only, never review — the kept dirty re-pushed under the live session
+  ✓ T2 crash at terminal+dx-intent gap (G8): boot completes to displaced, no loss
+  ✓ T2 crash at dx net-done (identity captured): boot completes to displaced, no loss
+  ✓ T2 crash at envelope written, dx not cleared: boot completes to displaced, no loss
+  ✓ T3 edit during review: envelope local copy refreshed (journaled), gate closed by the edit
+  ✓ T5 Keep local: pushed at fresh rev, envelope+journal+dirty cleaned, clean at rev 10
+  ✓ T5 server took the local copy exactly once
+  ✓ T6 drift on the in-action fresh check: envelope re-captured (rev 12), gate reset, zero push
+  ✓ T7 conflict mid-push-mine: envelope replaced (rev 13), gate reset, dirty + local intact
+  ✓ T8 fenceStale mid-push-mine: envelope retained, journal cleaned, nothing lost
+  ✓ T9 Take server: local replaced verified (unknown fields intact), cleanup, clean at rev 9
+  ✓ T10 reload keeps the review; logout is blocked; nothing auto-selected
+  ✓ T11 A→B→A mid-push-mine: response discarded, dx journal intact for replay, zero B keys, envelope byte-identical
+  ✓ T12 push-mine crash at net-done: completes to clean, base 10, all cleaned
+  ✓ T12 push-mine crash at k1: completes to clean, base 10, all cleaned
+  ✓ T12 push-mine crash at k2: completes to clean, base 10, all cleaned
+  ✓ T12 push-mine crash at k3: completes to clean, base 10, all cleaned
+  ✓ T12 take-server crash at intent: completes to clean at rev 9, server copy live
+  ✓ T12 take-server crash at k1: completes to clean at rev 9, server copy live
+  ✓ T12 take-server crash at k2: completes to clean at rev 9, server copy live
+  ✓ T12 take-server crash at k3: completes to clean at rev 9, server copy live
+  ✓ T13 non-holder review: actions disabled, takeover offered, push refused, state unresolved
+  ✓ T14a envelope write failure: hard block, dx journal survives for retry
+  ✓ T14b refresh write failure: block raised, the edit itself is safe in wl_v1
+  ✓ T14c cleanup failure mid-resolution: hard block (fail closed), base already durable at 10
+  ✓ T15 lost-response push-mine: reload replays the captured request, single commit, clean
+  ✓ T16 pen lost during Keep-local fetch: no journal, no replacement, envelope kept
+  ✓ T16 pen lost during Take-server fetch: no journal, no replacement, envelope kept
+  ✓ T17b fenceStale without fence: dx journal SURVIVES for replay, envelope untouched
+  ✓ T17b conflict missing payload: dx journal SURVIVES for replay, envelope untouched
+  ✓ T17b conflict invalid payload: dx journal SURVIVES for replay, envelope untouched
+  ✓ T17c auth cleanup removal failure: hard block, journal preserved
+  ✓ T17d malformed fresh-fetch revision: refused, envelope untouched, no journal
+
+C17-M10 increment 3: 37 passed, 0 failed
