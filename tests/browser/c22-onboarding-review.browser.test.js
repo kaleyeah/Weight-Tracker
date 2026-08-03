@@ -227,6 +227,148 @@ async function freshDevice(browser,routeHandler){
   });
   await d4ctx.close();
 
+  /* ---------- T9: the read-only bar ------------------------------------
+       Owner, 2026-08-03: a non-holder must carry a persistent bar naming the
+       other device, offering takeover, and warning to save there first. ---- */
+  const heldServer=r=>{
+    const u=r.request().url();
+    if(/auth-with-password/.test(u))
+      return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({token:'tok',record:{id:'userA',email:'a@x.com'}})});
+    if(/cf\/writer\/lease/.test(u))            /* someone else holds it */
+      return r.fulfill({status:409,contentType:'application/json',body:JSON.stringify({ok:false,held:true,exists:true,active:true,
+        fence:7,holderDeviceId:'dev-other',deviceName:'iPhone',serverNow:Date.now(),ttlMs:86400000})});
+    return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[],token:'tok',record:{id:'userA'}})});
+  };
+  const d5=await freshDevice(browser,heldServer);
+  d5.page.on('pageerror',e=>errs.push(String(e)));
+  await d5.page.goto(URL,{waitUntil:'load'});
+  await d5.page.waitForFunction(()=>typeof window.render==='function',null,{timeout:20000});
+  await d5.page.waitForTimeout(4000);
+  const t9=await d5.page.evaluate(()=>{
+    const bar=document.querySelector('.wl-robar');
+    const views=['overview','weight','train','summary'];
+    const perView=views.map(v=>{state.view=v;render();return !!document.querySelector('.wl-robar');});
+    state.view='overview';render();
+    return {holder:M10.holder,present:!!bar,
+      title:bar?bar.querySelector('.wl-robar-t').textContent:null,
+      sub:bar?bar.querySelector('.wl-robar-s').textContent:null,
+      act:bar?bar.getAttribute('data-act'):null,
+      cta:bar?bar.querySelector('.wl-robar-go').textContent:null,
+      perView};
+  });
+  test('T9 a read-only device carries a persistent takeover bar on every tab',()=>{
+    notOk(t9.holder,'fixture failed: this device should NOT hold the pen');
+    ok(t9.present,'no bar — the device is read-only and says nothing persistent');
+    ok(/already logged in/.test(t9.title||''),'title was: '+t9.title);
+    ok(/iPhone/.test(t9.title||''),'it should name the other device: '+t9.title);
+    ok(/take over/i.test(t9.sub||''),'sub was: '+t9.sub);
+    ok(/save any progress/i.test(t9.sub||''),'it must warn to save on the other device first: '+t9.sub);
+    eq(t9.act,'m10:takeover');
+    ok(/take over/i.test(t9.cta||''));
+    eq(t9.perView,[true,true,true,true],'the bar must show on every tab, not just Home');
+  });
+
+  /* ---------- T10: the holder never sees it --------------------------- */
+  const t10=await d5.page.evaluate(()=>{
+    M10.holder=true;render();
+    const asHolder=!!document.querySelector('.wl-robar');
+    M10.holder=false;render();
+    const asNonHolder=!!document.querySelector('.wl-robar');
+    return {asHolder,asNonHolder};
+  });
+  test('T10 the active writer is never nagged by the bar',()=>{
+    notOk(t10.asHolder,'the holder must not see a takeover bar');
+    ok(t10.asNonHolder,'and it must come back when the pen is lost');
+  });
+  await d5.ctx.close();
+
+  /* ---------- T11: a read-only device keeps pulling ---------------------
+       Owner, 2026-08-03: "the readonly does not sync again after initial load.
+       i cant get it to resync by refreshing." The renew timer and the
+       visibility handler both ran only for the HOLDER. ------------------- */
+  let pulls=0, statuses=0;
+  const countingServer=r=>{
+    const u=r.request().url();
+    if(/auth-with-password/.test(u))
+      return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({token:'tok',record:{id:'userA',email:'a@x.com'}})});
+    if(/cf\/writer\/lease/.test(u)){
+      let b={};try{b=JSON.parse(r.request().postData()||'{}');}catch(e){}
+      if(b.op==='status')statuses++;
+      return r.fulfill({status:409,contentType:'application/json',body:JSON.stringify({ok:false,held:true,exists:true,active:true,
+        fence:7,holderDeviceId:'dev-other',deviceName:'iPhone',serverNow:Date.now(),ttlMs:86400000})});
+    }
+    if(/collections\/appdata\/records/.test(u)&&r.request().method()==='GET'){pulls++;
+      return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[{
+        id:'rec1',user:'userA',coreRev:9,trainingRev:1,
+        data:{settings:{onboarded:true,units:'lbs',weekStart:'1'},weights:[{date:'2026-08-03',weight:183.6}],
+          food:{},steps:{},sleep:{},notes:{},bodyfat:{},waist:{},leanmass:{},statuses:[],presets:[],skips:{},nightlyLog:{}}}]})});}
+    return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[],token:'tok',record:{id:'userA'}})});
+  };
+  const d6=await freshDevice(browser,countingServer);
+  d6.page.on('pageerror',e=>errs.push(String(e)));
+  await d6.page.goto(URL,{waitUntil:'load'});
+  /* a build without the capability must FAIL the assertion, not abort the run */
+  await d6.page.waitForFunction(()=>typeof window.m10RoRefresh==='function',null,{timeout:8000}).catch(()=>{});
+  await d6.page.waitForTimeout(4000);
+  const afterBoot={pulls,statuses};
+  const t11=await d6.page.evaluate(async()=>{
+    const before=M10.holder;
+    const hasFn=(typeof m10RoRefresh==='function');
+    /* simulate coming back to the app, the way returning to the iPad does */
+    if(hasFn)m10RoRefresh(true);
+    else document.dispatchEvent(new Event('visibilitychange'));
+    await new Promise(r=>setTimeout(r,2500));
+    return {holder:before,hasFn:hasFn};
+  });
+  test('T11 a read-only device re-checks the lease and pulls again after boot',()=>{
+    notOk(t11.holder,'fixture failed: should be a non-holder');
+    ok(t11.hasFn,'the read-only refresh path must exist');
+    ok(statuses>afterBoot.statuses,'it must re-check the lease; status calls '+afterBoot.statuses+' -> '+statuses);
+    ok(pulls>afterBoot.pulls,'it must pull again; record GETs '+afterBoot.pulls+' -> '+pulls);
+  });
+  await d6.ctx.close();
+
+  /* ---------- T12: taking over refreshes before you use it ------------- */
+  let grantNow=false, pulls2=0;
+  const takeoverServer=r=>{
+    const u=r.request().url();
+    if(/auth-with-password/.test(u))
+      return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({token:'tok',record:{id:'userA',email:'a@x.com'}})});
+    if(/cf\/writer\/lease/.test(u)){
+      let b={};try{b=JSON.parse(r.request().postData()||'{}');}catch(e){}
+      if(b.op==='steal'||grantNow){grantNow=true;
+        return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,exists:true,granted:true,active:true,
+          fence:8,holderDeviceId:b.deviceId||'dev',deviceName:'iPad',serverNow:Date.now(),ttlMs:86400000})});}
+      return r.fulfill({status:409,contentType:'application/json',body:JSON.stringify({ok:false,held:true,exists:true,active:true,
+        fence:7,holderDeviceId:'dev-other',deviceName:'iPhone',serverNow:Date.now(),ttlMs:86400000})});
+    }
+    if(/collections\/appdata\/records/.test(u)&&r.request().method()==='GET'){pulls2++;
+      return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[{
+        id:'rec1',user:'userA',coreRev:9,trainingRev:1,
+        data:{settings:{onboarded:true,units:'lbs',weekStart:'1'},weights:[{date:'2026-08-03',weight:183.6}],
+          food:{},steps:{},sleep:{},notes:{},bodyfat:{},waist:{},leanmass:{},statuses:[],presets:[],skips:{},nightlyLog:{}}}]})});}
+    return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[],token:'tok',record:{id:'userA'}})});
+  };
+  const d7=await freshDevice(browser,takeoverServer);
+  d7.page.on('pageerror',e=>errs.push(String(e)));
+  await d7.page.goto(URL,{waitUntil:'load'});
+  await d7.page.waitForFunction(()=>typeof window.m10TakeoverSheet==='function',null,{timeout:8000}).catch(()=>{});
+  await d7.page.waitForTimeout(4000);
+  const beforeTakeover=pulls2;
+  const t12=await d7.page.evaluate(async()=>{
+    m10TakeoverSheet();
+    await new Promise(r=>setTimeout(r,300));
+    const y=[].slice.call(document.querySelectorAll('.wl-confirm button')).slice(-1)[0];
+    if(y)y.click();
+    await new Promise(r=>setTimeout(r,3000));
+    return {holder:M10.holder,fence:M10.fence};
+  });
+  test('T12 taking over pulls fresh data instead of handing you a stale copy',()=>{
+    ok(t12.holder,'the takeover did not grant the pen');
+    ok(pulls2>beforeTakeover,'no pull followed the takeover; record GETs '+beforeTakeover+' -> '+pulls2);
+  });
+  await d7.ctx.close();
+
   test('T7 no uncaught page errors',()=>{eq(errs,[],'page errors');});
 
   console.log('\nC22 — onboarding gate + review dead end: '+passed+' passed, '+failures.length+' failed');
