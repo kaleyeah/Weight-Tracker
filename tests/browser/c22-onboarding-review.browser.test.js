@@ -369,6 +369,57 @@ async function freshDevice(browser,routeHandler){
   });
   await d7.ctx.close();
 
+  /* ---------- T13: a SLOW server must never trigger setup ---------------
+       The regression the Owner hit twice: the gate ran on a timer and, with the
+       pull still in flight, declared him a new user. Setup may open only on a
+       CONFIRMED empty read. Here the record takes 6s — longer than any timer —
+       and setup must never appear, before or after. ---------------------- */
+  let served=false;
+  const verySlowServer=async r=>{
+    const u=r.request().url();
+    if(/auth-with-password/.test(u))
+      return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({token:'tok',record:{id:'userA',email:'a@x.com'}})});
+    if(/cf\/writer\/lease/.test(u)){
+      let b={};try{b=JSON.parse(r.request().postData()||'{}');}catch(e){}
+      return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,exists:true,granted:true,
+        fence:1,holderDeviceId:b.deviceId||'dev',deviceName:'x',active:true,serverNow:Date.now(),ttlMs:86400000})});
+    }
+    if(/collections\/appdata\/records/.test(u)){
+      await new Promise(res=>setTimeout(res,6000));   /* far slower than any timer */
+      served=true;
+      return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[{
+        id:'rec1',user:'userA',coreRev:301,trainingRev:28,
+        data:{settings:{onboarded:true,units:'lbs',weekStart:'1',name:'Griffin'},
+          weights:[{date:'2026-07-20',weight:189.2},{date:'2026-08-03',weight:183.6}],
+          food:{},steps:{},sleep:{},notes:{},bodyfat:{},waist:{},leanmass:{},
+          statuses:[],presets:[],skips:{},nightlyLog:{}}}]})});
+    }
+    return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[],token:'tok',record:{id:'userA'}})});
+  };
+  const d8=await freshDevice(browser,verySlowServer);
+  d8.page.on('pageerror',e=>errs.push(String(e)));
+  await d8.page.goto(URL,{waitUntil:'load'});
+  await d8.page.waitForFunction(()=>typeof window.render==='function',null,{timeout:20000});
+  /* sample right through the window the old timer fired in */
+  const samples=[];
+  for(let i=0;i<10;i++){
+    await d8.page.waitForTimeout(500);
+    samples.push(await d8.page.evaluate(()=>!!state.onboarding||!!document.querySelector('[data-act="ob:skip"]')));
+  }
+  await d8.page.waitForTimeout(4000);
+  const t13=await d8.page.evaluate(()=>({onboarding:!!state.onboarding,
+    setupVisible:!!document.querySelector('[data-act="ob:skip"]'),
+    weighIns:state.weights.length,onboarded:state.settings.onboarded}));
+  test('T13 a slow pull never makes the app decide you are a new user',()=>{
+    ok(served,'the fixture never served the record');
+    eq(samples.filter(Boolean).length,0,'setup appeared while the pull was still in flight');
+    notOk(t13.onboarding,'setup was open after the pull landed');
+    notOk(t13.setupVisible);
+    ok(t13.weighIns>0,'the data should have arrived; got '+t13.weighIns);
+    eq(t13.onboarded,true);
+  });
+  await d8.ctx.close();
+
   test('T7 no uncaught page errors',()=>{eq(errs,[],'page errors');});
 
   console.log('\nC22 — onboarding gate + review dead end: '+passed+' passed, '+failures.length+' failed');

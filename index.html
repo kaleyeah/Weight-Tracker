@@ -944,7 +944,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-03.433-rosync";
+var APP_BUILD="2026-08-03.434-obevidence";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -1329,6 +1329,8 @@ function cloudGet(cb){var c=syncCfg();if(!syncOn()){cb&&cb(null,"not configured"
     .then(function(j){if(!j)return;try{ghSha=j.sha||null;var txt=b64dec(j.content||"");cb&&cb(txt?JSON.parse(txt):{},null);}catch(e){cb&&cb(null,"error");}})
     .catch(function(e){cb&&cb(null,"offline");});}
 function applyCloud(d){if(!d)return;
+  /* server data landing settles any deferred first-run question immediately */
+  try{if(state.obDeferred)setTimeout(function(){onboardingGate(true);},0);}catch(e){}
   state.settings=Object.assign({},DEFAULT_SETTINGS,d.settings||{});
   state.weights=Array.isArray(d.weights)?d.weights:[];
   state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.bodyfat=d.bodyfat||{};state.waist=d.waist||{};state.leanmass=d.leanmass||{};state.statuses=d.statuses||[];state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;state.nightlyLog=d.nightlyLog||{};state.scriptVer=d.scriptVer||{};if(migrateCoachSeen())save();
@@ -1458,14 +1460,23 @@ function deviceSheetHTML(){if(!state.deviceOpen)return "";var link=deviceSetupLi
    has no data, first-time setup opens as before; if data arrived, the account
    is marked onboarded and setup is never shown. Either way the DECISION is made
    with the server's answer in hand rather than before it. */
-function onboardingGate(){
+/* Resolve a deferred first-run decision — and ONLY on evidence.
+   The first version of this ran on a 1200ms timer after boot and opened setup
+   whenever the pull had not landed yet, which on a real device over Tailscale
+   is most of the time. It turned "we don't know yet" into "you're a new user"
+   and put the setup screen back on the Owner's iPad (2026-08-03).
+   serverAnswered must be TRUE — a confirmed read — before setup can ever open.
+   With no answer we stay quiet: an empty app is recoverable, a stamped default
+   core is what caused the original collision. */
+function onboardingGate(serverAnswered){
   if(!state.obDeferred)return;
   var hasData=(state.weights.length>0)||Object.keys(state.food||{}).length>0||
     Object.keys(state.steps||{}).length>0||Object.keys(state.sleep||{}).length>0||
     num(state.settings.goalWeight)!=null||num(state.settings.startingWeight)!=null||
     !!(state.settings.name&&(""+state.settings.name).trim());
+  if(hasData){state.obDeferred=false;state.settings.onboarded=true;save();render();return;}
+  if(serverAnswered!==true)return;          /* no answer yet — decide nothing */
   state.obDeferred=false;
-  if(hasData){state.settings.onboarded=true;save();render();return;}
   state.onboarding=true;state.obStep=0;render();
 }
 function checkSetupLink(){var hh=location.hash||"";var mm=hh.match(/[#&]setup=([^&]+)/);if(!mm)return;var pl=null;try{pl=JSON.parse(_b64urldec(mm[1]));}catch(e){try{pl=JSON.parse(b64dec(decodeURIComponent(mm[1])));}catch(e2){pl=null;}}try{history.replaceState(null,"",location.pathname+location.search);}catch(e){}if(!pl||!pl.t)return;askConfirm("Set up this device with your synced data? It connects to your account and pulls your existing weigh-ins, activities, and settings.",function(){setSyncCfg({token:pl.t,repo:pl.r||DEFAULT_REPO,branch:pl.b||DEFAULT_BRANCH,uid:pl.u||"owner"});ghSha=null;connData={};state.settings.onboarded=true;state.onboarding=false;markDirty(false);save();cloudPull(true);toast("Connecting \u2014 pulling your data");},{label:"Import",danger:false});}
@@ -11033,6 +11044,9 @@ function m10cBootstrap(cb,ctx){
          create; the acknowledged state is rev 0 with NO server copy */
       var jf={op:"core-bootstrap",phase:"intent",startedAt:Date.now(),expect:{serverRev:0,serverCanon:null}};
       if(!m10cJournalWrite(jf,uid)){cb&&cb(false);return;}
+      /* CONFIRMED: the server answered and holds nothing for this account. This
+         is the only evidence that may declare a first run on the boot path. */
+      try{onboardingGate(true);}catch(e){}
       m10cFinishBootAdopt(jf,cb,ctx);return;}
     if(serverData==null&&serverRev>0){
       /* G10: deletion/change evidence — review, never a first push */
@@ -11041,6 +11055,10 @@ function m10cBootstrap(cb,ctx){
       setSync("error","core needs review");cb&&cb(false);return;}
     var sc=m10cCanon(serverData);
     if(!sc.ok){m10cBlock("the server core copy failed validation");cb&&cb(false);return;}
+    /* The server answered and it HAS a core — never a first run. Set this in
+       MEMORY only: a save() here marks the core dirty, and a dirty device
+       refuses to adopt, which would block the very pull we are riding. */
+    try{if(state.obDeferred){state.obDeferred=false;state.settings.onboarded=true;}}catch(e){}
     if(sc.canon===lc.canon){
       var je={op:"core-bootstrap",phase:"intent",startedAt:Date.now(),expect:{serverRev:serverRev,serverCanon:sc.canon}};
       if(!m10cJournalWrite(je,uid)){cb&&cb(false);return;}
@@ -12556,10 +12574,10 @@ function pbDoLogin(){
       return;}
     setSync("syncing");
     cloudGet(function(d,err){
-      function finish(){
+      function finish(answered){
         trainingPull(function(){
           setLastSync();setSync("ok");
-          onboardingGate();render();
+          onboardingGate(answered===true);render();
           toast("Welcome back"+(state.settings.name?(", "+state.settings.name):""));
           /* pull this account's photos down onto this device in the background */
           photoSync(function(r){
@@ -12575,11 +12593,12 @@ function pbDoLogin(){
       var localNewer=newestDate(state.weights)>newestDate(d&&d.weights);
       if(!err&&d&&isDirty()&&localHasData()&&!cloudEmpty(d)&&localNewer){
         askConfirm("This device has newer entries that were never saved to the server. Keep the server’s copy, or upload this device’s?",
-          function(){applyCloud(d);finish();},
-          {label:"Use server copy",danger:false,onNo:function(){cloudPush(false);finish();}});
+          function(){applyCloud(d);finish(true);},
+          {label:"Use server copy",danger:false,onNo:function(){cloudPush(false);finish(true);}});
         return;}
       if(!err&&d)applyCloud(d);
-      finish();});},remember);}
+      /* a CONFIRMED read is the only thing that may declare this a new account */
+      finish(!err);});},remember);}
 
 /* gate the whole app behind login without duplicating render()'s body */
 var _pbOrigRender=render;
@@ -13363,7 +13382,7 @@ ciAnchorSince();var _hasSetup=/[#&]setup=/.test(location.hash||"");if(_hasSetup)
      really is new. */
   if(syncOn()&&!state.weights.length){state.obDeferred=true;}
   else{state.onboarding=true;state.obStep=0;}
-}}applyTheme(state.settings.theme||"dark");makeIcon();if(state.workout)state.view="train";render();if(syncOn()){pbRefresh(function(){m10Boot().then(function(){try{migrateProgressionTypes();}catch(e){}m10cBoot(function(){autoSync();photoSync();setTimeout(onboardingGate,1200);});});});}/* M10 wiring (K3+incr2): lease settles, core journal recovers, then adoption. Z1: the boot migration is re-run once the lease has settled — it is refused durably while this device is not the writer, and it is idempotent, so this is where it actually persists on the device that holds the pen. */if(state.workout)startWoTick();if(_hasSetup)checkSetupLink();
+}}applyTheme(state.settings.theme||"dark");makeIcon();if(state.workout)state.view="train";render();if(syncOn()){pbRefresh(function(){m10Boot().then(function(){try{migrateProgressionTypes();}catch(e){}m10cBoot(function(){autoSync();photoSync();});});});}/* M10 wiring (K3+incr2): lease settles, core journal recovers, then adoption. Z1: the boot migration is re-run once the lease has settled — it is refused durably while this device is not the writer, and it is idempotent, so this is where it actually persists on the device that holds the pen. */if(state.workout)startWoTick();if(_hasSetup)checkSetupLink();
 endRecoveryFreeze();
 /* Everything below belongs ONLY to the clean path. A gated page is terminal:
    no persistence request, no announcement write, no update check, no visibility
