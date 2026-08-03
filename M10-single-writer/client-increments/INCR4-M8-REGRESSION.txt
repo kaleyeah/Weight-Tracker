@@ -1,5 +1,5 @@
 M8 + C14 client regression matrix vs increment-4 bytes
-(CF_SRC = Weight-Tracker/index.html @ 47b4daa — the round-24 revised code head; run 2026-08-03)
+(CF_SRC = Weight-Tracker/index.html @ 5095ed6 — the round-25 revised code head; run 2026-08-03)
 
 c11m8-accounts:  OK — 6 passed
 c11m8-faults:    OK — 64 passed

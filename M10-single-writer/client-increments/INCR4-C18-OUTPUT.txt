@@ -35,9 +35,14 @@
   ✓ T23 fence replaced during the sweep: no adoption, no queue entries
   ✓ T24 lightbox relabel: a real UI click journals a meta op (old+new) BEFORE the local write
   ✓ T24 relabel completes through the transactional route with ZERO raw PATCHes
-  ✓ T25 adopt crash before blob-ok: recovery COMPLETES the mapping (never a silent clear)
-  ✓ T25 adopt intent vs UNRELATED local bytes: unverified for review, local kept
+  ✓ T25a adopt crash at `fetched` with MATCHING bytes: mapping completed
+  ✓ T25b adopt `fetched` vs DIFFERENT local bytes: unverified, no mapping, local kept
+  ✓ T25c adopt `intent` with an existing local record: never guessed — unverified
+  ✓ T27 metadata: the LOCAL side lands in its own phase before the server ack
+  ✓ T27 reload at `local-applied`: the server side completes, entry clears
+  ✓ T28 metadata local-write failure: entry parked at intent, NO server update
+  ✓ T29 identity uncaptured at displacement: unverified, destructive Apply refuses, photo kept
   ✓ T26 displacement captures the authoritative server identity (incl. file)
   ✓ T26 failed identity+state write: no dispatch, photo intact
 
-C18-M10 increment 4: 41 passed, 0 failed
+C18-M10 increment 4: 46 passed, 0 failed

@@ -1,9 +1,9 @@
-ac52ea8a9644a1ead9e43f1ef648e5f999e088e644db97928cf6b1da61e468cb  M10-single-writer/client-increments/INCR4-DIFF.patch
-e941a468fc16309398d9e520fadac07e9080b60aabb3fae31c074faaa8e72649  M10-single-writer/client-increments/INCR4-DIFF-FROM-311c3b2.patch
-c430c0c6e1c4b1c827bd45fb3922463f52798ce66589a95f6558829790b35eca  M10-single-writer/client-increments/INCR4-C18-OUTPUT.txt
+1c329fca64208e5f72f523c0bc167b2d12ffec433d4ce3fd2b4ecc67cdf541d3  M10-single-writer/client-increments/INCR4-DIFF.patch
+8fb1dfbc8887c71a11552e79144ecf8778de4c41ea8cefc7445b46ba2437fc8f  M10-single-writer/client-increments/INCR4-DIFF-FROM-47b4daa.patch
+fce965a14699065486d1dc0715f8dde63a3443be5e5e1c5d836a555366b1ea7c  M10-single-writer/client-increments/INCR4-C18-OUTPUT.txt
 45c840f98feef2352dfe0472d8a4adaaf2ab49062e1c85506ef584a94a88ab32  M10-single-writer/client-increments/INCR4-C17-RERUN.txt
 c0c073a95d358cf1489e1786f4956e55c56486c7c9de2129f84122037f79d23d  M10-single-writer/client-increments/INCR4-C16-RERUN.txt
 9820be26a3ea0d49e431b9fdf69482bf280d74a9b2aa0f61380ddb31a511c621  M10-single-writer/client-increments/INCR4-C15-RERUN.txt
-8fdcdfef01454770f2a3592b889b9eea1d7f37cd248c1101db5296460d2930cb  M10-single-writer/client-increments/INCR4-M8-REGRESSION.txt
-72077e2033814581755f1c7ca5e8777279ff77e424f69ee372e03b22480ca824  M10-single-writer/client-increments/INCR4-README.md
-d996b96b6ab7f49716c140514db3d660a42c2dd4f307896c46aad84d38379c8b  index.html @ 47b4daa (code head; byte-identical at the records head)
+7bad8239f5c9735340b60bb204e68037fbb59a808e39bb153e228a88cc8c8999  M10-single-writer/client-increments/INCR4-M8-REGRESSION.txt
+d34bd7edb3a70f3b49ae89d7b520cdbb37fed21c2619aca7866ea1368ea30eff  M10-single-writer/client-increments/INCR4-README.md
+0b226ead91aa18d442a969e86fcc5cf8259e69bfbb7d2cf431091415c385b86d  index.html

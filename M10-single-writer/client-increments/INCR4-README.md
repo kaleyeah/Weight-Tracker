@@ -2,14 +2,14 @@
 
 ## Package identity
 - **Base**: `b92d418` — the accepted increment-3 head.
-- **Code head**: `47b4daa` — index.html sha256
-  `d996b96b6ab7f49716c140514db3d660a42c2dd4f307896c46aad84d38379c8b`.
-  (Prior heads 6cc656d → 311c3b2 → 47b4daa; the narrow round-23/24 diff
-  is `INCR4-DIFF-FROM-311c3b2.patch`.)
+- **Code head**: `5095ed6` — index.html sha256
+  `0b226ead91aa18d442a969e86fcc5cf8259e69bfbb7d2cf431091415c385b86d`.
+  (Heads: 6cc656d → 311c3b2 → 47b4daa → 5095ed6; narrow round-25 diff
+  `INCR4-DIFF-FROM-47b4daa.patch`.)
 - **Records head**: the commit carrying this README, both patches, all
   evidence outputs and `INCR4-MANIFEST.txt` — its `index.html` is
   BYTE-IDENTICAL to `47b4daa` (the manifest asserts that hash).
-- **Cumulative diff** `INCR4-DIFF.patch` = b92d418 → 47b4daa (`git diff --check` clean). Two
+- **Cumulative diff** `INCR4-DIFF.patch` = b92d418 → 5095ed6. Two
   delimited regions: `M10-BLOCK-4` (machinery + review UI) and
   `M10-BLOCK-4-WIRING` — the wiring is installed LAST, after the
   M8-era photo wrappers, because those assign `idbAdd`/`idbDelete`/
@@ -65,6 +65,41 @@
   the mandatory reports live on the repo's `main` branch (the
   deployed-lineage checkout) and are NOT presented as artifacts of
   this branch — see RECORDS-LOCATION-EVIDENCE.md from round 20.
+
+## Round-25 rulings, as landed
+- **1 (adoption identity)**: `adopt` gains a durable `fetched` phase —
+  the FETCHED server blob's sha256 + byte length are recorded in a
+  verified queue write BEFORE IndexedDB is touched. Recovery at
+  `fetched` resumes only on an exact hash+length match (else
+  `unverified`); recovery at `intent` with an existing local record
+  never guesses — it goes to review (`adopt-local-exists`). Three
+  tests: matching → mapping completed; differing → unverified, no
+  mapping; intent-with-existing → unverified.
+- **2/7 (metadata state machine)**: the queue now owns BOTH sides. The
+  dispatcher applies the local metadata in its own verified
+  `local-applied` phase and only then dispatches the transactional
+  route; the lightbox no longer writes locally itself. Crash arms:
+  interrupted at `local-applied` → reload completes the server side
+  (replayed update); a failing local write parks the entry at `intent`
+  with the server untouched.
+- **3/4 (complete pre-image)**: a destructive Apply requires a COMPLETE
+  pre-displacement `(recordId, localId, file)` identity that exactly
+  matches the fresh post-confirmation identity. Displacement that
+  cannot capture it (listing failure or missing `file`) records
+  `unverified/identity-uncaptured`, and Apply refuses with an explicit
+  message — tested end-to-end with a failing listing.
+- **5 (manifest)**: `INCR4-MANIFEST.txt` is now pure `sha256sum`
+  format with repo-root-relative paths, `index.html` included as a
+  real path. Verify from the repo root:
+  `sha256sum -c M10-single-writer/client-increments/INCR4-MANIFEST.txt`
+  → every line OK, exit 0.
+- **6 (patch cleanliness)**: `git diff --check b92d418 5095ed6 --
+  index.html` produces no output (exit 0) — the source range is clean.
+  The whitespace previously reported lives INSIDE the committed
+  `.patch` artifacts and is the unified-diff format's own blank
+  CONTEXT line (a single space); it is not a whitespace error in the
+  source and cannot be removed without corrupting the patch. The
+  superseded narrow patch has been deleted.
 
 ## Storage model
 `wl_photo_ops__<uid>` — an account-keyed durable queue under the same
@@ -138,7 +173,7 @@ existing local bytes. Non-holders perform zero local and zero server
 photo mutations (tested).
 
 ## Evidence
-- `INCR4-C18-OUTPUT.txt` — C18 41/41: upload happy path + ordering;
+- `INCR4-C18-OUTPUT.txt` — C18 46/46: upload happy path + ordering;
   lost-response replay (same requestId, single record); delete
   ordering; metadata; stale fence on all three ops; malformed
   success/identity-mismatch/untyped-fence bodies (entry survives);
