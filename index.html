@@ -926,7 +926,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-03.422-nav";
+var APP_BUILD="2026-08-03.423-photos";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -2253,7 +2253,7 @@ function view_checkin(){
   h+='<div class="wl-card"><div class="wl-card-head"><span>Sent automatically</span></div><div class="wl-cifill">';
   f.rows.forEach(function(row){h+='<span class="k">'+esc(String(row[0]))+'</span><span class="v">'+esc(String(row[1]))+'</span>';});
   h+='</div><div class="wl-hint" style="margin-top:10px">Your photos and the 14-day rating trends go with it. You never retype what the app already logged.</div></div>';
-  h+='<button class="wl-btn wl-btn-primary wl-full" data-act="ci:send" data-week="'+wk+'">'+(sent?"Re-send corrected check-in":"Send to Coach Max")+'</button>';
+  h+='<button class="wl-btn wl-btn-primary wl-full" data-act="ci:send" data-week="'+wk+'">'+(sent?"Update weekly check-in":"Complete Weekly Check-in")+'</button>';
   h+='<div class="wl-ciskip">';
   if(state.ciSkipAsk===wk){
     h+='<div class="wl-card" style="border:1px solid var(--bad)"><div class="wl-ci-t" style="margin-bottom:8px">Skip this week’s check-in?</div>'+
@@ -3973,7 +3973,9 @@ var SRCSS=[
 ".wl-hint{font-size:12px;color:var(--muted);line-height:1.45;margin-top:10px}",
 ".ph-row{display:grid;gap:9px}",
 ".ph-slot{background:var(--bg2);border:1px solid var(--line);border-radius:12px;overflow:hidden;position:relative;aspect-ratio:3/4;display:flex;align-items:center;justify-content:center}",
-".ph-slot img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}",
+/* contain, never cover: a cropped progress photo is a useless progress photo —
+   the coach is comparing outlines week to week (Owner, 2026-08-03). */
+".ph-slot img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block}",
 ".ph-slot svg{width:58%;height:auto;display:block}",
 ".ph-pose{position:absolute;left:0;right:0;bottom:0;text-align:center;font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);background:rgba(11,15,22,.72);padding:4px 0}",
 ".ph-slot.empty{border-style:dashed;border-color:var(--line2)}",
@@ -4190,14 +4192,22 @@ function srShrinkPhoto(blob){return new Promise(function(res){
 var _srPhotoJob=null,_srPhotoGen=0;
 function srPhotoInvalidate(){_srPhotoGen++;_srPhotoJob=null;state._srPhotoCache=null;}
 function srPhotoPrefetch(){
-  var wkISO=toISO(weekStartFor(state.weekOffset||0));
+  var off=state.weekOffset||0;
+  var wkISO=toISO(weekStartFor(off));
+  /* A week's progress photos are taken at the check-in that CLOSES it, so they
+     are filed under the FOLLOWING week's key. Reporting on Jul 27–Aug 2 must
+     show the set captured on Aug 3 — those are the ones that show the result of
+     that week (Owner, 2026-08-03). Fall back to the week's own key when the
+     closing check-in has not happened yet, e.g. the in-progress week. */
+  var closeISO=toISO(weekStartFor(off+1));
   var c=state._srPhotoCache;
   if(c&&c.week===wkISO)return;
   if(_srPhotoJob===wkISO)return;
   if(typeof indexedDB==="undefined"){state._srPhotoCache={week:wkISO,photos:[]};return;}
   _srPhotoJob=wkISO;var gen=_srPhotoGen;
   idbAll().then(function(all){
-    var progs=all.filter(function(p){return p.kind==="progress"&&(p.week||p.date)===wkISO;});
+    var atClose=all.filter(function(p){return p.kind==="progress"&&(p.week||p.date)===closeISO;});
+    var progs=atClose.length?atClose:all.filter(function(p){return p.kind==="progress"&&(p.week||p.date)===wkISO;});
     return Promise.all(POSES.map(function(ps){
       var found=progs.filter(function(p){return p.pose===ps[0];})[0]||null;
       if(!found)return Promise.resolve(null);
@@ -8007,9 +8017,9 @@ document.addEventListener("click",function(e){
     _nr.ratings14=feelDays(14,todayISO()).map(function(d){var o={date:d};RATINGS.forEach(function(q){var v=ratFor(d)[q[0]];if(v)o[q[0]]=v;});return o;}).filter(function(o){return Object.keys(o).length>1;});
     save();
     if(syncOn()){try{photoSync();}catch(e){}
-      pushDataPromise().then(function(){toast(_was?"Correction sent to Coach Max":"Check-in sent to Coach Max");})
-        .catch(function(){toast("Saved — it will reach Max when you're back online");});
-    }else toast("Saved — log in to send it to Max");
+      pushDataPromise().then(function(){toast(_was?"Check-in updated":"Weekly check-in complete");})
+        .catch(function(){toast("Saved — it will sync when you're back online");});
+    }else toast("Saved — log in to sync it");
     state.view=(state.ciFrom==="weight")?"weight":"overview";render();return;}
   if(a==="photo:view"){openLightbox(el.getAttribute("data-id"));return;}
   if(a==="openday"){var od=el.getAttribute("data-date");state.selDate=od;var pd=parseISO(od);state.calY=pd.getFullYear();state.calM=pd.getMonth();state.view="overview";render();return;}

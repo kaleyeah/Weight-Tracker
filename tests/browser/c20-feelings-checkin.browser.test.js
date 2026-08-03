@@ -382,6 +382,56 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
     ok(/^2,000 avg/.test(t16b.cal),'calories were '+t16b.cal);
   });
 
+  /* ---- T16c: the export shows the photos that CLOSE the reported week ---
+       Owner, 2026-08-03: "the photos i upload on the check in today are the
+       same photos that should show up on the coach report we export ... the
+       photos show the result of the end of the last week." ---------------- */
+  const t16c=await ev(async()=>{
+    const wk=toISO(weekStartFor(0));                 /* this check-in day */
+    const prev=toISO(new Date(parseISO(wk).getTime()-7*86400000));
+    const mk=(w,pose)=>({id:'prog-'+w+'-'+pose,date:w,week:w,pose:pose,kind:'progress',
+      blob:new Blob([w+pose],{type:'image/jpeg'}),ts:Date.now()});
+    /* wipe, then file one set under LAST week's key and one under THIS one */
+    const all=await idbAll();
+    await Promise.all(all.filter(p=>p.kind==='progress').map(p=>idbDelete(p.id)));
+    await idbAdd(mk(prev,'front'));
+    await idbAdd(mk(wk,'front'));
+    const seen=[];
+    const realShrink=window.srShrinkPhoto;
+    window.srShrinkPhoto=b=>b.text().then(t=>{seen.push(t);return 'data:image/jpeg;base64,AAAA';});
+    /* report on the CLOSED week — offset -1, since weekStartFor ADDS offset*7 */
+    state.weekOffset=-1;srPhotoInvalidate();srPhotoPrefetch();
+    await new Promise(r=>setTimeout(r,600));
+    const usedForClosed=seen.slice();
+    seen.length=0;
+    /* and on the in-progress week, whose closing check-in has not happened */
+    state.weekOffset=0;srPhotoInvalidate();srPhotoPrefetch();
+    await new Promise(r=>setTimeout(r,600));
+    const usedForCurrent=seen.slice();
+    window.srShrinkPhoto=realShrink;
+    state.weekOffset=0;srPhotoInvalidate();
+    return {prev,wk,usedForClosed,usedForCurrent};
+  });
+  test('T16c the report for a closed week uses the photos from the check-in that closed it',()=>{
+    eq(t16c.usedForClosed,[t16c.wk+'front'],
+      'reporting on the closed week must use THIS check-in day’s photos, not last week’s');
+    eq(t16c.usedForCurrent,[t16c.wk+'front'],
+      'the in-progress week falls back to its own photos when nothing closes it yet');
+  });
+
+  /* ---- T16d: export photos are never cropped --------------------------- */
+  const t16d=await ev(()=>{
+    /* the export's stylesheet is the SRCSS array the report renderer emits */
+    const css=[].concat(SRCSS).join('\n');
+    const rule=/\.ph-slot img\{[^}]*\}/.exec(css);
+    return {rule:rule?rule[0]:null};
+  });
+  test('T16d the export photo slot contains the whole photo instead of cropping it',()=>{
+    ok(t16d.rule,'no .ph-slot img rule found');
+    ok(/object-fit:contain/.test(t16d.rule),'rule was '+t16d.rule);
+    notOk(/object-fit:cover/.test(t16d.rule),'cover crops the photo: '+t16d.rule);
+  });
+
   /* ---- T17: the four poses actually render as tiles --------------------- */
   await page.waitForFunction(()=>{const h=document.getElementById('wl-ciphotos');return h&&h.children.length===4;},null,{timeout:5000}).catch(()=>{});
   const t17=await ev(()=>{
@@ -487,7 +537,7 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
   test('T22 a sent check-in can be reopened, corrected and re-sent',()=>{
     ok(/Sent/.test(t22.cardText),'the card should confirm it was sent; got: '+t22.cardText);
     ok(/Edit this week/.test(t22.cardText),'the card must offer an edit');
-    ok(/Re-send/.test(t22.sendLabel),'send label was '+t22.sendLabel);
+    ok(/Update weekly check-in/.test(t22.sendLabel),'send label was '+t22.sendLabel);
     ok(t22.skipGone,'a sent check-in should not offer "skip"');
     eq(t22.win,'Corrected.');
     eq(t22.status,'sent');
