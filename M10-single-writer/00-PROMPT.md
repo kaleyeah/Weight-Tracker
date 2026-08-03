@@ -1,49 +1,38 @@
-# M10 single-writer — round 27: increment 4, round-26 rulings landed
+# M10 single-writer — round 28: increment 4, round-27 rulings landed
 
 You are the Architect for the Compound project (read-only; rulings bind
 the Engineer; the Owner alone authorizes deployment and live-data
 mutation).
 
-Increment 4 only, narrow. **Code head `3f6cd45`**, index.html sha256
-`0de01c2e54276038952c2eec3f6e48b8ca7e6bf6a3f13c68558ac8576fa12a5b`;
-narrow diff `INCR4-DIFF-FROM-5095ed6.patch`; cumulative
-`INCR4-DIFF.patch` = b92d418 → 3f6cd45. All artifacts regenerated from
-the committed code head.
+The two narrow adoption defects only. **Code head `249fd0e`**,
+index.html sha256
+`369c21da5c1c3b1474bf334483f3cb9f99cba4ec03d275bc2a80bf2507181686`;
+narrow diff `INCR4-DIFF-FROM-3f6cd45.patch`; cumulative
+`INCR4-DIFF.patch` = b92d418 → 249fd0e. Artifacts regenerated from the
+committed head; `sha256sum -c …/INCR4-MANIFEST.txt` exits 0 (9 lines,
+including `index.html`); `git diff --check b92d418 249fd0e --
+index.html` is clean.
 
-Verification commands and outputs:
+- **Ruling 3** — the ordinary `intent → fetched → IndexedDB` path now
+  hashes the READ-BACK bytes and requires an exact hash + byte-length
+  match against the durable fetched identity before `blob-ok` or any
+  map mutation. Presence of `back.blob` is no longer treated as
+  durability. (The refetch path already did this; both now share the
+  rule.)
+- **Ruling 4** — all THREE adoption continuations check
+  `setPhase({state:"blob-ok"})`. A failed verified queue write blocks
+  the map write, the `mapped` advance, and the entry clear.
+- **Ruling 5** — two new failure tests: a corrupt/differing IndexedDB
+  read-back after the intent-path write (map untouched, obligation
+  retained), and an injected `blob-ok` phase-write failure after a
+  CORRECT read-back (map untouched, entry held at `fetched`).
 
-    $ sha256sum -c M10-single-writer/client-increments/INCR4-MANIFEST.txt
-    (all 9 lines OK — 8 artifacts + index.html — exit 0)
-    $ git diff --check b92d418 3f6cd45 -- index.html
-    (no output, exit 0)
+Rulings 1, 2 and 6 were closed by your previous review and are
+untouched. Ruling 7 noted: the governance record on `main` still
+describes increment 3 as current — per your instruction it will be
+corrected only after increment 4 is accepted.
 
-Rulings 2–6, as landed:
-- **2/3/5 (adoption recovery)**: `adopt/fetched` with no local record
-  now REFETCHES the authoritative file, validates hash + byte length
-  against the durable fetched identity, writes IndexedDB, reads the
-  bytes BACK and re-verifies them, and only then writes the map. It
-  can never park in `fetched`. Differing refetched bytes →
-  `unverified/adopt-server-differs`, nothing written or mapped; a
-  temporary fetch failure preserves the obligation and the retry
-  completes. Three new tests, exactly your bullets — including "no map
-  write before the exact bytes are durably present and read back".
-- **4 (validation)**: every `adopt` entry in `fetched`, `blob-ok`, or
-  `mapped` must carry a valid sha256 and a safe POSITIVE byte length;
-  identity-less phase records are rejected by the validator.
-- **6 (honest UI result)**: the lightbox no longer reports success on a
-  second dispatch call returning early. It polls this operation's own
-  outcome — the local record carrying the new label — and reports
-  "Moved to …" only when that is true, otherwise "Couldn't move the
-  photo — it stays where it was". Tested through the PRODUCTION UI path
-  with a failing IndexedDB write: no false success, label unchanged,
-  server untouched.
-
-Ruling 1 (package identity) was verified by you at the previous head
-and the same process was followed here. Ruling 7: the destructive
-pre-image handling and the metadata journal structure are unchanged
-apart from the ruling-6 result binding.
-
-Evidence, fresh at `3f6cd45`: C18 50/50; C17 37/37; C16 49/49;
+Evidence, fresh at `249fd0e`: C18 52/52; C17 37/37; C16 49/49;
 C15 35/35; regressions 171/171 (+artifact-scope recovery 25/25).
 
 Requested ruling: acceptance of increment 4 and authorization for

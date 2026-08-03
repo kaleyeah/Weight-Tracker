@@ -1,0 +1,45 @@
+diff --git a/index.html b/index.html
+index 9ee1e9f..6bd8e9e 100644
+--- a/index.html
++++ b/index.html
+@@ -11154,7 +11154,7 @@ function m10pDispatch(done){
+                     m10pSha256(back2.blob).then(function(idnB){
+                       if(!authOk()){fin(false);return;}
+                       if(idnB.hex!==en.blobSha256||idnB.byteLength!==en.blobByteLength){fin(false);return;}
+-                      setPhase({state:"blob-ok"});
++                      if(!setPhase({state:"blob-ok"})){fin(false);return;}   /* V4 */
+                       if(!mapWriteVerified(en.localId,en.serverId)){
+                         m10cBlock("could not record where a photo was saved");fin(false);return;}
+                       setPhase({state:"mapped"})&&clearEntry()&&next(true);
+@@ -11171,7 +11171,7 @@ function m10pDispatch(done){
+             setPhase({state:"unverified",unverifiedReason:"adopt-local-differs"});fin(false);
+             try{render();}catch(ex){}
+             return;}
+-          setPhase({state:"blob-ok"});
++          if(!setPhase({state:"blob-ok"})){fin(false);return;}   /* V4 */
+           if(!mapWriteVerified(en.localId,en.serverId)){
+             m10cBlock("could not record where a photo was saved");fin(false);return;}
+           setPhase({state:"mapped"})&&clearEntry()&&next(true);
+@@ -11209,10 +11209,18 @@ function m10pDispatch(done){
+                 idbGetLocal(en.localId).then(function(back){
+                   if(!authOk()){fin(false);return;}
+                   if(!back||!back.blob){fin(false);return;}   /* not durable: retry later */
+-                  setPhase({state:"blob-ok"});
+-                  if(!mapWriteVerified(en.localId,en.serverId)){
+-                    m10cBlock("could not record where a photo was saved");fin(false);return;}
+-                  setPhase({state:"mapped"})&&clearEntry()&&next(true);
++                  /* V3 (round-27 ruling 3): the READ-BACK bytes are hashed and
++                     compared to the durable fetched identity — presence alone
++                     is not durability. */
++                  m10pSha256(back.blob).then(function(idnB0){
++                    if(!authOk()){fin(false);return;}
++                    if(idnB0.hex!==idn.hex||idnB0.byteLength!==idn.byteLength){fin(false);return;}
++                    /* V4: a failed phase write blocks the map mutation */
++                    if(!setPhase({state:"blob-ok"})){fin(false);return;}
++                    if(!mapWriteVerified(en.localId,en.serverId)){
++                      m10cBlock("could not record where a photo was saved");fin(false);return;}
++                    setPhase({state:"mapped"})&&clearEntry()&&next(true);
++                  }).catch(function(){fin(false);});
+                 }).catch(function(){fin(false);});
+               }).catch(function(){fin(false);});
+             }).catch(function(){fin(false);});

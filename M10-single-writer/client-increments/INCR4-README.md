@@ -2,14 +2,14 @@
 
 ## Package identity
 - **Base**: `b92d418` — the accepted increment-3 head.
-- **Code head**: `3f6cd45` — index.html sha256
-  `0de01c2e54276038952c2eec3f6e48b8ca7e6bf6a3f13c68558ac8576fa12a5b`.
-  (Heads: 6cc656d → 311c3b2 → 47b4daa → 5095ed6 → 3f6cd45; narrow
-  round-26 diff `INCR4-DIFF-FROM-5095ed6.patch`.)
+- **Code head**: `249fd0e` — index.html sha256
+  `369c21da5c1c3b1474bf334483f3cb9f99cba4ec03d275bc2a80bf2507181686`.
+  (Heads: 6cc656d → 311c3b2 → 47b4daa → 5095ed6 → 3f6cd45 → 249fd0e;
+  narrow round-27 diff `INCR4-DIFF-FROM-3f6cd45.patch`.)
 - **Records head**: the commit carrying this README, both patches, all
   evidence outputs and `INCR4-MANIFEST.txt` — its `index.html` is
   BYTE-IDENTICAL to `47b4daa` (the manifest asserts that hash).
-- **Cumulative diff** `INCR4-DIFF.patch` = b92d418 → 3f6cd45. Two
+- **Cumulative diff** `INCR4-DIFF.patch` = b92d418 → 249fd0e. Two
   delimited regions: `M10-BLOCK-4` (machinery + review UI) and
   `M10-BLOCK-4-WIRING` — the wiring is installed LAST, after the
   M8-era photo wrappers, because those assign `idbAdd`/`idbDelete`/
@@ -65,6 +65,20 @@
   the mandatory reports live on the repo's `main` branch (the
   deployed-lineage checkout) and are NOT presented as artifacts of
   this branch — see RECORDS-LOCATION-EVIDENCE.md from round 20.
+
+## Round-27 rulings, as landed
+- **3 (read-back verification everywhere)**: the ordinary
+  `intent → fetched → IndexedDB` path now hashes the READ-BACK bytes
+  and requires an exact hash + byte-length match against the fetched
+  identity before `blob-ok` or any map mutation — presence of a blob is
+  no longer treated as durability.
+- **4 (checked phase writes)**: all three adoption continuations check
+  `setPhase({state:"blob-ok"})`; a failed verified queue write blocks
+  the map write, the `mapped` advance, and the entry clear.
+- **5 (failure coverage)**: a corrupt/differing read-back after the
+  intent-path write leaves the map untouched and the obligation
+  retained; an injected `blob-ok` phase-write failure after a CORRECT
+  read-back does the same, holding the entry at `fetched`.
 
 ## Round-26 rulings, as landed
 - **2/3/5 (adoption recovery)**: `adopt/fetched` with NO local record
@@ -192,7 +206,7 @@ existing local bytes. Non-holders perform zero local and zero server
 photo mutations (tested).
 
 ## Evidence
-- `INCR4-C18-OUTPUT.txt` — C18 50/50: upload happy path + ordering;
+- `INCR4-C18-OUTPUT.txt` — C18 52/52: upload happy path + ordering;
   lost-response replay (same requestId, single record); delete
   ordering; metadata; stale fence on all three ops; malformed
   success/identity-mismatch/untyped-fence bodies (entry survives);

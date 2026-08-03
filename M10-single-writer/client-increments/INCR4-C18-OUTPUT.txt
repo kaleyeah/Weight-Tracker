@@ -41,6 +41,8 @@
   ✓ T30 `fetched` with no local blob: refetched, validated, written, mapped (no infinite park)
   ✓ T30 refetched bytes differ from the durable identity: unverified, nothing written or mapped
   ✓ T30 temporary refetch failure: obligation preserved at `fetched`, retry succeeds
+  ✓ T32 corrupt read-back: NO map write, obligation not cleared
+  ✓ T33 failed blob-ok phase write: NO map write, entry not cleared
   ✓ T31 local-write failure through the UI: NO false success, honest failure, label unchanged
   ✓ T27 metadata: the LOCAL side lands in its own phase before the server ack
   ✓ T27 reload at `local-applied`: the server side completes, entry clears
@@ -49,4 +51,4 @@
   ✓ T26 displacement captures the authoritative server identity (incl. file)
   ✓ T26 failed identity+state write: no dispatch, photo intact
 
-C18-M10 increment 4: 50 passed, 0 failed
+C18-M10 increment 4: 52 passed, 0 failed
