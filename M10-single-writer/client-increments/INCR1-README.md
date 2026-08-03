@@ -1,11 +1,24 @@
-# M10 client increment 1 — writer-lease client (REVISED, round 13)
+# M10 client increment 1 — writer-lease client (through round-14 rulings)
 
-Base: commit 0389770 — `index.html` synced BYTE-IDENTICAL to live
-`2026-08-02.417-fx` (sha dc2cd56f…), per round-13 item 10; both
-Owner-approved `.417` changes verified present in the increment bytes
-(the sessions-match recommendation and the offline toast each grep to
-exactly their expected occurrence). Change: commit 08e1280, exact diff
-`INCR1-DIFF.patch` (213 lines).
+## Package identity (round-15 rulings 6–8)
+- **Base**: commit `0389770` — `index.html` byte-identical to live
+  `2026-08-02.417-fx` (dc2cd56f…, Architect-verified round 14
+  ruling 1). Both Owner-approved `.417` changes verified present.
+- **Authority implementation head (THE accepted code)**: commit
+  `3e7a0d0` — index.html sha256
+  `0d26b1da5ba1a0d34607918e69be0d6e6906cf168140de34820738c7f0bceef8`.
+  Unchanged since; the records head carries these same bytes.
+- **Records/bundle head**: the commit carrying this README, both
+  patches, INCR1-MANIFEST.txt, INCR1-PATCH-VERIFY.txt, and the final
+  evidence records — no code changes.
+- **Cumulative diff** `INCR1-DIFF.patch` = 0389770 → 3e7a0d0
+  (regenerated; contains the generation guard and strict validators;
+  ZERO `Math.random` occurrences). `INCR1-PATCH-VERIFY.txt` is the
+  read-only proof that applying it to the base reproduces the
+  authority-head bytes EXACTLY (sha match).
+- **Narrow diff** `INCR1-DIFF-FROM-08e1280.patch` = the round-14
+  rulings alone. Hashes for both patches and all evidence files:
+  `INCR1-MANIFEST.txt`.
 
 ## Block boundaries
 - `M10-BLOCK-1 … M10-BLOCK-1-END` immediately after

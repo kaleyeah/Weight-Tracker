@@ -1,0 +1,5 @@
+4ec8c1455edc7a90439a0f2825d775284b74a49db05fe6bd79c4d98b9bc490a6  M10-single-writer/client-increments/INCR1-DIFF.patch
+b35b8919941fd77e867c9e0836000e2f5bd8d89f67f81a9c54126538200c84a4  M10-single-writer/client-increments/INCR1-DIFF-FROM-08e1280.patch
+9820be26a3ea0d49e431b9fdf69482bf280d74a9b2aa0f61380ddb31a511c621  M10-single-writer/client-increments/INCR1-C15-OUTPUT.txt
+184ce94998283b233177d4aedfcecf0bed191c6d40620b59f48f63fa427e6f2e  M10-single-writer/client-increments/INCR1-M8-REGRESSION.txt
+0d26b1da5ba1a0d34607918e69be0d6e6906cf168140de34820738c7f0bceef8  index.html @ 3e7a0d0 (authority head; unchanged at this records head)
