@@ -511,6 +511,97 @@ async function boot(browser,srv,st,init,uid,initArg){
     }
   }
 
+  /* T16 (round-18 ruling 3): REAL plain-object validation */
+  {
+    const st={rev:5,data:EMPTY_PAYLOAD,ledger:{},hasRow:true};
+    const {ctx,page}=await boot(browser,server,st);
+    const s=await page.evaluate(()=>{
+      class Thing{constructor(){this.a=1;}}
+      const custom=Object.create({inherited:true});custom.a=1;
+      const nul=Object.create(null);nul.a=1;
+      return {cls:m10cCanon({x:new Thing()}).ok,
+        proto:m10cCanon({x:custom}).ok,
+        nullProto:m10cCanon({x:nul}).ok,
+        plain:m10cCanon({x:{a:1}}).ok};
+    });
+    test('T16 class instance / custom prototype / null-prototype all fail closed; plain passes',()=>{
+      ok(s.cls===false,'class');ok(s.proto===false,'custom proto');
+      ok(s.nullProto===false,'null proto (documented rejection)');ok(s.plain===true);});
+    await ctx.close();
+  }
+
+  /* T17 (round-18 ruling 4): a stale adoption intent (crash artifact) with a
+     dirty local copy — annul removal FAILS on the first boot (fault
+     injection) → durable block, no adoption; the reload (fault cleared)
+     annuls durably; the local edit survives throughout. */
+  {
+    const localEdited=JSON.parse(JSON.stringify(EMPTY_PAYLOAD));localEdited.weights=[{date:'2026-08-02',weight:230}];
+    const seed={
+      journal:{owner:'userA',mark:'m10.1',op:'core-adopt',phase:'intent',startedAt:1,
+        expect:{serverRev:9,serverCanon:JSON.stringify(SERVER_DATA)}},
+      dirty:{owner:'userA',mark:'m10.1',gen:2,persistedGen:2,ts:1},
+      base:{owner:'userA',mark:'m10.1',canon:1,rev:5,body:JSON.stringify(EMPTY_PAYLOAD)},
+      local:JSON.stringify(localEdited)};
+    const st={rev:9,data:SERVER_DATA,ledger:{},hasRow:true};
+    const {ctx,page}=await boot(browser,server,st,(sd)=>{
+      const z=JSON.parse(sd);
+      localStorage.setItem('wl_core_ack_journal__userA',JSON.stringify(z.journal));
+      localStorage.setItem('wl_core_dirty__userA',JSON.stringify(z.dirty));
+      localStorage.setItem('wl_core_base__userA',JSON.stringify(z.base));
+      localStorage.setItem('wl_v1',z.local);
+      if(!localStorage.getItem('t17_fault_done')){
+        localStorage.setItem('t17_fault_done','1');
+        const orig=localStorage.removeItem.bind(localStorage);
+        localStorage.removeItem=function(k){if(/wl_core_ack_journal__/.test(k))return;return orig(k);};}
+    },undefined,JSON.stringify(seed));
+    const s=await page.evaluate(()=>({blocked:m10cHardBlocked,reason:m10cBlockReason,
+      journal:m10cRead('journal').st,weights:JSON.parse(localStorage.getItem('wl_v1')).weights.length}));
+    test('T17 failed annul removal: hard block, no adoption, edit preserved',()=>{
+      ok(s.blocked,'blocked: '+s.reason);ok(/annul/.test(s.reason),s.reason);
+      eq(s.journal,'ok');eq(s.weights,1);});
+    // reload with the fault cleared: recovery annuls DURABLY; still no adoption
+    await page.evaluate((sd)=>{const z=JSON.parse(sd);
+      localStorage.setItem('wl_core_ack_journal__userA',JSON.stringify(z.journal));
+      localStorage.setItem('wl_core_dirty__userA',JSON.stringify(z.dirty));
+      location.reload();},JSON.stringify(seed));
+    await page.waitForTimeout(900);
+    const s2=await page.evaluate(()=>{
+      const j=m10cRead('journal');
+      return {jSt:j.st,jOp:j.st==='ok'?j.val.op:null,jOutcome:j.st==='ok'?j.val.outcome:null,
+        weights:JSON.parse(localStorage.getItem('wl_v1')).weights.length,
+        dirty:m10cRead('dirty').st,blocked:m10cHardBlocked};});
+    test('T17 reload: adopt intent durably annulled (no adoption); boot push finds the real conflict',()=>{
+      /* the stale ADOPT intent is gone; the journal now present is the boot
+         push's own core-ack, terminalized as a genuine rev conflict (local
+         dirty at base rev 5 vs server rev 9) — dirty and the edit intact */
+      ok(s2.jOp!=='core-adopt','adopt intent gone');
+      eq(s2.jOp,'core-ack');eq(s2.jOutcome,'conflict');
+      eq(s2.weights,1);eq(s2.dirty,'ok');ok(!s2.blocked);});
+    await ctx.close();
+  }
+
+  /* T18 (round-18 ruling 5): malformed 409 bodies never become review state */
+  {
+    for(const [name,body] of [
+      ['fenceStale without fence',{ok:false,fenceStale:true}],
+      ['fenceStale fractional fence',{ok:false,fenceStale:true,fence:2.5}],
+      ['conflict without serverRev',{ok:false,conflict:true}],
+      ['conflict non-integer serverRev',{ok:false,conflict:true,serverRev:'nine'}]]){
+      const st={rev:5,data:EMPTY_PAYLOAD,ledger:{},hasRow:true};
+      const {ctx:c4,page:p4}=await boot(browser,server,st);
+      const s4=await p4.evaluate(async(fb)=>{
+        window.__forceCommit(409,fb);
+        state.weights.push({date:'2026-08-02',weight:231});save();
+        await new Promise(r=>{cloudPush(false);setTimeout(r,400);});
+        return {state:m10cState(),j:m10cRead('journal').val,dirty:m10cRead('dirty').st};
+      },body);
+      test(`T18 ${name}: journal stays at intent (recoverable), dirty preserved, NOT review state`,()=>{
+        eq(s4.state,'journal-recovery');eq(s4.j.phase,'intent');ok(!s4.j.outcome);
+        eq(s4.dirty,'ok');});
+      await c4.close();
+    }
+  }
+
   await browser.close();server.close();
   console.log(`\nC16-M10 increment 2: ${passed} passed, ${failures.length} failed`);
   process.exit(failures.length?1:0);
