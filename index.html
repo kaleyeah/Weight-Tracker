@@ -9806,6 +9806,19 @@ function m10Gate(tag){
    journal) and blocks core sync pending that review. Reuses the proven M8
    canonicalization functions verbatim (no M8 code is modified). */
 var M10C_MARK="m10.1", M10C_CANON_VER=1;
+/* Core canonicalization: the JSON projection, then sorted-key serialization.
+   Core state legitimately carries undefined-valued properties in memory
+   (e.g. tag fields); JSON.stringify has ALWAYS dropped them on the wire and
+   in wl_v1 — the server has never seen them. Canonicalizing the JSON
+   round-trip therefore matches the historical wire truth exactly; it is not
+   coercion of persisted data. Circular/unserializable structures still fail
+   closed. */
+function m10cCanon(v){
+  if(v===null||typeof v!=="object"||Array.isArray(v))return {ok:false,error:"$: root must be an object"};
+  var p;
+  try{p=JSON.parse(JSON.stringify(v));}catch(e){return {ok:false,error:"$: not JSON-serializable"};}
+  if(p===null||typeof p!=="object"||Array.isArray(p))return {ok:false,error:"$: root must be an object"};
+  return {ok:true,canon:m8CanonSerialize(p)};}
 var M10C_KINDS={dirty:"wl_core_dirty__",base:"wl_core_base__",journal:"wl_core_ack_journal__"};
 function m10cKey(kind,uid){return M10C_KINDS[kind]+(uid||m8Uid());}
 var m10cHardBlocked=false,m10cUnprovenBlocked=false,m10cBlockReason="";
@@ -10003,7 +10016,7 @@ function m10cPush(manual,done){
   if(st!=="dirty"){fin(true);return;}                       /* clean: nothing to push */
   var d=m10cRead("dirty");if(d.st!=="ok"){fin(false);return;}
   var b=m10cRead("base");if(b.st!=="ok"){fin(false);return;}
-  var pc=m8Canon(payload());
+  var pc=m10cCanon(payload());
   if(!pc.ok){m10cBlock("core data failed validation ("+pc.error+")");fin(false);return;}
   var rid=m10cRequestId();
   if(!rid){fin(false);return;}
@@ -10069,7 +10082,7 @@ function m10cBootstrap(cb){
   pbGetRecord(function(rec,err){
     if(err){cb&&cb(false);return;}
     var lp=payload();
-    var lc=m8Canon(lp);
+    var lc=m10cCanon(lp);
     if(!lc.ok){m10cBlock("core data failed validation ("+lc.error+")");cb&&cb(false);return;}
     var serverData=rec?rec.data:null;
     var serverRev=rec?(rec.coreRev||0):0;
@@ -10084,7 +10097,7 @@ function m10cBootstrap(cb){
       var jd={op:"core-bootstrap",phase:"intent",startedAt:Date.now(),expect:{serverRev:serverRev,serverCanon:null}};
       if(m10cJournalWrite(jd))m10cTerminalize(jd,"bootstrap-conflict");
       setSync("error","core needs review");cb&&cb(false);return;}
-    var sc=m8Canon(serverData);
+    var sc=m10cCanon(serverData);
     if(!sc.ok){m10cBlock("the server core copy failed validation");cb&&cb(false);return;}
     if(sc.canon===lc.canon){
       var je={op:"core-bootstrap",phase:"intent",startedAt:Date.now(),expect:{serverRev:serverRev,serverCanon:sc.canon}};
@@ -10150,7 +10163,7 @@ function m10cPull(manual,done){
     var b=m10cRead("base");if(b.st!=="ok"){done&&done(false);return;}
     var serverRev=rec.coreRev||0;
     if(serverRev<=b.val.rev){done&&done(true);return;}       /* nothing newer */
-    var sc=m8Canon(rec.data||{});
+    var sc=m10cCanon(rec.data||{});
     if(!sc.ok){m10cBlock("the server core copy failed validation");done&&done(false);return;}
     var ja={op:"core-adopt",phase:"intent",startedAt:Date.now(),expect:{serverRev:serverRev,serverCanon:sc.canon}};
     if(!m10cJournalWrite(ja)){done&&done(false);return;}
