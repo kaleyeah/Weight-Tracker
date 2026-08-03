@@ -1,31 +1,58 @@
 diff --git a/index.html b/index.html
-index 1ffd7a9..5a477d7 100644
+index 16a5a53..acaf7ad 100644
 --- a/index.html
 +++ b/index.html
-@@ -9577,6 +9577,136 @@ document.addEventListener("click",function(e){
+@@ -8468,6 +8468,7 @@ function pbRefresh(cb){
+    invalidated (e.g. the password was changed on another device) can never destroy
+    changes this device hadn't uploaded yet. */
+ function pbClearSession(keepEmail){
++  try{m10Reset("session-cleared");}catch(e){}/* M10 wiring (K2) */
+   var c=pbCfg(),keep={};
+   /* keep the server URL — it is configuration, not session. Dropping it silently
+      reverts a custom server to the compiled-in default on any expiry. */
+@@ -9583,6 +9584,191 @@ document.addEventListener("click",function(e){
  })();
  /* =============== M8-END-OF-ALL-BLOCKS =============== */
  
-+/* ================= M10-BLOCK-1: writer-lease client (design v9.1 §3/§4) =================
-+   Increment 1 of the authorized LOCAL client work (Architect round 12,
-+   server-package gate closed). MACHINERY ONLY: nothing outside the M10
-+   blocks calls m10Gate yet — live behavior is unchanged until the
-+   gate-wiring increment. The fence is the authority; deviceId is a
-+   copyable label (D10). A persisted grant is NEVER sufficient to write
-+   after reload: boot requires an online acquire/renew (monotonic clock
-+   lost — design §4); failing that the device is read-only, fail closed. */
-+var M10={fence:0,holder:false,deadline:0,known:null,corrupt:false,ttlMs:24*3600*1000,timer:null,booted:false};
++/* ================= M10-BLOCK-1: writer-lease client (design v9.1 §3/§4; round-13 revision) =================
++   Increment 1 of the authorized LOCAL client work. MACHINERY ONLY: nothing
++   outside the M10 blocks calls m10Gate yet. The fence is the authority;
++   deviceId is a copyable label (D10). A persisted grant is NEVER sufficient
++   to write after reload (design §4). Round-13 items landed here: lease
++   authority is ACCOUNT-BOUND (K1), one reset primitive (K2), settle-before-
++   adoption boot contract (K3), conservative send-time deadline (K4),
++   validated deviceId (K5), validated informational grant + honest
++   diagnostic-write accounting (K6), classified renew outcomes (K7). */
++var M10={uid:null,fence:0,holder:false,deadline:0,known:null,corrupt:false,
++  ttlMs:24*3600*1000,timer:null,booted:false,revokeReason:null,grantWriteFailed:false};
 +
++/* K2: THE reset primitive — clears every piece of in-memory authority and the
++   account binding. Corruption is deliberately NOT cleared here: it marks
++   installation-wide storage damage, not session state. */
++function m10Reset(reason){
++  M10.uid=null;M10.fence=0;M10.holder=false;M10.deadline=0;M10.known=null;
++  M10.revokeReason=reason||null;M10.grantWriteFailed=false;
++  if(M10.timer){clearInterval(M10.timer);M10.timer=null;}
++}
++
++/* K5: stable per-install id — crypto-random, exact grammar, verified write;
++   malformed EXISTING bytes are corruption, never silently replaced. */
++var M10_DEVID_RE=/^dev-[a-z0-9]{24}$/;
 +function m10DeviceId(){
-+  /* stable per-install label; verified write (a device that cannot persist
-+     its own id must not hold the pen — fail closed via corrupt state) */
 +  try{
 +    var id=localStorage.getItem("wl_m10_deviceid");
-+    if(!id){
-+      id="dev-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,10);
-+      localStorage.setItem("wl_m10_deviceid",id);
-+      if(localStorage.getItem("wl_m10_deviceid")!==id)return null;
++    if(id!=null){
++      if(typeof id==="string"&&M10_DEVID_RE.test(id))return id;
++      M10.corrupt=true;return null;                 /* malformed existing id */
 +    }
++    var a=new Uint8Array(24),chars="abcdefghijklmnopqrstuvwxyz0123456789",out="";
++    if((window.crypto||{}).getRandomValues)crypto.getRandomValues(a);
++    else for(var i0=0;i0<24;i0++)a[i0]=Math.floor(Math.random()*256);
++    for(var i=0;i<24;i++)out+=chars[a[i]%36];
++    id="dev-"+out;
++    if(!M10_DEVID_RE.test(id))return null;
++    localStorage.setItem("wl_m10_deviceid",id);
++    if(localStorage.getItem("wl_m10_deviceid")!==id)return null;
 +    return id;
 +  }catch(e){return null;}
 +}
@@ -37,21 +64,31 @@ index 1ffd7a9..5a477d7 100644
 +  if(/Macintosh/.test(ua))return "Mac";
 +  return "Browser";
 +}
-+function m10GrantKey(){return "wl_m10_grant__"+pbUid();}
-+function m10ReadGrant(){
-+  /* informational persisted copy; a CORRUPT one still blocks (fail closed +
-+     banner rule, design §4) because it evidences storage damage */
++function m10GrantKey(uid){return "wl_m10_grant__"+(uid||pbUid());}
++/* K6: the persisted copy is INFORMATIONAL — never restores authority — but a
++   malformed one still evidences storage damage (corrupt). Strict shape:
++   safe nonneg integer fence, deviceId matching THIS verified installation,
++   owner uid + mark, finite bounded ttl and server timestamp. */
++var M10_GRANT_MARK="m10.1";
++function m10ValidGrant(g,uid,dev){
++  return !!g&&typeof g==="object"&&g.mark===M10_GRANT_MARK&&g.uid===uid&&
++    typeof g.fence==="number"&&isFinite(g.fence)&&g.fence>=0&&Math.floor(g.fence)===g.fence&&g.fence<=9007199254740990&&
++    typeof g.deviceId==="string"&&g.deviceId===dev&&
++    typeof g.ttlMs==="number"&&isFinite(g.ttlMs)&&g.ttlMs>0&&g.ttlMs<=7*24*3600*1000&&
++    typeof g.grantedServerNow==="number"&&isFinite(g.grantedServerNow);
++}
++function m10ReadGrant(uid,dev){
 +  try{
-+    var raw=localStorage.getItem(m10GrantKey());
++    var raw=localStorage.getItem(m10GrantKey(uid));
 +    if(raw==null)return null;
 +    var g=JSON.parse(raw);
-+    if(!g||typeof g.fence!=="number"||!g.deviceId)throw new Error("bad grant");
++    if(!m10ValidGrant(g,uid,dev)){M10.corrupt=true;return null;}
 +    return g;
 +  }catch(e){M10.corrupt=true;return null;}
 +}
 +function m10WriteGrant(g){
 +  try{
-+    var k=m10GrantKey(),v=JSON.stringify(g);
++    var k=m10GrantKey(g.uid),v=JSON.stringify(g);
 +    localStorage.setItem(k,v);
 +    return localStorage.getItem(k)===v;
 +  }catch(e){return false;}
@@ -61,47 +98,73 @@ index 1ffd7a9..5a477d7 100644
 +  if(extra)for(var k in extra)b[k]=extra[k];
 +  var h={"Content-Type":"application/json"};var t=pbTok();if(t)h.Authorization=t;
 +  return fetch(pbBase()+"/api/cf/writer/lease",{method:"POST",headers:h,body:JSON.stringify(b)})
-+    .then(function(r){return r.json().then(function(j){return {status:r.status,body:j};});});
++    .then(function(r){return r.json().then(function(j){return {status:r.status,body:j};}).catch(function(){return {status:r.status,body:null};});});
 +}
-+function m10ApplyGrant(body){
-+  M10.fence=body.fence;M10.holder=true;M10.corrupt=false;
-+  M10.deadline=performance.now()+(body.ttlMs||M10.ttlMs);
++/* K4/K6: validate the grant RESPONSE before applying; the monotonic deadline
++   derives from the SEND time t0, so local authority ends no later than the
++   server's expiry (the full round trip is subtracted, conservatively). */
++function m10ValidGrantBody(b,dev){
++  return !!b&&b.ok===true&&
++    typeof b.fence==="number"&&isFinite(b.fence)&&b.fence>=1&&Math.floor(b.fence)===b.fence&&b.fence<=9007199254740990&&
++    typeof b.ttlMs==="number"&&isFinite(b.ttlMs)&&b.ttlMs>0&&b.ttlMs<=7*24*3600*1000&&
++    b.holderDeviceId===dev;
++}
++function m10ApplyGrant(body,uid,t0){
++  var dev=m10DeviceId();
++  if(!dev||!m10ValidGrantBody(body,dev))return false;
++  M10.uid=uid;M10.fence=body.fence;M10.holder=true;M10.revokeReason=null;
++  M10.deadline=t0+body.ttlMs;
 +  M10.known=body;
-+  /* informational persisted copy — verified write, but failure here does not
-+     revoke the in-session grant (the authority is the server fence + the
-+     monotonic in-memory deadline; the copy only aids diagnostics) */
-+  m10WriteGrant({fence:body.fence,deviceId:m10DeviceId(),grantedServerNow:body.serverNow,ttlMs:body.ttlMs});
++  /* informational persisted copy; a failed write is recorded HONESTLY as a
++     diagnostic-write failure — it does not revoke the in-session grant, and
++     nothing calls this a verified apply (K6). */
++  M10.grantWriteFailed=!m10WriteGrant({mark:M10_GRANT_MARK,uid:uid,fence:body.fence,
++    deviceId:dev,grantedServerNow:body.serverNow,ttlMs:body.ttlMs});
++  return true;
 +}
++/* K1/K3: boot (returns a promise that SETTLES the lease before any adoption —
++   the boot wiring awaits it). Synchronously revokes any prior authority
++   before network activity; the async result applies only if the account is
++   still the one this boot started for. */
 +function m10Boot(){
-+  /* boot lease lifecycle: online acquire (fresh grant, own no-op refresh,
-+     or held-by-other → read-only). Offline/failed → NOT holder (fail
-+     closed); nothing gated in this increment, so live UX is unchanged. */
++  m10Reset("boot");
 +  if(!syncOn())return Promise.resolve();
 +  M10.booted=true;
++  var uid=pbUid();
 +  var dev=m10DeviceId();
-+  if(!dev){M10.corrupt=true;M10.holder=false;return Promise.resolve();}
-+  m10ReadGrant();                                   /* corrupt detection only */
-+  if(M10.corrupt){M10.holder=false;return Promise.resolve();}
++  if(!uid||!dev){M10.corrupt=M10.corrupt||!dev;return Promise.resolve();}
++  m10ReadGrant(uid,dev);                      /* corruption detection only */
++  if(M10.corrupt)return Promise.resolve();
++  var t0=performance.now();
 +  return m10LeaseCall("acquire",{}).then(function(r){
-+    if(r.status===200&&r.body&&r.body.ok){m10ApplyGrant(r.body);m10StartTimer();}
-+    else if(r.status===409&&r.body&&r.body.held){M10.holder=false;M10.fence=0;M10.known=r.body;}
-+    else{M10.holder=false;}
-+  }).catch(function(){M10.holder=false;});
++    if(pbUid()!==uid){m10Reset("account-changed");return;}  /* K1: stale response for another account */
++    if(r.status===200&&m10ApplyGrant(r.body,uid,t0)){m10StartTimer();}
++    else if(r.status===409&&r.body&&r.body.held){M10.uid=uid;M10.holder=false;M10.fence=0;M10.known=r.body;}
++    else{M10.uid=uid;M10.holder=false;M10.revokeReason="acquire-failed";}
++  }).catch(function(){if(pbUid()===uid){M10.uid=uid;M10.holder=false;M10.revokeReason="offline";}});
 +}
++/* K7: renewal outcomes are CLASSIFIED. Typed stale (409 stale:true), auth
++   failure (401/403 → full reset per K2), malformed body, server error — all
++   revoke immediately (conservative), each with its reason recorded. Only a
++   TRANSPORT failure retains authority, and only until the unchanged
++   deadline. A valid 200 extends from ITS OWN send time. */
 +function m10Renew(){
-+  if(!M10.holder)return Promise.resolve(false);
++  if(!M10.holder||M10.uid!==pbUid())return Promise.resolve(false);
++  var uid=M10.uid,dev=m10DeviceId(),t0=performance.now();
 +  return m10LeaseCall("renew",{fence:M10.fence}).then(function(r){
-+    if(r.status===200&&r.body&&r.body.ok){
-+      M10.deadline=performance.now()+(r.body.ttlMs||M10.ttlMs);
++    if(pbUid()!==uid){m10Reset("account-changed");return false;}
++    if(r.status===200&&r.body&&r.body.ok===true&&r.body.fence===M10.fence&&
++       typeof r.body.ttlMs==="number"&&isFinite(r.body.ttlMs)&&r.body.ttlMs>0&&r.body.ttlMs<=7*24*3600*1000){
++      M10.deadline=t0+r.body.ttlMs;
 +      return true;
 +    }
-+    /* typed stale (fence moved / released / expired): holder revoked NOW */
++    if(r.status===401||r.status===403){m10Reset("auth-failed");return false;}
 +    M10.holder=false;M10.known=r.body||null;
++    M10.revokeReason=(r.status===409&&r.body&&r.body.stale===true)?"stale"
++      :(r.status===200?"malformed-response":"server-error");
 +    return false;
 +  }).catch(function(){
-+    /* transport failure: the existing monotonic deadline stands — holder
-+       remains only within it (no extension without a server ack) */
-+    return M10.holder&&performance.now()<M10.deadline;
++    return M10.holder&&M10.uid===pbUid()&&performance.now()<M10.deadline;
 +  });
 +}
 +function m10StartTimer(){
@@ -116,21 +179,21 @@ index 1ffd7a9..5a477d7 100644
 +function m10TakeoverSheet(){
 +  var name=(M10.known&&M10.known.deviceName)?('"'+M10.known.deviceName+'"'):"another session";
 +  askConfirm("Another session is the active writer ("+name+"). Take over on this device?",function(){
++    var uid=pbUid(),t0=performance.now();
 +    m10LeaseCall("steal",{}).then(function(r){
-+      if(r.status===200&&r.body&&r.body.ok){
-+        m10ApplyGrant(r.body);m10StartTimer();
++      if(pbUid()!==uid){m10Reset("account-changed");return;}
++      if(r.status===200&&m10ApplyGrant(r.body,uid,t0)){
++        m10StartTimer();
 +        toast("This device is now the active writer");render();
 +      }else toast("Could not take over");
 +    }).catch(function(){toast("Offline \u2014 taking over needs a connection");});
 +  },{label:"Take over",danger:false});
 +}
++/* K1: the gate requires the account binding, always. */
 +function m10Gate(tag){
-+  /* the write gate (design §5): TRUE only for a local-only app (no sync
-+     account — no lease concept) or a current holder inside the monotonic
-+     deadline. Everything else fails closed and offers the takeover sheet. */
 +  if(!syncOn())return true;
 +  if(M10.corrupt){toast("Sync identity problem \u2014 this device is read-only");return false;}
-+  if(M10.holder&&performance.now()<M10.deadline)return true;
++  if(M10.holder&&M10.uid===pbUid()&&performance.now()<M10.deadline)return true;
 +  m10TakeoverSheet();
 +  return false;
 +}
@@ -139,12 +202,12 @@ index 1ffd7a9..5a477d7 100644
  function cloudTest(){
    if(ownershipAmbiguous()){toast("Paused — this device holds data from another account");return;}
    setSync("syncing");
-@@ -10088,7 +10218,7 @@ if(!logoutRecoveryPending())runRecoveryCapture();
+@@ -10094,7 +10280,7 @@ if(!logoutRecoveryPending())runRecoveryCapture();
  if(bootGated()){
    renderGate();
  }else{
 -load();loadTraining();migrateProgressionTypes();loadWorkout();rptRetargetAll();ensureIdentity();try{refreshWeekPhotos();}catch(e){}if(resyncAllActivityTags())save();var _hasSetup=/[#&]setup=/.test(location.hash||"");if(_hasSetup){state.settings.onboarded=true;}else{if(state.settings.onboarded==null)state.settings.onboarded=(state.weights.length>0||num(state.settings.goalWeight)!=null||num(state.settings.startingWeight)!=null||!!(state.settings.name&&(""+state.settings.name).trim()));if(!state.settings.onboarded){state.onboarding=true;state.obStep=0;}}applyTheme(state.settings.theme||"dark");makeIcon();if(state.workout)state.view="train";render();if(syncOn()){pbRefresh(function(){autoSync();photoSync();});}if(state.workout)startWoTick();if(_hasSetup)checkSetupLink();
-+load();loadTraining();migrateProgressionTypes();loadWorkout();rptRetargetAll();ensureIdentity();try{refreshWeekPhotos();}catch(e){}if(resyncAllActivityTags())save();var _hasSetup=/[#&]setup=/.test(location.hash||"");if(_hasSetup){state.settings.onboarded=true;}else{if(state.settings.onboarded==null)state.settings.onboarded=(state.weights.length>0||num(state.settings.goalWeight)!=null||num(state.settings.startingWeight)!=null||!!(state.settings.name&&(""+state.settings.name).trim()));if(!state.settings.onboarded){state.onboarding=true;state.obStep=0;}}applyTheme(state.settings.theme||"dark");makeIcon();if(state.workout)state.view="train";render();if(syncOn()){pbRefresh(function(){m10Boot();autoSync();photoSync();});}/* M10 wiring: lease lifecycle boots with sync */if(state.workout)startWoTick();if(_hasSetup)checkSetupLink();
++load();loadTraining();migrateProgressionTypes();loadWorkout();rptRetargetAll();ensureIdentity();try{refreshWeekPhotos();}catch(e){}if(resyncAllActivityTags())save();var _hasSetup=/[#&]setup=/.test(location.hash||"");if(_hasSetup){state.settings.onboarded=true;}else{if(state.settings.onboarded==null)state.settings.onboarded=(state.weights.length>0||num(state.settings.goalWeight)!=null||num(state.settings.startingWeight)!=null||!!(state.settings.name&&(""+state.settings.name).trim()));if(!state.settings.onboarded){state.onboarding=true;state.obStep=0;}}applyTheme(state.settings.theme||"dark");makeIcon();if(state.workout)state.view="train";render();if(syncOn()){pbRefresh(function(){m10Boot().then(function(){autoSync();photoSync();});});}/* M10 wiring (K3): the lease settles before any adoption runs */if(state.workout)startWoTick();if(_hasSetup)checkSetupLink();
  endRecoveryFreeze();
  /* Everything below belongs ONLY to the clean path. A gated page is terminal:
     no persistence request, no announcement write, no update check, no visibility

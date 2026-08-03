@@ -1,7 +1,6 @@
-M8 + C14 regression suites vs the increment-1 client
-(CF_SRC = Weight-Tracker/index.html @ 1ea4078; run 2026-08-02/03)
+M8 + C14 client regression matrix vs REVISED increment-1 bytes
+(CF_SRC = Weight-Tracker/index.html @ 08e1280, rebased on .417-fx; run 2026-08-03)
 
-CLIENT-SCOPE suites — all green (165 cases):
 c11m8-accounts:  OK — 6 passed
 c11m8-faults:    OK — 64 passed
 c11m8-matrix:    OK — 9 passed
@@ -10,16 +9,7 @@ c11m8-replay:    OK — 10 passed
 c11m8-tags:      OK — 5 passed
 c11m8-upgrade:   OK — 4 passed
 c14-correctness: OK — 67 passed
+TOTAL: 171/171
 
-ARTIFACT-SCOPE suite (not a client test — its header requires CF_SRC =
-the SYNC_SAFE recovery artifact, which the M10 client never defines;
-included for completeness, run as designed against
-M8-sync-rework/recovery/index-recovery-syncsafe.html):
+ARTIFACT-SCOPE (unchanged artifact, run as designed, prior round):
 c11m8-recovery:  OK — 25 passed
-
-Operational note for the record: three overlapping background runs of
-c11m8-recovery (mis-pointed at the client, where its SYNC_SAFE wait
-can never satisfy) thrashed each other for ~2h before diagnosis; the
-root causes (pkill self-match orphaning children; the suite's
-artifact-only contract) are recorded and the suite matrix below is
-from clean solo/serial runs.

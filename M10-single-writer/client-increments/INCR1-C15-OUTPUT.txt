@@ -1,16 +1,30 @@
-  ✓ A boot acquires the lease (fence 1, holder)
-  ✓ A m10Gate passes for the holder
-  ✓ A persisted grant written + parseable
+  ✓ A boot acquires (fence 1, holder, uid-bound)
+  ✓ A gate passes for the bound holder
+  ✓ A grant persisted with uid+mark+deviceId
+  ✓ A deviceId matches the grammar
   ✓ A no page errors
-  ✓ B non-holder boots read-only
-  ✓ B gate blocks and offers the takeover sheet naming the session
-  ✓ B takeover steals: fence bumps 6→7, holder, gate passes
-  ✓ B mock lease agrees the device stole it
-  ✓ C offline reload: not holder despite persisted grant (fail closed)
-  ✓ D corrupt grant: read-only, corrupt flagged, gate blocks WITHOUT takeover sheet
-  ✓ D mock lease untouched (no acquire attempted from a corrupt device)
-  ✓ E stale renew revokes the holder and gates block
-  ✓ F increment-1 safety: local writes still work for a NON-holder (gate not yet wired)
-  ✓ G deviceId stable and store-verified
+  ✓ B non-holder read-only, uid still bound
+  ✓ B gate blocks + sheet names the session
+  ✓ B takeover steals 6→7, gate passes
+  ✓ B mock agrees
+  ✓ C offline reload: not holder (fail closed), reason=offline
+  ✓ D corrupt grant: read-only, no sheet, no acquire attempted
+  ✓ D2 malformed persisted deviceId → corrupt, never replaced
+  ✓ D2 oversized persisted deviceId → corrupt, never replaced
+  ✓ D3 foreign-uid grant rejected as corrupt
+  ✓ D3 foreign-device grant rejected as corrupt
+  ✓ D3 non-integer fence rejected
+  ✓ D3 unbounded ttl rejected
+  ✓ E typed stale → revoked, reason=stale, uid kept
+  ✓ E server 5xx → revoked, reason=server-error (NOT stale)
+  ✓ E auth failure → FULL reset (uid null, timer cleared)
+  ✓ E malformed 200 → revoked, reason=malformed-response
+  ✓ F A→B switch mid-acquire: authority NOT applied for B
+  ✓ G session teardown: reset fired (holder false, uid null, timer cleared)
+  ✓ H deadline derives from SEND time (remaining ≤ ttl − delay)
+  ✓ I grant-write failure: holder retained, grantWriteFailed=true (diagnostic honesty)
+  ✓ J adoption ran only after the lease settled
+  ✓ K real dispatcher action executes for a NON-holder (gate not yet wired)
+  ✓ K direct local-write compatibility (renamed per round-13 item 9)
 
-C15-M10 increment 1: 14 passed, 0 failed
+C15-M10 increment 1 (revised): 28 passed, 0 failed

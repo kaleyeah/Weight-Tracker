@@ -1,83 +1,86 @@
-# M10 single-writer — round 13: client increment 1 (writer-lease client)
+# M10 single-writer — round 14: increment 1 revised per round 13
 
 You are the Architect for the Compound project (read-only; rulings bind
 the Engineer; the Owner alone authorizes deployment and live-data
 mutation).
 
-Per your round-12 authorization and increment guidance: the FIRST
-dependency-ordered client increment, small and reviewable, not an
-opaque migration. Everything below is LOCAL (engineering checkout,
-branch engineering/m8); nothing published.
+The rebased and corrected increment 1 only, per your closing list.
+Commits: 0389770 (base resynced byte-identical to live `.417-fx`,
+dc2cd56f…, item 10) and 08e1280 (the revised block). Exact diff:
+`client-increments/INCR1-DIFF.patch` (213 lines).
+`client-increments/INCR1-README.md` maps every item to its landing.
 
-## The increment
+Item-by-item (K1–K11 = round-13 items 1–11):
 
-- Base: commit a599efa — `index.html` in the engineering checkout
-  synced BYTE-IDENTICAL to the live `2026-08-02.416-fx` client
-  (sha 08a3f6bd…), so diffs read against the real deployed code.
-  (The live app separately advanced to `.417-fx` — two Owner-approved
-  client-only wording/toast changes outside the M10 loop per the
-  narrowed process; increment 2 will rebase the engineering copy.)
-- Change: commit 1ea4078, exact diff
-  `client-increments/INCR1-DIFF.patch` (150 lines).
-  `client-increments/INCR1-README.md` is the increment record.
+1. **Account-bound authority.** `M10.uid` is set only by a validated
+   grant apply; `m10Gate`, `m10Renew`, and the takeover apply all
+   require `M10.uid === pbUid()`; `m10Boot` synchronously revokes
+   prior authority BEFORE any network; a response arriving for a
+   switched-away account is discarded with a full reset
+   ("account-changed"). C15 case F proves the A→B mid-acquire switch
+   leaves no authority for B.
+2. **One reset primitive.** `m10Reset(reason)` — holder, fence,
+   deadline, known state, timer, uid, reason. Invoked: boot start;
+   `pbClearSession` (one marked wiring line — this covers explicit
+   logout AND the auth-refresh-death path, which routes through
+   pbClearSession); 401/403 renew; detected UID change. Corruption
+   persists separately (installation-wide storage evidence), as item 2
+   allowed. C15 case G proves teardown clears holder+uid+timer.
+3. **Boot ordering fixed as a contract.** The wiring is now
+   `m10Boot().then(function(){autoSync();photoSync();})`. C15 case J
+   delays the lease response 800 ms and proves the first appdata
+   request lands only after it settles.
+4. **Conservative deadline.** `deadline = sendT0 + ttlMs` — the full
+   round trip is subtracted; grant bodies are validated (ok===true,
+   safe integer fence in [1, 2^53−2], finite 0<ttl≤7d,
+   holderDeviceId === our verified id) before any apply. C15 case H
+   proves remaining authority ≤ ttl − delay under a 700 ms response
+   delay.
+5. **Device-id validation.** crypto.getRandomValues; exact grammar
+   `dev-[a-z0-9]{24}`; verified write on creation; malformed or
+   oversized EXISTING bytes → corrupt, never silently replaced (C15
+   D2 ×2).
+6. **Grant validation + honesty.** Strict shape (mark, owner uid,
+   safe nonneg integer fence, deviceId === this verified
+   installation, finite bounded ttl and server timestamp);
+   foreign-uid, foreign-device, non-integer-fence, unbounded-ttl all
+   rejected as corruption (C15 D3 ×4). The persisted copy never
+   restores authority (case C). A failed grant write is recorded as
+   `M10.grantWriteFailed` with authority retained — and no code or
+   doc calls it a "verified apply" anymore (case I).
+7. **Classified renewal.** Valid 200 (shape-checked, same fence)
+   extends from its OWN send time; typed stale → "stale"; 401/403 →
+   full reset "auth-failed"; malformed 200 → "malformed-response";
+   other → "server-error"; transport failure retains authority only
+   until the unchanged deadline. C15 case E distinguishes stale vs
+   5xx vs 401 vs malformed in state.
+8. **C15 expanded 14 → 28 cases**, covering every bullet of item 8
+   (`INCR1-C15-OUTPUT.txt`, 28/28).
+9. **Dispatcher evidence corrected.** Case K now drives the
+   PRODUCTION dispatcher — a real `data-act` click through the
+   document handler mutating state — and the direct-write check is
+   renamed to what it is.
+10. **Rebased.** The base commit is byte-identical to live `.417-fx`;
+    both Owner-approved `.417` changes verified present in the
+    increment bytes; diff regenerated against that base; C15 and the
+    full client regressions rerun on the result.
+11. **Records-path contract, stated explicitly**: the authoritative
+    records live on the repo's `main` branch (the deployed-lineage
+    checkout at `~/projects/compound-app`) — `engineering/m8` has
+    never carried `reports/`. Documented in INCR1-README; if you want
+    the records mirrored into this branch instead, rule so and they
+    will be merged.
 
-## Block boundaries
-- ONE new delimited block `M10-BLOCK-1 … M10-BLOCK-1-END` inserted
-  immediately after `M8-END-OF-ALL-BLOCKS` (M8 blocks untouched).
-- ONE marked wiring line outside it: `m10Boot()` added to the existing
-  `pbRefresh` boot callback.
+Evidence: `INCR1-C15-OUTPUT.txt` 28/28;
+`INCR1-M8-REGRESSION.txt` — the full client regression matrix rerun
+against the revised, rebased bytes (numbers inside; the
+artifact-scope c11m8-recovery remains 25/25 against the unchanged
+recovery artifact, as documented last round).
 
-## What it implements (design v9.1 §3/§4/§5)
-- Stable per-install deviceId (verified write; failure → corrupt state,
-  read-only, and NO acquire is attempted from a corrupt device).
-- Lease client on the reviewed route contract: acquire on boot; renew
-  every 5 min foregrounded + on visibility return; a typed-stale renew
-  revokes holding immediately; a transport-failed renew NEVER extends
-  the monotonic in-memory deadline.
-- The persisted grant is informational only: an OFFLINE RELOAD IS NOT
-  A HOLDER (fail closed, tested) — design §4's cached-grant rule.
-- `m10Gate`: passes only for a local-only app (no sync account) or a
-  current holder inside the deadline; otherwise fails closed and
-  offers the takeover sheet — session wording with the copyable label,
-  never a physical-device claim (D10).
-- Takeover = steal → verified grant apply → toast + render.
+Passed: all of the above, locally. Deferred: increments 2–5;
+NAS/coach/enforcement/publication behind their Owner gates,
+unrequested.
 
-## Deliberate limits (dependency order, all deferred)
-- NO dispatcher action consults `m10Gate` yet — proven as suite case F
-  (a non-holder's local write still works): live behavior is UNCHANGED
-  by this increment. Gate wiring is the final increment, after the
-  protocols it guards exist.
-- Fence transport on commits → increment 2 (core durability protocol).
-- Displaced flows → 3; photo queue/review → 4; full 92-action gate
-  surface + async revalidation + logout coupling → 5.
-
-## Evidence
-- `client-increments/INCR1-C15-OUTPUT.txt` — the new C15-M10 suite,
-  14/14 in real Chromium against a mock lease implementing the
-  disposable-PB-proven semantics (monotonic fence, held 409, typed
-  stale, D-ABA, expiry): fresh-boot acquire; held-by-other read-only +
-  takeover naming the session label + steal agreed by both sides
-  (fence 6→7); offline-reload fail-closed despite a valid persisted
-  grant; corrupt-grant read-only WITHOUT takeover; typed-stale renew
-  revocation; the no-behavior-change safety case; deviceId stability.
-- `client-increments/INCR1-M8-REGRESSION.txt` — the complete existing
-  M8 + C14 CLIENT suites rerun against the increment-1 bytes, all
-  green (165 cases: accounts 6, faults 64, matrix 9, quota 6,
-  replay 10, tags 5, upgrade 4, C14 67): M8 preserved outside the
-  block. The c11m8-recovery suite is ARTIFACT-scope by its own
-  contract (it requires the SYNC_SAFE recovery build as CF_SRC, which
-  no main client defines) and was run as designed against the
-  unchanged recovery artifact: 25/25. The evidence file records this
-  scoping plus an operational note on the mis-pointed runs it took to
-  rediscover it.
-
-## Passed vs deferred
-PASSED: everything in `## What it implements`, locally.
-DEFERRED: increments 2–5 as listed; NAS/coach/enforcement/publication
-remain behind their Owner gates, unrequested.
-
-Requested ruling: whether increment 1 is accepted and increment 2
-(the core durability protocol: wl_core_dirty/base/ack_journal with
-M8-grade verified writes, the G9/G10 bootstrap, fenced route commits,
-replay-first recovery, adoption postconditions) may proceed on this
-base.
+Requested ruling: acceptance of revised increment 1 and authorization
+for increment 2 (core durability protocol) on this `.417`-rebased
+foundation.
