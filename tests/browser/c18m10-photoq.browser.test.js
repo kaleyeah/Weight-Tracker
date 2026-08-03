@@ -52,7 +52,7 @@ function photoMock(st){
       if(bytes.length!==declared)return reply(400,{ok:false,error:'byteLength mismatch'});
       const id='pid'+String(st.nextId=(st.nextId||0)+1).padStart(12,'x');
       const res={ok:true,recordId:id,identity:{localId,byteLength:declared,sha256:sha,meta:{}}};
-      st.ledger[key]=res;st.photos[id]={localId,sha};
+      st.ledger[key]=res;st.photos[id]={id,localId,sha,file:'p.jpg',date:'2026-08-02',kind:'food',meal:'lunch',ts:'1'};
       if(st.dropUpload){st.dropUpload=false;return route.abort();}   // landed, response lost
       return reply(200,res);}
     if(/cf\/photos\/delete/.test(url)){
@@ -87,7 +87,7 @@ function photoMock(st){
       if(b.op==='acquire'||b.op==='steal'){st.fence=st.fence||1;st.holderDev=b.deviceId;
         return reply(200,{ok:true,exists:true,granted:true,fence:st.fence,holderDeviceId:b.deviceId,deviceName:b.deviceName,active:true,serverNow:Date.now(),ttlMs:86400000});}
       return reply(200,{ok:true,exists:true,fence:st.fence||1,holderDeviceId:st.holderDev||null,deviceName:'x',active:true,serverNow:Date.now(),ttlMs:86400000});}
-    if(/collections\/photos\/records/.test(url))return reply(200,{items:[]});
+    if(/collections\/photos\/records/.test(url))return reply(200,{items:Object.values(st.photos)});
     return reply(200,{items:[],token:'tok',record:{id:'userA'}});};}
 
 async function boot(browser,srv,st,seed,uid){
@@ -446,10 +446,10 @@ const ADD=`async function(id){
       await new Promise(r=>setTimeout(r,300));
       const exported=!!(m10pOps().find(x=>x.id===d[0].id)||{}).exports;
       m10pReviewApply(d[0].id);
-      await new Promise(r=>setTimeout(r,300));
+      await new Promise(r=>setTimeout(r,400));
       const confirmMsg=state.pendingConfirm?state.pendingConfirm.message:'';
       if(state.pendingConfirm){const fn=state.pendingConfirm.fn;state.pendingConfirm=null;fn();}
-      await new Promise(r=>setTimeout(r,900));
+      await new Promise(r=>setTimeout(r,1400));
       return {refused,exported,confirmMsg,
         after:{displaced:m10pDisplaced().length,ops:m10pOps().length,blob:!!(await idbGetLocal('l-15'))}};
     },ADD);
