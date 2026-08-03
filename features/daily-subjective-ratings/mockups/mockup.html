@@ -190,4 +190,56 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);margin:0;pad
   </div>
   <div class="wl-hint" style="margin-top:8px">Top: nothing answered. Middle: partly answered — still no green dot, still never blocks Complete. Bottom: all four in. Same wording on today and on any past day.</div>
 </div>
+
+<style>
+.sparkrow{display:grid;grid-template-columns:74px 1fr auto;gap:8px;align-items:center;margin-top:9px}
+.sparkrow .nm{font-size:12px;color:var(--muted);font-weight:600}
+.spark{display:grid;grid-template-columns:repeat(14,1fr);gap:2px;align-items:end;height:26px}
+.spark i{display:block;border-radius:2px 2px 0 0;background:var(--line)}
+.spark i.s1{height:20%;background:#F26D5B}.spark i.s2{height:40%;background:#E8975C}
+.spark i.s3{height:60%;background:#D9C26A}.spark i.s4{height:80%;background:#93CC86}
+.spark i.s5{height:100%;background:#5CD6A0}.spark i.s0{height:12%;background:#2A313C}
+.trendtag{font-size:11px;font-weight:800;padding:2px 7px;border-radius:99px;white-space:nowrap}
+.up{background:rgba(92,214,160,.16);color:#5CD6A0}
+.dn{background:rgba(242,109,91,.16);color:#F26D5B}
+.flat{background:var(--bg2);color:var(--faint)}
+.watch{margin-top:12px;border-top:1px solid var(--line);padding-top:10px;font-size:12px;color:var(--text)}
+.watch b{color:#F26D5B}
+</style>
+
+<div class="frame" id="f">
+  <p class="mocklabel">F · Coach report — top of the fold (in-app view)</p>
+  <div class="wl-card">
+    <div class="wl-card-head"><span>How he’s feeling · 14 days</span><span class="wl-count">Aug 3</span></div>
+    <div class="sparkrow"><span class="nm">Recovery</span>
+      <span class="spark"><i class="s2"></i><i class="s3"></i><i class="s4"></i><i class="s4"></i><i class="s5"></i><i class="s4"></i><i class="s0"></i><i class="s3"></i><i class="s3"></i><i class="s2"></i><i class="s2"></i><i class="s2"></i><i class="s3"></i><i class="s3"></i></span>
+      <span class="trendtag dn">↓ falling</span></div>
+    <div class="sparkrow"><span class="nm">Energy</span>
+      <span class="spark"><i class="s3"></i><i class="s3"></i><i class="s4"></i><i class="s4"></i><i class="s4"></i><i class="s3"></i><i class="s0"></i><i class="s3"></i><i class="s2"></i><i class="s2"></i><i class="s2"></i><i class="s3"></i><i class="s3"></i><i class="s3"></i></span>
+      <span class="trendtag dn">↓ falling</span></div>
+    <div class="sparkrow"><span class="nm">Hunger</span>
+      <span class="spark"><i class="s3"></i><i class="s3"></i><i class="s3"></i><i class="s4"></i><i class="s3"></i><i class="s3"></i><i class="s0"></i><i class="s3"></i><i class="s3"></i><i class="s2"></i><i class="s3"></i><i class="s3"></i><i class="s3"></i><i class="s3"></i></span>
+      <span class="trendtag flat">→ steady</span></div>
+    <div class="sparkrow"><span class="nm">Digestion</span>
+      <span class="spark"><i class="s1"></i><i class="s2"></i><i class="s2"></i><i class="s3"></i><i class="s3"></i><i class="s4"></i><i class="s0"></i><i class="s4"></i><i class="s4"></i><i class="s3"></i><i class="s4"></i><i class="s4"></i><i class="s5"></i><i class="s4"></i></span>
+      <span class="trendtag up">↑ improving</span></div>
+    <div class="wl-hint" style="margin-top:8px">Tallest = best. Flat grey = not answered. Left→right, oldest→today.</div>
+    <div class="watch"><b>Watch:</b> Recovery and Energy have both been ≤ Okay for 4 straight days,
+      while training volume held. Digestion keeps improving since the 5 mg step.</div>
+  </div>
+</div>
+
+<div class="frame" id="g">
+  <p class="mocklabel">G · The same block as Max receives it (plain text)</p>
+  <div class="wl-card"><div class="rep">HOW HE'S FEELING — 14 days (1 worst … 5 best, "–" = not answered)
+  Recovery   2 3 4 4 5 4 – 3 3 2 2 2 3 3   falling   (7d avg 2.6 vs prior 3.7)
+  Energy     3 3 4 4 4 3 – 3 2 2 2 3 3 3   falling   (7d avg 2.6 vs prior 3.5)
+  Hunger     3 3 3 4 3 3 – 3 3 2 3 3 3 3   steady    (7d avg 2.9 vs prior 3.2)
+  Digestion  1 2 2 3 3 4 – 4 4 3 4 4 5 4   improving (7d avg 4.0 vs prior 2.5)
+
+  WATCH: recovery ≤ okay 4 days running; energy tracking it. Training volume
+         unchanged over the same window. Digestion improving since 5 mg (Jul 12).
+
+TRAINING / NUTRITION / STEPS follow below…</div></div>
+</div>
 </body></html>

@@ -79,16 +79,44 @@ A "How you've felt" card on the **Progress** tab:
 - Below it, a **compound-phase strip**: every day since the current dose
   step, so a trend across a titration is visible rather than just the week.
 
-## Coach report
+## Coach report — the trend block leads (Owner decision)
 
-The four ratings go to Coach Max as their own block in the nightly report,
-carrying today's value AND the week's pattern, e.g.
+The trend goes at the TOP OF THE FOLD of the coach report, above training,
+nutrition and steps. Its purpose is explicit: let the coach see whether the
+athlete is accumulating fatigue and gauge them accordingly.
 
-    SUBJECTIVE (athlete-reported)
-      Hunger     just_right       (wk: 3 just_right, 2 slightly_low, 1 blank)
-      Recovery   good             (wk avg trending up, 2→4)
-      Energy     okay             (wk avg flat at okay)
-      Digestion  okay             (wk: improving, very_poor→okay since 5 mg wk 2)
+**Window: 14 days**, not 7 — a week cannot show accumulation across a
+training block or a dose step.
+
+Each of the four ratings gets one row: a per-day bar (tallest = best,
+flat grey = not answered, oldest → today) and a per-question trend tag
+(`improving` / `steady` / `falling`) derived from the trailing 7-day mean
+versus the prior 7.
+
+A **Watch** line follows in plain language, naming which ratings are low or
+falling and for how long, cross-referenced with training volume and the
+current dose step — e.g. "Recovery and Energy have both been ≤ Okay for 4
+straight days, while training volume held."
+
+Delivered to Max as plain text (the model reads text, and Griffin reads the
+same block in the recap card):
+
+    HOW HE'S FEELING — 14 days (1 worst … 5 best, "–" = not answered)
+      Recovery   2 3 4 4 5 4 – 3 3 2 2 2 3 3   falling   (7d avg 2.6 vs prior 3.7)
+      Energy     3 3 4 4 4 3 – 3 2 2 2 3 3 3   falling   (7d avg 2.6 vs prior 3.5)
+      Hunger     3 3 3 4 3 3 – 3 3 2 3 3 3 3   steady    (7d avg 2.9 vs prior 3.2)
+      Digestion  1 2 2 3 3 4 – 4 4 3 4 4 5 4   improving (7d avg 4.0 vs prior 2.5)
+
+      WATCH: recovery ≤ okay 4 days running; energy tracking it. Training volume
+             unchanged over the same window. Digestion improving since 5 mg (Jul 12).
+
+    TRAINING / NUTRITION / STEPS follow below…
+
+**Boundary kept:** every trend is per question. There is no combined
+wellness/readiness score, per the brief. Fatigue is communicated by showing
+the individual ratings' direction and duration, not by inventing a composite
+number. If the Owner later wants a single fatigue flag, that is a separate
+decision.
 
 ## Sequencing
 
