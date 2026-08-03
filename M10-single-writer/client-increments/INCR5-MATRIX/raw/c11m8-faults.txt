@@ -1,0 +1,69 @@
+
+C11-M8 faults — DOM gating, ambiguity+restart, phase crashes, storage faults
+  source: /home/griffin/projects/Weight-Tracker/index.html
+  ✓ A: a REJECTED share leaves choices disabled and nothing marked delivered
+  ✓ A: no page errors
+  ✓ B: download-fallback cancel keeps the gate closed; confirm opens it
+  ✓ C: an edit after export re-disables the rendered choice
+  ✓ B/C: no page errors
+  ✓ D: transport ambiguity keeps the journal AND the conflict
+  ✓ D: restart recovery replays, acks, and clears the OWED conflict phase
+  ✓ E(intent): FIRST boot completes every choose-server postcondition
+  ✓ E(intent): no page errors
+  ✓ E(k1): FIRST boot completes every choose-server postcondition
+  ✓ E(k1): no page errors
+  ✓ E(k2): FIRST boot completes every choose-server postcondition
+  ✓ E(k2): no page errors
+  ✓ E(k3): FIRST boot completes every choose-server postcondition
+  ✓ E(k3): no page errors
+  ✓ F: quarantine COPY failure retains the original and blocks sync
+  ✓ F2: original-removal failure keeps BOTH copies and blocks
+  ✓ G: a READ failure blocks — no absence, no quarantine, no bootstrap
+  ✓ G: zero training commits under read failure
+  ✓ H: cleanup failure after a completed ack — base advanced, dirty cleared, journal survives, NOT blocked
+  ✓ H: after the fault lifts, boot retries ONLY cleanup (journal gone, base untouched)
+  ✓ I: malformed dirty during ack completion blocks, journal AND malformed bytes preserved
+  ✓ J: adoption base-write failure blocks with the journal preserved
+  ✓ K: a newer generation after an ack is rescheduled by the finisher to a second ack (rev 2, clean)
+  ✓ L: a failed primary save blocks immediately with an unproven dirty marker
+  ✓ L: after RELOAD the block is re-derived and the dirty bytes are untouched
+  ✓ L: zero commits across the failed-save lifetime
+  ✓ L: the verified re-save records proof and bytes WITHOUT a reload
+  ✓ L: only the unproven-save block is released; state reflects the base relationship
+  ✓ L: synchronization resumes to a real ack
+  ✓ L: a HARD block survives an ordinary successful save
+  ✓ O: an edit during the in-flight fetch prevents journal/adoption; conflict and edit survive
+  ✓ P: an unjournalable push never dispatches and blocks
+  ✓ P2: a failed done-write hard-blocks with the prior journal preserved (no removal)
+  ✓ P2: boot under the hard block performs no replay
+  ✓ M: resolving a share AFTER an edit marks nothing delivered and keeps choices closed
+  ✓ M: no fetch or adoption occurred
+  ✓ N: fresh adoption preserves empty cardioTypes and unknown fields EXACTLY
+  ✓ Q: boot with unproven dirty + nonterminal journal is fully fail-closed (blocked, bytes intact)
+  ✓ Q: a forced training pull+push makes zero requests and zero commits under the soft block
+  ✓ Q: the verified re-save releases the soft block and journal resolution resumes safely
+  ✓ R: a done-record with failing removal survives with zero training-originated requests
+  ✓ R: once removal succeeds, boot performed ONLY the verified cleanup (no commits, clean)
+  ✓ S(done-missing-outcome): quarantined byte-identical, active key gone, BLOCKED, others untouched
+  ✓ S(done-missing-outcome): ZERO record fetches and ZERO commits after quarantine
+  ✓ S(done-newRev-no-outcome (R16 regression)): quarantined byte-identical, active key gone, BLOCKED, others untouched
+  ✓ S(done-newRev-no-outcome (R16 regression)): ZERO record fetches and ZERO commits after quarantine
+  ✓ S(unknown-op): quarantined byte-identical, active key gone, BLOCKED, others untouched
+  ✓ S(unknown-op): ZERO record fetches and ZERO commits after quarantine
+  ✓ S(impossible-phase): quarantined byte-identical, active key gone, BLOCKED, others untouched
+  ✓ S(impossible-phase): ZERO record fetches and ZERO commits after quarantine
+  ✓ S(netdone-missing-newRev): quarantined byte-identical, active key gone, BLOCKED, others untouched
+  ✓ S(netdone-missing-newRev): ZERO record fetches and ZERO commits after quarantine
+  ✓ S(garbage-serverCanon): quarantined byte-identical, active key gone, BLOCKED, others untouched
+  ✓ S(garbage-serverCanon): ZERO record fetches and ZERO commits after quarantine
+  ✓ S(negative-rev): quarantined byte-identical, active key gone, BLOCKED, others untouched
+  ✓ S(negative-rev): ZERO record fetches and ZERO commits after quarantine
+  ✓ S(reload): the block re-derives from the corrupt namespace after reload, zero requests
+  ✓ S2: quarantine copy failure keeps the invalid journal, blocks, and makes ZERO requests
+  ✓ T(push): malformed journal — quarantined byte-identical, BLOCKED, zero requests, others untouched
+  ✓ T(pull): malformed journal — quarantined byte-identical, BLOCKED, zero requests, others untouched
+  ✓ T(boot): malformed journal — quarantined byte-identical, BLOCKED, zero requests, others untouched
+  ✓ T(reload): the malformed-journal block persists across reload, zero requests
+  ✓ T2: push-path quarantine copy failure keeps the malformed original, blocks, zero requests
+
+OK — 64 passed

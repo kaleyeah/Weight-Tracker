@@ -1,0 +1,130 @@
+  ✓ T1 gate inventory loaded (128 actions; boot-recovery + read-only viewing deliberately excluded)
+  ✓ T1 no page errors
+  ✓ T2 non-holder: the gated action is intercepted and the takeover sheet is offered
+  ✓ T3 holder: gated actions run unchanged
+  ✓ T4 corrupt identity: gate fails closed, no mutation
+  ✓ T4 storage blocked: gate fails closed, no mutation
+  ✓ T4 deadline expired: gate fails closed, no mutation
+  ✓ T4 fence missing: gate fails closed, no mutation
+  ✓ T5 picker open → pen lost → change event: the app handler never runs
+  ✓ T5 import picker → fence replaced → change: handler blocked (fence identity checked)
+  ✓ T6 confirmation after the grant expires: the callback does NOT mutate
+  ✓ T6 confirmation while still the holder: the callback runs
+  ✓ T6 confirmation after a session change (A→B→A): the callback does NOT mutate
+  ✓ T7 logout blocked by core dirty
+  ✓ T7 logout blocked by photo pending
+  ✓ T7 logout blocked by core review
+  ✓ T7 clean state: logout is NOT blocked by M10
+  ✓ T8 non-holder input/change: no in-memory change, no durable change, value reverted
+  ✓ T8 holder input: the application handler still runs
+  ✓ T8 sign-in fields stay usable for a non-holder
+  ✓ T9 wo:start: in the inventory and intercepted for a non-holder
+  ✓ T9 wo:startroutine: in the inventory and intercepted for a non-holder
+  ✓ T9 wo:endrest: in the inventory and intercepted for a non-holder
+  ✓ T9 wu:yes: in the inventory and intercepted for a non-holder
+  ✓ T9 wo:finishlater: in the inventory and intercepted for a non-holder
+  ✓ T9 day:reopendo: in the inventory and intercepted for a non-holder
+  ✓ T9 sync:pasteapply: in the inventory and intercepted for a non-holder
+  ✓ T10 HealthKit callback after pen loss: zero import, the wait is cleared honestly
+  ✓ T11 import: pen lost after change but before FileReader.onload → zero mutation
+  ✓ T12 malformed photo queue: logout blocked, evidence preserved (never read as empty)
+  ✓ T13 non-holder + OLD-SHAPE training: the migration had real work to do
+  ✓ T13 non-holder: ZERO durable content write, and the refusal is counted
+  ✓ T13 non-holder: the in-memory normalisation still happens (display is not broken)
+  ✓ T13 HOLDER: the same migration DOES persist (the guard is what differs, not the work)
+  ✓ T13 non-holder navigation sweep: content stores byte-identical
+  ✓ T13e real boot, HOLDER: memory normalised either way, disk written only with the pen
+  ✓ T13e no page errors (HOLDER)
+  ✓ T13e real boot, non-holder: memory normalised either way, disk written only with the pen
+  ✓ T13e no page errors (non-holder)
+  ✓ T14 HealthKit capture taken at the click, not the poll
+  ✓ T14 A→B→A before the first poll: nothing imported, wait cleared
+  ✓ T14 non-holder hk:import: refused before the initial mailbox clear
+  ✓ T15 boot-recovery actions exempt from the ordinary gate (recovery stays possible)
+  ✓ T15a the adoption gate really owns the screen, on a device with no lease
+  ✓ T15a adopt:yes records the VERIFIED owner and reaches the approved reload
+  ✓ T15a after the reload the gate is gone and the ordinary app boots
+  ✓ T15a no page errors
+  ✓ T15b the interrupted-logout gate owns the screen and offers both real controls
+  ✓ T15b lrec:restore puts EVERY journalled value back, verified
+  ✓ T15b lrec:restore clears the journal and reaches the reload; the gate is gone
+  ✓ T15b no page errors
+  ✓ T15c lrec:finish still requires an explicit, destructive confirmation
+  ✓ T15c lrec:finish verifies its postcondition: an unstuck removal is NOT reported as done
+  ✓ T15c no page errors
+  ✓ T15c contrast: a working store lets lrec:finish complete — every target cleared, journal gone, reload reached
+  ✓ T15d unreadable journal: terminal screen with NO destructive control at all
+  ✓ T15d unreadable journal: the finish/restore functions themselves refuse and erase nothing
+  ✓ T15d no page errors
+  ✓ T16 setup: a REAL core review exists, its export gate is open, and this device has no pen
+  ✓ T16 non-holder m10cx:mine: an ACTUAL refusal, from the handler, at the holder check
+  ✓ T16 non-holder m10cx:mine: no core route call
+  ✓ T16 non-holder m10cx:mine: no journal / base / dirty / displaced mutation
+  ✓ T16 non-holder m10cx:mine: no local snapshot replacement
+  ✓ T16 no page errors
+  ✓ T16 HOLDER m10cx:mine: the same call DOES resolve the review (the negatives are real)
+  ✓ T17a setup: a REAL soft-only block, derived at boot from an unproven dirty generation
+  ✓ T17a the exemption re-saves the snapshot AND its dirty-generation proof
+  ✓ T17a the soft block is cleared only after both were read back and verified
+  ✓ T17a synchronisation resumes only once the proof exists
+  ✓ T17a no page errors
+  ✓ T17b [non-holder] cannot use the exemption
+  ✓ T17b [non-holder] persists nothing and pushes nothing
+  ✓ T17b [non-holder] no page errors
+  ✓ T17b [changed account] cannot use the exemption
+  ✓ T17b [changed account] persists nothing and pushes nothing
+  ✓ T17b [changed account] no page errors
+  ✓ T17b [changed session] cannot use the exemption
+  ✓ T17b [changed session] persists nothing and pushes nothing
+  ✓ T17b [changed session] the session generation really did change
+  ✓ T17b [changed session] no page errors
+  ✓ T17b [invalid fence] cannot use the exemption
+  ✓ T17b [invalid fence] persists nothing and pushes nothing
+  ✓ T17b [invalid fence] no page errors
+  ✓ T17b [expired lease] cannot use the exemption
+  ✓ T17b [expired lease] persists nothing and pushes nothing
+  ✓ T17b [expired lease] no page errors
+  ✓ T17b [hard M8 block] cannot use the exemption
+  ✓ T17b [hard M8 block] persists nothing and pushes nothing
+  ✓ T17b [hard M8 block] no page errors
+  ✓ T17b [additional core hard block] cannot use the exemption
+  ✓ T17b [additional core hard block] persists nothing and pushes nothing
+  ✓ T17b [additional core hard block] no page errors
+  ✓ T17b [additional core soft block] cannot use the exemption
+  ✓ T17b [additional core soft block] persists nothing and pushes nothing
+  ✓ T17b [additional core soft block] no page errors
+  ✓ T17b [corrupt identity] cannot use the exemption
+  ✓ T17b [corrupt identity] persists nothing and pushes nothing
+  ✓ T17b [corrupt identity] no page errors
+  ✓ T17b [local writes frozen] cannot use the exemption
+  ✓ T17b [local writes frozen] persists nothing and pushes nothing
+  ✓ T17b [local writes frozen] no page errors
+  ✓ T17c [snapshot write fails] the exemption applied, then failed honestly
+  ✓ T17c [snapshot write fails] the device stays blocked and writes nothing to the network
+  ✓ T17c [snapshot write fails] no page errors
+  ✓ T17c [dirty-proof write fails] the exemption applied, then failed honestly
+  ✓ T17c [dirty-proof write fails] the device stays blocked and writes nothing to the network
+  ✓ T17c [dirty-proof write fails] no page errors
+  ✓ T17d the ordinary holder path is untouched by the exemption
+  ✓ T17d no page errors
+  ✓ T17d a non-holder with NO block is refused exactly as before
+  ✓ T18 setup: a real core review with a CLOSED export gate, on a device with no pen
+  ✓ T18a m10cx:export as a NON-HOLDER creates only the intended export evidence
+  ✓ T18a it touches nothing else: snapshots and unrelated journals byte-identical
+  ✓ T18a no page errors
+  ✓ T18b a cancelled export records nothing and does NOT satisfy the export gate
+  ✓ T18b and the resolution it guards still refuses at the export gate
+  ✓ T18b no page errors
+  ✓ T18c a session change during the export is refused — no evidence, no writes
+  ✓ T18c no page errors
+  ✓ T19 setup: a real training conflict with NO export evidence, on a device with no pen
+  ✓ T19a m8:cx:export as a NON-HOLDER creates only the intended export evidence
+  ✓ T19a it touches nothing else: snapshots and unrelated journals byte-identical
+  ✓ T19a no page errors
+  ✓ T19b a cancelled export records nothing and does NOT satisfy the export gate
+  ✓ T19b and the choice it guards still refuses at the export gate
+  ✓ T19b no page errors
+  ✓ T19c an account change during the export is refused — no evidence on either account
+  ✓ T19c no page errors
+
+C19-M10 increment 5: 128 passed, 0 failed

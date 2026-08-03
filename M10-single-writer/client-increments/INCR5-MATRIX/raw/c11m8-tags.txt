@@ -1,0 +1,10 @@
+
+C11-M8 tags — provenance-safe derivation (§5b/C10)
+  source: /home/griffin/projects/Weight-Tracker/index.html
+  ✓ C10: a hand-added lifting tag SURVIVES orphan cleanup
+  ✓ C10: an auto:true orphan is still removed
+  ✓ §5b: derivation is refused while a conflict is open
+  ✓ §5b: derivation resumes once the conflict clears
+  ✓ no page errors
+
+OK — 5 passed

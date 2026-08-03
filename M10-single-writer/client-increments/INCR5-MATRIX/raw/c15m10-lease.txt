@@ -1,0 +1,37 @@
+  ✓ A boot acquires (fence 1, holder, uid-bound)
+  ✓ A gate passes for the bound holder
+  ✓ A grant persisted with uid+mark+deviceId
+  ✓ A deviceId matches the grammar
+  ✓ A no page errors
+  ✓ B non-holder read-only, uid still bound
+  ✓ B gate blocks + sheet names the session
+  ✓ B takeover steals 6→7, gate passes
+  ✓ B mock agrees
+  ✓ C offline reload: not holder (fail closed), reason=offline
+  ✓ D corrupt grant: read-only, no sheet, no acquire attempted
+  ✓ D2 malformed persisted deviceId → corrupt, never replaced
+  ✓ D2 oversized persisted deviceId → corrupt, never replaced
+  ✓ D3 foreign-uid grant rejected as corrupt
+  ✓ D3 foreign-device grant rejected as corrupt
+  ✓ D3 non-integer fence rejected
+  ✓ D3 unbounded ttl rejected
+  ✓ E typed stale → revoked, reason=stale, uid kept
+  ✓ E server 5xx → revoked, reason=server-error (NOT stale)
+  ✓ E auth failure → FULL reset (uid null, timer cleared)
+  ✓ E malformed 200 → revoked, reason=malformed-response
+  ✓ F A→B switch mid-acquire: authority NOT applied for B
+  ✓ G session teardown: reset fired (holder false, uid null, timer cleared)
+  ✓ H deadline derives from SEND time (remaining ≤ ttl − delay)
+  ✓ I grant-write failure: holder retained, grantWriteFailed=true (diagnostic honesty)
+  ✓ J adoption ran only after the lease settled
+  ✓ K real dispatcher action REFUSED for a NON-holder (gate wired in increment 5)
+  ✓ K direct local-write compatibility (renamed per round-13 item 9)
+  ✓ L2a same-uid relogin mid-acquire: stale response NOT installed
+  ✓ L2b overlapping boots: later boot owns authority, earlier discarded
+  ✓ L2c reversed takeover responses: superseded op cannot install (fence stays 8)
+  ✓ L2d late valid renew after takeover: neither installs nor revokes (deadline stays 24h-scale)
+  ✓ L3 no crypto: read-only, no id created/persisted, NO lease request
+  ✓ L4 renew 200 naming another device → revoked as malformed-response
+  ✓ L5 malformed held body: known=null, reason=malformed-response, uid bound
+
+C15-M10 increment 1 (revised): 35 passed, 0 failed

@@ -1,0 +1,51 @@
+  ✓ T1a equal copies: base established at server rev, clean
+  ✓ T1a no page errors
+  ✓ T1b fresh device adopts the server copy (journaled, applied)
+  ✓ T1b unknown fields survive adoption
+  ✓ T1c differing copies: bootstrap-conflict, BOTH copies preserved
+  ✓ T1d no server row: rev-0 base, first push lands at rev 1
+  ✓ T1d server holds the created row
+  ✓ T1e absent data at positive rev: bootstrap-conflict (deletion evidence)
+  ✓ T2 push happy path: dirty→clean, base rev 6, journal cleared
+  ✓ T2 exactly one server commit
+  ✓ T3 reload replays the captured request: completed without loss
+  ✓ T3 idempotent: server committed EXACTLY once (ledger replay answered the rerun)
+  ✓ T4 crash at intent: recovered to clean base rev 6, no loss, no block
+  ✓ T4 crash at intent: server state consistent (rev 6, single ledger key)
+  ✓ T4 crash at net-done: recovered to clean base rev 6, no loss, no block
+  ✓ T4 crash at net-done: server state consistent (rev 6, single ledger key)
+  ✓ T4 crash at k1: recovered to clean base rev 6, no loss, no block
+  ✓ T4 crash at k1: server state consistent (rev 6, single ledger key)
+  ✓ T4 crash at k2: recovered to clean base rev 6, no loss, no block
+  ✓ T4 crash at k2: server state consistent (rev 6, single ledger key)
+  ✓ T5 conflict: terminal journal, dirty preserved, local bytes untouched
+  ✓ T6 fenceStale: fence-displaced terminal, dirty + local preserved
+  ✓ T6 zero server mutation under the stale fence
+  ✓ T7 pull refused while dirty: zero adoption, dirty intact, base unchanged
+  ✓ T8 account switch: B sees its own fresh namespace, A's bytes untouched
+  ✓ T9 journal-write failure: push aborted, dirty preserved, no commit
+  ✓ T9 dirty-write failure: soft block raised, shared union reports blocked
+  ✓ T10 clean adoption: base rev 9, journal cleared, unknown fields intact
+  ✓ T11 newer gen in flight: base advanced, newer dirty SURVIVES for the next push
+  ✓ T12a switch mid-push: A journal byte-identical at intent (replayable), zero B writes
+  ✓ T12b A→B→A: original-session response discarded (journal still intent, base unmoved)
+  ✓ T12c switch during bootstrap GET: zero adoption, zero B writes
+  ✓ T12c switch during pull GET: zero adoption, zero B writes
+  ✓ T13 edit during pull GET: adoption refused, edit + dirty preserved, base unchanged
+  ✓ T14 canon: auto:undefined permitted; every lossy category rejected
+  ✓ T14 push with invalid value: hard block, dirty preserved, no commit
+  ✓ T15 fractional newRev: blocked, journal at intent, dirty preserved, base unmoved
+  ✓ T15 missing newRev: blocked, journal at intent, dirty preserved, base unmoved
+  ✓ T15 wrong increment: blocked, journal at intent, dirty preserved, base unmoved
+  ✓ T16 class instance / custom prototype / null-prototype all fail closed; plain passes
+  ✓ T17 failed annul removal: hard block, no adoption, edit preserved
+  ✓ T17 reload: adopt intent durably annulled (no adoption); boot push finds the real conflict
+  ✓ T18 fenceStale without fence: journal stays at intent (recoverable), dirty preserved, NOT review state
+  ✓ T18 fenceStale fractional fence: journal stays at intent (recoverable), dirty preserved, NOT review state
+  ✓ T18 conflict without serverRev: journal stays at intent (recoverable), dirty preserved, NOT review state
+  ✓ T18 conflict non-integer serverRev: journal stays at intent (recoverable), dirty preserved, NOT review state
+  ✓ T19a live 409 with unsafe serverRev: journal stays at intent, dirty preserved
+  ✓ T19 seeded conflict terminal with unsafe serverRev: quarantined + blocked, never review state
+  ✓ T19 seeded displacement terminal with unsafe staleFence: quarantined + blocked, never review state
+
+C16-M10 increment 2: 49 passed, 0 failed

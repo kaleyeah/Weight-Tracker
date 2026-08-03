@@ -1,0 +1,11 @@
+
+C11-M8 accounts — isolation, quarantine, logout gate
+  source: /home/griffin/projects/Weight-Tracker/index.html
+  ✓ C8: the malformed key was preserved in quarantine, never silently dropped
+  ✓ B4: account B's dirty state survives A's boot byte-for-byte
+  ✓ B4: account B's base survives A's push byte-for-byte
+  ✓ B4: account A operates normally alongside (dirty -> push -> clean)
+  ✓ B5: logout from dirty offers Push now — never the logout confirm
+  ✓ no page errors
+
+OK — 6 passed

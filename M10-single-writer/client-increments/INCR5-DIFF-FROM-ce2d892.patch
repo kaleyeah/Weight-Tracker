@@ -1,0 +1,125 @@
+diff --git a/index.html b/index.html
+index 170178c..8f05314 100644
+--- a/index.html
++++ b/index.html
+@@ -11140,15 +11140,11 @@ function m10pDispatch(done){
+   var ops=m10pOps(ctx.uid);
+   var en=m10pFindEntry(ops);
+   if(!en){done&&done(true);return;}
+-  /* Y0 (round-33 item 1) — DISCLOSED TEST-ONLY SEAM. Nothing in the shipping
+-     client ever assigns window.__m10pFault, so in production this branch is
+-     never taken and the dispatcher is unchanged. It exists so a suite can
+-     remove authority at an EXACT queue phase (e.g. a delete that has been
+-     acked by the server but not yet applied locally) instead of racing a
+-     timer, which is the only honest way to test an interruption DURING a
+-     multi-phase retirement. It cannot grant authority: whatever it does, every
+-     phase below still re-proves account+session+fence for itself. */
+-  if(typeof window.__m10pFault==="function"){try{window.__m10pFault(en.op,en.state,en);}catch(e){}}
++  /* Round-34 ruling 5: the round-33 `window.__m10pFault` seam is REMOVED. The
++     release artifact carries no fault hook. C18 T34 now interrupts the
++     retirement from the harness by wrapping this function itself — a
++     test-side wrapper over a public global, using the same entry+state the
++     dispatcher has already computed. */
+   var pen=m10pPen();
+   if(!pen){done&&done(false);return;}
+   m10pBusy=true;
+@@ -12217,6 +12213,88 @@ document.addEventListener("click",function(e){
+    catalogued in INCR5-DURABLE-WRITERS.md. The earlier `m10InternalWrite`
+    guard is REMOVED: it was declared and never set, so the claim that it
+    enforced anything was false. */
++/* ===== Z1 (round-34 rulings 1 and 2): the ONE exemption from the source gate.
++   =====
++   M8's recovery design is that a dirty generation whose bytes were never
++   proven to reach disk raises a SOFT (unproven) block at boot, and that the
++   athlete's next successful, VERIFIED re-save is exactly what releases it.
++   Round-30 gated saveTraining() on m10AuthNow(), which refuses whenever the
++   SHARED m8StorageBlocked union is raised — and that union includes the soft
++   block. So the one action able to clear the block was the action the gate
++   refused: a device that tripped it stayed read-only until reinstall.
++
++   The exemption is NOT a generic hole in the combined m8StorageBlocked
++   condition. It is refused unless ALL of the following hold:
++     - the caller is saveTraining() and nothing else;
++     - m8UnprovenBlocked === true AND m8HardBlocked === false;
++     - the M10 core raises neither a hard NOR a soft block;
++     - identity is not corrupt, an account is present, this device holds the
++       pen for THAT account, the lease has not expired, and the fence is a
++       valid safe integer >= 1;
++     - local writes are not frozen by a recovery/adoption/logout screen, the
++       training store is not quarantined, no corrupt M8 journal is preserved,
++       and the dirty record itself reads back typed rather than malformed.
++   M10/core/photo blocks and hard M8 blocks remain absolute.
++
++   The contract of what it may then do is in m8SoftBlockRecoverySave(). */
++function m8SoftRecoveryAuth(){
++  if(!syncOn())return {ok:false,why:"local"};       /* no lease concept: the ordinary path already allows it */
++  if(!m8UnprovenBlocked)return {ok:false,why:"not-soft-blocked"};
++  if(m8HardBlocked)return {ok:false,why:"hard-blocked"};
++  if(m10cHardBlocked||m10cUnprovenBlocked)return {ok:false,why:"core-blocked"};
++  if(M10.corrupt)return {ok:false,why:"corrupt"};
++  var uid=null;try{uid=pbUid();}catch(e){}
++  if(!uid)return {ok:false,why:"no-account"};
++  if(!M10.holder||M10.uid!==uid)return {ok:false,why:"not-holder"};
++  if(!(performance.now()<M10.deadline))return {ok:false,why:"expired"};
++  if(!m10pNat(M10.fence)||M10.fence<1)return {ok:false,why:"no-fence"};
++  if(localWritesFrozen())return {ok:false,why:"frozen"};
++  if(trainingQuarantined())return {ok:false,why:"quarantined"};
++  if(m8CorruptJournalPresent(uid))return {ok:false,why:"corrupt-journal"};
++  if(m8Read("dirty",uid).st==="malformed")return {ok:false,why:"unreadable"};
++  return {ok:true,uid:uid,fence:M10.fence,gen:M10.gen};}
++
++/* The exemption's whole contract, in one place (round-34 ruling 2):
++     - it persists the current training snapshot and its dirty-generation
++       proof, and NOTHING else;
++     - the soft block is cleared only after BOTH have been read back and
++       verified, and only through M8's own re-read-and-validate release —
++       never by assigning the flag here;
++     - no network push may begin while the proof is absent;
++     - any persistence or verification failure RETAINS the soft block or
++       ESCALATES it to a hard block, and returns false. Recovery is never
++       claimed on failure.
++   Returns true only when the device is genuinely recovered. */
++function m8SoftBlockRecoverySave(){
++  var pre=m8SoftRecoveryAuth();
++  if(!pre.ok)return false;
++  /* (1) the dirty GENERATION marker — a verified write inside m8MarkDirty */
++  m8MarkDirty();
++  if(m8HardBlocked)return false;                 /* escalated; nothing claimed */
++  var gen=m8Gen;
++  /* (2) the training SNAPSHOT — the only other thing this path may persist */
++  if(!saveTrainingLocal()){m8Block("could not save training to storage");return false;}
++  /* (3) the proof that THIS generation's bytes are on disk */
++  var d=m8Read("dirty",pre.uid);
++  if(!(d.st==="ok"&&d.val.gen===gen)){m8Block("could not record the proof");return false;}
++  if(!m8Write("dirty",{gen:gen,persistedGen:gen,ts:d.val.ts},pre.uid)){
++    m8Block("saved, but could not record the proof");return false;}
++  /* (4) READ BOTH BACK and verify before anything is cleared */
++  var v=m8Read("dirty",pre.uid);
++  if(!(v.st==="ok"&&v.val.gen===gen&&v.val.persistedGen===gen)){
++    m8Block("could not verify the proof");return false;}
++  var onDisk=null,want=null;
++  try{onDisk=localStorage.getItem(TKEY);}catch(e){onDisk=null;}
++  try{want=JSON.stringify(state.training);}catch(e){want=null;}
++  if(want==null||onDisk!==want){m8Block("could not verify the saved training");return false;}
++  /* (5) only now may the soft block be released */
++  m8ReleaseUnprovenIfProven();
++  if(m8UnprovenBlocked)return false;             /* release refused: the block stands */
++  /* (6) and only now, with the proof present and no block standing, may a
++         network push begin */
++  scheduleTrainingPush();
++  return true;}
++
+ (function(){
+   var prim={save:null,saveLocal:null,saveTraining:null,saveWorkout:null};
+   Object.keys(prim).forEach(function(name){
+@@ -12225,6 +12303,10 @@ document.addEventListener("click",function(e){
+     window[name]=function(){
+       var a=m10AuthNow();
+       if(!a.ok){
++        /* Z1: the ONE exemption. Everything else about the refusal is
++           unchanged, including the refusal counter. */
++        if(name==="saveTraining"&&a.why==="blocked"&&m8SoftRecoveryAuth().ok)
++          return m8SoftBlockRecoverySave();
+         try{if(!window.__m10WriteRefused)window.__m10WriteRefused=0;window.__m10WriteRefused++;}catch(e){}
+         return undefined;}
+       return orig.apply(this,arguments);};});

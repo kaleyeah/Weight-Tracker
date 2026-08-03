@@ -85,6 +85,8 @@ buttons. All tested.
   accepted increments unchanged in behavior.
 - `INCR3-M8-REGRESSION.txt` — full client matrix vs `b92d418`:
   171/171 (+artifact-scope recovery 25/25).
+  **INVALID (round-34 ruling 7): this 171/171 was never produced by a
+  completed, exit-status-checked runner. See INCR5-MATRIX/TOTALS.txt.**
 
 ## Round-21 rulings — see above
 

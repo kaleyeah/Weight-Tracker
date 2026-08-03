@@ -1,88 +1,108 @@
-M8 + C14 client regression matrix vs increment-5 ROUND-33 bytes
-(CF_SRC = Weight-Tracker/index.html — round-33 head; run 2026-08-03)
+M8 + C14 client regression matrix — ROUND 34
+============================================
 
-c11m8-accounts:         OK — 6 passed
-c11m8-faults:           SUITE ABORTS at test L — PRE-EXISTING, see below
-c11m8-matrix:           OK — 9 passed
-c11m8-quota:            FAILED — 5 passed, 1 failed — PRE-EXISTING, see below
-c11m8-replay:           OK — 10 passed
-c11m8-tags:             OK — 5 passed
-c11m8-upgrade:          OK — 4 passed
-c14-correctness-fixes:  OK — 67 passed
+THIS FILE IS NARRATIVE ONLY. It contains NO counts.
 
-FILENAME NOTE: the suite is `c14-correctness-fixes.browser.test.js`.
+The numbers live in INCR5-MATRIX/TOTALS.txt, which is generated mechanically
+by tests/browser/run-client-matrix.sh: the script runs every suite in the
+required client matrix against ONE index.html, captures each suite's raw
+stdout+stderr into INCR5-MATRIX/raw/<suite>.txt, records each suite's EXIT
+STATUS, counts the ✓/✗ marks out of the completed output, and writes the
+totals file itself. A suite killed by the timeout (exit 124/137) is reported
+as TIMEOUT and poisons the verdict. Nothing is anticipated; nothing is typed
+by hand.
+
+Reproduce:
+
+    cd /home/griffin/projects/Weight-Tracker
+    tests/browser/run-client-matrix.sh <output-dir>
+
+ARTIFACT-SCOPE: c11m8-recovery is deliberately NOT in the matrix. It needs the
+SYNC_SAFE recovery artifact as CF_SRC, not index.html.
+
+FILENAME NOTE: the C14 suite is `c14-correctness-fixes.browser.test.js`.
 `c14-correctness.browser.test.js` does not exist, so a loop over
-"c14-correctness" silently fails rather than running it.
-
-ARTIFACT-SCOPE: c11m8-recovery is NOT run here — it needs the SYNC_SAFE
-recovery artifact as CF_SRC, not index.html.
+"c14-correctness" silently runs nothing.
 
 ================================================================
-TWO PRE-EXISTING FAILURES, REPRODUCED ON THE COMMITTED HEAD 87e9d84
+THE ROUND-31/32 "171/171" CLAIM IS INVALID
 ================================================================
 
-Both reproduce byte-for-byte on `git show 87e9d84:index.html` — the exact head
-the ROUND-31 edition of this file claimed "171/171" for. That claim is not
-reproducible. Neither failure is caused by the round-33 changes.
+Round 32 asserted 171/171 for a head on which c11m8-faults aborted at test L
+and c11m8-quota failed B6/13. It was written while the last batch was still
+running, with anticipated numbers. Round 33 corrected the claim but kept the
+same manual method.
 
-Control: the instrumented c11m8-faults suite run against BOTH heads gives the
-IDENTICAL result — 60 passed / 4 failed, same four assertion names, on
-87e9d84 and on the round-33 head. Zero new failures.
+Round 34 (Architect ruling 7) marks the affected artifacts invalid IN PLACE —
+INCR1/INCR2/INCR3/INCR4-M8-REGRESSION.txt and INCR3-README.md each carry a
+"DO NOT CITE" banner — and replaces the method with the script above.
 
-----------------------------------------------------------------
-c11m8-faults — L and Q: a storage-blocked device cannot un-block itself
-----------------------------------------------------------------
+================================================================
+THE TWO FAILURES ROUND 33 REPORTED ARE FIXED — TWO DIFFERENT CAUSES
+================================================================
 
-Bisect:
-  9e3f87b (the commit immediately BEFORE the round-30 primitive gate)
-      -> OK — 64 passed
-  3cd7311 (round-30: "persistence primitives gated at source") and every
-      head since, including 87e9d84 and the round-33 head
-      -> four assertions fail; the unmodified suite throws and aborts at the
-         first one.
-
-Instrumented probe, taken immediately before the failing `saveTraining()`:
-
-  {"proof":false,"onDisk":false,
-   "probe":{"blockedBefore":true,"auth":{"ok":false,"why":"blocked"}},
-   "raw":null,"released":false,"st":"blocked",
-   "after":{"state":"blocked","rev":0},"hardSurvives":true}
-
-M8's design: a failed primary save raises an UNPROVEN (soft) block, and the
-athlete's next successful, VERIFIED re-save is what releases it. The round-30
-source gate refuses `saveTraining()` whenever `window.m8StorageBlocked` is
-true — and that getter is the union that includes the soft block. So the one
-action that can clear the block is the action the gate refuses. The device
-stays blocked permanently and `wl_training_v1` is never written (`raw:null`).
-
-Failing assertions (all one root cause):
-  L: the verified re-save records proof and bytes WITHOUT a reload
-  L: only the unproven-save block is released; state reflects the base relationship
-  L: synchronization resumes to a real ack
-  Q: the verified re-save releases the soft block and journal resolution resumes safely
-
-Operational side effect: with the unmodified suite the first failure throws
-inside page.evaluate BEFORE `browser.close()`, so the node process never
-exits. That is why stale `c11m8-faults` processes had been left running for
-11 hours on this machine; four of them were cleaned up during this round.
-
-NOT FIXED IN ROUND 33, DELIBERATELY. Permitting a durable write while a
-storage block is raised contradicts a standing fail-closed ruling ("Corrupt
-identity, a raised storage block, an expired deadline ... all refuse
-mutation. The gate never 'assumes yes'"). Whether M8's SOFT block is an
-exception to that — and how a device is then meant to recover from it — is an
-Architect/Owner ruling, not something to slip into a round of test fixes.
-
-----------------------------------------------------------------
-c11m8-quota — B6/13
+1. c11m8-faults L and Q — the storage-block lockout (PRODUCT fix)
 ----------------------------------------------------------------
 
-FAILED — 5 passed, 1 failed, IDENTICAL on 87e9d84 and on the round-33 head:
+M8's design: a dirty generation whose bytes were never proven to reach disk
+raises a SOFT (unproven) block at boot (`m8SoftBlockUnproven`, derived in
+`m8Boot`), and the athlete's next successful VERIFIED re-save releases it
+(`m8ReleaseUnprovenIfProven`). Round 30 gated `saveTraining()` on
+`m10AuthNow()`, which refuses on the whole `window.m8StorageBlocked` union —
+and that union includes the soft block. So the one action that could clear the
+block was the action the gate refused: the device stayed read-only until
+reinstall.
 
-  X B6/13: BEFORE any network action the edit is a VERIFIED dirty marker or
-           an explicit block
-      observed: clean
+The flags are real and are named exactly as the Architect named them:
 
-Same family: the edit's persistence was refused at the source gate, so
-neither a dirty marker nor a block was produced — the store simply reads
-`clean` while the in-memory edit survives.
+    index.html ~8908:  var m8HardBlocked=false, m8UnprovenBlocked=false, ...
+    index.html ~8911:  window.m8StorageBlocked  (getter: hard || unproven)
+    index.html ~9979:  the getter is EXTENDED by the M10 core block to
+                       m8HardBlocked || m8UnprovenBlocked ||
+                       m10cHardBlocked || m10cUnprovenBlocked
+
+There is no single combined flag to un-pick and no name to invent: the
+soft-vs-hard distinction is `m8UnprovenBlocked` vs `m8HardBlocked`, and the
+"combined m8StorageBlocked condition" the ruling protects is the four-way
+union above.
+
+Round 34 implements the ruling verbatim: `m8SoftRecoveryAuth()` +
+`m8SoftBlockRecoverySave()` in M10-BLOCK-5 (search `Z1 (round-34 rulings 1 and
+2)`), reached ONLY from the `saveTraining` arm of the source-gate wrapper and
+only when `m10AuthNow().why === "blocked"`.
+
+Result: c11m8-faults runs to completion and exits 0 for the first time since
+round 30. See INCR5-MATRIX/raw/c11m8-faults.txt.
+
+2. c11m8-quota B6/13 — a DIFFERENT cause (HARNESS fix, disclosed)
+-----------------------------------------------------------------
+
+Round 33 filed this under the same root cause. It is not. Probing the failing
+run rather than assuming:
+
+    ballast ~4992KB; preNet state=clean blocked=false
+    primaryPersisted=false commitReqs=0; dirty bytes: null
+
+`dirty bytes: null` means `saveTraining()` never ran at all — not that it ran
+and was refused by a block. That harness mocks NO lease route, so under the
+wired gate the signed-in device is not the writer and every mutating save is
+refused as "not-holder" long before M8's storage handling is reached. The
+suite had stopped testing what it is named for.
+
+Fixed with the SAME disclosed harness change already accepted for
+`c14-correctness-fixes` and `c11m8-faults` in round 33: answer
+`**/api/cf/writer/lease` as a granting server. Harness only — no product
+change, and not one assertion was weakened, removed or reworded.
+
+Result: 6 passed, exit 0, with a real verified dirty marker
+(`{"gen":2,"persistedGen":2,...}`) before any network action.
+
+================================================================
+OPERATIONAL NOTE
+================================================================
+
+Before round 34, a failing `c11m8-faults` threw inside page.evaluate BEFORE
+`browser.close()`, so the node process never exited and stale runs
+accumulated for hours. The matrix runner now wraps every suite in
+`timeout -k 20 <N>`, so a hanging suite is killed and reported as TIMEOUT
+rather than left behind.

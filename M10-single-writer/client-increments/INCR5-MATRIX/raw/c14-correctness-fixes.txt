@@ -1,0 +1,74 @@
+
+C14 (browser) — correctness fixes
+  source: /home/griffin/projects/Weight-Tracker/index.html
+  build : 2026-08-02.417-fx
+  ✓ workout bw is today's weigh-in (184)
+  ✓ #6 pull-up defaults to TODAY'S bodyweight, not last session's 186.8
+  ✓ #6 no stale sugW advertised for bodyweight sets
+  ✓ #6 reps still come from history
+  ✓ #6 non-bodyweight exercise unchanged: history weight 50 kept
+  ✓ #3 workout copies carry the source note ids
+  ✓ #3 tapping the pinned note opens the editor WITH the note text
+  ✓ #5 the sheet opens with NO preselected type
+  ✓ #5 saving without an explicit type is refused
+  ✓ #5 an explicit pick saves the RIGHT type
+  ✓ #5 the toast names what was logged
+  ✓ #7 the nav carries an explicit transform (own compositing layer)
+  ✓ EDIT: the editor shows Date, Start time and Duration fields
+  ✓ EDIT: the session moved off the old date key
+  ✓ EDIT: and onto the new date key with date field updated
+  ✓ EDIT: start time applied to ts (18:43 local)
+  ✓ EDIT: duration saved as 60
+  ✓ EDIT: transient time field not persisted on the session
+  ✓ EDIT: the move is persisted to localStorage
+  ✓ EDIT: the auto lifting tag moved days via the app's own derivation
+  ✓ #4 the day pill shows only THAT day's shot
+  ✓ #4 the day's symptoms still show on the pill
+  ✓ #4 a shot-free day shows no dose entries
+  ✓ #4 a shot-free day shows the last-shot hint
+  ✓ #4 the earlier shot does NOT leak onto the wrong day
+  ✓ #4 the full journal lives under Weight & dose
+  ✓ #4 the journal lists every shot with site and note
+  ✓ LBM: the weight check-in has a Lean mass field that saves
+  ✓ LBM: the value persists to storage
+  ✓ LBM: hkPlan files leanmass and waist for the target day
+  ✓ LBM: Shortcut may use pretty keys ("Lean Body Mass", "Waist Circumference")
+  ✓ LBM: per-day "date,value" lines file each day
+  ✓ LBM: the Body composition card has the LBM tab and charts the entry
+  ✓ PROG: More stats starts OPEN by default
+  ✓ PROG: tapping the head still collapses it
+  ✓ PROG: and reopens on the next tap
+  ✓ SYM: the Symptoms chart no longer renders on Progress
+  ✓ SYM: existing symptom data is untouched
+  ✓ SYM: logging a symptom still works end to end
+  ✓ REST: same-exercise rest shows name + set # + reps + weight
+  ✓ REST: crossing to the next exercise previews its first set
+  ✓ SWAP: picking a replacement prompts routine-forward vs once
+  ✓ SWAP: "Just this once" leaves the routine untouched
+  ✓ SWAP: swapping back to the routine's own exercise asks nothing
+  ✓ SWAP: "Save to routine" updates and persists the routine item
+  ✓ SYMEDIT: tapping a logged symptom opens the sheet in edit mode, prefilled
+  ✓ SYMEDIT: saving relabels IN PLACE — no duplicate log
+  ✓ SYMEDIT: the relabel persists to storage
+  ✓ ARROWS: today shows "Today", bare chevrons, next disabled
+  ✓ ARROWS: one back = "Yesterday", next enabled
+  ✓ ARROWS: two back = the real date label
+  ✓ ARROWS: the chevrons NEVER move as the label changes
+  ✓ ARROWS: forward returns to Today and re-disables next
+  ✓ ARROWS: the future is unreachable
+  ✓ ARROWS: tapping the date still opens the month calendar
+  ✓ ARROWS: the month view uses the same centered bare-chevron nav
+  ✓ CANCEL: the symptom sheet shows a visible ✕ that closes without saving
+  ✓ CANCEL: the dose sheet has the same control
+  ✓ SYMLIST: Progress shows the Symptoms list card
+  ✓ SYMLIST: newest entry first
+  ✓ SYMLIST: tapping a row opens the edit sheet
+  ✓ RECAP: the card renders with NO per-card arrows
+  ✓ RECAP: the header day nav moves the recap with the day
+  ✓ PEND: incomplete today is EXCLUDED from steps/calories averages
+  ✓ PEND: today renders as an OUTLINED bar while incomplete
+  ✓ PEND: completing today (recap exists) counts it and solidifies the bar
+  ✓ no page errors across the run
+
+----------------------------------------------------
+OK — 67 passed

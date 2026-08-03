@@ -1,0 +1,181 @@
+ANTI-TAUTOLOGY EVIDENCE — round 34
+==================================
+
+Every guard added or relied on this round was checked against a DELIBERATELY
+BROKEN build. The mutation harness is `tests/browser/mutate.py`: it applies one
+named source edit to a copy of index.html (asserting the anchor matches exactly
+once), runs a suite against that copy with CF_SRC, and lists the assertions
+that failed. Raw output for each run is kept alongside this file's generation
+and is reproducible with:
+
+    python3 tests/browser/mutate.py list
+    python3 tests/browser/mutate.py run <mutant> <suite> <outdir>
+
+Reference: the UNMUTATED build at this head is C19 128/128 and C18 72/72,
+both exit 0 (see INCR5-MATRIX/).
+
+An assertion that survives its own guard's removal is worse than no assertion.
+Each block below names the guard removed and the assertions that then failed.
+
+----------------------------------------------------------------
+GUARD REMOVED: m8SoftRecoveryAuth: the `m8HardBlocked` refusal removed (a hard M8 block would become bypassable)
+MUTANT hard vs c19m10-gate: exit=1, 2 failed assertion(s)
+   ✗ T17b [hard M8 block] cannot use the exemption
+   ✗ T17b [hard M8 block] persists nothing and pushes nothing
+
+----------------------------------------------------------------
+GUARD REMOVED: m8SoftRecoveryAuth: the `m10cHardBlocked||m10cUnprovenBlocked` refusal removed (M10 core blocks would become bypassable)
+MUTANT core vs c19m10-gate: exit=1, 4 failed assertion(s)
+   ✗ T17b [additional core hard block] cannot use the exemption
+   ✗ T17b [additional core hard block] persists nothing and pushes nothing
+   ✗ T17b [additional core soft block] cannot use the exemption
+   ✗ T17b [additional core soft block] persists nothing and pushes nothing
+
+----------------------------------------------------------------
+GUARD REMOVED: m8SoftRecoveryAuth: the `M10.corrupt` refusal removed
+MUTANT corrupt vs c19m10-gate: exit=1, 1 failed assertion(s)
+   ✗ T17b [corrupt identity] cannot use the exemption
+
+----------------------------------------------------------------
+GUARD REMOVED: m8SoftRecoveryAuth: the holder/same-account refusal removed
+MUTANT holder vs c19m10-gate: exit=1, 4 failed assertion(s)
+   ✗ T17b [non-holder] cannot use the exemption
+   ✗ T17b [non-holder] persists nothing and pushes nothing
+   ✗ T17b [changed account] cannot use the exemption
+   ✗ T17b [changed session] cannot use the exemption
+
+----------------------------------------------------------------
+GUARD REMOVED: m8SoftRecoveryAuth: the lease-deadline refusal removed
+MUTANT expiry vs c19m10-gate: exit=1, 2 failed assertion(s)
+   ✗ T17b [expired lease] cannot use the exemption
+   ✗ T17b [expired lease] persists nothing and pushes nothing
+
+----------------------------------------------------------------
+GUARD REMOVED: m8SoftRecoveryAuth: the fence-validity refusal removed
+MUTANT fence vs c19m10-gate: exit=1, 2 failed assertion(s)
+   ✗ T17b [invalid fence] cannot use the exemption
+   ✗ T17b [invalid fence] persists nothing and pushes nothing
+
+----------------------------------------------------------------
+GUARD REMOVED: m8SoftRecoveryAuth: the `localWritesFrozen()` refusal removed
+MUTANT frozen vs c19m10-gate: exit=1, 2 failed assertion(s)
+   ✗ T17b [local writes frozen] cannot use the exemption
+   ✗ T17b [local writes frozen] persists nothing and pushes nothing
+
+----------------------------------------------------------------
+GUARD REMOVED: m8SoftBlockRecoverySave: EVERY persistence/verification guard removed and the soft block cleared by assignment instead of M8's own re-read-and-validate release
+MUTANT nocheck vs c19m10-gate: exit=1, 4 failed assertion(s)
+   ✗ T17c [snapshot write fails] the exemption applied, then failed honestly
+   ✗ T17c [snapshot write fails] the device stays blocked and writes nothing to the network
+   ✗ T17c [dirty-proof write fails] the exemption applied, then failed honestly
+   ✗ T17c [dirty-proof write fails] the device stays blocked and writes nothing to the network
+
+----------------------------------------------------------------
+GUARD REMOVED: the exemption removed entirely (i.e. round-33 behaviour restored)
+MUTANT noexempt vs c19m10-gate: exit=1, 6 failed assertion(s)
+   ✗ T17a the exemption re-saves the snapshot AND its dirty-generation proof
+   ✗ T17a the soft block is cleared only after both were read back and verified
+   ✗ T17a synchronisation resumes only once the proof exists
+   ✗ T17c [snapshot write fails] the device stays blocked and writes nothing to the network
+   ✗ T17c [dirty-proof write fails] the exemption applied, then failed honestly
+   ✗ T17c [dirty-proof write fails] the device stays blocked and writes nothing to the network
+
+----------------------------------------------------------------
+GUARD REMOVED: m8SoftRecoveryAuth made unconditionally true — the exemption stops being narrow
+MUTANT generic vs c19m10-gate: exit=1, 21 failed assertion(s)
+   ✗ T17b [non-holder] cannot use the exemption
+   ✗ T17b [non-holder] persists nothing and pushes nothing
+   ✗ T17b [changed account] cannot use the exemption
+   ✗ T17b [changed account] persists nothing and pushes nothing
+   ✗ T17b [changed session] cannot use the exemption
+   ✗ T17b [changed session] persists nothing and pushes nothing
+   ✗ T17b [invalid fence] cannot use the exemption
+   ✗ T17b [invalid fence] persists nothing and pushes nothing
+   ✗ T17b [expired lease] cannot use the exemption
+   ✗ T17b [expired lease] persists nothing and pushes nothing
+   ✗ T17b [hard M8 block] cannot use the exemption
+   ✗ T17b [hard M8 block] persists nothing and pushes nothing
+   ✗ T17b [additional core hard block] cannot use the exemption
+   ✗ T17b [additional core hard block] persists nothing and pushes nothing
+   ✗ T17b [additional core soft block] cannot use the exemption
+   ✗ T17b [additional core soft block] persists nothing and pushes nothing
+   ✗ T17b [corrupt identity] cannot use the exemption
+   ✗ T17b [local writes frozen] cannot use the exemption
+   ✗ T17b [local writes frozen] persists nothing and pushes nothing
+   ✗ T17d the ordinary holder path is untouched by the exemption
+   ✗ T17d a non-holder with NO block is refused exactly as before
+
+----------------------------------------------------------------
+GUARD REMOVED: m10cxExport: the `m10cCtxOk(ctx)` revalidation removed from markDelivered
+MUTANT cxctx vs c19m10-gate: exit=1, 1 failed assertion(s)
+   ✗ T18c a session change during the export is refused — no evidence, no writes
+
+----------------------------------------------------------------
+GUARD REMOVED: m10cxExport: a REJECTED share now calls markDelivered (a cancelled export would satisfy the gate)
+MUTANT cxcancel vs c19m10-gate: exit=1, 2 failed assertion(s)
+   ✗ T18b a cancelled export records nothing and does NOT satisfy the export gate
+   ✗ T18b and the resolution it guards still refuses at the export gate
+
+----------------------------------------------------------------
+GUARD REMOVED: m10cxExport: one extra durable write (core dirty marker) added to markDelivered
+MUTANT cxextra vs c19m10-gate: exit=1, 1 failed assertion(s)
+   ✗ T18a it touches nothing else: snapshots and unrelated journals byte-identical
+
+----------------------------------------------------------------
+GUARD REMOVED: m8CxExport: a REJECTED share now calls markDelivered
+MUTANT m8cancel vs c19m10-gate: exit=1, 2 failed assertion(s)
+   ✗ T19b a cancelled export records nothing and does NOT satisfy the export gate
+   ✗ T19b and the choice it guards still refuses at the export gate
+
+----------------------------------------------------------------
+GUARD REMOVED: m8CxExport: markDelivered re-reads and writes the conflict record under the uid captured at ENTRY instead of the current account
+MUTANT m8uid vs c19m10-gate: exit=1, 1 failed assertion(s)
+   ✗ T19c an account change during the export is refused — no evidence on either account
+
+----------------------------------------------------------------
+GUARD REMOVED: m8CxExport: one extra durable write (M8 dirty marker) added to markDelivered
+MUTANT m8extra vs c19m10-gate: exit=1, 1 failed assertion(s)
+   ✗ T19a it touches nothing else: snapshots and unrelated journals byte-identical
+
+----------------------------------------------------------------
+GUARD REMOVED: m10pPen(): the `M10.holder` requirement removed — the photo queue would keep working after the pen is lost
+MUTANT pen vs c18m10-photoq: exit=1, 7 failed assertion(s)
+   ✗ T19 pen lost at the `acked` boundary: nothing deleted, entry parked
+   ✗ T34 [intent] P1 the original bytes AND a durable retirement obligation both survive
+   ✗ T34 [intent] P3 no unauthorized delete completes (before the server delete)
+   ✗ T34 [intent] P5 the UI does not claim a completed replacement
+   ✗ T34 [acked] P1 the original bytes AND a durable retirement obligation both survive
+   ✗ T34 [acked] P3 no unauthorized delete completes (after the server ack, before the local removal)
+   ✗ T34 [acked] P5 the UI does not claim a completed replacement
+
+================================================================
+READING THE RESULTS HONESTLY
+================================================================
+
+Every one of the 17 mutants was DETECTED (exit 1, at least one named
+assertion failing). Three of them failed only the FIRST assertion of their
+arm, and that is worth stating rather than glossing:
+
+- `corrupt`: with `M10.corrupt` removed from `m8SoftRecoveryAuth`, nothing is
+  written anyway — because `m10AuthNow()` checks `M10.corrupt` BEFORE the
+  storage block, so `a.why` is "corrupt", not "blocked", and the wrapper never
+  reaches the exemption branch at all. The check inside `m8SoftRecoveryAuth`
+  is defence in depth. The arm still detects its removal because it asserts
+  the refusal REASON directly, not merely the absence of a write.
+- `holder` / [changed account]: the account change makes
+  `ownershipAmbiguous()` true, so `trainingQuarantined()` refuses one line
+  later. Again defence in depth; again detected by the reason assertion.
+- `holder` / [changed session]: `m10Reset()` also zeroes the fence, so the
+  fence check refuses one line later. Same.
+
+The order of the checks inside `m8SoftRecoveryAuth` is therefore load-bearing
+for the REASON reported, and several conditions are independently sufficient
+to refuse. That is the intended shape of a fail-closed gate, but it means the
+per-arm "persists nothing" assertions are not, on their own, proof that any
+single check is necessary. The "cannot use the exemption" assertions — which
+pin the exact refusal reason — are what carry that proof, and all ten of them
+fail when their guard is removed.
+
+The one mutant that removes the exemption entirely (`noexempt`) fails T17a on
+all three of its assertions, which is the direct evidence that T17a is
+measuring the new code path and not something that was already true.

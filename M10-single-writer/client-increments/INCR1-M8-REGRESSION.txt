@@ -1,3 +1,17 @@
+!! INVALID — DO NOT CITE (marked 2026-08-03, round-34 ruling 7) !!
+!!
+!! The "TOTAL: 171/171" line below was NOT produced by a completed runner
+!! whose exit status was checked. Round 32's edition of this claim was
+!! written while the last regression batch was still running and filled in
+!! with anticipated numbers; the same practice produced the totals in this
+!! file. On the very heads these files were shipped for, `c11m8-faults`
+!! ABORTED at test L and `c11m8-quota` FAILED B6/13.
+!!
+!! Nothing in this file may be used as evidence. The only valid client
+!! matrix is INCR5-MATRIX/TOTALS.txt, generated mechanically by
+!! tests/browser/run-client-matrix.sh from completed per-suite output after
+!! checking each exit status, with the raw output kept in INCR5-MATRIX/raw/.
+
 M8 + C14 client regression matrix vs increment-1 bytes after round-14 rulings
 (CF_SRC = Weight-Tracker/index.html @ 3e7a0d0, based on .417-fx; run 2026-08-03)
 
