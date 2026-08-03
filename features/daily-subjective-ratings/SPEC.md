@@ -149,21 +149,56 @@ of those answers; the athlete should never retype them. This feature adds
 the missing piece: **a form for the questions only the athlete can answer**,
 with everything else auto-filled.
 
-## Entry point
+## Entry point — top of Home, NOT the daily check-in card
 
-A **Weekly check-in** button inside the daily check-in card, shown on the
-check-in day (default Sunday; follows the week-start setting). Accent
-outline so it reads as distinct from "Complete today" without competing
-with it. Subtitle states the deal plainly: "5 questions + photos · the rest
-is filled in".
+**Owner correction (2026-08-03):** the prompt does not live inside the
+daily check-in card. It takes the slot at the TOP of Home currently held
+by the "This Week's Progress Photos" card (`view_overview`, the `_ciDay`
+branch) and REPLACES it — the photos are captured inside the check-in now.
+
+- Appears on the athlete's check-in day. **Griffin's day is Monday**
+  (currently derived from the week-start setting; needs its own setting if
+  the two should differ).
+- **Persistent until resolved.** It does not disappear at midnight. The
+  status line escalates, in the Owner's own words:
+  `Due today · Monday` → `Due yesterday` → `Due Monday · 4 days late` →
+  `2 weeks open · Aug 4 and Jul 28` (newest week opens first, the older
+  one sits underneath).
+- Accent border while due, red border once late — the same visual grammar
+  the app already uses for attention vs problem.
+- Once sent: green check, `Sent Monday 8:12 AM · tap to edit`.
+
+## Skip — explicit, never assumed
+
+**Owner requirement:** a missed week is NOT a skip. Skipping is a
+deliberate act at the BOTTOM of the form ("Skip this week's check-in"),
+followed by a confirm that states exactly what it means: nothing is sent
+for that week, daily logs still flow, and it can be undone until the next
+check-in day. Only then is the week marked skipped and the card cleared.
+
+## Edit after sending
+
+**Owner requirement:** a sent check-in must be editable ("in case you mess
+up something"). Editing re-sends the corrected form and marks it updated
+for Max; the original stays in the record.
+
+## History — Progress tab
+
+The Owner was undecided ("summary or progress or something"). Recommended
+and mocked: a **Weekly check-ins** card on the **Progress** tab, listing
+recent weeks with their state (Sent / Skipped), answer and photo counts,
+and an Edit/Open action per row. This keeps it beside the ratings trend
+card, so everything coach-facing lives in one tab.
 
 ## The form
 
 1. **Trend bars first** — the same colour-bar block the Owner approved for
    the coach report: 14 days × six ratings, tallest = best, grey = not
    answered, with a direction tag per row.
-2. **This week's photos** — front / back / side capture tiles, reusing the
-   existing progress-photo store and week/pose model (1 of 3 style counter).
+2. **This week's photos** — **four** capture tiles: Front, Left, Right,
+   Back (Owner: "I want the four as we have done"), reusing the existing
+   progress-photo store and week/pose model (1 of 4 counter). This is why
+   the check-in replaces the photo prompt rather than sitting beside it.
 3. **Five questions**: plan adherence (5-choice, with the athlete's own
    logs shown underneath: "7/7 days tracked · 2,180 avg vs 2,150 target"),
    biggest win, biggest challenge, how training felt, any discomfort/pain.

@@ -1,0 +1,99 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>v3</title>
+<link rel="stylesheet" href="app.css">
+<style>
+body{background:var(--bg);color:var(--text);font-family:var(--sans);margin:0;padding:14px}
+.frame{max-width:420px;margin:0 auto 24px}
+.mocklabel{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);font-weight:700;margin:0 0 8px 2px}
+.wkcard{padding:14px}
+.wkrow{display:flex;align-items:center;gap:12px}
+.wkic{width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:18px;flex:none}
+.due   .wkic{background:rgba(245,181,68,.16)}
+.late  .wkic{background:rgba(242,109,91,.16)}
+.donec .wkic{background:rgba(92,214,160,.16)}
+.wkt{flex:1;min-width:0}
+.wkt b{display:block;font-size:15px;font-weight:700}
+.wkt span{display:block;font-size:12.5px;margin-top:2px}
+.due   .wkt span{color:var(--accent);font-weight:700}
+.late  .wkt span{color:#F26D5B;font-weight:700}
+.donec .wkt span{color:var(--faint)}
+.chev{color:var(--faint);font-size:20px;font-weight:700;flex:none}
+.wkcard.due{border-color:var(--accent)}
+.wkcard.late{border-color:#F26D5B}
+.sub{font-size:12px;color:var(--faint);margin-top:9px;line-height:1.45}
+/* skip + confirm */
+.skiprow{border-top:1px solid var(--line);margin-top:14px;padding-top:12px;text-align:center}
+.skiplink{background:none;border:none;color:var(--faint);font-size:13px;font-family:var(--sans);
+  text-decoration:underline;text-underline-offset:3px;cursor:pointer;padding:6px}
+.confirm{background:var(--bg2);border:1px solid var(--line);border-radius:14px;padding:14px;margin-top:12px}
+.confirm b{display:block;font-size:14px;margin-bottom:5px}
+.confirm p{margin:0 0 12px;font-size:13px;color:var(--muted);line-height:1.5}
+.cbtns{display:flex;gap:8px}
+.cbtns .wl-btn{flex:1}
+/* history list */
+.hrow{display:flex;align-items:center;gap:11px;border-top:1px solid var(--line);padding:11px 2px}
+.hrow .hd{flex:1;min-width:0}
+.hrow .hd b{display:block;font-size:14px;font-weight:600}
+.hrow .hd span{display:block;font-size:12px;color:var(--faint);margin-top:2px}
+.tag{font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:99px;flex:none}
+.tsent{background:rgba(92,214,160,.15);color:#5CD6A0}
+.tskip{background:var(--bg2);color:var(--faint)}
+.edit{background:none;border:1px solid var(--line);border-radius:9px;color:var(--muted);font-size:12px;
+  font-family:var(--sans);padding:5px 10px;cursor:pointer;flex:none}
+</style></head><body>
+
+<div class="frame">
+  <p class="mocklabel">1 · Top of Home — where progress photos sits today</p>
+
+  <div class="wl-card wkcard due" style="margin-bottom:10px">
+    <div class="wkrow"><span class="wkic">📋</span><span class="wkt"><b>Weekly check-in</b><span>Due today · Monday</span></span><span class="chev">›</span></div>
+    <div class="sub">5 questions + this week’s 4 photos. Weight, steps, sleep, training, food and your daily ratings are already filled in.</div>
+  </div>
+
+  <div class="wl-card wkcard late" style="margin-bottom:10px">
+    <div class="wkrow"><span class="wkic">📋</span><span class="wkt"><b>Weekly check-in</b><span>Due yesterday</span></span><span class="chev">›</span></div>
+    <div class="sub">Still open — it stays here until you send or skip it.</div>
+  </div>
+
+  <div class="wl-card wkcard late" style="margin-bottom:10px">
+    <div class="wkrow"><span class="wkic">📋</span><span class="wkt"><b>Weekly check-in</b><span>Due Monday · 4 days late</span></span><span class="chev">›</span></div>
+    <div class="sub">Still open — it stays here until you send or skip it.</div>
+  </div>
+
+  <div class="wl-card wkcard late" style="margin-bottom:10px">
+    <div class="wkrow"><span class="wkic">📋</span><span class="wkt"><b>Weekly check-in</b><span>2 weeks open · Aug 4 and Jul 28</span></span><span class="chev">›</span></div>
+    <div class="sub">The newest week opens first; last week is underneath it.</div>
+  </div>
+
+  <div class="wl-card wkcard donec">
+    <div class="wkrow"><span class="wkic">✓</span><span class="wkt"><b>Weekly check-in</b><span>Sent Monday 8:12 AM · tap to edit</span></span><span class="chev">›</span></div>
+  </div>
+</div>
+
+<div class="frame">
+  <p class="mocklabel">2 · Bottom of the form — skip, and the confirm</p>
+  <div class="wl-card">
+    <div class="wl-card-head"><span>Weekly check-in</span><span class="wl-count">Aug 4</span></div>
+    <div class="sub" style="margin-top:2px">…biggest win, challenge, training, discomfort above…</div>
+    <button class="wl-btn wl-btn-primary wl-full" style="margin-top:14px">Send to Max</button>
+    <div class="skiprow"><button class="skiplink">Skip this week’s check-in</button></div>
+    <div class="confirm">
+      <b>Skip this check-in?</b>
+      <p>Nothing is sent to Max for the week of Aug 4 — no photos, no answers. Your daily logs still go through as normal. You can undo this until next Monday.</p>
+      <div class="cbtns"><button class="wl-btn wl-btn-ghost">Keep it open</button><button class="wl-btn wl-btn-danger">Skip the week</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="frame">
+  <p class="mocklabel">3 · Progress tab — history, editable</p>
+  <div class="wl-card">
+    <div class="wl-card-head"><span>Weekly check-ins</span><span class="wl-count">last 6</span></div>
+    <div class="hrow"><span class="hd"><b>Aug 4</b><span>Sent 8:12 AM · 5 answers · 4 photos</span></span><span class="tag tsent">Sent</span><button class="edit">Edit</button></div>
+    <div class="hrow"><span class="hd"><b>Jul 28</b><span>Sent Tue 7:40 PM · 4 answers · 4 photos</span></span><span class="tag tsent">Sent</span><button class="edit">Edit</button></div>
+    <div class="hrow"><span class="hd"><b>Jul 21</b><span>Skipped — travel week</span></span><span class="tag tskip">Skipped</span><button class="edit">Open</button></div>
+    <div class="hrow"><span class="hd"><b>Jul 14</b><span>Sent 9:02 AM · 5 answers · 4 photos</span></span><span class="tag tsent">Sent</span><button class="edit">Edit</button></div>
+    <div class="wl-hint" style="margin-top:10px">Editing re-sends the corrected form and marks it updated for Max — the original stays in the record.</div>
+  </div>
+</div>
+</body></html>
