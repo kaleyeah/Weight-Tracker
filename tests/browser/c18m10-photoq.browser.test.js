@@ -496,6 +496,183 @@ const ADD=`async function(id){
     await ctx.close();
   }
 
+  /* T18 (ruling 1): map-write failure after the ack — entry survives at
+     `acked`, replays on reload, and the mapping becomes durable */
+  {
+    const st=mkSt();
+    const {ctx,page}=await boot(browser,server,st);
+    const s=await page.evaluate(async(addSrc)=>{
+      const orig=localStorage.setItem.bind(localStorage);
+      localStorage.setItem=function(k,v){if(/^wl_photomap$/.test(k))throw new Error('quota');return orig(k,v);};
+      await eval('('+addSrc+')')('l-18');
+      await new Promise(r=>setTimeout(r,900));
+      localStorage.setItem=orig;
+      const ops=m10pOps();
+      return {len:ops.length,state:ops[0]&&ops[0].state,hasId:!!(ops[0]&&ops[0].resultRecordId),
+        blocked:m10cHardBlocked,mapped:pbPhotoMap()['l-18']||null};
+    },ADD);
+    test('T18 map-write failure: entry held at `acked` with the server id, blocked, no silent loss',()=>{
+      eq(s.len,1);eq(s.state,'acked');ok(s.hasId,'server id durable in the entry');
+      ok(s.blocked);ok(!s.mapped);});
+    await page.reload({waitUntil:'load'});
+    await page.waitForTimeout(1400);
+    const s2=await page.evaluate(()=>({ops:m10pOps().length,mapped:pbPhotoMap()['l-18']||null}));
+    test('T18 reload: the acked entry replays the map write and clears (one upload only)',()=>{
+      eq(s2.ops,0);ok(s2.mapped);eq(st.uploads,1,'no second upload');});
+    await ctx.close();
+  }
+
+  /* T19 (ruling 2): pen lost between the delete ack and the local deletion */
+  {
+    const st=mkSt();
+    const {ctx,page}=await boot(browser,server,st);
+    const s=await page.evaluate(async(addSrc)=>{
+      await eval('('+addSrc+')')('l-19');
+      await new Promise(r=>setTimeout(r,800));
+      const sid=pbPhotoMap()['l-19'];
+      /* a crash left the delete at `acked` (server confirmed, local not yet
+         applied); the device no longer holds the pen */
+      m10pMutate(m8Uid(),function(ops){ops.push({id:'pop-ack000001',op:'delete',localId:'l-19',
+        serverId:sid,capturedLocalMeta:{kind:'food',date:'2026-08-02',week:'',pose:'',meal:'lunch',ts:'1'},
+        requestId:'m10c-seeddel0000000000000000',state:'acked'});});
+      M10.holder=false;                      /* pen lost before the local mutation */
+      m10pDispatch();
+      await new Promise(r=>setTimeout(r,700));
+      const ops=m10pOps();
+      const held={state:ops[0]&&ops[0].state,len:ops.length,blob:!!(await idbGetLocal('l-19'))};
+      /* with the pen back, the parked phase completes */
+      M10.holder=true;
+      m10pDispatch();
+      await new Promise(r=>setTimeout(r,700));
+      return {held,after:{ops:m10pOps().length,blob:!!(await idbGetLocal('l-19'))}};
+    },ADD);
+    test('T19 pen lost at the `acked` boundary: nothing deleted, entry parked',()=>{
+      eq(s.held.len,1);eq(s.held.state,'acked');ok(s.held.blob,'local blob not removed without authority');});
+    test('T19 pen restored: the parked phase completes and the photo is removed',()=>{
+      eq(s.after.ops,0);ok(!s.after.blob);});
+    await ctx.close();
+  }
+
+  /* T20 (ruling 3): an `intent` add is never dispatched — identity first */
+  {
+    const st=mkSt();
+    const {ctx,page}=await boot(browser,server,st);
+    const s=await page.evaluate(async()=>{
+      /* seed a bare intent (crash between the queue write and the blob write)
+         with the blob actually present: recovery must PROMOTE, not void */
+      const bytes=new Uint8Array(256);for(let i=0;i<256;i++)bytes[i]=i;
+      await idbAddLocal({id:'l-20',date:'2026-08-02',blob:new Blob([bytes]),ts:1,meal:'lunch',kind:'food'});
+      const uid=m8Uid();
+      m10pMutate(uid,function(ops){ops.push({id:'pop-seed000001',op:'add',localId:'l-20',
+        meta:{kind:'food',date:'2026-08-02',week:'',pose:'',meal:'lunch',ts:'1'},
+        requestId:'m10c-seedadd0000000000000000',state:'intent'});});
+      m10pDispatch();
+      await new Promise(r=>setTimeout(r,1200));
+      return {ops:m10pOps().length,mapped:pbPhotoMap()['l-20']||null};
+    });
+    test('T20 bare `intent` with the blob present: promoted to blob-ok and uploaded (never voided)',()=>{
+      eq(s.ops,0);ok(s.mapped);});
+    await ctx.close();
+  }
+  {
+    const st=mkSt();
+    const {ctx,page}=await boot(browser,server,st);
+    const s=await page.evaluate(async()=>{
+      const uid=m8Uid();
+      m10pMutate(uid,function(ops){ops.push({id:'pop-seed000002',op:'add',localId:'l-20b',
+        meta:{kind:'food',date:'2026-08-02',week:'',pose:'',meal:'lunch',ts:'1'},
+        requestId:'m10c-seedadd0000000000000001',state:'intent'});});
+      m10pDispatch();
+      await new Promise(r=>setTimeout(r,900));
+      const ops=m10pOps();
+      return {state:ops[0]&&ops[0].state,reason:ops[0]&&ops[0].voidReason};
+    });
+    test('T20 bare `intent` with the blob absent: voided, never uploaded',()=>{
+      eq(s.state,'void');eq(s.reason,'blob-absent');eq(st.uploads||0,0);});
+    await ctx.close();
+  }
+
+  /* T21 (ruling 4): destructive Apply refuses when the server identity moved */
+  {
+    const st=mkSt({fenceRequired:true,fence:1});
+    const {ctx,page}=await boot(browser,server,st);
+    const s=await page.evaluate(async(addSrc)=>{
+      await eval('('+addSrc+')')('l-21');
+      await new Promise(r=>setTimeout(r,700));
+      const sid=pbPhotoMap()['l-21'];
+      await window.__set('fence',5);
+      idbDelete('l-21');
+      await new Promise(r=>setTimeout(r,900));
+      const d=m10pDisplaced();
+      M10.fence=5;
+      m10pExport(d[0].id);
+      await new Promise(r=>setTimeout(r,300));
+      if(state.pendingConfirm){const fn=state.pendingConfirm.fn;state.pendingConfirm=null;fn();}
+      await new Promise(r=>setTimeout(r,300));
+      /* the server record now belongs to a DIFFERENT localId */
+      await window.__set('photos',{[sid]:{id:sid,localId:'someone-else',file:'p.jpg',date:'2026-08-02',kind:'food',ts:'1'}});
+      m10pReviewApply(d[0].id);
+      await new Promise(r=>setTimeout(r,400));
+      if(state.pendingConfirm){const fn=state.pendingConfirm.fn;state.pendingConfirm=null;fn();}
+      await new Promise(r=>setTimeout(r,900));
+      const ops=m10pOps();
+      return {state:ops[0]&&ops[0].state,reason:ops[0]&&ops[0].unverifiedReason,
+        blob:!!(await idbGetLocal('l-21')),deletes:0};
+    },ADD);
+    test('T21 destructive Apply with a changed server identity: refused as unverified, photo kept',()=>{
+      eq(s.state,'unverified');eq(s.reason,'server-identity-changed');ok(s.blob);});
+    await ctx.close();
+  }
+
+  /* T22 (ruling 7): a bare 404 on delete is NOT authority to delete locally */
+  {
+    const st=mkSt();
+    const {ctx,page}=await boot(browser,server,st);
+    const s=await page.evaluate(async(addSrc)=>{
+      await eval('('+addSrc+')')('l-22');
+      await new Promise(r=>setTimeout(r,700));
+      await window.__set('forceDelete',{status:404,body:{ok:false,notFound:true}});
+      idbDelete('l-22');
+      await new Promise(r=>setTimeout(r,900));
+      const ops=m10pOps();
+      return {state:ops[0]&&ops[0].state,reason:ops[0]&&ops[0].unverifiedReason,
+        blob:!!(await idbGetLocal('l-22'))};
+    },ADD);
+    test('T22 indistinguishable 404: entry becomes unverified, the local photo is KEPT',()=>{
+      eq(s.state,'unverified');eq(s.reason,'delete-unproven');ok(s.blob);});
+    await ctx.close();
+  }
+
+  /* T23 (rulings 5/6): the adopt sweep is journaled and fence-bound */
+  {
+    const st=mkSt();
+    st.photos={'pidxxxxxxxxxx1':{id:'pidxxxxxxxxxx1',localId:'srv-1',file:'p.jpg',date:'2026-08-02',kind:'food',meal:'lunch',ts:'1'}};
+    const {ctx,page}=await boot(browser,server,st);
+    const s=await page.evaluate(async()=>{
+      await new Promise(r=>{photoSync(r);setTimeout(r,1500);});
+      return {ops:m10pOps().length,adopted:!!(await idbGetLocal('srv-1')),
+        mapped:pbPhotoMap()['srv-1']||null};
+    });
+    test('T23 adopt sweep: server-only photo journaled, downloaded, mapped, entry cleared',()=>{
+      eq(s.ops,0);ok(s.adopted,'blob adopted');ok(s.mapped,'mapping durable');});
+    await ctx.close();
+  }
+  {
+    const st=mkSt();
+    const {ctx,page}=await boot(browser,server,st);
+    st.photos={'pidxxxxxxxxxx2':{id:'pidxxxxxxxxxx2',localId:'srv-2',file:'p.jpg',date:'2026-08-02',kind:'food',meal:'lunch',ts:'1'}};
+    const s=await page.evaluate(async()=>{
+      const origList=pbPhotoList;
+      pbPhotoList=function(){return origList().then(function(v){M10.fence=M10.fence+1;return v;});};
+      await new Promise(r=>{photoSync(r);setTimeout(r,1200);});
+      pbPhotoList=origList;
+      return {adopted:!!(await idbGetLocal('srv-2')),ops:m10pOps().length};
+    });
+    test('T23 fence replaced during the sweep: no adoption, no queue entries',()=>{
+      ok(!s.adopted);eq(s.ops,0);});
+    await ctx.close();
+  }
+
   await browser.close();server.close();
   console.log(`\nC18-M10 increment 4: ${passed} passed, ${failures.length} failed`);
   process.exit(failures.length?1:0);
