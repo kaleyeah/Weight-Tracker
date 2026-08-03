@@ -7758,24 +7758,40 @@ document.addEventListener("change",function(e){var el=e.target;sanityWarn(el);
 });
 document.getElementById("wl-import").addEventListener("change",function(e){
   var file=e.target.files[0];if(!file)return;var rd=new FileReader();
-  rd.onload=function(){applyImport(rd.result);};
+  /* W4: the mutation happens after FileReader — revalidate there, not here */
+  var _cap=(typeof m10Capture==="function")?m10Capture():null;
+  var _ok=function(){return (typeof m10StillValid==="function")?m10StillValid(_cap):true;};
+  rd.onload=function(){
+    if(!_ok()){toast("This device is no longer the active writer — nothing was imported");return;}
+    applyImport(rd.result);};
   rd.onerror=function(){toast("Couldn't read that file");};
   rd.readAsText(file);e.target.value="";
 });
 document.getElementById("wl-pbk-import").addEventListener("change",function(e){
   var file=e.target.files[0];if(!file){return;}var rd=new FileReader();
-  rd.onload=function(){importProgressPhotos(rd.result);};
+  var _cap2=(typeof m10Capture==="function")?m10Capture():null;
+  var _ok2=function(){return (typeof m10StillValid==="function")?m10StillValid(_cap2):true;};
+  rd.onload=function(){
+    if(!_ok2()){toast("This device is no longer the active writer — nothing was imported");return;}
+    importProgressPhotos(rd.result);};
   rd.onerror=function(){toast("Couldn't read that file");};
   rd.readAsText(file);e.target.value="";
 });
 document.getElementById("wl-photo-input").addEventListener("change",function(e){
+  /* W4: authority captured at this boundary is revalidated again immediately
+     before every local mutation later in the chain (processImage, idbAll,
+     deletes and adds all await first). */
+  var _m10cap=(typeof m10Capture==="function")?m10Capture():null;
+  var _m10ok=function(){return (typeof m10StillValid==="function")?m10StillValid(_m10cap):true;};
+  window.__m10PhotoCap=_m10cap;
   var files=e.target.files;if(!files||!files.length){return;}
   if(state.pendingPose){var _pf=files[0];var _pose=state.pendingPose;var _wk=state.pendingProgWeek||toISO(weekStartFor(0));e.target.value="";state.pendingPose=null;toast("Adding photo\u2026");
-    processImage(_pf).then(function(blob){idbAll().then(function(all){var old=all.filter(function(p){return p.kind==="progress"&&p.week===_wk&&p.pose===_pose;});Promise.all(old.map(function(p){return idbDelete(p.id);})).then(function(){idbAdd({id:"prog-"+_wk+"-"+_pose+"-"+Date.now(),date:_wk,week:_wk,pose:_pose,kind:"progress",blob:blob,ts:Date.now()+Math.random()}).then(function(){toast("Photo saved");if(state.view==="photos")renderProgressPhotos();else render();});});});});return;}
+    processImage(_pf).then(function(blob){if(!_m10ok()){toast("This device is no longer the active writer — nothing was changed");return;}idbAll().then(function(all){if(!_m10ok()){toast("This device is no longer the active writer — nothing was changed");return;}var old=all.filter(function(p){return p.kind==="progress"&&p.week===_wk&&p.pose===_pose;});Promise.all(old.map(function(p){return idbDelete(p.id);})).then(function(){if(!_m10ok())return;idbAdd({id:"prog-"+_wk+"-"+_pose+"-"+Date.now(),date:_wk,week:_wk,pose:_pose,kind:"progress",blob:blob,ts:Date.now()+Math.random()}).then(function(){toast("Photo saved");if(state.view==="photos")renderProgressPhotos();else render();});});});});return;}
   var date=state.selDate;var arr=Array.prototype.slice.call(files);e.target.value="";var meal=state.pendingMeal||"";
   toast("Adding "+arr.length+" photo"+(arr.length>1?"s":"")+"…");
   var chain=Promise.resolve();
   arr.forEach(function(f){chain=chain.then(function(){return processImage(f).then(function(blob){
+    if(!_m10ok()){toast("This device is no longer the active writer — nothing was changed");return null;}
     var id=date+"-"+Date.now()+"-"+Math.random().toString(36).slice(2,7);
     return idbAdd({id:id,date:date,blob:blob,ts:Date.now()+Math.random(),meal:meal});});});});
   chain.then(function(){if(document.getElementById("wl-photostrip")&&state.selDate===date)renderPhotosStrip(date);toast("Photos saved");}).catch(function(){toast("Couldn't save photos");});
@@ -11518,12 +11534,23 @@ function hkTryFetch(){
   var w=state.hkWait;if(!w)return;
   if(Date.now()-w.ts>5*60*1000){state.hkWait=null;toast("Health import timed out - run the shortcut and come back");render();return;}
   if(!syncOn())return;
+  /* W3 (round-29 ruling 3): this callback can land seconds later and mutates
+     food, steps, sleep, weight, bodyfat, waist, leanmass AND clears the server
+     mailbox. Authority is captured now and REVALIDATED immediately before the
+     local mutation and again before the mailbox clear. */
+  var hkCap=(typeof m10Capture==="function")?m10Capture():null;
+  var hkStill=function(){return (typeof m10StillValid==="function")?m10StillValid(hkCap):true;};
+  if(typeof m10Capture==="function"&&!hkCap){
+    state.hkWait=null;toast("This device is not the active writer — nothing was imported");render();return;}
   pbGetRecord(function(rec,err){
     var w2=state.hkWait;if(!w2)return;
     var h=(!err&&rec&&rec.health)||null;
     if(!h){setTimeout(hkTryFetch,2000);return;}
+    if(!hkStill()){state.hkWait=null;toast("This device is no longer the active writer — nothing was imported");render();return;}
     var plan=hkPlan(h,state.selDate);
-    if(!plan.count){pbSave({health:null},function(){});state.hkWait=null;toast("Nothing to import from Health");render();return;}
+    if(!plan.count){
+      if(hkStill())pbSave({health:null},function(){});
+      state.hkWait=null;toast("Nothing to import from Health");render();return;}
     for(var d in plan.food){state.food[d]=Object.assign({},state.food[d]||{},plan.food[d]);}
     for(var sd in plan.steps){state.steps[sd]=plan.steps[sd];try{setSkip(sd,"steps",false);}catch(e){}}
     for(var ld in plan.sleep){state.sleep[ld]=plan.sleep[ld];try{setSkip(ld,"sleep",false);}catch(e){}}
@@ -11533,7 +11560,8 @@ function hkTryFetch(){
     for(var lmd in plan.leanmass){state.leanmass=state.leanmass||{};state.leanmass[lmd]=plan.leanmass[lmd];try{setSkip(lmd,"leanmass",false);}catch(e){}}
     state.hkDone={date:state.selDate,ts:Date.now()};state.hkWait=null;
     save();
-    pbSave({health:null},function(){});
+    /* the mailbox clear is a server write: revalidate once more */
+    if(hkStill())pbSave({health:null},function(){});
     toast("Imported "+plan.count+" value"+(plan.count===1?"":"s")+" from Health");render();});}
 /* ---- Settings > Sync becomes an Account card ---- */
 function pbAccountCardHTML(op){
@@ -12010,7 +12038,7 @@ document.addEventListener("click",function(e){
    entry gating alone proves nothing once an await intervenes. Fail closed: if
    the gate state or durable storage is unavailable, nothing mutates. */
 var M10_GATED={};
-["act:addcat","act:del","act:toggle","cal:ignore","cal:overwrite","cal:usecalc","cardio:del","cardio:save","cf:newtype","conn:remove","day:clear","ex:clearall","ex:del","ex:save","ex:seedall","exseed:add","fb:done","fb:set","glp:compoundsave","glp:dose:del","glp:dose:save","glp:enable","glp:showdue","glp:siterot","glp:skip","glp:sym:del","glp:sym:newsave","glp:sym:save","glp:symptoms","glp:titration","hk:import","import","invite:create","invite:join","lift:del","lift:save","lift:savedetail","m10cx:takeover","m8:cx:server","macro:keep","macro:suggest","max:open","night:toggle","note:del","note:save","ob:back","ob:recalc","paste:do","pb:pwsave","pbk:import","photo:add","pphoto:add","preset:del","reminder:add","reset:ask","reset:do","ri:mv","ri:pick","ri:prog","ri:remove","rt:del","rt:new","rt:save","set:activity","set:sex","set:strategy","set:theme","set:ttype","set:units","set:weekstart","skip:calories","skip:sleep","skip:steps","skip:weight","status:end","status:endnow","status:save","sum:toggle","sync:pull","sync:push","tdee:apply","tdee:later","weight:add","weight:del","wo:addset","wo:begin","wo:bwsave","wo:delset","wo:discard","wo:discardnow","wo:endnow","wo:exaddset","wo:exmove","wo:exremove","wo:finish","wo:finishback","wo:log","wo:replacepick","wo:replsave:fwd","wo:resume","wo:savesession","wo:skipset","wo:skipthem","wu:no"].forEach(function(a){M10_GATED[a]=1;});
+["act:addcat","act:del","act:toggle","ai:copy","ai:gen","cal:ignore","cal:overwrite","cal:usecalc","cardio:del","cardio:save","cf:newtype","conn:remove","day:clear","day:reopendo","ex:clearall","ex:del","ex:save","ex:seedall","exseed:add","fb:done","fb:set","glp:compound","glp:compoundsave","glp:dose:del","glp:dose:open","glp:dose:save","glp:enable","glp:showdue","glp:siterot","glp:skip","glp:sym:del","glp:sym:edit","glp:sym:newsave","glp:sym:open","glp:sym:save","glp:symptoms","glp:titration","hk:import","import","invite:create","invite:join","lift:del","lift:save","lift:savedetail","m10cx:server","m10cx:takeover","m10p:apply","m10p:export","m8:cx:local","m8:cx:server","macro:keep","macro:suggest","max:open","night:gen","night:toggle","note:del","note:save","ob:back","ob:recalc","paste:do","pb:adv","pb:pwsave","pbk:import","photo:add","photo:view","pphoto:add","preset:del","reminder:add","reset:ask","reset:do","ri:mv","ri:pick","ri:prog","ri:remove","rt:del","rt:new","rt:save","set:activity","set:sex","set:strategy","set:theme","set:ttype","set:units","set:weekstart","skip:calories","skip:sleep","skip:steps","skip:weight","status:end","status:endnow","status:save","sum:coachreport","sum:exportall","sum:exportweek","sum:toggle","sync:pasteapply","sync:pull","sync:push","sync:test","tdee:apply","tdee:later","weight:add","weight:del","wo:addset","wo:begin","wo:bwsave","wo:delset","wo:discard","wo:discardnow","wo:endnow","wo:endrest","wo:exaddset","wo:exmove","wo:exprog","wo:exremove","wo:finish","wo:finishback","wo:finishlater","wo:log","wo:replacepick","wo:replsave:fwd","wo:resume","wo:savesession","wo:skipset","wo:skipthem","wo:start","wo:startroutine","wu:no","wu:yes"].forEach(function(a){M10_GATED[a]=1;});
 
 /* fresh, complete authority check — account, session generation, holder,
    deadline AND fence identity, plus storage health */
@@ -12062,6 +12090,43 @@ document.addEventListener("click",function(e){
   if(!m10GateAction(a)){e.stopImmediatePropagation();e.preventDefault();}
 },true);
 
+/* W1 (round-29 ruling 1): the click interceptor is NOT the only mutation
+   boundary — the application's global `input`/`change` handlers persist
+   directly (sleep, goals, lift-session fields, workout sets, routines,
+   notes/food/steps/weight/bodyfat/waist/leanmass, sync config). Those events
+   are intercepted at capture too, so a non-holder produces NO in-memory and
+   NO durable change. Controls belonging to sign-in / server setup stay usable
+   (they are how a device recovers), and everything is allowed when there is no
+   sync account at all. */
+function m10EditableAllowed(el){
+  if(!el)return true;
+  var id=(el.id||"");
+  if(/^pb-|^wl-pb|^sync-|^setup-/.test(id))return true;     /* sign-in + server config */
+  if(el.closest&&el.closest("#m10-cx,.wl-confirm"))return true;  /* M10 review + confirm sheets */
+  return false;}
+["input","change"].forEach(function(evt){
+  document.addEventListener(evt,function(e){
+    var el=e.target;
+    if(!el||!/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName||""))return;
+    if(m10EditableAllowed(el))return;
+    var a=m10AuthNow();
+    if(a.ok)return;
+    e.stopImmediatePropagation();
+    e.preventDefault();
+    /* restore the prior value so no in-memory or displayed change survives */
+    try{
+      if(el.type==="checkbox"||el.type==="radio")el.checked=!el.checked;
+      else if(el.__m10Prev!==undefined)el.value=el.__m10Prev;
+    }catch(e2){}
+    var msg=m10GateReason(a.why);
+    toast(msg||"Another session is the active writer — this device is read-only");
+  },true);});
+/* remember the pre-edit value so a refused edit can be reverted exactly */
+document.addEventListener("focusin",function(e){
+  var el=e.target;
+  if(el&&/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName||"")){try{el.__m10Prev=el.value;}catch(e2){}}
+},true);
+
 /* delayed-mutation boundaries: file inputs and the import/photo chains */
 (function(){
   var caps={};
@@ -12105,7 +12170,13 @@ document.addEventListener("click",function(e){
     var uid=null;try{uid=pbUid();}catch(e){}
     if(uid&&syncOn()){
       var cst=m10cState();
-      var pend=m10pOps(uid).length;
+      /* W5 (ruling 5): read the TYPED queue result — a malformed/unreadable
+         queue must block logout and preserve the evidence, never look empty */
+      var qr=m10pRead(uid);
+      if(qr.st==="malformed"){
+        askConfirm("This device's photo sync record is damaged and has been preserved. Resolve that before signing out — nothing can be erased while it is unreadable.",function(){try{render();}catch(e){}},{label:"OK",danger:false});
+        return;}
+      var pend=qr.st==="ok"?qr.val.ops.length:0;
       if(cst==="dirty"||cst==="dirty-unproven"||cst==="journal-recovery"||cst==="dx-recovery"){
         askConfirm("This device holds body data the server hasn\u2019t confirmed. Logout stays off until it syncs \u2014 try now?",function(){
           m10cPush(true,function(){});},{label:"Sync now",danger:false});
