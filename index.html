@@ -6006,7 +6006,12 @@ function importProgressPhotos(text,m10cap){
              empty if authority is lost mid-import */
           return fetch(rec.dataUrl).then(function(r){return r.blob();}).then(function(blob){
             if(!_iok())return null;
-            return idbAdd({id:rec.id||("prog-"+wk+"-"+rec.pose+"-"+Date.now()+"-"+Math.random().toString(36).slice(2,6)),date:wk,week:wk,pose:rec.pose,kind:"progress",blob:blob,ts:rec.ts||(Date.now()+Math.random())}).then(function(){
+            /* Y7 (round-31 ruling 7): idbAdd is a PUT — reusing an incoming
+               rec.id would overwrite existing bytes in place, destroying the
+               pre-image before the old record could be retired. Imported
+               photos are always staged under a fresh unique id. */
+            var stagedId="prog-"+wk+"-"+rec.pose+"-"+Date.now()+"-"+Math.random().toString(36).slice(2,8);
+            return idbAdd({id:stagedId,date:wk,week:wk,pose:rec.pose,kind:"progress",blob:blob,ts:rec.ts||(Date.now()+Math.random())}).then(function(){
               added++;
               var dchain=Promise.resolve();
               dupes.forEach(function(p){dchain=dchain.then(function(){
@@ -7350,7 +7355,15 @@ document.addEventListener("click",function(e){
   if(a==="ai:copy"){copyText(weeklyAIText(),"Copied your week — paste into your AI to generate");return;}
   if(a==="ai:gen"){genSummary();return;}
   if(a==="hk:import"){var _hkd=state.selDate;state.hkDone=null;
-    var _hkLaunch=function(){state.hkWait={date:_hkd,ts:Date.now()};render();
+    /* Y1 (round-31 ruling 1): the capture is taken HERE, at the click, and
+       carried on state.hkWait — the initial mailbox clear below is itself a
+       server write and must be covered by it. hkTryFetch never manufactures a
+       missing capture. */
+    var _hkCap=(typeof m10Capture==="function")?m10Capture():null;
+    if(typeof m10Capture==="function"&&!_hkCap){toast("This device is not the active writer");return;}
+    var _hkOk=function(){return (typeof m10StillValid==="function")?m10StillValid(_hkCap):true;};
+    var _hkLaunch=function(){state.hkWait={date:_hkd,ts:Date.now(),m10cap:_hkCap};render();
+      if(!_hkOk()){state.hkWait=null;toast("This device is no longer the active writer");render();return;}
       pbSave({health:null},function(){
         /* hand the Shortcut only the fresh session token as its input; the Shortcut
            holds the (non-secret) server URL and record id itself */
@@ -11578,10 +11591,10 @@ function hkTryFetch(){
      begins, and stored with the wait — every later poll revalidates that
      IMMUTABLE identity, so an A→B→A round trip across polls cannot import
      under replacement authority. */
+  /* Y1: never manufacture a capture here — an import that began without one
+     cannot be authorised retroactively */
   if(typeof m10Capture==="function"&&!w.m10cap){
-    var cap0=m10Capture();
-    if(!cap0){state.hkWait=null;toast("This device is not the active writer — nothing was imported");render();return;}
-    w.m10cap=cap0;state.hkWait=w;}
+    state.hkWait=null;toast("Health import could not be verified — start it again");render();return;}
   var hkCap=w.m10cap||null;
   var hkStill=function(){return (typeof m10StillValid==="function")?m10StillValid(hkCap):true;};
   if(typeof m10Capture==="function"&&!hkStill()){
@@ -12082,7 +12095,7 @@ document.addEventListener("click",function(e){
    entry gating alone proves nothing once an await intervenes. Fail closed: if
    the gate state or durable storage is unavailable, nothing mutates. */
 var M10_GATED={};
-["act:addcat","act:del","act:toggle","adopt:ask","adopt:yes","ai:copy","ai:gen","cal:ignore","cal:overwrite","cal:usecalc","cardio:del","cardio:save","cf:newtype","conn:remove","day:clear","day:reopendo","ex:clearall","ex:del","ex:save","ex:seedall","exseed:add","fb:done","fb:set","glp:compound","glp:compoundsave","glp:dose:del","glp:dose:open","glp:dose:save","glp:enable","glp:showdue","glp:siterot","glp:skip","glp:sym:del","glp:sym:edit","glp:sym:newsave","glp:sym:open","glp:sym:save","glp:symptoms","glp:titration","hk:import","import","invite:create","invite:join","lift:del","lift:save","lift:savedetail","lrec:finish","lrec:restore","m10cx:server","m10cx:takeover","m10p:apply","m10p:export","m8:cx:local","m8:cx:server","macro:keep","macro:suggest","max:open","night:gen","night:toggle","note:del","note:save","ob:back","ob:recalc","paste:do","pb:adv","pb:pwsave","pbk:import","photo:add","pphoto:add","preset:del","reminder:add","reset:ask","reset:do","ri:mv","ri:pick","ri:prog","ri:remove","rt:del","rt:new","rt:save","set:activity","set:sex","set:strategy","set:theme","set:ttype","set:units","set:weekstart","skip:calories","skip:sleep","skip:steps","skip:weight","status:end","status:endnow","status:save","sum:coachreport","sum:exportall","sum:exportweek","sum:toggle","sync:pasteapply","sync:pull","sync:push","sync:test","tdee:apply","tdee:later","weight:add","weight:del","wo:addset","wo:begin","wo:bwsave","wo:delset","wo:discard","wo:discardnow","wo:endnow","wo:endrest","wo:exaddset","wo:exmove","wo:exprog","wo:exremove","wo:finish","wo:finishback","wo:finishlater","wo:log","wo:replacepick","wo:replsave:fwd","wo:resume","wo:savesession","wo:skipset","wo:skipthem","wo:start","wo:startroutine","wu:no","wu:yes"].forEach(function(a){M10_GATED[a]=1;});
+["act:addcat","act:del","act:toggle","ai:copy","ai:gen","cal:ignore","cal:overwrite","cal:usecalc","cardio:del","cardio:save","cf:newtype","conn:remove","day:clear","day:reopendo","ex:clearall","ex:del","ex:save","ex:seedall","exseed:add","fb:done","fb:set","glp:compound","glp:compoundsave","glp:dose:del","glp:dose:open","glp:dose:save","glp:enable","glp:showdue","glp:siterot","glp:skip","glp:sym:del","glp:sym:edit","glp:sym:newsave","glp:sym:open","glp:sym:save","glp:symptoms","glp:titration","hk:import","import","invite:create","invite:join","lift:del","lift:save","lift:savedetail","m10cx:server","m10cx:takeover","m10p:apply","m10p:export","m8:cx:local","m8:cx:server","macro:keep","macro:suggest","max:open","night:gen","night:toggle","note:del","note:save","ob:back","ob:recalc","paste:do","pb:adv","pb:pwsave","pbk:import","photo:add","pphoto:add","preset:del","reminder:add","reset:ask","reset:do","ri:mv","ri:pick","ri:prog","ri:remove","rt:del","rt:new","rt:save","set:activity","set:sex","set:strategy","set:theme","set:ttype","set:units","set:weekstart","skip:calories","skip:sleep","skip:steps","skip:weight","status:end","status:endnow","status:save","sum:coachreport","sum:exportall","sum:exportweek","sum:toggle","sync:pasteapply","sync:pull","sync:push","sync:test","tdee:apply","tdee:later","weight:add","weight:del","wo:addset","wo:begin","wo:bwsave","wo:delset","wo:discard","wo:discardnow","wo:endnow","wo:endrest","wo:exaddset","wo:exmove","wo:exprog","wo:exremove","wo:finish","wo:finishback","wo:finishlater","wo:log","wo:replacepick","wo:replsave:fwd","wo:resume","wo:savesession","wo:skipset","wo:skipthem","wo:start","wo:startroutine","wu:no","wu:yes"].forEach(function(a){M10_GATED[a]=1;});
 
 /* fresh, complete authority check — account, session generation, holder,
    deadline AND fence identity, plus storage health */
@@ -12137,21 +12150,28 @@ document.addEventListener("click",function(e){
 /* X4 (round-30 ruling 4): single-writer correctness is about WRITES, not
    intent. The four persistence primitives are gated at the source, so a
    read-only device performs zero durable writes even when a lazy migration
-   fires during ordinary navigation. M10's own recovery machinery sets
-   m10InternalWrite around its authorized transitions (they have already
-   proven the pen for their own operation). */
-var m10InternalWrite=0;
+   fires during ordinary navigation.
+
+   Y2/Y3 (round-31 rulings 2/3): this wraps the SNAPSHOT writers only —
+   save/saveLocal/saveTraining/saveWorkout. The lower-level durable writers
+   (saveTrainingLocal, m8Write, m10cWrite, idb*, direct localStorage) are
+   deliberately NOT wrapped: they are the substrate M8/M10 journaling,
+   quarantine and recovery are built from, and gating them would break the
+   flows that repair a blocked device. Their authorization is proven at their
+   own call sites (fenced routes, journal phases, the photo queue) and
+   catalogued in INCR5-DURABLE-WRITERS.md. The earlier `m10InternalWrite`
+   guard is REMOVED: it was declared and never set, so the claim that it
+   enforced anything was false. */
 (function(){
   var prim={save:null,saveLocal:null,saveTraining:null,saveWorkout:null};
   Object.keys(prim).forEach(function(name){
     var orig=window[name];
     if(typeof orig!=="function")return;
     window[name]=function(){
-      if(!m10InternalWrite){
-        var a=m10AuthNow();
-        if(!a.ok){
-          try{if(!window.__m10WriteRefused)window.__m10WriteRefused=0;window.__m10WriteRefused++;}catch(e){}
-          return undefined;}}
+      var a=m10AuthNow();
+      if(!a.ok){
+        try{if(!window.__m10WriteRefused)window.__m10WriteRefused=0;window.__m10WriteRefused++;}catch(e){}
+        return undefined;}
       return orig.apply(this,arguments);};});
 })();
 
