@@ -2,11 +2,14 @@
 
 ## Package identity
 - **Base**: `b92d418` — the accepted increment-3 head.
-- **Increment head**: `311c3b2` — index.html sha256
-  `ff45a5ff4eedb0bbc62571c8463cc9a2f6059c2284d6e7dbc44d9bbb0990d623`
-  (prior head 6cc656d revised by the round-23 rulings; narrow diff
-  `INCR4-DIFF-FROM-6cc656d.patch`, 476 lines).
-- **Cumulative diff** `INCR4-DIFF.patch` = b92d418 → 311c3b2 (638 lines). Two
+- **Code head**: `47b4daa` — index.html sha256
+  `d996b96b6ab7f49716c140514db3d660a42c2dd4f307896c46aad84d38379c8b`.
+  (Prior heads 6cc656d → 311c3b2 → 47b4daa; the narrow round-23/24 diff
+  is `INCR4-DIFF-FROM-311c3b2.patch`.)
+- **Records head**: the commit carrying this README, both patches, all
+  evidence outputs and `INCR4-MANIFEST.txt` — its `index.html` is
+  BYTE-IDENTICAL to `47b4daa` (the manifest asserts that hash).
+- **Cumulative diff** `INCR4-DIFF.patch` = b92d418 → 47b4daa (`git diff --check` clean). Two
   delimited regions: `M10-BLOCK-4` (machinery + review UI) and
   `M10-BLOCK-4-WIRING` — the wiring is installed LAST, after the
   M8-era photo wrappers, because those assign `idbAdd`/`idbDelete`/
@@ -46,6 +49,18 @@
   byte length and every integer field; all metadata objects must pass
   strict plain-object canonicalization; `void` and `unverified`
   entries surface in the review banner with export/discard paths.
+- **Round-24 additions**: the REAL lightbox relabel now journals a
+  `meta` entry (old+new metadata) and dispatches the transactional
+  route — the raw `/api/collections/photos/records/<id>` PATCH is gone
+  (UI-path test: the queue entry exists at the instant the local store
+  is written, one transactional update, ZERO raw PATCHes); adoption
+  `intent` recovery identity-checks an existing local record (own bytes
+  → complete the mapping obligation; unrelated → `unverified` review,
+  never a silent clear); the destructive requeue persists the freshly
+  proven identity AND the resolution state in ONE verified transition
+  (a failed write dispatches nothing); the authoritative server
+  identity (recordId, localId, file) is captured AT displacement and
+  all three fields are compared after confirmation.
 - **9/10 (records)**: this bundle's manifest is committed at the head;
   the mandatory reports live on the repo's `main` branch (the
   deployed-lineage checkout) and are NOT presented as artifacts of
@@ -123,7 +138,7 @@ existing local bytes. Non-holders perform zero local and zero server
 photo mutations (tested).
 
 ## Evidence
-- `INCR4-C18-OUTPUT.txt` — C18 35/35: upload happy path + ordering;
+- `INCR4-C18-OUTPUT.txt` — C18 41/41: upload happy path + ordering;
   lost-response replay (same requestId, single record); delete
   ordering; metadata; stale fence on all three ops; malformed
   success/identity-mismatch/untyped-fence bodies (entry survives);
