@@ -1,0 +1,208 @@
+diff --git a/features/knowledge/architecture/CODEX/max-rogers-fitness-knowledge-codex.md b/features/knowledge/architecture/CODEX/max-rogers-fitness-knowledge-codex.md
+index 87d2db4..ee1f69a 100644
+--- a/features/knowledge/architecture/CODEX/max-rogers-fitness-knowledge-codex.md
++++ b/features/knowledge/architecture/CODEX/max-rogers-fitness-knowledge-codex.md
+@@ -3,8 +3,9 @@
+ 
+ **Channel:** Max Rogers / `@maxinomuscle`  
+ **Channel focus:** Sustainable fat loss, muscle growth, body recomposition, maintenance, reverse dieting, and simplified training systems for busy men.  
+-**Codex version:** 0.1 — initial research build  
++**Codex version:** 0.2 — first transcript ingestion  
+ **Last researched:** 2026-07-25  
++**Last updated:** 2026-07-30 — ingested “Why You Should Only Ever Have To Get Lean Once” (first verbatim transcript on file)  
+ **Intended use:** Claude-powered mobile/desktop reference dashboard with full-text search, topic filters, source-video traceability, and daily incremental updates.
+ 
+ > [!IMPORTANT]
+@@ -105,6 +106,19 @@ Getting lean requires executing a deficit. Staying lean requires:
+ 
+ **Evidence:** `RECURRING`
+ 
++## 3.5 One Fat-Loss Phase, Not an Annual Cycle
++
++A correctly executed fat-loss phase should only have to happen once. Dieting every year to get in shape for summer is treated as evidence that the plan itself is flawed, not that the person lacks discipline.
++
++The failure pattern described is the bulk/cut loop: too much fat gained in the bulk, too much muscle lost in the cut, and the cut abandoned before it reaches a genuinely lean endpoint. The person cycles for years while looking roughly the same — never big, never lean, stuck in what is called "the messy middle."
++
++The stated resolution is a single, long, well-fed fat-loss phase taken to 10–15% body fat, followed by a structured reverse diet. After that, body composition is managed through lean-gaining phases with small pullbacks rather than through repeated full cuts.
++
++> "The person that gets leanest is the person that can stick to the deficit for the longest."
++
++**Evidence:** `DIRECT`  
++**Primary source:** “Why You Should Only Ever Have To Get Lean Once” — `CODEX/transcripts/why-you-should-only-ever-have-to-get-lean-once.txt`
++
+ ---
+ 
+ # 4. The Max Rogers Phase Model
+@@ -154,6 +168,38 @@ Lose fat at a rate that preserves muscle and can be adhered to.
+ 
+ **Evidence:** `RECURRING`
+ 
++### Rate of loss
++
++Target **0.5–1% of body weight per week**. Losing faster than this is described as "a one-way ticket to a rebound."
++
++The phase is expected to be long — roughly 20 weeks rather than 8 — because the deficit must be small enough to survive to the end. An 8-week attempt at a 20-week job is named as the reason most people never actually arrive.
++
++> "I would much rather you lost half a pound a week for 20 weeks and kept it off than lost three pounds a week for 10 weeks and put it back on again."
++
++**Evidence:** `DIRECT`  
++**Primary source:** “Why You Should Only Ever Have To Get Lean Once”
++
++### Lever order — activity first, calories last
++
++The deficit is built from activity before it is built from food:
++
++1. Start with a **small** calorie reduction, not a slashed intake. Opening a phase at 1,500 calories is called out by name as unsustainable — it leaves nowhere to go and nothing to reverse out of.
++2. Hold protein constant.
++3. Keep resistance training at 3–5 sessions per week, leading with big compounds (incline press, pulldowns, rows, squats, deadlifts). Isolation work is "the icing on the cake" and comes last in the session.
++4. **Increase cardio and steps over time** — these are the primary tools for widening the deficit.
++5. Only then reduce calories slowly, primarily from carbohydrates — reduced gradually, never taken to zero.
++
++The purpose of this ordering is to arrive at the goal on the highest food intake possible, because the size of the intake at the finish line determines whether a reverse diet is achievable.
++
++**Evidence:** `DIRECT`  
++**Primary source:** “Why You Should Only Ever Have To Get Lean Once”
++
++### Arriving in a reversible state
++
++Finishing the cut "destroyed" is treated as a failed cut even if the target weight was hit. Diet fatigue and hunger must be actively minimized on the way down, because a person who is cooked at the end will not execute the reverse — and the reverse is what protects the result.
++
++**Evidence:** `DIRECT`
++
+ ### Dashboard decision card
+ 
+ ```yaml
+@@ -242,7 +288,18 @@ Primary challenge:
+ - A sustainable endpoint may be closer to 12% than a true 10%.
+ - The exit strategy becomes as important as the final weeks of the cut.
+ 
+-**Evidence:** `DIRECT` / `RECURRING`
++### Choosing a target
++
++The completed fat-loss phase is defined as reaching **10–15% body fat**. Within that band:
++
++- **10%** is "really lean" and is the level Max Rogers describes himself as sitting at.
++- **15%** is called a great look for most people.
++- **12–15%** is the explicit recommendation for men who are unassisted, busy, fathers, or in their 40s. Reaching 10% is stated as unnecessary for this group.
++
++**Evidence:** `DIRECT`  
++**Primary source:** “Why You Should Only Ever Have To Get Lean Once”
++
++**Evidence (stages above):** `DIRECT` / `RECURRING`
+ 
+ Relevant videos:
+ - “Why Most Guys FAIL Going From 20% to 10% Body Fat”
+@@ -298,11 +355,43 @@ A post-diet transition is needed because the habits, intake, activity, and fatig
+ - Accept a modest increase in scale weight from restored glycogen and food volume.
+ - Avoid interpreting every scale increase as fat gain.
+ 
++### Concrete increment protocol
++
++A worked example is given from a finishing position of 2,000 calories, four training sessions per week, three 30-minute cardio sessions, and 10,000 steps per day.
++
++| Step | Change | Hold | Expected scale movement |
++|---|---|---|---|
++| 1 | **+400 calories** (~100 g carbohydrate, split 50 g pre-workout / 50 g post-workout) | 2 weeks | 1–2 lb |
++| 2 | **+200 calories** (~50 g carbohydrate) | 2 weeks | ~1 lb |
++| 3 | **+200 calories** (~50 g carbohydrate) | 2 weeks | ~1 lb |
++
++Net effect: **+800 calories over six weeks**, with total scale gain described as 3–5 lb, attributed to water and muscle rather than fat.
++
++Critically, **training, cardio, and steps are all held at their end-of-cut levels throughout the six weeks.** Only food increases. This is identified as the hardest part of the entire plan and the point at which most people fail — not because it is physically difficult, but because it lands exactly when the person is mentally finished with the diet, and often when a holiday is imminent.
++
++Reported outcome at the end of the reverse: appetite under control, better pumps and vascularity, improved training, still lean but visually fuller. From there the person may hold maintenance, drop back into another fat-loss phase from a much higher intake, or enter a lean-gaining phase.
++
++> "The exit strategy and the reverse diet is the most important part of this whole plan."
++
++**Evidence:** `DIRECT`  
++**Primary source:** “Why You Should Only Ever Have To Get Lean Once”
++
++### Reverse dieting before a cut
++
++A distinct case: a person who has yo-yoed repeatedly may stop responding to a deficit — reporting hunger at 1,800 calories with no fat loss, and rapid fat gain whenever intake rises. For these people a **12-week reverse diet is prescribed first**, before any fat-loss phase, even though their body composition does not appear to warrant it. Described as "one step back to then go two or three steps forward."
++
++Note: the transcript attributes the non-response to a slowed metabolism. The Codex records the *protocol* as `DIRECT` and the *mechanism* as requiring outside verification.
++
++**Evidence:** `DIRECT` (protocol) / `VERIFY_EXTERNALLY` (metabolic mechanism)  
++**Primary source:** “Why You Should Only Ever Have To Get Lean Once”
++
+ ### Important nuance
+ A reverse diet is not magic metabolic repair. Its practical value is behavioral control, structured calorie restoration, better training, and discovering maintenance without a rebound.
+ 
+ **Evidence:** `DIRECT` / `RECURRING`  
+-**Primary source:** “This is Why You Need To Reverse Diet After Losing Body Fat”
++**Primary sources:**  
++- “This is Why You Need To Reverse Diet After Losing Body Fat”  
++- “Why You Should Only Ever Have To Get Lean Once”
+ 
+ ---
+ 
+@@ -342,7 +431,20 @@ Gain muscle while minimizing unnecessary fat gain.
+ - Use mini-cuts if body fat rises beyond the chosen guardrail.
+ - Judge success by strength, measurements, photos, and performance—not weight alone.
+ 
+-**Evidence:** `DIRECT` / `RECURRING`  
++### The push–pullback cycle
++
++Once a person has completed one fat-loss phase and reversed out properly, ongoing physique management is described as alternating between lean gaining and short pullbacks rather than repeated full cuts:
++
++- Lean gain at roughly **1 lb per week**.
++- Every **8–16 weeks**, run a **four-week mini cut** pulling back **4–5 lb**.
++- Resume gaining.
++
++Each cycle is characterized as "a bit more muscle, a bit less fat," repeated year over year, with maintenance calories climbing over time — the stated personal endpoint being maintenance at around 3,000 calories, contrasted against the impossibility of holding the same physique at 1,800.
++
++**Evidence:** `DIRECT`  
++**Primary source:** “Why You Should Only Ever Have To Get Lean Once”
++
++**Evidence (framework above):** `DIRECT` / `RECURRING`  
+ **Primary source:** “The Ultimate Lean Bulking Guide / Gain Muscle Without Fat”
+ 
+ ---
+@@ -646,6 +748,17 @@ The “skinny fat” problem is typically a combination of insufficient muscular
+ - Not knowing maintenance calories
+ - Returning to the environment and behaviors that caused the gain
+ - Attempting to maintain a body-fat level that is too demanding
++- Arriving at the goal too depleted to execute the reverse diet — the cut was run hard enough that the person has no willpower left for the phase that actually protects the result
++- Timing the end of the cut against a holiday, wedding, or summer break, so the reverse collides with alcohol, restaurant eating, and abandoned steps
++
++## The seasonal pattern
++
++A specific recurring cycle is described from coaching practice: men diet hard from roughly April through June, finish in July, holiday through August, and rebound so consistently that September is the busiest month for new coaching signups. The figure given is 20 lb lost between May and July, 25 lb regained between July and September.
++
++The stated fix is not a harder summer diet but an earlier, slower one — finishing lean *before* summer with enough headroom to reverse into it.
++
++**Evidence:** `DIRECT`  
++**Primary source:** “Why You Should Only Ever Have To Get Lean Once”
+ 
+ ## Prevention system
+ - Decide the post-cut plan before the final week.
+@@ -675,6 +788,8 @@ The “skinny fat” problem is typically a combination of insufficient muscular
+ | “Scale weight tells the whole story.” | Waist, photos, performance, and trend averages matter. |
+ | “10% body fat is automatically the best goal.” | The effort and maintainability must be weighed against the visual benefit. |
+ | “One bad day ruined the diet.” | Weekly patterns and rapid return to routine matter more. |
++| “A shorter, harder cut gets me lean sooner.” | Most aggressive 8-week phases are abandoned before reaching the target; a 20-week phase on higher food is described as both easier and more likely to finish. |
++| “I'll diet again next year.” | Needing an annual cut is treated as a sign the previous phase was never completed properly, not as a normal cycle. |
+ 
+ ---
+ 
+@@ -883,8 +998,19 @@ last_updated_at: YYYY-MM-DD
+ 
+ The following videos were discoverable during the initial research pass. Entries marked `NEEDS_TRANSCRIPT` should be enriched by transcript ingestion.
+ 
++Ingested transcripts are stored verbatim in `CODEX/transcripts/`. See that folder's README for the ingestion rules.
++
+ ## Fat loss, body-fat stages, and timelines
+ 
++### Why You Should Only Ever Have To Get Lean Once
++- **URL:** unresolved — transcript was supplied as a file without source metadata
++- **Topics:** one-cut philosophy, fat-loss phase design, reverse dieting, rebound prevention, mini cuts
++- **Core thesis:** A correctly run fat-loss phase should only have to happen once; annual re-dieting is evidence of a flawed plan, and the post-diet reverse is the part that determines whether the result holds.
++- **Evidence depth:** full transcript
++- **Transcript:** `CODEX/transcripts/why-you-should-only-ever-have-to-get-lean-once.txt`
++- **Status:** `DIRECT`
++- **Related:** “This is Why You Need To Reverse Diet After Losing Body Fat”, “If You Always Lose Fat & Gain It Back… Watch This”, “Why Some Men Stay Lean Forever (And Others Rebound)” — thematically adjacent; not confirmed to be the same video as any of them.
++
+ ### If You Always Lose Fat & Gain It Back… Watch This
+ - **URL:** https://www.youtube.com/watch?v=TN_utYhibPU
+ - **Topics:** rebound prevention, maintenance, reverse dieting

@@ -1,0 +1,10 @@
+e379783 Archive the Commit 10 spec and progress reviews before deleting scratch
+c68de44 Record the 2026-07-30 direction change at the top of the handover
+d4b6ffa Shell + HealthKit scope, captured from the Product Owner
+2aeca7d Commit the STATUS-V3 ruling and the source-ownership model
+fe1e161 FIX-007: success clears only its own source; the registry is authoritative
+087751a Commit the STATUS-V2 ruling and the corrected status model
+d3ef692 FIX-006: the REAL producers own their status (Architect STATUS-V3)
+8ef5490 Commit the FIX-004 ruling and STATUS_MODEL.md
+401383d FIX-005: status has OWNERS; convergence without a commit; photos at warning
+adbcd5d Day-one record: the red dot resolved as FIX-004; day one fails CANARY-08

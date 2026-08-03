@@ -1,0 +1,3 @@
+ M features/knowledge/architecture/CODEX/max-rogers-fitness-knowledge-codex.md
+?? features/knowledge/architecture/CODEX/transcripts/
+?? features/knowledge/reviews/CODEX_TRANSCRIPT_INGESTION_R1_REVIEW_BUNDLE/
