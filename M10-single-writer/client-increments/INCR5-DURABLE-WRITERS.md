@@ -10,7 +10,7 @@ must be provable per writer, not claimed for four wrapped names.
 | `localStorage.setItem` | direct key write | 28 | MIXED — see the per-call breakdown below |
 | `localStorage.removeItem` | direct key delete | 14 | MIXED — see below |
 | `saveLocal` | core snapshot → wl_v1 | 9 | GATED at source (snapshot wrapper) |
-| `saveTrainingLocal` | training snapshot → wl_training_v1 | 8 | callers gated: saveTraining() is wrapped; the boot migration path is covered by the migration rule below |
+| `saveTrainingLocal` | training snapshot → wl_training_v1 | 8 | callers gated: `saveTraining()` is wrapped at source; the boot migration path is GATED AT ITS CALLER as of round 33 — see the corrected migration section below |
 | `saveWorkout` | live workout → wl_workout | 31 | GATED at source (snapshot wrapper) |
 | `m8Write` | M8 journal/base/dirty/conflict (verified) | 11 | SUBSTRATE — M8 journal/quarantine; every caller is a journal phase that already proved its own authority. Gating it would break recovery on a blocked device. |
 | `m10cWrite` | M10 core journal/base/dirty/displaced/queue (verified) | 16 | SUBSTRATE — M10 core/photo journals; same rule, plus fenced-route proof at dispatch |
@@ -25,7 +25,9 @@ must be provable per writer, not claimed for four wrapped names.
 
 1. **Gated at source** — the snapshot writers a tap or a lazy render can
    reach: `save`, `saveLocal`, `saveTraining`, `saveWorkout`, plus
-   `setSyncCfg` via its gated action. A non-holder cannot move these.
+   `setSyncCfg` via its gated action, plus (round 33) the boot training
+   migration's own call to `saveTrainingLocal`, gated at that call site.
+   A non-holder cannot move these.
 2. **Substrate** — the journal, quarantine and queue primitives M8/M10 are
    built from (`m8Write`, `m10cWrite`, `idb*Local`, `setPbPhotoMap`).
    These are NOT gated, deliberately: they are how a displaced or blocked
@@ -37,12 +39,42 @@ must be provable per writer, not claimed for four wrapped names.
    would prevent a read-only device from signing in or taking over, i.e. it
    would prevent recovery.
 
-## The migration case (the Architect's concrete example)
+## The migration case (the Architect's concrete example) — CORRECTED, round 33
 
-`migrateProgressionTypes()` runs at boot and calls `saveTrainingLocal()`
-directly. It is a **pure local normalization of already-local bytes** — it
-sends nothing and changes no athlete-visible value; it rewrites the same
-training store into the current shape so later code can read it. It is
-therefore in class 2. C19 T13 proves the property that matters: a non-holder
-navigating the app produces zero durable *content* writes, and the
-snapshot-writer refusal counter stays at its expected value.
+**The previous edition of this document was wrong, and it contradicted the
+suite.** It called `migrateProgressionTypes()` a "pure local normalization of
+already-local bytes" and filed it under class 2 (substrate), while C19 T13
+asserted byte identity for `wl_training_v1`. Those are two different policies:
+substrate means "this device may write it", byte identity means "it may not".
+Under STRICT the second is correct — a non-holder performs ZERO durable
+content writes — and "it only rewrites the same data into a new shape" is not
+an exemption, because the bytes on disk still change and `wl_training_v1` is
+athlete content, not journal machinery. Substrate is the journal, quarantine
+and queue material recovery is built from; the training store is not that.
+
+**The corrected policy, as implemented:**
+
+1. `migrateProgressionTypes()` ALWAYS performs its normalisation in memory.
+   A read-only device must still render correctly, and reading and normalising
+   in RAM writes nothing.
+2. It calls `saveTrainingLocal()` **only when `m10AuthNow().ok`**. A non-holder
+   is refused, and the refusal is counted on `window.__m10WriteRefused` like
+   every other refused snapshot write.
+3. The migration is idempotent, so nothing is lost: boot calls it once before
+   the lease exists (in-memory only) and again immediately after `m10Boot()`
+   settles the lease. On the device that holds the pen it persists there; on a
+   read-only device it simply re-runs, in memory, every boot until that device
+   takes over.
+
+`saveTrainingLocal()` itself is unchanged and still NOT wrapped — the wrapper
+belongs on the caller, because `saveTrainingLocal` is also reached from
+`saveTraining()` (already gated at source) and from recovery paths.
+
+C19 T13 now proves this behaviourally, on a genuinely OLD-SHAPE record that
+forces the migration's `ch=true`:
+- non-holder: `wl_training_v1` byte-identical, the disk still carries the
+  pre-migration shape, exactly one refusal counted;
+- non-holder: the in-memory normalisation still happened (movement stamped,
+  routine-level type folded into the items and dropped) — display is intact;
+- **holder, same record: the migration DOES rewrite the store** — so the byte
+  identity above is the guard's doing, not an inert migration.

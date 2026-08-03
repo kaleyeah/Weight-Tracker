@@ -1067,6 +1067,226 @@ const ADD=`async function(id){
     await ctx.close();
   }
 
+  /* ================= round-33 item 1 =================
+     T34: the PROGRESS-PHOTO RETAKE interrupted DURING retirement.
+
+     The flow stages new bytes (idbAdd → queue → upload → map) and then retires
+     the earlier photo through the asynchronous queue. The interesting failure
+     is authority loss AFTER staging but DURING retirement, and it cannot be hit
+     honestly with a timer — so the dispatcher carries a disclosed test-only
+     seam (window.__m10pFault, inert in production) that removes the pen at an
+     EXACT queue phase. Two arms: before the server delete (`intent`) and after
+     the server acked it but before the local removal (`acked`).
+
+     Five properties per arm, each asserted concretely:
+       P1 the original bytes or their durable recovery obligation remain
+       P2 the staged photo is represented honestly
+       P3 no unauthorized delete completes
+       P4 the queue and map remain recoverable (proved by RESUMING them)
+       P5 the UI does not falsely report a fully completed replacement    */
+  const ADDPROG=`async function(id,wk,pose,seed){
+    const bytes=new Uint8Array(512);for(let i=0;i<512;i++)bytes[i]=(i*seed)%256;
+    const blob=new Blob([bytes],{type:'image/jpeg'});
+    return idbAdd({id:id,date:wk,week:wk,pose:pose,kind:'progress',blob:blob,ts:1});
+  }`;
+  const RETAKE=`async function(pose){
+    /* the REAL production entry point: the dispatcher branch for pphoto:add
+       sets pendingPose/pendingProgWeek and opens the picker (which is where
+       the delayed-boundary gate captures authority) */
+    const b=document.createElement('button');
+    b.setAttribute('data-act','pphoto:add');b.setAttribute('data-pose',pose);
+    document.body.appendChild(b);
+    b.click();
+    const staged={pose:state.pendingPose,week:state.pendingProgWeek};
+    const bytes=new Uint8Array(300);for(let i=0;i<300;i++)bytes[i]=(i*13)%256;
+    const inp=document.getElementById('wl-photo-input');
+    const dt=new DataTransfer();dt.items.add(new File([bytes],'new.jpg',{type:'image/jpeg'}));
+    inp.files=dt.files;
+    inp.dispatchEvent(new Event('change',{bubbles:true}));
+    return staged;
+  }`;
+  for(const arm of [
+    {faultAt:'intent',name:'before the server delete',expectServerDeletes:0},
+    {faultAt:'acked', name:'after the server ack, before the local removal',expectServerDeletes:1}]){
+    const st=mkSt();
+    const {ctx,page,errs}=await boot(browser,server,st);
+    const s=await page.evaluate(async(args)=>{
+      const [addProgSrc,retakeSrc,faultAt]=args;
+      const wk=toISO(weekStartFor(0));
+      const oldId='prog-'+wk+'-front-000000000001';
+      await eval('('+addProgSrc+')')(oldId,wk,'front',7);
+      await new Promise(r=>setTimeout(r,900));
+      const preOldMapped=pbPhotoMap()[oldId]||null;
+      const preOldServerRec=!!(await window.__get('photos'))[preOldMapped];
+      const toasts=[];const t0=window.toast;window.toast=function(m){toasts.push(m);return t0(m);};
+      /* remove the pen at EXACTLY this retirement phase */
+      window.__m10pFault=function(op,stt){if(op==='delete'&&stt===faultAt)M10.holder=false;};
+      const staged=await eval('('+retakeSrc+')')('front');
+      await new Promise(r=>setTimeout(r,3200));   /* past the honest-report poll */
+      window.toast=t0;
+      const all=await idbAll();
+      const ops=m10pOps();
+      const del=ops.find(x=>x.op==='delete'&&x.localId===oldId)||null;
+      const newRec=all.find(p=>p.kind==='progress'&&p.week===wk&&p.pose==='front'&&p.id!==oldId)||null;
+      const held={
+        holder:M10.holder,
+        stagedPose:staged.pose,stagedWeek:staged.week,
+        /* P1 */
+        oldBlob:!!all.find(p=>p.id===oldId),
+        delState:del&&del.state,delLen:ops.filter(x=>x.op==='delete').length,
+        delHasIdentity:!!(del&&del.requestId&&del.serverId&&del.capturedLocalMeta),
+        /* P2 */
+        newBlob:!!newRec,newMapped:newRec?(pbPhotoMap()[newRec.id]||null):null,
+        addLeft:ops.filter(x=>x.op==='add').length,
+        /* P3 */
+        oldStillMapped:pbPhotoMap()[oldId]||null,
+        serverDeletes:(await window.__get('deletes'))||0,
+        /* P4 */
+        queueReadable:m10pRead(m8Uid()).st,
+        /* P5 */
+        toasts:toasts.slice()};
+      /* P4, proved by RESUMING: with the pen back the parked obligation
+         completes — nothing was stranded and nothing was silently dropped */
+      window.__m10pFault=null;M10.holder=true;
+      m10pDispatch();
+      await new Promise(r=>setTimeout(r,1400));
+      const all2=await idbAll();
+      return {held,preOldMapped,preOldServerRec,
+        after:{oldBlob:!!all2.find(p=>p.id===oldId),ops:m10pOps().length,
+          serverDeletes:(await window.__get('deletes'))||0,
+          oldMapped:pbPhotoMap()[oldId]||null,
+          newBlob:!!all2.find(p=>p.kind==='progress'&&p.week===toISO(weekStartFor(0))&&p.pose==='front')}};
+    },[ADDPROG,RETAKE,arm.faultAt]);
+    test(`T34 [${arm.faultAt}] setup is real: the earlier photo was uploaded and mapped, the retake used the production entry point`,()=>{
+      ok(s.preOldMapped,'earlier photo mapped to a server record');
+      ok(s.preOldServerRec,'the server actually holds it');
+      eq(s.held.stagedPose,'front','pphoto:add set the pose');
+      ok(s.held.stagedWeek,'pphoto:add set the week');});
+    test(`T34 [${arm.faultAt}] P1 the original bytes AND a durable retirement obligation both survive`,()=>{
+      ok(!s.held.holder,'authority was actually lost');
+      ok(s.held.oldBlob,'the earlier photo is still on the device');
+      eq(s.held.delLen,1,'exactly one retirement obligation');
+      eq(s.held.delState,arm.faultAt,'parked at the phase authority was lost');
+      ok(s.held.delHasIdentity,'the obligation carries requestId + serverId + captured meta');});
+    test(`T34 [${arm.faultAt}] P2 the staged photo is represented honestly`,()=>{
+      ok(s.held.newBlob,'the new bytes are on the device');
+      ok(s.held.newMapped,'and mapped to the server record they were uploaded to');
+      eq(s.held.addLeft,0,'no half-finished add left behind');});
+    test(`T34 [${arm.faultAt}] P3 no unauthorized delete completes (${arm.name})`,()=>{
+      eq(s.held.serverDeletes,arm.expectServerDeletes,
+        'server deletes issued while unauthorized (measured AT the interruption, not after recovery)');
+      ok(s.held.oldBlob,'no local deletion without the pen');
+      eq(s.held.oldStillMapped,s.preOldMapped,'the mapping was not cleared');});
+    test(`T34 [${arm.faultAt}] P4 the queue and map stay recoverable — resuming with the pen completes it`,()=>{
+      eq(s.held.queueReadable,'ok','queue still typed-readable, never quarantined');
+      eq(s.after.ops,0,'the obligation drained once the pen returned');
+      eq(s.after.serverDeletes,1,'exactly one server delete across the whole episode (idempotent replay)');
+      ok(!s.after.oldBlob,'the earlier photo is retired only under authority');
+      eq(s.after.oldMapped,null,'its mapping is cleared as part of the same completion');
+      ok(s.after.newBlob,'the staged photo survives the whole episode');});
+    test(`T34 [${arm.faultAt}] P5 the UI does not claim a completed replacement`,()=>{
+      ok(s.held.toasts.some(x=>/earlier photo is still on this device/.test(x)),
+        'honest report: '+JSON.stringify(s.held.toasts));
+      ok(!s.held.toasts.some(x=>/^Photo saved$/.test(x)),
+        'never the bare completion claim: '+JSON.stringify(s.held.toasts));});
+    test(`T34 [${arm.faultAt}] no page errors`,()=>eq(errs.length,0,errs.join(';')));
+    await ctx.close();
+  }
+  /* T34c — the CONTRAST arm. Without the fault the identical flow completes and
+     reports the plain "Photo saved". Without this, T34's P5 assertions would be
+     satisfied by a message that is simply always pessimistic. */
+  {
+    const st=mkSt();
+    const {ctx,page}=await boot(browser,server,st);
+    const s=await page.evaluate(async(args)=>{
+      const [addProgSrc,retakeSrc]=args;
+      const wk=toISO(weekStartFor(0));
+      const oldId='prog-'+wk+'-front-000000000001';
+      await eval('('+addProgSrc+')')(oldId,wk,'front',7);
+      await new Promise(r=>setTimeout(r,900));
+      const toasts=[];const t0=window.toast;window.toast=function(m){toasts.push(m);return t0(m);};
+      await eval('('+retakeSrc+')')('front');
+      await new Promise(r=>setTimeout(r,3200));
+      window.toast=t0;
+      const all=await idbAll();
+      return {toasts,holder:M10.holder,ops:m10pOps().length,
+        oldBlob:!!all.find(p=>p.id===oldId),
+        oldMapped:pbPhotoMap()[oldId]||null,
+        newCount:all.filter(p=>p.kind==='progress'&&p.week===wk&&p.pose==='front').length};
+    },[ADDPROG,RETAKE]);
+    test('T34c uninterrupted retake: retirement completes and the report is the plain "Photo saved"',()=>{
+      ok(s.holder,'still the writer throughout');
+      eq(s.ops,0,'queue drained');ok(!s.oldBlob,'earlier photo retired');
+      eq(s.oldMapped,null,'its mapping cleared');eq(s.newCount,1,'exactly one photo in the slot');
+      ok(s.toasts.some(x=>/^Photo saved$/.test(x)),'plain completion: '+JSON.stringify(s.toasts));
+      ok(!s.toasts.some(x=>/earlier photo is still on this device/.test(x)),
+        'the honest-failure wording is NOT unconditional: '+JSON.stringify(s.toasts));});
+    await ctx.close();
+  }
+
+  /* ================= round-33 item 3 =================
+     T35: m10p:discard as a NON-HOLDER, from a real displaced queue entry.
+
+     Discard is deliberately reachable without the pen (INCR5-README: "take
+     over, review a displaced change, discard a pending photo op and conflict
+     resolution are the flows that repair the situation, and gating them would
+     deadlock the device"). Its safety therefore rests on WHAT it does, not on
+     who may call it: it removes the pending obligation and NOTHING else. */
+  {
+    const st=mkSt({fenceRequired:true,fence:1});
+    const {ctx,page,errs}=await boot(browser,server,st);
+    const s=await page.evaluate(async(addSrc)=>{
+      await eval('('+addSrc+')')('l-35');
+      await new Promise(r=>setTimeout(r,800));
+      const sid=pbPhotoMap()['l-35'];
+      await window.__set('fence',5);                 /* another device took over */
+      idbDelete('l-35');
+      await new Promise(r=>setTimeout(r,900));
+      const d=m10pDisplaced();
+      /* now genuinely a non-holder */
+      M10.holder=false;
+      const keySnap=()=>{const o={};Object.keys(localStorage).forEach(k=>{
+        if(/^wl_core_|^wl_photomap|^wl_v1$|^wl_training_v1$|^wl_workout/.test(k))o[k]=localStorage.getItem(k);});
+        return JSON.stringify(o);};
+      const before={keys:keySnap(),blob:!!(await idbGetLocal('l-35')),
+        map:pbPhotoMap()['l-35']||null,serverRec:!!(await window.__get('photos'))[sid],
+        deletes:(await window.__get('deletes'))||0};
+      /* drive the REAL banner control, not the function directly */
+      const host=document.createElement('div');
+      host.innerHTML=m10pBannerHTML();document.body.appendChild(host);
+      const btn=host.querySelector('[data-act="m10p:discard"][data-id="'+d[0].id+'"]');
+      let reached=false;
+      if(btn)btn.click();
+      await new Promise(r=>setTimeout(r,150));
+      const asked=state.pendingConfirm?state.pendingConfirm.message:'';
+      if(state.pendingConfirm){reached=true;const fn=state.pendingConfirm.fn;state.pendingConfirm=null;fn();}
+      await new Promise(r=>setTimeout(r,400));
+      return {holder:M10.holder,displacedBefore:d.length,btnFound:!!btn,asked,reached,before,
+        after:{keys:keySnap(),blob:!!(await idbGetLocal('l-35')),map:pbPhotoMap()['l-35']||null,
+          serverRec:!!(await window.__get('photos'))[sid],
+          deletes:(await window.__get('deletes'))||0,
+          ops:m10pOps().length,displaced:m10pDisplaced().length,
+          queue:m10pRead(m8Uid()).st}};
+    },ADD);
+    test('T35 setup: a real displaced delete exists and the banner offers Discard to a non-holder',()=>{
+      eq(s.displacedBefore,1);ok(s.btnFound,'the production Discard control rendered');
+      ok(!s.holder,'device does NOT hold the pen');
+      ok(/Discard this pending photo change/.test(s.asked),'explicit confirmation: '+s.asked);
+      ok(s.reached,'the click reached the handler — discard is ungated by design');});
+    test('T35 discard removes ONLY the pending obligation',()=>{
+      eq(s.after.ops,0,'queue entry gone');eq(s.after.displaced,0);
+      eq(s.after.queue,'ok','queue still typed-readable');});
+    test('T35 discard leaves photo bytes, the mapping and every store untouched',()=>{
+      ok(s.before.blob&&s.after.blob,'the local photo stays');
+      ok(s.before.map);eq(s.after.map,s.before.map,'the id mapping is unchanged');
+      ok(s.before.serverRec&&s.after.serverRec,'the server record is untouched');
+      eq(s.after.deletes,s.before.deletes,'no server delete issued');});
+    test('T35 discard performs no other durable write (core/training/workout/map bytes identical)',()=>{
+      eq(s.after.keys,s.before.keys,'every non-queue store byte-identical');});
+    test('T35 no page errors',()=>eq(errs.length,0,errs.join(';')));
+    await ctx.close();
+  }
+
   await browser.close();server.close();
   console.log(`\nC18-M10 increment 4: ${passed} passed, ${failures.length} failed`);
   process.exit(failures.length?1:0);

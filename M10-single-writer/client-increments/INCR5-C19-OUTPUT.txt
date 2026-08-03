@@ -28,11 +28,40 @@
   ✓ T10 HealthKit callback after pen loss: zero import, the wait is cleared honestly
   ✓ T11 import: pen lost after change but before FileReader.onload → zero mutation
   ✓ T12 malformed photo queue: logout blocked, evidence preserved (never read as empty)
-  ✓ T13 non-holder navigation + lazy migration: content stores byte-identical
+  ✓ T13 non-holder + OLD-SHAPE training: the migration had real work to do
+  ✓ T13 non-holder: ZERO durable content write, and the refusal is counted
+  ✓ T13 non-holder: the in-memory normalisation still happens (display is not broken)
+  ✓ T13 HOLDER: the same migration DOES persist (the guard is what differs, not the work)
+  ✓ T13 non-holder navigation sweep: content stores byte-identical
+  ✓ T13e real boot, HOLDER: memory normalised either way, disk written only with the pen
+  ✓ T13e no page errors (HOLDER)
+  ✓ T13e real boot, non-holder: memory normalised either way, disk written only with the pen
+  ✓ T13e no page errors (non-holder)
   ✓ T14 HealthKit capture taken at the click, not the poll
   ✓ T14 A→B→A before the first poll: nothing imported, wait cleared
   ✓ T14 non-holder hk:import: refused before the initial mailbox clear
   ✓ T15 boot-recovery actions exempt from the ordinary gate (recovery stays possible)
-  ✓ T16 m10cx:mine — handler-enforced authority, not silently ungated
+  ✓ T15a the adoption gate really owns the screen, on a device with no lease
+  ✓ T15a adopt:yes records the VERIFIED owner and reaches the approved reload
+  ✓ T15a after the reload the gate is gone and the ordinary app boots
+  ✓ T15a no page errors
+  ✓ T15b the interrupted-logout gate owns the screen and offers both real controls
+  ✓ T15b lrec:restore puts EVERY journalled value back, verified
+  ✓ T15b lrec:restore clears the journal and reaches the reload; the gate is gone
+  ✓ T15b no page errors
+  ✓ T15c lrec:finish still requires an explicit, destructive confirmation
+  ✓ T15c lrec:finish verifies its postcondition: an unstuck removal is NOT reported as done
+  ✓ T15c no page errors
+  ✓ T15c contrast: a working store lets lrec:finish complete — every target cleared, journal gone, reload reached
+  ✓ T15d unreadable journal: terminal screen with NO destructive control at all
+  ✓ T15d unreadable journal: the finish/restore functions themselves refuse and erase nothing
+  ✓ T15d no page errors
+  ✓ T16 setup: a REAL core review exists, its export gate is open, and this device has no pen
+  ✓ T16 non-holder m10cx:mine: an ACTUAL refusal, from the handler, at the holder check
+  ✓ T16 non-holder m10cx:mine: no core route call
+  ✓ T16 non-holder m10cx:mine: no journal / base / dirty / displaced mutation
+  ✓ T16 non-holder m10cx:mine: no local snapshot replacement
+  ✓ T16 no page errors
+  ✓ T16 HOLDER m10cx:mine: the same call DOES resolve the review (the negatives are real)
 
-C19-M10 increment 5: 36 passed, 0 failed
+C19-M10 increment 5: 65 passed, 0 failed

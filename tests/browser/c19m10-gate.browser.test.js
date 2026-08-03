@@ -47,6 +47,24 @@ async function boot(browser,srv,st,uid){
   await page.waitForTimeout(900);
   return {ctx,page,errs};}
 
+/* boot with an EXACT localStorage seed, applied once (so a reload performed by
+   a recovery screen does not re-seed the keys under test) */
+async function bootSeed(browser,srv,st,seed){
+  const ctx=await browser.newContext();
+  await ctx.route('**/api/**',mock(st));
+  await ctx.addInitScript((sd)=>{
+    if(localStorage.getItem('c19_seeded'))return;
+    localStorage.setItem('c19_seeded','1');
+    const z=JSON.parse(sd);
+    Object.keys(z).forEach((k)=>{
+      if(z[k]===null)localStorage.removeItem(k);else localStorage.setItem(k,z[k]);});
+  },JSON.stringify(seed));
+  const page=await ctx.newPage();
+  const errs=[];page.on('pageerror',e=>errs.push(String(e)));
+  await page.goto('http://127.0.0.1:'+srv.address().port,{waitUntil:'load'});
+  await page.waitForTimeout(900);
+  return {ctx,page,errs};}
+
 (async()=>{
   const html=fs.readFileSync(SRC,'utf8');
   const server=http.createServer((q,r)=>{r.writeHead(200,{'content-type':'text/html'});r.end(html);});
@@ -392,17 +410,84 @@ async function boot(browser,srv,st,uid){
     await ctx.close();
   }
 
-  /* T13 (ruling 4): a non-holder NAVIGATING the app — including paths that
-     fire lazy migrations — performs zero durable content writes */
+  /* T13 (round-33 item 6): the LAZY MIGRATION, with the policy contradiction
+     resolved. INCR5-DURABLE-WRITERS called migrateProgressionTypes() "pure
+     local normalisation" and therefore substrate; under STRICT that is wrong —
+     writing wl_training_v1 is a durable content write and a non-holder performs
+     ZERO of them. The migration now normalises IN MEMORY (so a read-only device
+     still displays correctly) and refuses the persist; being idempotent, it
+     re-runs and persists once the pen is held.
+
+     The previous T13 called the migration after a normal boot, when it had
+     already run and had nothing to do, so byte identity proved nothing. These
+     seed a genuinely OLD-SHAPE record that forces the migration's `ch=true`. */
+  const OLDSHAPE=JSON.stringify({cardioTypes:['Peloton'],sessions:{},liftSessions:{},
+    exercises:[{id:'e1',name:'Bench',muscle:'chest'}],            /* no `movement` */
+    routines:[{id:'r1',name:'A',progression:'rpt',                /* routine-level type */
+      items:[{itemId:'i1',exerciseId:'e1',sets:3}]}]});           /* items with none */
   {
+    const st={leaseHeld:true};
+    const {ctx,page}=await boot(browser,server,st);
+    const s=await page.evaluate(async(old)=>{
+      localStorage.setItem('wl_training_v1',old);
+      loadTraining();
+      const before=localStorage.getItem('wl_training_v1');
+      window.__m10WriteRefused=0;
+      migrateProgressionTypes();
+      const after=localStorage.getItem('wl_training_v1');
+      const disk=JSON.parse(after),mem=state.training;
+      return {holder:M10.holder,same:after===before,
+        /* the migration genuinely had work to do — the disk is STILL old-shape */
+        diskOldShape:disk.routines[0].progression==='rpt'&&!disk.exercises[0].movement
+          &&!disk.routines[0].items[0].progression,
+        /* …and it did that work in memory, so display is correct */
+        memMigrated:mem.exercises[0].movement==='compound'
+          &&mem.routines[0].progression===undefined
+          &&mem.routines[0].items[0].progression==='rpt',
+        refused:window.__m10WriteRefused};
+    },OLDSHAPE);
+    test('T13 non-holder + OLD-SHAPE training: the migration had real work to do',()=>{
+      ok(!s.holder,'device does not hold the pen');
+      ok(s.diskOldShape,'wl_training_v1 is still the pre-migration shape on disk');});
+    test('T13 non-holder: ZERO durable content write, and the refusal is counted',()=>{
+      ok(s.same,'wl_training_v1 byte-identical');eq(s.refused,1,'exactly one refused persist');});
+    test('T13 non-holder: the in-memory normalisation still happens (display is not broken)',()=>{
+      ok(s.memMigrated,'movement stamped, routine-level type folded into items and dropped');});
+    await ctx.close();
+  }
+  {
+    /* the contrast arm: the SAME old-shape record, this time with the pen. If
+       the migration were simply a no-op, this would fail. */
+    const st={};
+    const {ctx,page}=await boot(browser,server,st);
+    const s=await page.evaluate(async(old)=>{
+      localStorage.setItem('wl_training_v1',old);
+      loadTraining();
+      const before=localStorage.getItem('wl_training_v1');
+      window.__m10WriteRefused=0;
+      migrateProgressionTypes();
+      const after=localStorage.getItem('wl_training_v1');
+      const disk=JSON.parse(after);
+      return {holder:M10.holder,changed:after!==before,refused:window.__m10WriteRefused,
+        persisted:disk.exercises[0].movement==='compound'
+          &&disk.routines[0].progression===undefined
+          &&disk.routines[0].items[0].progression==='rpt'};
+    },OLDSHAPE);
+    test('T13 HOLDER: the same migration DOES persist (the guard is what differs, not the work)',()=>{
+      ok(s.holder,'device holds the pen');ok(s.changed,'wl_training_v1 rewritten');
+      ok(s.persisted,'the migrated shape is on disk');eq(s.refused,0,'nothing refused');});
+    await ctx.close();
+  }
+  {
+    /* the original property, retained: a non-holder navigating every view —
+       including paths that fire lazy migrations — writes nothing durable */
     const st={leaseHeld:true};
     const {ctx,page}=await boot(browser,server,st);
     const s=await page.evaluate(async()=>{
       const snap=()=>JSON.stringify({v:localStorage.getItem('wl_v1'),t:localStorage.getItem('wl_training_v1'),
-        w:localStorage.getItem('wl_workout')});
+        w:localStorage.getItem('wl_workout_v1')});
       const before=snap();
       window.__m10WriteRefused=0;
-      /* the exact lazy path the Architect named, plus a full navigation sweep */
       try{migrateProgressionTypes();}catch(e){}
       try{resyncAllActivityTags();}catch(e){}
       for(const v of ['overview','train','weight','progress','photos','diary','food']){
@@ -411,8 +496,40 @@ async function boot(browser,srv,st,uid){
       await new Promise(r=>setTimeout(r,300));
       return {holder:M10.holder,same:snap()===before,refused:window.__m10WriteRefused};
     });
-    test('T13 non-holder navigation + lazy migration: content stores byte-identical',()=>{
-      ok(!s.holder);ok(s.same,'wl_v1 / wl_training_v1 / wl_workout all unchanged');});
+    test('T13 non-holder navigation sweep: content stores byte-identical',()=>{
+      ok(!s.holder);ok(s.same,'wl_v1 / wl_training_v1 / wl_workout_v1 all unchanged');});
+    await ctx.close();
+  }
+  /* T13e: the END-TO-END policy, through a REAL boot with old-shape bytes on
+     disk. Boot runs the migration once before the lease exists (in memory
+     only) and again once m10Boot() has settled it — so the holder's disk ends
+     up migrated and the non-holder's does not. This is what makes "it re-runs
+     and persists once the device holds the pen" a fact rather than a promise;
+     the first call already normalised memory, so the second would be a no-op
+     without the remembered debt. */
+  for(const [label,st,expectMigrated] of [
+    ['HOLDER',{},true],
+    ['non-holder',{leaseHeld:true},false]]){
+    const {ctx,page,errs}=await bootSeed(browser,server,st,{
+      wl_pb:JSON.stringify({uid:'userA',base:'https://pb.test',token:'tok',email:'a@x.com'}),
+      wl_last_owner:'userA',wl_v1:JSON.stringify(EMPTY),wl_training_v1:OLDSHAPE});
+    await page.waitForTimeout(900);
+    const s=await page.evaluate(()=>{
+      const d=JSON.parse(localStorage.getItem('wl_training_v1'));
+      return {holder:M10.holder,
+        diskMigrated:d.exercises[0].movement==='compound'&&d.routines[0].progression===undefined
+          &&d.routines[0].items[0].progression==='rpt',
+        diskRaw:localStorage.getItem('wl_training_v1'),
+        memMigrated:state.training.exercises[0].movement==='compound'};
+    });
+    test(`T13e real boot, ${label}: memory normalised either way, disk written only with the pen`,()=>{
+      eq(s.holder,expectMigrated,'lease state as intended');
+      ok(s.memMigrated,'the in-memory copy is always normalised');
+      eq(s.diskMigrated,expectMigrated,
+        expectMigrated?'the holder persisted it after the lease settled'
+                      :'the non-holder left wl_training_v1 exactly as found: '+s.diskRaw);
+      if(!expectMigrated)eq(s.diskRaw,OLDSHAPE,'byte-identical to the seeded old shape');});
+    test(`T13e no page errors (${label})`,()=>eq(errs.length,0,errs.join(';')));
     await ctx.close();
   }
 
@@ -457,8 +574,14 @@ async function boot(browser,srv,st,uid){
     await ctx.close();
   }
 
-  /* T15 (ruling 5): terminal boot-recovery actions are NOT behind the
-     ordinary lease gate — they run before lease initialisation */
+  /* T15 (round-33 item 5): the ACTUAL terminal boot-recovery screens.
+
+     The previous T15 only proved four names are absent from M10_GATED — a
+     structural claim about a list, not behaviour. These drive the real gate
+     screens end to end. On a gated boot the ordinary app never initialises and
+     m10Boot() never runs, so the device is a non-holder BY CONSTRUCTION: if
+     these actions were behind the ordinary lease gate they would be refused
+     and recovery would be impossible. */
   {
     const st={leaseHeld:true};
     const {ctx,page}=await boot(browser,server,st);
@@ -472,23 +595,329 @@ async function boot(browser,srv,st,uid){
     await ctx.close();
   }
 
-  /* T16 (ruling 6): M10's own review actions persist and prove authority
-     inside their handlers, not via the click gate */
+  /* T15a: the ADOPTION gate — confirmation records the verified owner and
+     reaches the approved reload. */
   {
     const st={leaseHeld:true};
-    const {ctx,page}=await boot(browser,server,st);
-    const s=await page.evaluate(async()=>{
-      /* a non-holder invoking the review resolution must be refused BY THE
-         HANDLER (it checks the pen itself) */
-      let toasts=[];const t0=window.toast;window.toast=function(m){toasts.push(m);return t0(m);};
-      m10cxPushMine();
-      await new Promise(r=>setTimeout(r,200));
-      window.toast=t0;
-      return {holder:M10.holder,refused:toasts.some(x=>/active writer/i.test(x))||true,
-        gatedList:!!M10_GATED['m10cx:mine']};
+    const {ctx,page,errs}=await bootSeed(browser,server,st,{
+      wl_pb:JSON.stringify({uid:'userA',base:'https://pb.test',token:'tok',email:'a@x.com'}),
+      wl_v1:JSON.stringify(EMPTY)});           /* local data, and NO wl_last_owner */
+    const pre=await page.evaluate(()=>{
+      window.__mark=1;
+      return {gated:bootGated(),recovery:recoveryState,holder:M10.holder,
+        btn:!!document.querySelector('[data-act="adopt:yes"]'),
+        owner:localStorage.getItem('wl_last_owner'),
+        title:(document.body.textContent||'').indexOf('One question first')>=0};
     });
-    test('T16 m10cx:mine — handler-enforced authority, not silently ungated',()=>{
-      ok(!s.holder);ok(s.refused);});
+    test('T15a the adoption gate really owns the screen, on a device with no lease',()=>{
+      ok(pre.gated,'boot is gated');eq(pre.recovery,'adoption');
+      ok(!pre.holder,'no pen — m10Boot never ran behind the gate');
+      ok(pre.title,'the terminal screen is rendered');
+      ok(pre.btn,'the real adopt:yes control is present');
+      eq(pre.owner,null,'no verified owner recorded yet');});
+    await page.evaluate(()=>{document.querySelector('[data-act="adopt:yes"]').click();}).catch(()=>{});
+    await page.waitForTimeout(1600);
+    const post=await page.evaluate(()=>({
+      reloaded:window.__mark===undefined,
+      owner:localStorage.getItem('wl_last_owner'),
+      gated:bootGated(),recovery:recoveryState,
+      btn:!!document.querySelector('[data-act="adopt:yes"]'),
+      appRendered:!!document.querySelector('[data-act]')}));
+    test('T15a adopt:yes records the VERIFIED owner and reaches the approved reload',()=>{
+      eq(post.owner,'userA','wl_last_owner written and read back');
+      ok(post.reloaded,'the document was replaced — location.reload() was reached');});
+    test('T15a after the reload the gate is gone and the ordinary app boots',()=>{
+      ok(!post.gated);ok(post.recovery!=='adoption');ok(!post.btn);ok(post.appRendered);});
+    test('T15a no page errors',()=>eq(errs.length,0,errs.join(';')));
+    await ctx.close();
+  }
+
+  /* T15b: interrupted-logout RESTORE completes its verified restoration. */
+  {
+    const st={leaseHeld:true};
+    const saved={wl_v1:JSON.stringify(Object.assign({},EMPTY,{weights:[{date:'2026-07-30',weight:181}]})),
+      wl_training_v1:JSON.stringify({cardioTypes:['Rowing'],sessions:{},exercises:[],routines:[],liftSessions:{}}),
+      wl_workout_v1:null,wl_dirty:null,wl_lastsync:null,wl_last_owner:'userA',wl_training_recovery:null};
+    const journal={v:1,at:'2026-08-02',account:'userA',appBuild:'test-build',phase:'wiping',
+      vals:{wl_v1:saved.wl_v1,wl_training_v1:saved.wl_training_v1,wl_workout_v1:null,
+        wl_dirty:null,wl_lastsync:null,wl_last_owner:'userA',wl_training_recovery:null},
+      session:{local:JSON.stringify({uid:'userA',base:'https://pb.test',token:'tok',email:'a@x.com'}),session:null}};
+    const {ctx,page,errs}=await bootSeed(browser,server,st,{
+      wl_logout_journal:JSON.stringify(journal)});   /* mid-wipe: targets already gone */
+    const pre=await page.evaluate(()=>{
+      window.__mark=1;
+      return {gated:bootGated(),pending:logoutRecoveryPending(),holder:M10.holder,
+        restore:!!document.querySelector('[data-act="lrec:restore"]'),
+        finish:!!document.querySelector('[data-act="lrec:finish"]'),
+        v1:localStorage.getItem('wl_v1'),t1:localStorage.getItem('wl_training_v1')};
+    });
+    test('T15b the interrupted-logout gate owns the screen and offers both real controls',()=>{
+      ok(pre.gated&&pre.pending);ok(!pre.holder,'no pen behind the gate');
+      ok(pre.restore&&pre.finish,'lrec:restore and lrec:finish rendered');
+      eq(pre.v1,null,'the wipe had already removed the targets');eq(pre.t1,null);});
+    await page.evaluate(()=>{document.querySelector('[data-act="lrec:restore"]').click();}).catch(()=>{});
+    await page.waitForTimeout(1600);
+    const post=await page.evaluate(()=>({
+      reloaded:window.__mark===undefined,
+      v1:localStorage.getItem('wl_v1'),t1:localStorage.getItem('wl_training_v1'),
+      owner:localStorage.getItem('wl_last_owner'),
+      journal:localStorage.getItem('wl_logout_journal'),
+      pb:localStorage.getItem('wl_pb'),
+      pending:logoutRecoveryPending(),gated:bootGated()}));
+    test('T15b lrec:restore puts EVERY journalled value back, verified',()=>{
+      eq(post.v1,saved.wl_v1,'wl_v1 restored byte-for-byte');
+      eq(post.t1,saved.wl_training_v1,'wl_training_v1 restored byte-for-byte');
+      eq(post.owner,'userA','the owner marker restored');
+      /* the session slot is asserted by identity, not bytes: restoreFromJournal
+         writes the journalled string verbatim (and verifies it), but the
+         ordinary boot that follows the reload re-normalises the auth record —
+         so byte equality here would be testing the boot, not the restore */
+      const pb=JSON.parse(post.pb||'null')||{};
+      eq(pb.uid,'userA','the session was restored — signed back in as the same account');
+      eq(pb.token,'tok','with its token');});
+    test('T15b lrec:restore clears the journal and reaches the reload; the gate is gone',()=>{
+      eq(post.journal,null,'journal deleted (verified) — the device is resolved');
+      ok(post.reloaded,'location.reload() was reached');
+      ok(!post.pending&&!post.gated,'the app boots normally afterwards');});
+    test('T15b no page errors',()=>eq(errs.length,0,errs.join(';')));
+    await ctx.close();
+  }
+
+  /* T15c: interrupted-logout FINISH keeps its confirmation AND its verified
+     postcondition — a removal that silently does not stick must NOT be
+     reported as a finished wipe. */
+  {
+    const st={leaseHeld:true};
+    const leftover={wl_v1:JSON.stringify(EMPTY),wl_training_v1:'{"exercises":[]}',wl_last_owner:'userA'};
+    const journal={v:1,at:'2026-08-02',account:'userA',appBuild:'test-build',phase:'data-cleared',
+      vals:{wl_v1:leftover.wl_v1,wl_training_v1:leftover.wl_training_v1,wl_workout_v1:null,
+        wl_dirty:null,wl_lastsync:null,wl_last_owner:'userA',wl_training_recovery:null},
+      session:{local:JSON.stringify({uid:'userA',base:'https://pb.test',token:'tok',email:'a@x.com'}),session:null}};
+    const {ctx,page,errs}=await bootSeed(browser,server,st,
+      Object.assign({wl_logout_journal:JSON.stringify(journal)},leftover));
+    const s=await page.evaluate(async()=>{
+      window.__mark=1;
+      const toasts=[];const t0=window.toast;window.toast=function(m){toasts.push(m);return t0(m);};
+      const btn=document.querySelector('[data-act="lrec:finish"]');
+      btn&&btn.click();
+      await new Promise(r=>setTimeout(r,150));
+      const asked=state.pendingConfirm?state.pendingConfirm.message:'';
+      const stillThere={v1:localStorage.getItem('wl_v1'),t1:localStorage.getItem('wl_training_v1')};
+      /* the postcondition check: one removal silently does not stick */
+      const origRemove=localStorage.removeItem.bind(localStorage);
+      localStorage.removeItem=function(k){if(k==='wl_training_v1')return;return origRemove(k);};
+      const fn=state.pendingConfirm&&state.pendingConfirm.fn;state.pendingConfirm=null;
+      let ret=null;if(fn)ret=fn();
+      await new Promise(r=>setTimeout(r,250));
+      localStorage.removeItem=origRemove;
+      window.toast=t0;
+      return {btnFound:!!btn,asked,stillThere,toasts,
+        journal:localStorage.getItem('wl_logout_journal'),
+        t1:localStorage.getItem('wl_training_v1'),
+        pending:logoutRecoveryPending(),notReloaded:window.__mark===1};
+    /* a navigation here IS the failure being tested for: it would mean the wipe
+       was declared finished without its postcondition holding */
+    }).catch(e=>({navigated:true,err:String(e&&e.message)}));
+    test('T15c lrec:finish still requires an explicit, destructive confirmation',()=>{
+      ok(!s.navigated,'the page reloaded — the wipe was declared done: '+(s.err||''));
+      ok(s.btnFound,'the real control rendered');
+      ok(/Finish clearing this device\?/.test(s.asked),'confirmation raised: '+s.asked);
+      ok(/erased for good/.test(s.asked),'it says what it destroys');
+      ok(s.stillThere.v1&&s.stillThere.t1,'nothing erased before the athlete confirmed');});
+    test('T15c lrec:finish verifies its postcondition: an unstuck removal is NOT reported as done',()=>{
+      ok(!s.navigated,'the page reloaded — the wipe was declared done: '+(s.err||''));
+      ok(s.toasts.some(x=>/Couldn.t finish clearing this device/.test(x)),
+        'honest failure: '+JSON.stringify(s.toasts));
+      ok(s.t1!==null,'the key that would not clear is still present');
+      eq(s.journal!==null,true,'the journal SURVIVES — the device is still unresolved');
+      ok(s.pending,'still in interrupted-logout recovery');
+      ok(s.notReloaded,'no reload: the device was never declared clear');});
+    test('T15c no page errors',()=>eq(errs.length,0,errs.join(';')));
+    await ctx.close();
+  }
+  {
+    /* contrast: with the store behaving, the SAME control completes the wipe,
+       verifies every postcondition and reaches the reload */
+    const st={leaseHeld:true};
+    const leftover={wl_v1:JSON.stringify(EMPTY),wl_training_v1:'{"exercises":[]}',wl_last_owner:'userA'};
+    const journal={v:1,at:'2026-08-02',account:'userA',appBuild:'test-build',phase:'data-cleared',
+      vals:{wl_v1:leftover.wl_v1,wl_training_v1:leftover.wl_training_v1,wl_workout_v1:null,
+        wl_dirty:null,wl_lastsync:null,wl_last_owner:'userA',wl_training_recovery:null},
+      session:{local:JSON.stringify({uid:'userA',base:'https://pb.test',token:'tok',email:'a@x.com'}),session:null}};
+    const {ctx,page}=await bootSeed(browser,server,st,
+      Object.assign({wl_logout_journal:JSON.stringify(journal)},leftover));
+    await page.evaluate(async()=>{
+      window.__mark=1;
+      document.querySelector('[data-act="lrec:finish"]').click();
+      await new Promise(r=>setTimeout(r,150));
+      const fn=state.pendingConfirm&&state.pendingConfirm.fn;state.pendingConfirm=null;if(fn)fn();
+    }).catch(()=>{});
+    await page.waitForTimeout(1600);
+    const post=await page.evaluate(()=>({
+      reloaded:window.__mark===undefined,
+      keys:['wl_v1','wl_training_v1','wl_workout_v1','wl_dirty','wl_lastsync','wl_last_owner','wl_training_recovery']
+        .map(k=>localStorage.getItem(k)),
+      journal:localStorage.getItem('wl_logout_journal'),
+      sess:(typeof sessionStorage!=='undefined')?sessionStorage.getItem('wl_pb'):null,
+      pending:logoutRecoveryPending()}));
+    test('T15c contrast: a working store lets lrec:finish complete — every target cleared, journal gone, reload reached',()=>{
+      ok(post.keys.every(v=>v===null),'all seven targets absent: '+JSON.stringify(post.keys));
+      eq(post.journal,null);eq(post.sess,null,'session slot empty');
+      ok(!post.pending);ok(post.reloaded);});
+    await ctx.close();
+  }
+
+  /* T15d: an UNREADABLE logout journal exposes no destructive finish path —
+     neither as a control nor as a callable function. */
+  {
+    const st={leaseHeld:true};
+    const leftover={wl_v1:JSON.stringify(EMPTY),wl_training_v1:'{"exercises":[]}',wl_last_owner:'userA'};
+    const {ctx,page,errs}=await bootSeed(browser,server,st,
+      Object.assign({wl_logout_journal:'{not json at all'},leftover));
+    const s=await page.evaluate(async()=>{
+      window.__mark=1;
+      const snap=()=>JSON.stringify(['wl_v1','wl_training_v1','wl_last_owner','wl_logout_journal']
+        .map(k=>localStorage.getItem(k)));
+      const before=snap();
+      const toasts=[];const t0=window.toast;window.toast=function(m){toasts.push(m);return t0(m);};
+      /* no control anywhere on the terminal screen */
+      const controls={finish:!!document.querySelector('[data-act="lrec:finish"]'),
+        restore:!!document.querySelector('[data-act="lrec:restore"]'),
+        anyAct:document.querySelectorAll('[data-act]').length};
+      /* and the function itself refuses, so the absence of a button is not the
+         only thing standing between an unreadable journal and a wipe */
+      const finishRet=logoutRecoveryFinish();
+      const restoreRet=logoutRecoveryRestore();
+      await new Promise(r=>setTimeout(r,250));
+      window.toast=t0;
+      return {phase:logoutRecovery&&logoutRecovery.phase,gated:bootGated(),controls,
+        finishRet,restoreRet,toasts,same:snap()===before,notReloaded:window.__mark===1,
+        text:(document.body.textContent||'')};
+    /* a navigation here IS the failure: an unreadable journal must expose no
+       path that resolves or erases anything */
+    }).catch(e=>({navigated:true,err:String(e&&e.message)}));
+    test('T15d unreadable journal: terminal screen with NO destructive control at all',()=>{
+      ok(!s.navigated,'the page reloaded from an unreadable journal: '+(s.err||''));
+      eq(s.phase,'unreadable');ok(s.gated);
+      ok(!s.controls.finish,'no Finish clearing control');
+      ok(!s.controls.restore,'no Put my data back control');
+      eq(s.controls.anyAct,0,'the screen offers no data-act controls whatsoever');
+      ok(/cannot be read/.test(s.text),'and it says why');});
+    test('T15d unreadable journal: the finish/restore functions themselves refuse and erase nothing',()=>{
+      ok(!s.navigated,'the page reloaded from an unreadable journal: '+(s.err||''));
+      eq(s.finishRet,false,'logoutRecoveryFinish() refuses');
+      eq(s.restoreRet,false,'logoutRecoveryRestore() refuses');
+      ok(s.toasts.some(x=>/can.t be erased from here/.test(x)),'honest refusal: '+JSON.stringify(s.toasts));
+      ok(s.same,'wl_v1 / wl_training_v1 / wl_last_owner / the damaged journal all byte-identical');
+      ok(s.notReloaded,'nothing was declared resolved');});
+    test('T15d no page errors',()=>eq(errs.length,0,errs.join(';')));
+    await ctx.close();
+  }
+
+  /* T16 (round-33 item 2): m10cx:mine is UNGATED at the click and proves
+     authority INSIDE its handler. The previous T16 asserted
+     `toasts.some(...)||true` — unconditionally true, so it would have passed
+     even if the push had gone through. It also never built a displaced
+     envelope, so m10cxPushMine() returned at its first line and nothing was
+     exercised at all. This builds a REAL review (displaced envelope + a
+     satisfied export gate) so the holder check is the only thing left, then
+     asserts concrete negative postconditions. */
+  const CXSETUP=`async function(){
+    const rec=await new Promise(r=>pbGetRecord(function(rc){r(rc);}));
+    const scanon=m10cCanon(rec.data).canon;
+    const lc=m10cCanon(payload());
+    const env={canon:1,enteredAt:1,reason:'conflict',coreRevSeen:rec.coreRev,
+      serverData:scanon,localData:lc.canon,
+      exports:{localGen:m10cGen,localCanon:lc.canon,serverCanon:scanon,serverDone:true,localDone:true}};
+    const wrote=m10cWrite('displaced',env);
+    const e2=m10cxEnvelope();
+    return {wrote:wrote,envSt:e2.st,gateOpen:e2.st==='ok'&&m10cxExportGateOpen(e2.val),
+      holder:M10.holder,gatedList:!!M10_GATED['m10cx:mine']};
+  }`;
+  const CXSNAP=`function(){
+    const o={};Object.keys(localStorage).forEach(function(k){
+      if(/^wl_core_|^wl_photo_ops__|^wl_photomap|^wl_v1$|^wl_training_v1$|^wl_workout/.test(k))
+        o[k]=localStorage.getItem(k);});
+    return JSON.stringify(o);
+  }`;
+  {
+    const st={leaseHeld:true};
+    const {ctx,page,errs}=await boot(browser,server,st);
+    const setup=await page.evaluate(async(src)=>eval('('+src+')')(),CXSETUP);
+    test('T16 setup: a REAL core review exists, its export gate is open, and this device has no pen',()=>{
+      ok(setup.wrote,'displaced envelope written');eq(setup.envSt,'ok','envelope validates');
+      ok(setup.gateOpen,'export gate satisfied — the holder check is the only remaining barrier');
+      ok(!setup.holder,'device does not hold the pen');
+      ok(!setup.gatedList,'m10cx:mine is deliberately NOT in M10_GATED');});
+    const commitsBefore=st.commits||0;
+    const s=await page.evaluate(async(snapSrc)=>{
+      const snap=eval('('+snapSrc+')');
+      const before=snap();
+      const raw=(k)=>localStorage.getItem(k+m8Uid());
+      const b4={base:raw('wl_core_base__'),dirty:raw('wl_core_dirty__'),
+        journal:raw('wl_core_ack_journal__'),displaced:raw('wl_core_displaced__')};
+      const toasts=[];const t0=window.toast;window.toast=function(m){toasts.push(m);return t0(m);};
+      m10cxPushMine();
+      await new Promise(r=>setTimeout(r,600));
+      window.toast=t0;
+      const env=m10cxEnvelope();
+      return {holder:M10.holder,toasts,same:snap()===before,
+        dx:m10cRead('dxjournal').st,
+        baseSame:raw('wl_core_base__')===b4.base,dirtySame:raw('wl_core_dirty__')===b4.dirty,
+        journalSame:raw('wl_core_ack_journal__')===b4.journal,
+        displacedSame:raw('wl_core_displaced__')===b4.displaced,
+        envStill:env.st,envSame:env.st==='ok'&&env.val.exports&&env.val.exports.serverDone===true};
+    },CXSNAP);
+    const commitsAfter=st.commits||0;
+    test('T16 non-holder m10cx:mine: an ACTUAL refusal, from the handler, at the holder check',()=>{
+      ok(!s.holder);
+      ok(s.toasts.some(x=>/Take over as the active writer first/.test(x)),
+        'the handler-enforced refusal: '+JSON.stringify(s.toasts));
+      ok(!s.toasts.some(x=>/Export both copies first/.test(x)),
+        'it did NOT bail out at the export gate — the holder check is what refused');});
+    test('T16 non-holder m10cx:mine: no core route call',()=>{
+      eq(commitsAfter,commitsBefore,'zero /cf/appdata/commit calls');});
+    test('T16 non-holder m10cx:mine: no journal / base / dirty / displaced mutation',()=>{
+      eq(s.dx,'absent','no dx review journal was opened');
+      ok(s.baseSame,'wl_core_base__ byte-identical');
+      ok(s.dirtySame,'wl_core_dirty__ byte-identical');
+      ok(s.journalSame,'wl_core_ack_journal__ byte-identical');
+      ok(s.displacedSame,'wl_core_displaced__ byte-identical');
+      eq(s.envStill,'ok','the displaced review is still there, unresolved');
+      ok(s.envSame,'its export evidence is untouched');});
+    test('T16 non-holder m10cx:mine: no local snapshot replacement',()=>{
+      ok(s.same,'core / training / workout / queue / map bytes all identical');});
+    test('T16 no page errors',()=>eq(errs.length,0,errs.join(';')));
+    await ctx.close();
+  }
+  {
+    /* the contrast arm: with the pen, the SAME setup resolves. Without this,
+       every T16 negative could be satisfied by a setup that never reaches the
+       operative code — which is exactly what the previous T16 did. */
+    const st={};
+    const {ctx,page}=await boot(browser,server,st);
+    const setup=await page.evaluate(async(src)=>eval('('+src+')')(),CXSETUP);
+    ok(setup.gateOpen,'holder-arm setup reached the same point');
+    const commitsBefore=st.commits||0;
+    const s=await page.evaluate(async()=>{
+      const raw=(k)=>localStorage.getItem(k+m8Uid());
+      const baseBefore=raw('wl_core_base__');
+      const toasts=[];const t0=window.toast;window.toast=function(m){toasts.push(m);return t0(m);};
+      m10cxPushMine();
+      await new Promise(r=>setTimeout(r,900));
+      window.toast=t0;
+      return {holder:M10.holder,toasts,env:m10cxEnvelope().st,
+        dx:m10cRead('dxjournal').st,base:m10cRead('base').st,
+        baseChanged:raw('wl_core_base__')!==baseBefore};
+    });
+    test('T16 HOLDER m10cx:mine: the same call DOES resolve the review (the negatives are real)',()=>{
+      ok(s.holder,'holds the pen');
+      eq((st.commits||0)-commitsBefore,1,'exactly one core route call');
+      ok(s.toasts.some(x=>/Your copy is now the server copy/.test(x)),JSON.stringify(s.toasts));
+      eq(s.env,'absent','the displaced review was cleared');
+      eq(s.dx,'absent','the dx journal was cleared after completion');
+      eq(s.base,'ok','the acknowledged copy was recorded');
+      ok(s.baseChanged,'and its bytes actually moved — the negatives above measure a real path');});
     await ctx.close();
   }
 

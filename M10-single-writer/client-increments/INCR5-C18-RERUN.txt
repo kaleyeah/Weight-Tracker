@@ -50,5 +50,25 @@
   ✓ T29 identity uncaptured at displacement: unverified, destructive Apply refuses, photo kept
   ✓ T26 displacement captures the authoritative server identity (incl. file)
   ✓ T26 failed identity+state write: no dispatch, photo intact
+  ✓ T34 [intent] setup is real: the earlier photo was uploaded and mapped, the retake used the production entry point
+  ✓ T34 [intent] P1 the original bytes AND a durable retirement obligation both survive
+  ✓ T34 [intent] P2 the staged photo is represented honestly
+  ✓ T34 [intent] P3 no unauthorized delete completes (before the server delete)
+  ✓ T34 [intent] P4 the queue and map stay recoverable — resuming with the pen completes it
+  ✓ T34 [intent] P5 the UI does not claim a completed replacement
+  ✓ T34 [intent] no page errors
+  ✓ T34 [acked] setup is real: the earlier photo was uploaded and mapped, the retake used the production entry point
+  ✓ T34 [acked] P1 the original bytes AND a durable retirement obligation both survive
+  ✓ T34 [acked] P2 the staged photo is represented honestly
+  ✓ T34 [acked] P3 no unauthorized delete completes (after the server ack, before the local removal)
+  ✓ T34 [acked] P4 the queue and map stay recoverable — resuming with the pen completes it
+  ✓ T34 [acked] P5 the UI does not claim a completed replacement
+  ✓ T34 [acked] no page errors
+  ✓ T34c uninterrupted retake: retirement completes and the report is the plain "Photo saved"
+  ✓ T35 setup: a real displaced delete exists and the banner offers Discard to a non-holder
+  ✓ T35 discard removes ONLY the pending obligation
+  ✓ T35 discard leaves photo bytes, the mapping and every store untouched
+  ✓ T35 discard performs no other durable write (core/training/workout/map bytes identical)
+  ✓ T35 no page errors
 
-C18-M10 increment 4: 52 passed, 0 failed
+C18-M10 increment 4: 72 passed, 0 failed

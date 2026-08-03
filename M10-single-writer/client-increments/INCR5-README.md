@@ -2,14 +2,79 @@
 
 ## Package identity
 - **Base**: `249fd0e` — the accepted increment-4 head.
-- **Code head**: `87e9d84` — index.html sha256
+- **Previous code head**: `87e9d84` — index.html sha256
   `d2c8ed29cb9258c2c277350e0cb94eddcd9b8ad31c179fb2797c4589694b0a3b`
-  (round-31 corrections; narrow diff `INCR5-DIFF-FROM-3cd7311.patch`, 96 lines).
-- **Records head**: this commit and later — harness/artefacts only;
-  `index.html` byte-identical (the manifest checks it).
+  (round-31 corrections).
+- **Code head**: ROUND 33 — see `INCR5-MANIFEST.txt` for the current
+  `index.html` sha256; narrow diff `INCR5-DIFF-FROM-87e9d84.patch`.
+- **Suite counts at this head**: C15 35/35, C16 49/49, C17 37/37,
+  C18 **72/72** (was 52), C19 **65/65** (was 36).
 - **Diffs**: `INCR5-DIFF.patch` = 249fd0e → 3cd7311 (`git diff --check`
-  clean); `INCR5-DIFF-FROM-793e591.patch` = the round-30 corrections alone;
-  `INCR5-TESTS-DIFF.patch` = the C19 suite plus the disclosed harness edits.
+  clean); `INCR5-DIFF-FROM-3cd7311.patch` = the round-31 corrections;
+  `INCR5-DIFF-FROM-87e9d84.patch` = the round-33 corrections (product +
+  suites); `INCR5-TESTS-DIFF.patch` = the C19 suite plus the disclosed
+  harness edits.
+- **Not green**: `INCR5-M8-REGRESSION.txt` records TWO pre-existing M8
+  failures (c11m8-faults L/Q, c11m8-quota B6/13) that reproduce identically on
+  `87e9d84` and bisect to round-30's `3cd7311`. They are NOT caused by this
+  round and are NOT fixed here — the fix would contradict a standing
+  fail-closed ruling and needs an Architect/Owner decision.
+
+## Round-33 rejections, as answered
+
+- **1 (progress-retake interruption)** The retake's retirement rides the
+  increment-4 queue, so an honest "authority lost DURING retirement" test
+  needs a phase-exact seam, not a timer. `m10pDispatch` gained ONE disclosed
+  test-only hook (below). C18 T34 drives the REAL `pphoto:add` → picker →
+  change flow twice — losing the pen before the server delete (`intent`) and
+  after the server acked it but before the local removal (`acked`) — and
+  asserts all five required properties, plus a no-fault contrast arm.
+- **2 (T16 tautology)** The old refusal check was
+  `toasts.some(...)||true` — unconditionally true — and the test never built a
+  displaced envelope, so `m10cxPushMine()` returned at its first line and
+  exercised nothing. T16 now builds a real review with a satisfied export
+  gate, so the holder check is the only remaining barrier, and asserts: the
+  actual refusal string, NOT the export-gate string, zero core route calls,
+  byte-identical base/dirty/journal/displaced, no snapshot replacement — plus
+  a holder arm proving the same call really does resolve the review.
+- **3 (`m10p:discard`)** Determined from the code: discard is DELIBERATELY
+  reachable without the pen (a displaced device has, by definition, lost it,
+  and discarding a pending obligation is the repair). No product change; C18
+  T35 proves it removes ONLY the obligation — photo bytes, the id map, the
+  server record and every other store are byte-identical.
+- **4 (inventory contradiction)** `INCR5-ACTION-INVENTORY.md`'s single
+  "Ungated actions" section is split into three: the 4 boot-recovery
+  exemptions with their handler contracts, the 6 ungated MUTATIONS
+  (`m10cx:mine`, `m10cx:export`, `m8:cx:export`, `m10p:discard`, `pb:logout`,
+  `confirm:yes`) each with what it persists and its authorization contract,
+  and the 136 genuinely read-only branches. The gated table is also corrected
+  to 128 rows — it had listed the 4 exempt recovery actions as gated.
+- **5 (T15 structural)** T15 kept, plus T15a–T15d which drive the actual
+  terminal screens: adoption records the verified owner and reaches the
+  reload; logout-restore restores every journalled value and clears the
+  journal; logout-finish keeps its confirmation AND its postcondition check
+  (a removal that silently does not stick is reported as a failure, the
+  journal survives, no reload) with a working-store contrast arm; an
+  unreadable journal renders zero `data-act` controls and both recovery
+  functions refuse when called directly.
+- **6 (T13 vacuous + policy contradiction)** Resolved in favour of STRICT:
+  `migrateProgressionTypes()` normalises in memory always and PERSISTS only
+  with the pen; it is idempotent and is re-run after `m10Boot()` settles, so
+  the holder still writes it. `INCR5-DURABLE-WRITERS.md` withdraws the
+  "pure local normalization / substrate" classification. T13 now seeds a
+  genuinely OLD-SHAPE record that forces `ch=true` and has five arms,
+  including a HOLDER contrast proving the migration is not inert.
+
+## Disclosed test-only seam
+
+`m10pDispatch()` calls `window.__m10pFault(op, state, entry)` if — and only
+if — that property has been set to a function. **Nothing in the shipping
+client ever sets it**, so the branch is never taken in production. It cannot
+grant authority: every phase below it still re-proves account, session
+generation and fence for itself, which is why the mutation runs below still
+fail the moment those checks are removed. It exists because a multi-phase
+asynchronous retirement cannot be interrupted at a chosen phase by a timer
+without the test becoming a race.
 
 ## Round-31 rulings, as landed
 - **1** HealthKit captures at the `hk:import` CLICK, stored on

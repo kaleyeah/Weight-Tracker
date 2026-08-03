@@ -6664,12 +6664,33 @@ function switchEntryProgression(ei){var w=state.workout;if(!w)return;var en=w.en
   toast(to==="rpt"?"Now Reverse Pyramid — heaviest set first, −10% each set":"Now Progressive Overload — same weight across sets");
   render();}
 /* One-time: stamp the old routine-level type onto each exercise, then drop it. */
+/* Z1 (round-33 item 6): the in-memory normalisation ALWAYS runs — the rest of
+   the app reads the current shape and a read-only device must still display
+   correctly. PERSISTING it is a different thing: writing wl_training_v1 puts
+   bytes on the device, and under STRICT single-writer a device without the pen
+   performs ZERO durable content writes. Calling this "pure local normalisation"
+   (and therefore substrate) was wrong: substrate is the journal/queue machinery
+   recovery is built from, not the athlete's training store. The migration is
+   idempotent, so it simply re-runs and persists once the pen is held — boot
+   calls it again after m10Boot() settles the lease.
+
+   `migrationPersistOwed` is why that second call is not a no-op: the FIRST
+   call already normalised the in-memory copy, so a naive re-run would compute
+   ch=false and never write the disk at all. The debt is remembered until a
+   write actually succeeds. */
+var migrationPersistOwed=false;
 function migrateProgressionTypes(){var ch=false;
   (state.training.exercises||[]).forEach(function(ex){if(!ex.movement){ex.movement=guessMovement(ex.muscle);ch=true;}});
   (state.training.routines||[]).forEach(function(rt){var m=rt.progression;
     (rt.items||[]).forEach(function(it){if(!it.progression){it.progression=m||"double";ch=true;}});
     if(m!==undefined){delete rt.progression;ch=true;}});
-  if(ch)saveTrainingLocal();}
+  if(ch)migrationPersistOwed=true;
+  if(!migrationPersistOwed)return;
+  var a=(typeof m10AuthNow==="function")?m10AuthNow():{ok:true};
+  if(!a.ok){
+    try{if(!window.__m10WriteRefused)window.__m10WriteRefused=0;window.__m10WriteRefused++;}catch(e){}
+    return;}
+  if(saveTrainingLocal())migrationPersistOwed=false;}
 /* Mid-workout set add/remove writes the new count back to the saved routine. */
 function persistSetCount(en){var w=state.workout;if(!w||!en)return;
   var rt=getRoutine(w.routineId);var it=rt&&rItem(rt,en.itemId);
@@ -7805,6 +7826,22 @@ document.getElementById("wl-pbk-import").addEventListener("change",function(e){
   rd.onerror=function(){toast("Couldn't read that file");};
   rd.readAsText(file);e.target.value="";
 });
+/* Y1 (round-33 item 1): a retake stages new bytes and then RETIRES the earlier
+   photo through the increment-4 queue, which is asynchronous and multi-phase.
+   "Photo saved" was therefore said before anything had been retired, and it was
+   said identically whether the retirement completed, stalled or was refused for
+   lack of authority — a claim the code had never checked. This waits, bounded,
+   for the earlier bytes to actually leave the device and returns how many are
+   still here, so the report can be true. Same idiom as the lightbox relabel's
+   report(tries). */
+function m10pRetakeLeft(old,tries){
+  if(!old||!old.length)return Promise.resolve(0);
+  if(tries===undefined)tries=10;
+  return idbAll().then(function(all){
+    var left=old.filter(function(p){return all.some(function(q){return q.id===p.id;});}).length;
+    if(!left||tries<=0)return left;
+    return new Promise(function(r){setTimeout(r,200);}).then(function(){return m10pRetakeLeft(old,tries-1);});
+  }).catch(function(){return old.length;});}
 document.getElementById("wl-photo-input").addEventListener("change",function(e){
   /* W4: authority captured at this boundary is revalidated again immediately
      before every local mutation later in the chain (processImage, idbAll,
@@ -7832,7 +7869,16 @@ document.getElementById("wl-photo-input").addEventListener("change",function(e){
               if(!_m10ok())return null;                 /* stop: the pre-image stays */
               return idbDelete(p.id).catch(function(){});});});
             return chain;})
-          .then(function(){toast("Photo saved");if(state.view==="photos")renderProgressPhotos();else render();})
+          .then(function(){
+            if(state.view==="photos")renderProgressPhotos();else render();
+            return m10pRetakeLeft(old);})
+          .then(function(left){
+            /* Y1: report what actually happened. The new photo is saved either
+               way; claiming the replacement finished when the earlier photo is
+               still on the device (authority lost mid-retirement, offline, a
+               parked queue phase) would be a false statement. */
+            toast(left?"Photo saved — the earlier photo is still on this device and needs review":"Photo saved");
+            if(state.view==="photos")renderProgressPhotos();})
           .catch(function(){toast("Couldn’t save the photo");});
       });});
     return;}
@@ -11094,6 +11140,15 @@ function m10pDispatch(done){
   var ops=m10pOps(ctx.uid);
   var en=m10pFindEntry(ops);
   if(!en){done&&done(true);return;}
+  /* Y0 (round-33 item 1) — DISCLOSED TEST-ONLY SEAM. Nothing in the shipping
+     client ever assigns window.__m10pFault, so in production this branch is
+     never taken and the dispatcher is unchanged. It exists so a suite can
+     remove authority at an EXACT queue phase (e.g. a delete that has been
+     acked by the server but not yet applied locally) instead of racing a
+     timer, which is the only honest way to test an interruption DURING a
+     multi-phase retirement. It cannot grant authority: whatever it does, every
+     phase below still re-proves account+session+fence for itself. */
+  if(typeof window.__m10pFault==="function"){try{window.__m10pFault(en.op,en.state,en);}catch(e){}}
   var pen=m10pPen();
   if(!pen){done&&done(false);return;}
   m10pBusy=true;
@@ -12429,7 +12484,7 @@ if(!logoutRecoveryPending())runRecoveryCapture();
 if(bootGated()){
   renderGate();
 }else{
-load();loadTraining();migrateProgressionTypes();loadWorkout();rptRetargetAll();ensureIdentity();try{refreshWeekPhotos();}catch(e){}if(resyncAllActivityTags())save();var _hasSetup=/[#&]setup=/.test(location.hash||"");if(_hasSetup){state.settings.onboarded=true;}else{if(state.settings.onboarded==null)state.settings.onboarded=(state.weights.length>0||num(state.settings.goalWeight)!=null||num(state.settings.startingWeight)!=null||!!(state.settings.name&&(""+state.settings.name).trim()));if(!state.settings.onboarded){state.onboarding=true;state.obStep=0;}}applyTheme(state.settings.theme||"dark");makeIcon();if(state.workout)state.view="train";render();if(syncOn()){pbRefresh(function(){m10Boot().then(function(){m10cBoot(function(){autoSync();photoSync();});});});}/* M10 wiring (K3+incr2): lease settles, core journal recovers, then adoption */if(state.workout)startWoTick();if(_hasSetup)checkSetupLink();
+load();loadTraining();migrateProgressionTypes();loadWorkout();rptRetargetAll();ensureIdentity();try{refreshWeekPhotos();}catch(e){}if(resyncAllActivityTags())save();var _hasSetup=/[#&]setup=/.test(location.hash||"");if(_hasSetup){state.settings.onboarded=true;}else{if(state.settings.onboarded==null)state.settings.onboarded=(state.weights.length>0||num(state.settings.goalWeight)!=null||num(state.settings.startingWeight)!=null||!!(state.settings.name&&(""+state.settings.name).trim()));if(!state.settings.onboarded){state.onboarding=true;state.obStep=0;}}applyTheme(state.settings.theme||"dark");makeIcon();if(state.workout)state.view="train";render();if(syncOn()){pbRefresh(function(){m10Boot().then(function(){try{migrateProgressionTypes();}catch(e){}m10cBoot(function(){autoSync();photoSync();});});});}/* M10 wiring (K3+incr2): lease settles, core journal recovers, then adoption. Z1: the boot migration is re-run once the lease has settled — it is refused durably while this device is not the writer, and it is idempotent, so this is where it actually persists on the device that holds the pen. */if(state.workout)startWoTick();if(_hasSetup)checkSetupLink();
 endRecoveryFreeze();
 /* Everything below belongs ONLY to the clean path. A gated page is terminal:
    no persistence request, no announcement write, no update check, no visibility
