@@ -29,7 +29,13 @@ function mock(st){
       return reply(200,{ok:true,exists:true,fence:st.fence||1,holderDeviceId:st.holderDev||null,deviceName:'x',active:true,serverNow:Date.now(),ttlMs:86400000});}
     if(/collections\/appdata\/records/.test(url))
       return reply(200,{items:[{id:'rec1',user:'userA',data:EMPTY,coreRev:1,training:null,trainingRev:0}]});
-    if(/cf\/appdata\/commit/.test(url)){st.commits=(st.commits||0)+1;st.rev=(st.rev||1)+1;return reply(200,{ok:true,newRev:st.rev});}
+    if(/cf\/appdata\/commit/.test(url)){st.commits=(st.commits||0)+1;st.rev=(st.rev||1)+1;
+      /* round-34: the training and core subsystems share this route, so count
+         them separately — a T17 arm asserting "zero network writes" must not
+         be satisfied or broken by unrelated core traffic */
+      try{if(JSON.parse(route.request().postData()||'{}').subsystem==='training')
+        st.trainingCommits=(st.trainingCommits||0)+1;}catch(e){}
+      return reply(200,{ok:true,newRev:st.rev});}
     if(/collections\/photos\/records/.test(url))return reply(200,{items:[]});
     return reply(200,{items:[],token:'tok',record:{id:'userA'}});};}
 
@@ -64,6 +70,47 @@ async function bootSeed(browser,srv,st,seed){
   await page.goto('http://127.0.0.1:'+srv.address().port,{waitUntil:'load'});
   await page.waitForTimeout(900);
   return {ctx,page,errs};}
+
+/* round-34: a boot with controllable localStorage faults on top of an exact
+   seed. Same mechanism the accepted c11m8-faults suite uses — Storage.prototype
+   is patched in the PAGE, before the app loads, so the product's own writes
+   fail the way a full/faulty store makes them fail. Nothing product-side. */
+async function bootFaulty(browser,srv,st,seed){
+  const ctx=await browser.newContext();
+  await ctx.route('**/api/**',mock(st));
+  await ctx.addInitScript((sd)=>{
+    window.__denySet=[];window.__denyOnce={};
+    const oSet=Storage.prototype.setItem;
+    Storage.prototype.setItem=function(k,v){
+      if((window.__denySet||[]).some(rx=>new RegExp(rx).test(k)))
+        throw new DOMException('quota','QuotaExceededError');
+      const n=window.__denyOnce&&window.__denyOnce[k];
+      if(typeof n==='number'){
+        window.__denyOnce[k]=n-1;
+        if(n<=0)throw new DOMException('quota','QuotaExceededError');}
+      return oSet.call(this,k,v);};
+    const z=JSON.parse(sd);
+    Object.keys(z).forEach((k)=>{
+      if(z[k]===null)localStorage.removeItem(k);else localStorage.setItem(k,z[k]);});
+  },JSON.stringify(seed));
+  const page=await ctx.newPage();
+  const errs=[];page.on('pageerror',e=>errs.push(String(e)));
+  await page.goto('http://127.0.0.1:'+srv.address().port,{waitUntil:'load'});
+  await page.waitForTimeout(900);
+  return {ctx,page,errs};}
+
+/* a device whose LAST edit was never proven to reach disk: m8Boot derives the
+   SOFT (unproven) block from these exact bytes, for real, with no test hook. */
+const TRAIN0='{"cardioTypes":["Peloton"],"exercises":[],"liftSessions":{},"routines":[],"sessions":{}}';
+function softSeed(uid){
+  uid=uid||'userA';
+  const s={};
+  s['wl_pb']=JSON.stringify({uid:uid,base:'https://pb.test',token:'tok',email:'a@x.com'});
+  s['wl_last_owner']=uid;
+  s['wl_v1']=JSON.stringify(EMPTY);
+  s['wl_training_v1']=TRAIN0;
+  s['wl_training_dirty__'+uid]=JSON.stringify({owner:uid,mark:'m8.1',gen:7,persistedGen:5,ts:1});
+  return s;}
 
 (async()=>{
   const html=fs.readFileSync(SRC,'utf8');
@@ -918,6 +965,501 @@ async function bootSeed(browser,srv,st,seed){
       eq(s.dx,'absent','the dx journal was cleared after completion');
       eq(s.base,'ok','the acknowledged copy was recorded');
       ok(s.baseChanged,'and its bytes actually moved — the negatives above measure a real path');});
+    await ctx.close();
+  }
+
+  /* ================= round-34 rulings 1-3 =================
+     T17: the ONE exemption from the source gate.
+
+     M8 raises a SOFT (unproven) block when a dirty generation was never proven
+     to reach disk, and its recovery design is that the athlete's next
+     successful, VERIFIED re-save releases it. Round-30 gated saveTraining() on
+     m10AuthNow(), which refuses on the whole m8StorageBlocked union — so the
+     one action that could clear the block was the action that was refused, and
+     the device stayed read-only until reinstall.
+
+     The exemption is narrow by construction (m8SoftRecoveryAuth) and its
+     contract is a single function (m8SoftBlockRecoverySave). These arms prove
+     all four of the Architect's requirements. Every arm boots a REAL soft-only
+     block, derived by m8Boot from seeded unproven bytes — no product hook. */
+  const SOFTBASE=(uid)=>{
+    const s=softSeed(uid||'userA');
+    s['wl_training_base__'+(uid||'userA')]=JSON.stringify(
+      {owner:uid||'userA',mark:'m8.1',canon:1,rev:1,body:TRAIN0});
+    return s;};
+  const SNAP17=`function(){
+    const o={};Object.keys(localStorage).forEach(function(k){
+      if(/^wl_v1$|^wl_training_|^wl_core_|^wl_workout|^wl_photomap|^wl_photo_ops__/.test(k))
+        o[k]=localStorage.getItem(k);});
+    return JSON.stringify(o);
+  }`;
+
+  /* ---- (a) a valid holder under ONLY the soft block re-saves, verifies, and
+         clears it ---- */
+  {
+    const st={};
+    const {ctx,page,errs}=await bootFaulty(browser,server,st,SOFTBASE());
+    const pre=await page.evaluate(()=>({
+      soft:m8UnprovenBlocked,hard:m8HardBlocked,
+      coreHard:m10cHardBlocked,coreSoft:m10cUnprovenBlocked,
+      union:window.m8StorageBlocked,holder:M10.holder,fence:M10.fence,
+      auth:m10AuthNow(),exempt:m8SoftRecoveryAuth(),
+      state:m8State(),dirty:localStorage.getItem('wl_training_dirty__userA')}));
+    test('T17a setup: a REAL soft-only block, derived at boot from an unproven dirty generation',()=>{
+      ok(pre.soft,'m8UnprovenBlocked was raised by m8Boot');
+      ok(!pre.hard,'m8HardBlocked is NOT raised');
+      ok(!pre.coreHard&&!pre.coreSoft,'the M10 core raises no block');
+      ok(pre.union,'the shared union therefore reads blocked');
+      ok(pre.holder,'this device holds the pen');ok(pre.fence>=1,'with a valid fence');
+      ok(!pre.auth.ok,'the ordinary source gate refuses');
+      eq(pre.auth.why,'blocked','and refuses precisely because of the block');
+      ok(pre.exempt.ok,'the narrow exemption applies to exactly this device');});
+    const commitsBefore=st.trainingCommits||0;
+    const s=await page.evaluate(async()=>{
+      const before=localStorage.getItem('wl_training_v1');
+      const refused0=window.__m10WriteRefused||0;
+      state.training.exercises.push({id:'recov',name:'Recovered',muscle:'back',notes:[]});
+      const ret=saveTraining();
+      const d=JSON.parse(localStorage.getItem('wl_training_dirty__userA')||'null');
+      const now={ret:ret,
+        soft:m8UnprovenBlocked,hard:m8HardBlocked,union:window.m8StorageBlocked,
+        proof:!!(d&&typeof d.gen==='number'&&d.gen===d.persistedGen),
+        onDisk:(localStorage.getItem('wl_training_v1')||'').indexOf('"recov"')>=0,
+        changed:localStorage.getItem('wl_training_v1')!==before,
+        refusedDelta:(window.__m10WriteRefused||0)-refused0,
+        authAfter:m10AuthNow().ok};
+      await new Promise(r=>setTimeout(r,2600));   /* past the 1600ms push debounce */
+      now.stateAfter=m8State();
+      return now;});
+    test('T17a the exemption re-saves the snapshot AND its dirty-generation proof',()=>{
+      eq(s.ret,true,'saveTraining() reported a completed recovery');
+      ok(s.changed,'the training snapshot was actually rewritten');
+      ok(s.onDisk,'and the new edit is on disk');
+      ok(s.proof,'the dirty record now carries persistedGen === gen');
+      eq(s.refusedDelta,0,'this was not counted as a refused write');});
+    test('T17a the soft block is cleared only after both were read back and verified',()=>{
+      ok(!s.soft,'m8UnprovenBlocked released');
+      ok(!s.hard,'no hard block was raised');
+      ok(!s.union,'the shared union is clear');
+      ok(s.authAfter,'the ordinary gate now passes — the device is writable again');});
+    test('T17a synchronisation resumes only once the proof exists',()=>{
+      eq((st.trainingCommits||0)-commitsBefore,1,
+        'exactly one training commit was issued, after the proof landed');});
+    test('T17a no page errors',()=>eq(errs.length,0,errs.join(';')));
+    await ctx.close();
+  }
+
+  /* ---- (b) every other condition refuses, each as its own arm. The device is
+         soft-blocked in ALL of them, so the only thing under test is the extra
+         condition. Nothing may be persisted and nothing may be pushed. ---- */
+  for(const arm of [
+    {name:'non-holder',                why:'not-holder',   fn:()=>{M10.holder=false;}},
+    {name:'changed account',           why:'not-holder',   fn:()=>{
+      const c=JSON.parse(localStorage.getItem('wl_pb'));c.uid='userB';
+      localStorage.setItem('wl_pb',JSON.stringify(c));}},
+    {name:'changed session',           why:'not-holder',   fn:()=>{m10Reset('another device took over');}},
+    {name:'invalid fence',             why:'no-fence',     fn:()=>{M10.fence=0;}},
+    {name:'expired lease',             why:'expired',      fn:()=>{M10.deadline=performance.now()-1;}},
+    {name:'hard M8 block',             why:'hard-blocked', fn:()=>{m8Block('hard failure for the test');}},
+    {name:'additional core hard block',why:'core-blocked', fn:()=>{m10cBlock('core failure for the test');}},
+    {name:'additional core soft block',why:'core-blocked', fn:()=>{m10cSoftBlock('core unproven for the test');}},
+    {name:'corrupt identity',          why:'corrupt',      fn:()=>{M10.corrupt=true;}},
+    {name:'local writes frozen',       why:'frozen',       fn:()=>{recoveryFreeze=true;}}]){
+    const st={};
+    const {ctx,page,errs}=await bootFaulty(browser,server,st,SOFTBASE());
+    const commitsBefore=st.trainingCommits||0;
+    const s=await page.evaluate(async(args)=>{
+      const [fnSrc,snapSrc]=args;
+      const snap=eval('('+snapSrc+')');
+      const soft0=m8UnprovenBlocked;
+      const before=snap();
+      const genBefore=M10.gen;
+      eval('('+fnSrc+')')();
+      const exempt=m8SoftRecoveryAuth();
+      const refused0=window.__m10WriteRefused||0;
+      state.training.exercises.push({id:'nope',name:'Must not persist',muscle:'back',notes:[]});
+      const ret=saveTraining();
+      const refusedDelta=(window.__m10WriteRefused||0)-refused0;
+      await new Promise(r=>setTimeout(r,2400));   /* past the push debounce */
+      return {soft0,exempt,ret,genBefore,genAfter:M10.gen,refusedDelta,
+        same:snap()===before,
+        stillBlocked:window.m8StorageBlocked,
+        onDisk:(localStorage.getItem('wl_training_v1')||'').indexOf('"nope"')>=0};
+    },[arm.fn.toString(),SNAP17]);
+    test(`T17b [${arm.name}] cannot use the exemption`,()=>{
+      ok(s.soft0,'the arm really did start from the soft block');
+      ok(!s.exempt.ok,'m8SoftRecoveryAuth refuses');
+      eq(s.exempt.why,arm.why,'for the stated reason');
+      ok(s.ret!==true,'saveTraining() reported no recovery: '+JSON.stringify(s.ret));
+      eq(s.refusedDelta,1,'and it was counted as an ordinary refused write');});
+    test(`T17b [${arm.name}] persists nothing and pushes nothing`,()=>{
+      ok(!s.onDisk,'the edit did not reach wl_training_v1');
+      ok(s.same,'every training / core / workout / photo store is byte-identical');
+      ok(s.stillBlocked,'the device is still blocked');
+      eq((st.trainingCommits||0)-commitsBefore,0,'zero training network writes');});
+    if(arm.name==='changed session')
+      test('T17b [changed session] the session generation really did change',
+        ()=>ok(s.genAfter>s.genBefore,'M10.gen '+s.genBefore+' -> '+s.genAfter));
+    test(`T17b [${arm.name}] no page errors`,()=>eq(errs.length,0,errs.join(';')));
+    await ctx.close();
+  }
+
+  /* ---- (c) a persistence or verification failure leaves the device blocked
+         and issues ZERO network writes ---- */
+  for(const arm of [
+    {name:'snapshot write fails',
+     setup:()=>{window.__denySet=['^wl_training_v1$'];},
+     expectOnDisk:false},
+    {name:'dirty-proof write fails',
+     /* the FIRST dirty write (the generation marker) succeeds; the SECOND (the
+        proof) fails — so the snapshot lands but the proof never does */
+     setup:()=>{window.__denyOnce['wl_training_dirty__userA']=1;},
+     expectOnDisk:true}]){
+    const st={};
+    const {ctx,page,errs}=await bootFaulty(browser,server,st,SOFTBASE());
+    const commitsBefore=st.trainingCommits||0;
+    const s=await page.evaluate(async(fnSrc)=>{
+      const soft0=m8UnprovenBlocked,exempt0=m8SoftRecoveryAuth().ok;
+      eval('('+fnSrc+')')();
+      state.training.exercises.push({id:'fault',name:'Faulted',muscle:'back',notes:[]});
+      const ret=saveTraining();
+      const d=JSON.parse(localStorage.getItem('wl_training_dirty__userA')||'null');
+      await new Promise(r=>setTimeout(r,2400));
+      return {soft0,exempt0,ret,
+        onDisk:(localStorage.getItem('wl_training_v1')||'').indexOf('"fault"')>=0,
+        proofClaimed:!!(d&&typeof d.gen==='number'&&d.gen===d.persistedGen),
+        soft:m8UnprovenBlocked,hard:m8HardBlocked,union:window.m8StorageBlocked,
+        authAfter:m10AuthNow().ok};
+    },arm.setup.toString());
+    test(`T17c [${arm.name}] the exemption applied, then failed honestly`,()=>{
+      ok(s.soft0&&s.exempt0,'the arm started from a soft-only block with the exemption available');
+      ok(s.ret!==true,'no recovery was claimed: '+JSON.stringify(s.ret));
+      ok(!s.proofClaimed,'no dirty-generation proof was recorded');
+      eq(s.onDisk,arm.expectOnDisk,'snapshot persistence behaved as the arm intends');});
+    test(`T17c [${arm.name}] the device stays blocked and writes nothing to the network`,()=>{
+      ok(s.union,'still blocked');
+      ok(s.hard,'the failure ESCALATED to a hard block rather than silently clearing');
+      ok(!s.authAfter,'the ordinary gate still refuses');
+      eq((st.trainingCommits||0)-commitsBefore,0,'ZERO network writes');});
+    test(`T17c [${arm.name}] no page errors`,()=>eq(errs.length,0,errs.join(';')));
+    await ctx.close();
+  }
+
+  /* ---- (d) the ordinary unblocked path is unchanged ---- */
+  {
+    const st={};
+    const {ctx,page,errs}=await boot(browser,server,st);
+    const commitsBefore=st.commits||0;
+    const s=await page.evaluate(async()=>{
+      const refused0=window.__m10WriteRefused||0;
+      const pre={soft:m8UnprovenBlocked,hard:m8HardBlocked,union:window.m8StorageBlocked,
+        holder:M10.holder,auth:m10AuthNow().ok,exempt:m8SoftRecoveryAuth()};
+      state.training.exercises.push({id:'plain',name:'Plain',muscle:'back',notes:[]});
+      const ret=saveTraining();
+      const refusedDelta=(window.__m10WriteRefused||0)-refused0;
+      const d=JSON.parse(localStorage.getItem('wl_training_dirty__userA')||'null');
+      await new Promise(r=>setTimeout(r,2600));
+      return {pre,ret,refusedDelta,
+        onDisk:(localStorage.getItem('wl_training_v1')||'').indexOf('"plain"')>=0,
+        proof:!!(d&&typeof d.gen==='number'&&d.gen===d.persistedGen),
+        blockedAfter:window.m8StorageBlocked};});
+    test('T17d the ordinary holder path is untouched by the exemption',()=>{
+      ok(!s.pre.union,'no block at all');ok(s.pre.holder&&s.pre.auth,'ordinary authority');
+      ok(!s.pre.exempt.ok,'the exemption does NOT apply here');
+      eq(s.pre.exempt.why,'not-soft-blocked','it declines for the right reason');
+      eq(s.ret,undefined,'saveTraining() took the ORIGINAL path, not the recovery path');
+      ok(s.onDisk,'the edit persisted');ok(s.proof,'with its generation proof');
+      eq(s.refusedDelta,0,'nothing was refused');
+      ok(!s.blockedAfter,'and no block was invented');});
+    test('T17d no page errors',()=>eq(errs.length,0,errs.join(';')));
+    await ctx.close();
+  }
+  {
+    const st={leaseHeld:true};
+    const {ctx,page}=await boot(browser,server,st);
+    const s=await page.evaluate(async()=>{
+      const refused0=window.__m10WriteRefused||0;
+      const before=localStorage.getItem('wl_training_v1');
+      state.training.exercises.push({id:'nh',name:'NoPen',muscle:'back',notes:[]});
+      const ret=saveTraining();
+      return {holder:M10.holder,blocked:window.m8StorageBlocked,ret,
+        exempt:m8SoftRecoveryAuth(),
+        same:localStorage.getItem('wl_training_v1')===before,
+        refusedDelta:(window.__m10WriteRefused||0)-refused0};});
+    test('T17d a non-holder with NO block is refused exactly as before',()=>{
+      ok(!s.holder,'no pen');ok(!s.blocked,'and no storage block — so this is the ordinary refusal');
+      ok(!s.exempt.ok,'the exemption is unavailable');eq(s.exempt.why,'not-soft-blocked');
+      eq(s.ret,undefined,'refused');ok(s.same,'wl_training_v1 byte-identical');
+      eq(s.refusedDelta,1,'counted as a refused write');});
+    await ctx.close();
+  }
+
+  /* ================= round-34 ruling 4 =================
+     T18/T19: the two UNGATED export actions, `m10cx:export` and `m8:cx:export`.
+     Round 33 classified them as ungated mutations from code reading and gave
+     them no tests. Each is now driven through its REAL data-act control as a
+     NON-HOLDER, and each proves the same four properties:
+       (1) it creates only the intended export evidence;
+       (2) athlete snapshots and unrelated journals stay byte-identical;
+       (3) a failed/cancelled export does not falsely satisfy the export gate;
+       (4) a stale account/session context is refused.
+     The OS share is stubbed in the page (the harness owns navigator), because
+     the whole point of the gate is that only EVIDENCED delivery may open it. */
+  const EXPSNAP=`function(skip){
+    const o={};Object.keys(localStorage).forEach(function(k){
+      if(k===skip)return;
+      if(/^wl_v1$|^wl_training_|^wl_core_|^wl_workout|^wl_photomap|^wl_photo_ops__|^wl_last_owner$/.test(k))
+        o[k]=localStorage.getItem(k);});
+    return JSON.stringify(o);
+  }`;
+  const CLICK=`function(act){
+    const b=document.createElement('button');
+    b.setAttribute('data-act',act);document.body.appendChild(b);b.click();
+    return b;
+  }`;
+  /* a REAL displaced core review whose export gate is CLOSED */
+  const CXNOEXP=`async function(){
+    const rec=await new Promise(r=>pbGetRecord(function(rc){r(rc);}));
+    const scanon=m10cCanon(rec.data).canon;
+    const lc=m10cCanon(payload());
+    const env={canon:1,enteredAt:1,reason:'conflict',coreRevSeen:rec.coreRev,
+      serverData:scanon,localData:lc.canon,exports:null};
+    const wrote=m10cWrite('displaced',env);
+    const e2=m10cxEnvelope();
+    return {wrote:wrote,envSt:e2.st,
+      gateOpen:e2.st==='ok'&&m10cxExportGateOpen(e2.val),
+      holder:M10.holder,gated:!!M10_GATED['m10cx:export']};
+  }`;
+
+  /* ---- T18a: m10cx:export delivered ---- */
+  {
+    const st={leaseHeld:true};
+    const {ctx,page,errs}=await boot(browser,server,st);
+    const setup=await page.evaluate(async(src)=>eval('('+src+')')(),CXNOEXP);
+    test('T18 setup: a real core review with a CLOSED export gate, on a device with no pen',()=>{
+      ok(setup.wrote,'displaced envelope written');eq(setup.envSt,'ok','envelope validates');
+      ok(!setup.gateOpen,'the export gate starts closed');
+      ok(!setup.holder,'device does not hold the pen');
+      ok(!setup.gated,'m10cx:export is deliberately NOT in M10_GATED');});
+    const commitsBefore=st.commits||0;
+    const s=await page.evaluate(async(args)=>{
+      const [snapSrc,clickSrc]=args;
+      const snap=eval('('+snapSrc+')'),click=eval('('+clickSrc+')');
+      const key='wl_core_displaced__'+m8Uid();
+      const before=snap(key);
+      navigator.canShare=()=>true;navigator.share=()=>Promise.resolve();
+      const toasts=[];const t0=window.toast;window.toast=function(m){toasts.push(m);return t0(m);};
+      click('m10cx:export');
+      await new Promise(r=>setTimeout(r,700));
+      window.toast=t0;
+      const env=m10cxEnvelope();
+      return {toasts,holder:M10.holder,same:snap(key)===before,
+        envSt:env.st,gateOpen:env.st==='ok'&&m10cxExportGateOpen(env.val),
+        exports:env.st==='ok'?env.val.exports:null,
+        dx:m10cRead('dxjournal').st};
+    },[EXPSNAP,CLICK]);
+    test('T18a m10cx:export as a NON-HOLDER creates only the intended export evidence',()=>{
+      ok(!s.holder,'no pen');
+      ok(s.toasts.some(x=>/Both copies exported/.test(x)),JSON.stringify(s.toasts));
+      eq(s.envSt,'ok','the review envelope is still valid');
+      ok(s.gateOpen,'and its export gate is now satisfied');
+      ok(!!(s.exports&&s.exports.serverDone&&s.exports.localDone),'export evidence recorded');});
+    test('T18a it touches nothing else: snapshots and unrelated journals byte-identical',()=>{
+      ok(s.same,'wl_v1 / wl_training_* / wl_core_base|dirty|journal / wl_workout / photo stores identical');
+      eq(s.dx,'absent','no dx recovery journal was opened');
+      eq((st.commits||0)-commitsBefore,0,'zero core route calls');});
+    test('T18a no page errors',()=>eq(errs.length,0,errs.join(';')));
+    await ctx.close();
+  }
+  /* ---- T18b: a CANCELLED m10cx:export must not satisfy the gate ---- */
+  {
+    const st={leaseHeld:true};
+    const {ctx,page,errs}=await boot(browser,server,st);
+    const setup=await page.evaluate(async(src)=>eval('('+src+')')(),CXNOEXP);
+    ok(setup.wrote&&setup.envSt==='ok'&&!setup.gateOpen,'T18b setup reached the same point');
+    const commitsBefore=st.commits||0;
+    const s=await page.evaluate(async(args)=>{
+      const [snapSrc,clickSrc]=args;
+      const snap=eval('('+snapSrc+')'),click=eval('('+clickSrc+')');
+      const before=snap(null);
+      navigator.canShare=()=>true;navigator.share=()=>Promise.reject(new Error('cancelled'));
+      const toasts=[];const t0=window.toast;window.toast=function(m){toasts.push(m);return t0(m);};
+      click('m10cx:export');
+      await new Promise(r=>setTimeout(r,700));
+      const env=m10cxEnvelope();
+      const gateAfter=env.st==='ok'&&m10cxExportGateOpen(env.val);
+      /* the gate is not merely "not recorded": the resolution really refuses */
+      m10cxPushMine();
+      await new Promise(r=>setTimeout(r,600));
+      window.toast=t0;
+      return {toasts,gateAfter,same:snap(null)===before,
+        envSt:m10cxEnvelope().st,dx:m10cRead('dxjournal').st};
+    },[EXPSNAP,CLICK]);
+    test('T18b a cancelled export records nothing and does NOT satisfy the export gate',()=>{
+      ok(s.toasts.some(x=>/Share cancelled/.test(x)),JSON.stringify(s.toasts));
+      ok(!s.toasts.some(x=>/Both copies exported/.test(x)),'no false success claim');
+      ok(!s.gateAfter,'the export gate is still closed');
+      ok(s.same,'EVERY store, including the review envelope, is byte-identical');});
+    test('T18b and the resolution it guards still refuses at the export gate',()=>{
+      ok(s.toasts.some(x=>/Export both copies first/.test(x)),JSON.stringify(s.toasts));
+      eq(s.envSt,'ok','the review is still open and unresolved');
+      eq(s.dx,'absent','no resolution journal was opened');
+      eq((st.commits||0)-commitsBefore,0,'zero core route calls');});
+    test('T18b no page errors',()=>eq(errs.length,0,errs.join(';')));
+    await ctx.close();
+  }
+  /* ---- T18c: a session that changed mid-export is refused ---- */
+  {
+    const st={leaseHeld:true};
+    const {ctx,page,errs}=await boot(browser,server,st);
+    const setup=await page.evaluate(async(src)=>eval('('+src+')')(),CXNOEXP);
+    ok(setup.wrote&&setup.envSt==='ok'&&!setup.gateOpen,'T18c setup reached the same point');
+    const s=await page.evaluate(async(args)=>{
+      const [snapSrc,clickSrc]=args;
+      const snap=eval('('+snapSrc+')'),click=eval('('+clickSrc+')');
+      const before=snap(null);
+      navigator.canShare=()=>true;
+      navigator.share=()=>new Promise(res=>{window.__releaseShare=res;});
+      const toasts=[];const t0=window.toast;window.toast=function(m){toasts.push(m);return t0(m);};
+      click('m10cx:export');
+      await new Promise(r=>setTimeout(r,300));
+      const genBefore=M10.gen;
+      m10Reset('another device took over while the share sheet was open');
+      window.__releaseShare&&window.__releaseShare();
+      await new Promise(r=>setTimeout(r,600));
+      window.toast=t0;
+      const env=m10cxEnvelope();
+      return {toasts,genBefore,genAfter:M10.gen,same:snap(null)===before,
+        gateAfter:env.st==='ok'&&m10cxExportGateOpen(env.val)};
+    },[EXPSNAP,CLICK]);
+    test('T18c a session change during the export is refused — no evidence, no writes',()=>{
+      ok(s.genAfter>s.genBefore,'the session generation really changed');
+      ok(!s.gateAfter,'the export gate is still closed');
+      ok(!s.toasts.some(x=>/Both copies exported/.test(x)),'no success claim: '+JSON.stringify(s.toasts));
+      ok(s.same,'every store is byte-identical');});
+    test('T18c no page errors',()=>eq(errs.length,0,errs.join(';')));
+    await ctx.close();
+  }
+
+  /* ---- T19: m8:cx:export, the training-conflict export ---- */
+  const M8CXSETUP=`function(){
+    const srv={cardioTypes:['Peloton'],exercises:[{id:'s1',name:'Server Row',muscle:'back',notes:[]}],
+      liftSessions:{},routines:[],sessions:{}};
+    const entered=m8EnterConflict(srv,3,'test');
+    const r=m8Read('conflict');
+    return {entered:entered,st:r.st,
+      exported:r.st==='ok'&&!!(r.val.exports&&r.val.exports.localDone),
+      holder:M10.holder,gated:!!M10_GATED['m8:cx:export'],state:m8State()};
+  }`;
+  {
+    const st={leaseHeld:true};
+    const {ctx,page,errs}=await boot(browser,server,st);
+    const setup=await page.evaluate((src)=>eval('('+src+')')(),M8CXSETUP);
+    test('T19 setup: a real training conflict with NO export evidence, on a device with no pen',()=>{
+      ok(setup.entered,'conflict record written');eq(setup.st,'ok','and it validates');
+      ok(!setup.exported,'no export evidence yet');
+      ok(!setup.holder,'device does not hold the pen');
+      ok(!setup.gated,'m8:cx:export is deliberately NOT in M10_GATED');});
+    const commitsBefore=st.trainingCommits||0;
+    const s=await page.evaluate(async(args)=>{
+      const [snapSrc,clickSrc]=args;
+      const snap=eval('('+snapSrc+')'),click=eval('('+clickSrc+')');
+      const key='wl_training_conflict__'+m8Uid();
+      const before=snap(key);
+      navigator.canShare=()=>true;navigator.share=()=>Promise.resolve();
+      const toasts=[];const t0=window.toast;window.toast=function(m){toasts.push(m);return t0(m);};
+      click('m8:cx:export');
+      await new Promise(r=>setTimeout(r,700));
+      window.toast=t0;
+      const r=m8Read('conflict');
+      return {toasts,holder:M10.holder,same:snap(key)===before,
+        st:r.st,exports:r.st==='ok'?r.val.exports:null,
+        gateOpen:r.st==='ok'&&!!(r.val.exports&&r.val.exports.serverDone&&
+          r.val.exports.localDone&&r.val.exports.localGen===m8Gen),
+        journal:m8Read('journal').st};
+    },[EXPSNAP,CLICK]);
+    test('T19a m8:cx:export as a NON-HOLDER creates only the intended export evidence',()=>{
+      ok(!s.holder,'no pen');
+      ok(s.toasts.some(x=>/Both copies exported/.test(x)),JSON.stringify(s.toasts));
+      eq(s.st,'ok','the conflict record is still valid');
+      ok(s.gateOpen,'and the choice gate is now satisfied for THIS generation');});
+    test('T19a it touches nothing else: snapshots and unrelated journals byte-identical',()=>{
+      ok(s.same,'wl_v1 / wl_training_v1 / base / dirty / core / workout / photo stores identical');
+      eq(s.journal,'absent','no transition journal was opened');
+      eq((st.trainingCommits||0)-commitsBefore,0,'zero training route calls');});
+    test('T19a no page errors',()=>eq(errs.length,0,errs.join(';')));
+    await ctx.close();
+  }
+  {
+    const st={leaseHeld:true};
+    const {ctx,page,errs}=await boot(browser,server,st);
+    const setup=await page.evaluate((src)=>eval('('+src+')')(),M8CXSETUP);
+    ok(setup.entered&&!setup.exported,'T19b setup reached the same point');
+    const commitsBefore=st.trainingCommits||0;
+    const s=await page.evaluate(async(args)=>{
+      const [snapSrc,clickSrc]=args;
+      const snap=eval('('+snapSrc+')'),click=eval('('+clickSrc+')');
+      const before=snap(null);
+      navigator.canShare=()=>true;navigator.share=()=>Promise.reject(new Error('cancelled'));
+      const toasts=[];const t0=window.toast;window.toast=function(m){toasts.push(m);return t0(m);};
+      click('m8:cx:export');
+      await new Promise(r=>setTimeout(r,700));
+      const r=m8Read('conflict');
+      const gateAfter=r.st==='ok'&&!!(r.val.exports&&r.val.exports.localDone);
+      /* called DIRECTLY, so what refuses is the export gate itself and not the
+         click interceptor (m8:cx:local IS gated, and this device has no pen) */
+      m8CxChooseLocal();
+      await new Promise(r2=>setTimeout(r2,600));
+      window.toast=t0;
+      return {toasts,gateAfter,same:snap(null)===before,
+        st:m8Read('conflict').st,journal:m8Read('journal').st};
+    },[EXPSNAP,CLICK]);
+    test('T19b a cancelled export records nothing and does NOT satisfy the export gate',()=>{
+      ok(s.toasts.some(x=>/Share cancelled/.test(x)),JSON.stringify(s.toasts));
+      ok(!s.toasts.some(x=>/Both copies exported/.test(x)),'no false success claim');
+      ok(!s.gateAfter,'the export gate is still closed');
+      ok(s.same,'EVERY store, including the conflict record, is byte-identical');});
+    test('T19b and the choice it guards still refuses at the export gate',()=>{
+      ok(s.toasts.some(x=>/Export both copies first/.test(x)),JSON.stringify(s.toasts));
+      eq(s.st,'ok','the conflict is still open and unresolved');
+      eq(s.journal,'absent','no transition journal was opened');
+      eq((st.trainingCommits||0)-commitsBefore,0,'zero training route calls');});
+    test('T19b no page errors',()=>eq(errs.length,0,errs.join(';')));
+    await ctx.close();
+  }
+  {
+    const st={leaseHeld:true};
+    const {ctx,page,errs}=await boot(browser,server,st);
+    const setup=await page.evaluate((src)=>eval('('+src+')')(),M8CXSETUP);
+    ok(setup.entered&&!setup.exported,'T19c setup reached the same point');
+    const s=await page.evaluate(async(args)=>{
+      const [snapSrc,clickSrc]=args;
+      const snap=eval('('+snapSrc+')'),click=eval('('+clickSrc+')');
+      const key='wl_training_conflict__userA';
+      const before=snap(null),cxBefore=localStorage.getItem(key);
+      navigator.canShare=()=>true;
+      navigator.share=()=>new Promise(res=>{window.__releaseShare=res;});
+      const toasts=[];const t0=window.toast;window.toast=function(m){toasts.push(m);return t0(m);};
+      click('m8:cx:export');
+      await new Promise(r=>setTimeout(r,300));
+      const c=JSON.parse(localStorage.getItem('wl_pb'));c.uid='userB';
+      localStorage.setItem('wl_pb',JSON.stringify(c));
+      window.__releaseShare&&window.__releaseShare();
+      await new Promise(r=>setTimeout(r,600));
+      window.toast=t0;
+      const cxAfter=localStorage.getItem(key);
+      let exported=false;try{exported=!!(JSON.parse(cxAfter).exports||{}).localDone;}catch(e){}
+      return {toasts,uidNow:pbUid(),cxSame:cxAfter===cxBefore,exported,
+        otherKey:localStorage.getItem('wl_training_conflict__userB'),
+        same:snap(null)===before};
+    },[EXPSNAP,CLICK]);
+    test('T19c an account change during the export is refused — no evidence on either account',()=>{
+      eq(s.uidNow,'userB','the account really changed mid-export');
+      ok(!s.exported,'no export evidence was recorded');
+      ok(s.cxSame,"userA's conflict record is byte-identical");
+      eq(s.otherKey,null,'and nothing was written under the new account');
+      ok(!s.toasts.some(x=>/Both copies exported/.test(x)),'no success claim: '+JSON.stringify(s.toasts));});
+    test('T19c no page errors',()=>eq(errs.length,0,errs.join(';')));
     await ctx.close();
   }
 

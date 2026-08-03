@@ -1067,16 +1067,26 @@ const ADD=`async function(id){
     await ctx.close();
   }
 
-  /* ================= round-33 item 1 =================
+  /* ================= round-33 item 1, reworked for round-34 ruling 5 ==========
      T34: the PROGRESS-PHOTO RETAKE interrupted DURING retirement.
 
      The flow stages new bytes (idbAdd → queue → upload → map) and then retires
      the earlier photo through the asynchronous queue. The interesting failure
      is authority loss AFTER staging but DURING retirement, and it cannot be hit
-     honestly with a timer — so the dispatcher carries a disclosed test-only
-     seam (window.__m10pFault, inert in production) that removes the pen at an
-     EXACT queue phase. Two arms: before the server delete (`intent`) and after
-     the server acked it but before the local removal (`acked`).
+     honestly with a timer.
+
+     Round 33 did this with a product-side hook (`window.__m10pFault`). That
+     hook is GONE from index.html. The interruption is now driven entirely from
+     the harness: this suite wraps the public global `m10pDispatch` inside the
+     page and, when the entry the dispatcher is about to process (computed with
+     the product's own `m10pFindEntry(m10pOps())`) is THIS retirement at the
+     chosen phase, drops the pen and restores the original wrapper. The
+     dispatcher's internal recursion resolves `m10pDispatch` through the global
+     object, so the wrapper sees every pass — the same phase-exactness the seam
+     gave, with no seam in the release artifact.
+
+     Two arms: before the server delete (`intent`) and after the server acked
+     it but before the local removal (`acked`).
 
      Five properties per arm, each asserted concretely:
        P1 the original bytes or their durable recovery obligation remain
@@ -1119,8 +1129,20 @@ const ADD=`async function(id){
       const preOldMapped=pbPhotoMap()[oldId]||null;
       const preOldServerRec=!!(await window.__get('photos'))[preOldMapped];
       const toasts=[];const t0=window.toast;window.toast=function(m){toasts.push(m);return t0(m);};
-      /* remove the pen at EXACTLY this retirement phase */
-      window.__m10pFault=function(op,stt){if(op==='delete'&&stt===faultAt)M10.holder=false;};
+      /* HARNESS-SIDE interruption (round-34 ruling 5): wrap the public global
+         m10pDispatch and drop the pen at EXACTLY this retirement phase. One
+         shot — the original is restored the moment it fires — so nothing else
+         in the episode is affected. `fired` proves the wrapper actually ran;
+         if the phase were never reached the arm would be vacuous. */
+      const origDispatch=window.m10pDispatch;
+      let fired=0;
+      window.m10pDispatch=function(){
+        try{
+          const nx=m10pFindEntry(m10pOps());
+          if(nx&&nx.op==='delete'&&nx.localId===oldId&&nx.state===faultAt){
+            window.m10pDispatch=origDispatch;fired++;M10.holder=false;}
+        }catch(e){}
+        return origDispatch.apply(this,arguments);};
       const staged=await eval('('+retakeSrc+')')('front');
       await new Promise(r=>setTimeout(r,3200));   /* past the honest-report poll */
       window.toast=t0;
@@ -1144,10 +1166,12 @@ const ADD=`async function(id){
         /* P4 */
         queueReadable:m10pRead(m8Uid()).st,
         /* P5 */
-        toasts:toasts.slice()};
+        toasts:toasts.slice(),
+        /* the interruption itself actually happened */
+        fired:fired};
       /* P4, proved by RESUMING: with the pen back the parked obligation
          completes — nothing was stranded and nothing was silently dropped */
-      window.__m10pFault=null;M10.holder=true;
+      window.m10pDispatch=origDispatch;M10.holder=true;
       m10pDispatch();
       await new Promise(r=>setTimeout(r,1400));
       const all2=await idbAll();
@@ -1161,7 +1185,8 @@ const ADD=`async function(id){
       ok(s.preOldMapped,'earlier photo mapped to a server record');
       ok(s.preOldServerRec,'the server actually holds it');
       eq(s.held.stagedPose,'front','pphoto:add set the pose');
-      ok(s.held.stagedWeek,'pphoto:add set the week');});
+      ok(s.held.stagedWeek,'pphoto:add set the week');
+      eq(s.held.fired,1,'the harness interruption fired exactly once, at the chosen phase');});
     test(`T34 [${arm.faultAt}] P1 the original bytes AND a durable retirement obligation both survive`,()=>{
       ok(!s.held.holder,'authority was actually lost');
       ok(s.held.oldBlob,'the earlier photo is still on the device');

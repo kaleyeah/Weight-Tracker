@@ -19,6 +19,18 @@ const ok=(v,m)=>{if(!v)throw new Error(m||'expected truthy');};
     localStorage.setItem('wl_v1',JSON.stringify({settings:{onboarded:true,units:'lbs'},weights:[],food:{},workouts:{},steps:{},notes:{},sleep:{},bodyfat:{},waist:{},leanmass:{},statuses:[],presets:[],skips:{},nightlyLog:{}}));
   });
   await ctx.route('**/api/**',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[],token:'tok',record:{id:'userA'}})}));
+  /* M10 (increment 5): this suite edits and saves as a signed-in device, and
+     under the wired gate a signed-in device must hold the writer lease. Answer
+     the lease route as the granting server — HARNESS ONLY, no product change,
+     and the same disclosed change already made to c11m8-faults and
+     c14-correctness-fixes. Without it the edit under exhaustion is refused as
+     "not the writer" long before M8's storage handling is reached, so the
+     suite stops testing what it is named for. Every assertion is unchanged. */
+  await ctx.route('**/api/cf/writer/lease',r=>{
+    let b={};try{b=JSON.parse(r.request().postData()||'{}');}catch(e){}
+    return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,exists:true,granted:true,
+      fence:1,holderDeviceId:b.deviceId||'dev',deviceName:b.deviceName||'x',active:true,
+      serverNow:Date.now(),ttlMs:86400000})});});
   await ctx.route('**/api/collections/appdata/records**',r=>r.fulfill({status:200,contentType:'application/json',
     body:JSON.stringify({items:[{id:'rec1',user:'userA',training:null,trainingRev:0}]})}));
   await ctx.route('**/api/cf/appdata/commit',r=>{const b=JSON.parse(r.request().postData());
