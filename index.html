@@ -826,8 +826,10 @@ input[type=date]::-webkit-calendar-picker-indicator,input[type=time]::-webkit-ca
    there is a text field I’m entering"). While a text field has focus the
    bar slides out of the way — it is unreachable behind a keyboard anyway. */
 .wl-nav.kbd{transform:translate3d(0,150%,0);pointer-events:none;}
-.wl-adhbar{height:8px;border-radius:5px;background:var(--bg2);overflow:hidden;}
-.wl-adhbar i{display:block;height:100%;border-radius:5px;background:var(--accent);}
+.wl-adhbar{height:8px;border-radius:5px;background:var(--bg2);overflow:hidden;display:flex;}
+.wl-adhbar i{display:block;height:100%;}
+.wl-adhbar i.hit{background:var(--good);}
+.wl-adhbar i.miss{background:var(--accent);}
 
 .wl-ck-top .wl-ck-val{flex:1;}
 .wl-mbar{display:flex;height:8px;border-radius:5px;overflow:hidden;background:var(--bg2);}
@@ -934,7 +936,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-03.424-adherence-kbd";
+var APP_BUILD="2026-08-03.425-adhview";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -2154,28 +2156,62 @@ function ciAdherence(wk){
   var st=state.settings,strands=[];
   var tCal=num(st.targetCalories),tPro=num(st.targetProtein),tStep=num(st.stepsGoal),tSleep=sleepGoalMin();
   var count=function(f){var n=0;days.forEach(function(d){if(f(d))n++;});return n;};
+  var mean=function(get){var t=0,n=0;days.forEach(function(d){var v=get(d);if(v!=null){t+=v;n++;}});return n?t/n:null;};
   if(tCal!=null){
     /* "lose" rewards being at or under target; a big overshoot is the miss */
     var lose=(st.strategy||"lose")==="lose";
     strands.push({key:"Calories",hit:count(function(d){var c=num((state.food[d]||{}).calories);
       return c!=null&&(lose?c<=tCal*1.05:Math.abs(c-tCal)<=tCal*0.1);}),
-      of:days.length,note:(lose?"at or under ":"within 10% of ")+Math.round(tCal).toLocaleString()});
+      of:days.length,
+      avg:mean(function(d){return num((state.food[d]||{}).calories);}),
+      fmt:function(v){return Math.round(v).toLocaleString();},
+      goal:"target "+Math.round(tCal).toLocaleString()});
   }
   if(tPro!=null)strands.push({key:"Protein",hit:count(function(d){var p=num((state.food[d]||{}).protein);return p!=null&&p>=tPro*0.9;}),
-    of:days.length,note:"at least "+Math.round(tPro*0.9)+"g"});
+    of:days.length,
+    avg:mean(function(d){return num((state.food[d]||{}).protein);}),
+    fmt:function(v){return Math.round(v)+"g";},
+    goal:"target "+Math.round(tPro)+"g"});
   if(tStep!=null)strands.push({key:"Steps",hit:count(function(d){var s2=num(state.steps[d]);return s2!=null&&s2>=tStep;}),
-    of:days.length,note:Math.round(tStep).toLocaleString()+"+"});
+    of:days.length,
+    avg:mean(function(d){return num(state.steps[d]);}),
+    fmt:function(v){return Math.round(v).toLocaleString();},
+    goal:"goal "+Math.round(tStep).toLocaleString()});
   if(tSleep!=null)strands.push({key:"Sleep",hit:count(function(d){var s3=num(state.sleep[d]);return s3!=null&&s3>=tSleep*0.9;}),
-    of:days.length,note:minToHM(Math.round(tSleep*0.9))+"+"});
+    of:days.length,
+    avg:mean(function(d){return num(state.sleep[d]);}),
+    fmt:function(v){return minToHM(Math.round(v));},
+    goal:"goal "+minToHM(Math.round(tSleep))});
   strands.push({key:"Logged",hit:count(function(d){
     return num(state.steps[d])!=null||num(state.sleep[d])!=null||num((state.food[d]||{}).calories)!=null||
-      state.weights.some(function(w){return w.date===d;});}),of:days.length,note:"any entry"});
+      state.weights.some(function(w){return w.date===d;});}),of:days.length,count:true});
   var hit=0,of=0;strands.forEach(function(s4){hit+=s4.hit;of+=s4.of;});
   if(!of)return null;
   var pct=hit/of;
   var band=pct>=0.9?"on":pct>=0.75?"mostly_on":pct>=0.5?"partly":pct>=0.25?"mostly_off":"off";
   var label=(CI_ADHERENCE.filter(function(o){return o[0]===band;})[0]||["",""])[1];
-  return {band:band,label:label,pct:pct,hit:hit,of:of,strands:strands,days:days.length};
+  /* Owner 2026-08-03: say what to fix, not "Partly on". Name the strands that
+     actually fell short, worst first, and say nothing clever when none did. */
+  var weak=strands.filter(function(x){return x.of&&(x.hit/x.of)<0.7;})
+    .sort(function(a2,b2){return (a2.hit/a2.of)-(b2.hit/b2.of);})
+    .map(function(x){return x.key==="Logged"?"logging":x.key.toLowerCase();});
+  var summary;
+  if(!weak.length)summary=(pct>=0.99?"Everything on target":"On target");
+  else{var nm=weak.slice(0,2);
+    summary=nm.join(" and ").replace(/^./,function(c){return c.toUpperCase();})+" can improve";}
+  return {band:band,label:label,summary:summary,pct:pct,hit:hit,of:of,strands:strands,days:days.length};
+}
+/* The live object carries fmt() closures for rendering. NOTHING with a function
+   in it may reach the record: payload() feeds the M8 canonicaliser, which
+   rejects a function outright and would fail the sync. Store a flat copy. */
+function ciAdherenceStored(wk){
+  var a=ciAdherence(wk);if(!a)return null;
+  return {band:a.band,label:a.label,summary:a.summary,
+    pct:Math.round(a.pct*1000)/1000,hit:a.hit,of:a.of,days:a.days,
+    strands:a.strands.map(function(x){
+      return {key:x.key,hit:x.hit,of:x.of,
+        avg:(x.avg!=null?Math.round(x.avg*10)/10:null),
+        goal:(x.goal||null),count:!!x.count};})};
 }
 var CI_TEXT=[
   ["win","Biggest win this week","What went well — a lift, a habit, a hard day you got through…"],
@@ -2287,11 +2323,18 @@ function view_checkin(){
   h+='<div class="wl-card"><div class="wl-card-head"><span>Your week</span></div>';
   var adh=ciAdherence(wk);
   if(adh){
-    h+='<div class="wl-feelq"><div class="wl-feelq-h"><span>How well you stuck to the plan</span><span class="a">'+esc(adh.label)+'</span></div>'+
-       '<div class="wl-adhbar"><i style="width:'+Math.round(adh.pct*100)+'%"></i></div>'+
+    var _hp=Math.round(adh.pct*100);
+    h+='<div class="wl-feelq"><div class="wl-feelq-h"><span>How well you stuck to the plan</span><span class="a">'+esc(adh.summary)+'</span></div>'+
+       '<div class="wl-adhbar"><i class="hit" style="width:'+_hp+'%"></i><i class="miss" style="width:'+(100-_hp)+'%"></i></div>'+
        '<div class="wl-cifill" style="margin-top:10px">'+
-       adh.strands.map(function(x){return '<span class="k">'+esc(x.key)+' <em style="color:var(--faint);font-style:normal">'+esc(x.note)+'</em></span><span class="v">'+x.hit+' of '+x.of+'</span>';}).join("")+
-       '</div><div class="wl-hint" style="margin-top:10px">Worked out from your logs, not a self-rating — '+adh.hit+' of '+adh.of+' targets hit across the week.</div></div>';
+       adh.strands.map(function(x){
+         var val=x.count?(x.hit+" of "+x.of+" days")
+               :(x.avg!=null?(x.fmt(x.avg)+" avg"):"—");
+         var sub=x.count?"days logged":esc(x.goal||"");
+         return '<span class="k">'+esc(x.key)+' <em style="color:var(--faint);font-style:normal">'+sub+'</em></span>'+
+                '<span class="v"'+(x.of&&(x.hit/x.of)<0.7?' style="color:var(--accent)"':'')+'>'+esc(val)+'</span>';
+       }).join("")+
+       '</div><div class="wl-hint" style="margin-top:10px">Worked out from your logs across '+adh.days+' days, not a self-rating.</div></div>';
   }
   CI_TEXT.forEach(function(q){
     h+='<label class="wl-field wl-field-full" style="margin-top:16px"><span>'+q[1]+' <em>optional</em></span><textarea class="wl-ci-input" data-ci="'+q[0]+'" data-week="'+wk+'" placeholder="'+esc(q[2])+'" style="width:100%;min-height:64px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:14px;padding:11px 12px;box-sizing:border-box;outline:none;resize:vertical">'+esc(a[q[0]]||"")+'</textarea></label>';
@@ -8060,7 +8103,7 @@ document.addEventListener("click",function(e){
     var _was=(_nr.status==="sent");
     if(!_was)_nr.ts=Date.now();
     _nr.status="sent";_nr.updated=Date.now();
-    _nr.adherence=ciAdherence(_nw);
+    _nr.adherence=ciAdherenceStored(_nw);
     _nr.ratings14=feelDays(14,todayISO()).map(function(d){var o={date:d};RATINGS.forEach(function(q){var v=ratFor(d)[q[0]];if(v)o[q[0]]=v;});return o;}).filter(function(o){return Object.keys(o).length>1;});
     save();
     if(syncOn()){try{photoSync();}catch(e){}

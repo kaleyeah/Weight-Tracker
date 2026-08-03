@@ -648,23 +648,64 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
     delete state.settings.stepsGoal;state.settings.sleepGoal='';
     save();
     const bare=ciAdherence(wk);
+    /* a week strong on food but weak on sleep and steps */
+    state.settings.targetCalories=2000;state.settings.targetProtein=180;
+    state.settings.stepsGoal=10000;state.settings.sleepGoal='450';
+    days.forEach(d=>{state.food[d]={calories:1900,protein:185};state.steps[d]=4000;state.sleep[d]=330;});
+    save();
+    const mixed=ciAdherence(wk);
+    const stored=ciAdherenceStored(wk);
     state.ciWeek=wk;state.view='checkin';render();
-    return {good:{band:good.band,label:good.label,pct:good.pct},
+    const card=[].slice.call(document.querySelectorAll('.wl-feelq'))
+      .filter(x=>/How well you stuck to the plan/.test(x.textContent))[0];
+    const bar=card?card.querySelector('.wl-adhbar'):null;
+    return {good:{band:good.band,label:good.label,pct:good.pct,summary:good.summary},
       bad:{band:bad.band,label:bad.label},
       bareKeys:bare.strands.map(x=>x.key),
       asked:document.querySelectorAll('[data-act="ci:adh"]').length,
-      shown:!!/How well you stuck to the plan/.test(document.body.textContent),
-      breakdown:document.querySelectorAll('.wl-adhbar').length};
+      shown:!!card,
+      summary:mixed.summary,
+      headline:card?card.querySelector('.wl-feelq-h .a').textContent:null,
+      rows:card?[].slice.call(card.querySelectorAll('.wl-cifill .v')).map(x=>x.textContent):[],
+      segs:bar?[].slice.call(bar.children).map(i=>i.className):[],
+      hitW:bar&&bar.children[0]?bar.children[0].style.width:null,
+      missW:bar&&bar.children[1]?bar.children[1].style.width:null,
+      /* the stored copy must be pure JSON — the canonicaliser rejects functions */
+      storedClean:(function(){
+        let bad2=null;
+        (function walk(v,p){
+          if(v===null)return;
+          const t=typeof v;
+          if(t==='function'||t==='symbol'||v===undefined){bad2=p+':'+t;return;}
+          if(t==='object')for(const k in v)walk(v[k],p+'.'+k);
+        })(stored,'$');
+        return bad2;})(),
+      storedHasAvg:stored.strands.some(x=>x.avg!=null)};
   });
   test('T29 plan adherence is computed from the logs and never asked',()=>{
     eq(t29.asked,0,'the self-rating control must be gone');
     ok(t29.shown,'the measured verdict must be shown in the form');
-    eq(t29.breakdown,1,'and shown with its bar');
+    eq(t29.segs.length,2,'and shown with its two-tone bar');
     eq(t29.good.band,'on');
     eq(t29.good.label,'Fully on plan');
     eq(t29.good.pct,1);
     eq(t29.bad.band,'off','a week that missed every target must not read as on plan');
     eq(t29.bareKeys,['Logged'],'with no goals set, only the logging strand counts');
+    /* the Owner's wording: no band labels, a tiny summary naming what to fix */
+    eq(t29.summary,'Steps and sleep can improve','worst strand first, then strand order');
+    eq(t29.headline,'Steps and sleep can improve','the card must not say "Partly on"');
+    notOk(/Partly on|Mostly on|Off plan/.test(t29.headline||''),'band wording leaked: '+t29.headline);
+    eq(t29.good.summary,'Everything on target');
+    /* averages, not "5 of 7" */
+    ok(t29.rows.some(v=>/avg$/.test(v)),'rows were '+JSON.stringify(t29.rows));
+    notOk(t29.rows.filter(v=>/^\d+ of \d+$/.test(v)).length,'bare hit counts are back: '+JSON.stringify(t29.rows));
+    /* green for what landed, amber for what did not */
+    eq(t29.segs,['hit','miss']);
+    ok(parseFloat(t29.hitW)>0&&parseFloat(t29.missW)>0,'both segments should show on a mixed week');
+    eq(Math.round(parseFloat(t29.hitW)+parseFloat(t29.missW)),100);
+    /* and nothing unserialisable reaches the synced record */
+    eq(t29.storedClean,null,'a function or undefined would fail m8 canonicalisation');
+    ok(t29.storedHasAvg,'the stored copy should keep the averages');
   });
 
   /* ---- T30: the nav gets out of the keyboard's way --------------------- */
