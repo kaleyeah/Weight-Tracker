@@ -862,6 +862,59 @@ const ADD=`async function(id){
     await ctx.close();
   }
 
+  /* T32 (round-27 rulings 3/5): a corrupt IndexedDB read-back after the
+     ordinary intent-path write must block the mapping */
+  {
+    const st=mkSt();
+    const {ctx,page}=await boot(browser,server,st);
+    st.photos={'pidxxxxxxxxx10':{id:'pidxxxxxxxxx10',localId:'srv-10',file:'p.jpg',date:'2026-08-02',kind:'food',meal:'lunch',ts:'1'}};
+    const s=await page.evaluate(async()=>{
+      /* the read-back returns DIFFERENT bytes than were written */
+      const origGet=idbGetLocal;
+      let calls=0;
+      window.idbGetLocal=function(id){
+        return origGet(id).then(function(rec){
+          if(id==='srv-10'&&rec&&rec.blob&&++calls>=1){
+            const bad=new Uint8Array(8);
+            return Object.assign({},rec,{blob:new Blob([bad])});}
+          return rec;});};
+      await new Promise(r=>{photoSync(r);setTimeout(r,1800);});
+      window.idbGetLocal=origGet;
+      const ops=m10pOps();
+      return {mapped:pbPhotoMap()['srv-10']||null,len:ops.length,
+        state:ops[0]&&ops[0].state};
+    });
+    test('T32 corrupt read-back: NO map write, obligation not cleared',()=>{
+      ok(!s.mapped,'map untouched');eq(s.len,1,'entry retained');
+      ok(s.state==='fetched'||s.state==='intent','still owed: '+s.state);});
+    await ctx.close();
+  }
+
+  /* T33 (round-27 rulings 4/5): a failed `blob-ok` phase write blocks the map */
+  {
+    const st=mkSt();
+    const {ctx,page}=await boot(browser,server,st);
+    st.photos={'pidxxxxxxxxx11':{id:'pidxxxxxxxxx11',localId:'srv-11',file:'p.jpg',date:'2026-08-02',kind:'food',meal:'lunch',ts:'1'}};
+    const s=await page.evaluate(async()=>{
+      /* let the queue entry reach `fetched`, then fail every later queue write
+         (the blob-ok phase advance) while the read-back is CORRECT */
+      let seenFetched=false;
+      const orig=localStorage.setItem.bind(localStorage);
+      localStorage.setItem=function(k,v){
+        if(/wl_photo_ops__/.test(k)){
+          if(seenFetched)throw new Error('quota');
+          try{if(/"state":"fetched"/.test(v))seenFetched=true;}catch(e){}}
+        return orig(k,v);};
+      await new Promise(r=>{photoSync(r);setTimeout(r,1800);});
+      localStorage.setItem=orig;
+      const ops=m10pOps();
+      return {mapped:pbPhotoMap()['srv-11']||null,len:ops.length,state:ops[0]&&ops[0].state};
+    });
+    test('T33 failed blob-ok phase write: NO map write, entry not cleared',()=>{
+      ok(!s.mapped,'map untouched');eq(s.len,1);eq(s.state,'fetched','held at the durable phase');});
+    await ctx.close();
+  }
+
   /* T31 (ruling 6): the lightbox reports success ONLY on the real outcome */
   {
     const st=mkSt();
