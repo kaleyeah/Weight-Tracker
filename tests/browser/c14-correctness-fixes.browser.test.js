@@ -454,6 +454,40 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
   test('RECAP: the card renders with NO per-card arrows',()=>{ok(recap.cardShown,'no recap card');ok(recap.arrows===0,String(recap.arrows));});
   test('RECAP: the header day nav moves the recap with the day',()=>ok(recap.prevDayRecap));
 
+  /* ---- pending-today stats (.416): steps/calories exclude an incomplete today ---- */
+  const pend=await page.evaluate(async()=>{
+    const today=todayISO();
+    state.view='weight';state.trendMode='W';state.trendOffset=0;state.moreStats=true;
+    state.nightlyLog={};state.nightlySummary=null;
+    // seed EVERY day of the current trend window: past days constant, today lower
+    const ctx=trendCtx();state.steps={};state.food={};
+    let past=0;
+    for(let d=new Date(ctx.start);d<=ctx.end;d=addDays(d,1)){
+      const iso=toISO(d);
+      if(iso<today){state.steps[iso]=5000;state.food[iso]={calories:'2000'};past++;}
+      else if(iso===today){state.steps[iso]=2000;state.food[iso]={calories:'400'};}
+    }
+    render();await new Promise(r=>setTimeout(r,100));
+    const grab=()=>{const sc=[...document.querySelectorAll('.wl-substat')].find(x=>/Steps/.test(x.textContent));
+      const cc=[...document.querySelectorAll('.wl-substat')].find(x=>/Calories/.test(x.textContent));
+      return {stepsAvg:(sc.textContent.match(/avg ([\d,]+)/)||[])[1],
+        calAvg:(cc.textContent.match(/avg ([\d,]+)/)||[])[1],
+        outlined:sc.innerHTML.includes('fill="none" stroke')};};
+    const r1=grab();
+    const expect1={steps:past?'5,000':undefined,cal:past?'2,000':undefined};
+    state.nightlyLog[today]={date:today,text:'done',mood:'happy'};render();
+    await new Promise(r=>setTimeout(r,100));
+    const r2=grab();
+    const expect2={steps:Math.round((past*5000+2000)/(past+1)).toLocaleString()};
+    return {past,r1,expect1,r2,expect2};
+  });
+  test('PEND: incomplete today is EXCLUDED from steps/calories averages',()=>{
+    if(pend.past===0){ok(pend.r1.stepsAvg===undefined,'window has only today; avg must be empty: '+pend.r1.stepsAvg);}
+    else{ok(pend.r1.stepsAvg===pend.expect1.steps&&pend.r1.calAvg===pend.expect1.cal,JSON.stringify(pend.r1)+' vs '+JSON.stringify(pend.expect1));}});
+  test('PEND: today renders as an OUTLINED bar while incomplete',()=>ok(pend.r1.outlined));
+  test('PEND: completing today (recap exists) counts it and solidifies the bar',()=>{
+    ok(pend.r2.stepsAvg===pend.expect2.steps&&!pend.r2.outlined,JSON.stringify(pend.r2)+' vs '+JSON.stringify(pend.expect2));});
+
   test('no page errors across the run',()=>eq(errs,[]));
   await browser.close();server.close();
   console.log('\n'+'-'.repeat(52));

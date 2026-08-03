@@ -294,7 +294,10 @@ async function boot(browser,srv,st,init,uid){
       state.weights.push({date:'2026-08-02',weight:201.5});save();
       return {dispatched,directWrite:state.weights.length===w0+1,holder:M10.holder};
     });
-    test('K real dispatcher action executes for a NON-holder (gate not yet wired)',()=>{ok(!s.holder);ok(s.dispatched);});
+    /* increment 5 wired the gate: this is now the INVERSE assertion — a
+       non-holder's mutating action is intercepted before the dispatcher */
+    test('K real dispatcher action REFUSED for a NON-holder (gate wired in increment 5)',()=>{
+      ok(!s.holder);ok(!s.dispatched,'the app dispatcher never ran');});
     test('K direct local-write compatibility (renamed per round-13 item 9)',()=>ok(s.directWrite));
     await ctx.close();
   }

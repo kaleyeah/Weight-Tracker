@@ -309,7 +309,10 @@ const doExport=async(page)=>page.evaluate(async()=>{
     await page.waitForTimeout(900);
     const s=await page.evaluate(()=>{
       pbLogout();
-      const blocked=!!state.pendingConfirm&&/resolve that first/.test(state.pendingConfirm.message);
+      /* increment 5's logout coupling owns this prompt now; either wording
+         proves the same property: sign-out is refused while unresolved */
+      const blocked=!!state.pendingConfirm&&
+        /resolve that first|needs review before you can sign out/.test(state.pendingConfirm.message);
       state.pendingConfirm=null;
       return {state:m10cState(),env:m10cxEnvelope().st,signedIn:!!pbUid(),logoutBlocked:blocked,
         localW:JSON.parse(localStorage.getItem('wl_v1')).weights[0].weight};
