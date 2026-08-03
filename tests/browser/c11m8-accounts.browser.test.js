@@ -24,6 +24,14 @@ const ok=(v,m)=>{if(!v)throw new Error(m||'expected truthy');};
     localStorage.setItem('wl_training_base__userA',JSON.stringify({owner:'userZ',mark:'m8.1',canon:1,rev:1,body:'{}'}));
   });
   await ctx.route('**/api/**',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[],token:'tok',record:{id:'userA'}})}));
+  /* M10 (increment 5): a signed-in device must hold the writer lease before it
+     may persist anything. Answer the lease route as the granting server —
+     harness only, no product change. */
+  await ctx.route('**/api/cf/writer/lease',r=>{
+    let b={};try{b=JSON.parse(r.request().postData()||'{}');}catch(e){}
+    return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,exists:true,granted:true,
+      fence:1,holderDeviceId:b.deviceId||'dev',deviceName:b.deviceName||'x',active:true,
+      serverNow:Date.now(),ttlMs:86400000})});});
   await ctx.route('**/api/collections/appdata/records**',r=>r.fulfill({status:200,contentType:'application/json',
     body:JSON.stringify({items:[{id:'rec1',user:'userA',training:null,trainingRev:0}]})}));
   let commits=0;
