@@ -60,13 +60,30 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
     ok(t1.i>=0,'row not found; labels were '+JSON.stringify(t1.labs));
     eq(t1.next,'Notes','row after it');
     eq(t1.val,'Add');
-    eq(t1.act,'rat:toggle');
+    eq(t1.act,'dl:open','the row must open the same sheet the other check-in rows use');
   });
 
-  /* ---- T2: expands in place with six questions x five labelled chips ------ */
-  await ev(()=>{document.querySelector('[data-act="rat:toggle"]').click();});
+  /* ---- T2: opens as a SHEET like Calories, not an inline accordion ------- */
+  await ev(()=>{
+    [].slice.call(document.querySelectorAll('.wl-check .wl-ck-row'))
+      .filter(r=>(r.querySelector('.wl-ck-lab')||{}).textContent==='How you’re feeling')[0].click();});
+  const t2s=await ev(()=>{
+    const card=document.querySelector('.wl-confirm .wl-confirm-card');
+    return {sheet:!!card,sec:state.quickEntry,
+      title:card?card.querySelector('div[style*="font-weight:800"]').textContent:null,
+      inCheckCard:!!document.querySelector('.wl-check .wl-feelq'),
+      close:!!document.querySelector('[data-act="qe:close"]'),
+      done:!!document.querySelector('.wl-confirm-card .wl-btn-primary')};});
+  test('T2 the questions open in the quick-entry sheet, titled and closable, never inline',()=>{
+    ok(t2s.sheet,'no sheet was raised');
+    eq(t2s.sec,'feel');
+    eq(t2s.title,'How you’re feeling');
+    notOk(t2s.inCheckCard,'the questions must not render inside the check-in card');
+    ok(t2s.close&&t2s.done,'the sheet needs its ✕ and its Done button');
+  });
+
   const t2=await ev(()=>{
-    const qs=[].slice.call(document.querySelectorAll('.wl-feel .wl-feelq'));
+    const qs=[].slice.call(document.querySelectorAll('.wl-confirm-card .wl-feelq'));
     return {n:qs.length,
       names:qs.map(q=>q.querySelector('.wl-feelq-h span').textContent),
       chips:qs.map(q=>q.querySelectorAll('.wl-feelchip').length),
@@ -74,7 +91,7 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
       unanswered:qs.every(q=>q.querySelector('.wl-feelq-h .na')),
       pressed:qs[0].querySelector('.wl-feelchip').getAttribute('aria-pressed')};
   });
-  test('T2 six questions, five labelled chips each, all "Not answered"',()=>{
+  test('T2b six questions, five labelled chips each, all "Not answered"',()=>{
     eq(t2.n,6);
     eq(t2.names,['Hunger','Sleep quality','Stress','Recovery','Energy','Digestion']);
     eq(t2.chips,[5,5,5,5,5,5]);
@@ -493,7 +510,9 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
   });
 
   /* ---- T27: narrow screens get the short chip labels ------------------- */
-  await ev(()=>{load();state.view='overview';state.selDate=todayISO();state.feelOpen=todayISO();render();});
+  await ev(()=>{load();state.view='overview';state.selDate=todayISO();state.quickEntry=null;render();
+    [].slice.call(document.querySelectorAll('.wl-check .wl-ck-row'))
+      .filter(r=>(r.querySelector('.wl-ck-lab')||{}).textContent==='How you’re feeling')[0].click();});
   await page.setViewportSize({width:320,height:800});
   const t27=await ev(()=>{
     const chip=document.querySelector('.wl-feelchip');

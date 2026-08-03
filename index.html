@@ -757,11 +757,10 @@ input[type=date]::-webkit-calendar-picker-indicator,input[type=time]::-webkit-ca
 .wl-ck-reopen-btns{display:flex;gap:8px;margin-top:10px;}
 .wl-ck-reopen-btns .wl-btn{flex:1;padding:10px 0;font-size:14px;}
 .wl-ck-note{flex:1;text-align:right;font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.wl-ck-go{color:var(--faint);font-size:16px;flex:none;transition:transform .16s ease;}
-/* ---- How you're feeling: daily ratings ---- */
-.wl-ck-go.open{transform:rotate(90deg);}
-.wl-feel{padding:2px 2px 10px;}
+.wl-ck-go{color:var(--faint);font-size:16px;flex:none;}
+/* ---- How you're feeling: daily ratings (shown in the quick-entry sheet) ---- */
 .wl-feelq{margin-top:12px;}
+.wl-feelq:first-child{margin-top:0;}
 .wl-feelq-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;font-size:13px;font-weight:700;margin-bottom:7px;}
 .wl-feelq-h span:first-child{color:var(--text);}
 .wl-feelq-h .a{color:var(--accent);font-weight:800;}
@@ -922,7 +921,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-03.418-feel";
+var APP_BUILD="2026-08-03.419-sheet";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -1983,13 +1982,17 @@ function ratSet(iso,key,val){
   if(!any)delete all[iso];
   save();
 }
+/* The collapsed row. Opening it raises the same sheet the other check-in rows
+   use (Owner 2026-08-03: a screen like Calories, not an accordion). */
 function ckFeel(sel){
-  var n=ratCount(sel),open=(state.feelOpen===sel),tot=RATINGS.length;
+  var n=ratCount(sel),tot=RATINGS.length;
   var ic=(n===tot)?'<span class="wl-ck-ic done"></span>':'<span class="wl-ck-ic opt">◦</span>';
-  var h='<button class="wl-ck-row" data-act="rat:toggle" data-date="'+sel+'" aria-expanded="'+(open?"true":"false")+'"><span class="wl-ck-l">'+ic+'<span class="wl-ck-lab">How you’re feeling</span></span><span class="wl-ck-val'+(n?'':' empty')+'">'+(n?n+" of "+tot:"Add")+'</span><span class="wl-ck-go'+(open?" open":"")+'">›</span></button>';
-  if(!open)return h;
+  return '<button class="wl-ck-row" data-act="dl:open" data-sec="feel"><span class="wl-ck-l">'+ic+'<span class="wl-ck-lab">How you’re feeling</span></span><span class="wl-ck-val'+(n?'':' empty')+'">'+(n?n+" of "+tot:"Add")+'</span><span class="wl-ck-go">›</span></button>';
+}
+/* The body of that sheet — six questions, five chips each. */
+function feelSheetBody(sel){
   var r=ratFor(sel);
-  h+='<div class="wl-feel">';
+  var h='';
   RATINGS.forEach(function(q){
     var cur=r[q[0]]||null,lab=ratLabel(q[0],cur),qid="feelq-"+q[0];
     h+='<div class="wl-feelq" role="group" aria-labelledby="'+qid+'"><div class="wl-feelq-h"><span id="'+qid+'">'+q[1]+'</span><span class="'+(lab?"a":"na")+'">'+(lab||"Not answered")+'</span></div><div class="wl-feelchips">';
@@ -1998,8 +2001,7 @@ function ckFeel(sel){
     });
     h+='</div></div>';
   });
-  h+='<div class="wl-hint" style="margin-top:14px">Optional — this never blocks completing your day. Coach Max reads the trend, not any single day.</div></div>';
-  return h;
+  return h+'<div class="wl-hint" style="margin-top:16px">Optional — this never blocks completing your day. Coach Max reads the trend, not any single day.</div>';
 }
 /* ---- trend maths ---- */
 function feelDays(n,endISO){var out=[],d=parseISO(endISO||todayISO());d.setDate(d.getDate()-(n-1));
@@ -2797,7 +2799,7 @@ function headerNav(){var v=state.view;
 function quickEntryHTML(){
   var sec=state.quickEntry;if(!sec)return "";
   var sel=state.selDate;var u=state.settings.units;
-  var titles={weight:"Weight",steps:"Steps",sleep:"Sleep",calories:"Calories & macros",notes:"Notes"};
+  var titles={weight:"Weight",steps:"Steps",sleep:"Sleep",calories:"Calories & macros",notes:"Notes",feel:"How you’re feeling"};
   var wmap={};state.weights.forEach(function(x){wmap[x.date]=x.weight;});
   var e=state.food[sel]||{};
   var t={calories:num(state.settings.targetCalories),protein:num(state.settings.targetProtein),carbs:num(state.settings.targetCarbs),fat:num(state.settings.targetFat)};
@@ -2814,6 +2816,7 @@ function quickEntryHTML(){
     body+='<label class="wl-field wl-field-full" style="margin-top:14px"><span>Fiber <em>g · optional</em></span><input class="wl-food-input wl-num" data-food="fiber" type="text" inputmode="decimal" placeholder="0" value="'+_fv+'"></label>';
     body+='<div id="wl-calnotice">'+calNoticeHTML(sel)+'</div>';var _clk=isSkip(sel,"calories");body+=skipBtn("calories",_clk,"food");
     }
+  else if(sec==="feel")body=feelSheetBody(sel);
   else if(sec==="notes")body='<textarea class="wl-note-input" placeholder="Any notes for the AI summary (feeling sick, feeling good, on vacation…)" style="width:100%;min-height:96px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:14px;padding:11px 12px;box-sizing:border-box;outline:none;resize:vertical">'+esc(state.notes[sel]||"")+'</textarea>';
   var h='<div class="wl-confirm"><div class="wl-confirm-card">';
   h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><div style="font-weight:800;font-size:17px">'+titles[sec]+'</div><button class="wl-icon-btn" data-act="qe:close">✕</button></div>';
@@ -7964,7 +7967,6 @@ document.addEventListener("click",function(e){
   if(a==="photo:add"){state.pendingMeal=el.getAttribute("data-meal")||"";state.pendingPose=null;document.getElementById("wl-photo-input").click();return;}
   if(a==="pphoto:add"){state.pendingPose=el.getAttribute("data-pose");state.pendingProgWeek=el.getAttribute("data-week")||toISO(weekStartFor(0));state.pendingMeal=null;document.getElementById("wl-photo-input").click();return;}
   /* ---- daily ratings ---- */
-  if(a==="rat:toggle"){var _rd=el.getAttribute("data-date");state.feelOpen=(state.feelOpen===_rd)?null:_rd;render();return;}
   if(a==="rat:set"){ratSet(el.getAttribute("data-date"),el.getAttribute("data-q"),el.getAttribute("data-v"));render();return;}
   /* ---- weekly check-in ---- */
   if(a==="ci:open"){state.ciWeek=el.getAttribute("data-week")||toISO(weekStartFor(0));state.ciSkipAsk=null;state.ciFrom=state.view;state.view="checkin";render();return;}

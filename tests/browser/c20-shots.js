@@ -67,10 +67,10 @@ const OUT=process.argv[2]||'/tmp/c20-shots';
   console.log('writing to '+OUT);
   await shot('01-home-checkin-due');
 
-  await page.evaluate(()=>{state.feelOpen=todayISO();render();});
-  await shot('02-feelings-expanded');
+  await page.evaluate(()=>{state.quickEntry='feel';render();});
+  await shot('02-feelings-sheet',true);
 
-  await page.evaluate(()=>{state.feelOpen=null;state.view='weight';render();});
+  await page.evaluate(()=>{state.quickEntry=null;state.view='weight';render();});
   await shot('03-progress-trend');
 
   await page.evaluate(()=>{
@@ -129,8 +129,8 @@ const OUT=process.argv[2]||'/tmp/c20-shots';
 
   /* narrow */
   await page.setViewportSize({width:320,height:800});
-  await page.evaluate(()=>{state.view='overview';state.feelOpen=todayISO();render();});
-  await shot('11-narrow-320');
+  await page.evaluate(()=>{state.view='overview';state.quickEntry='feel';render();});
+  await shot('11-narrow-320',true);
 
   await browser.close();server.close();
 })();
