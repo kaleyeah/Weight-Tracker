@@ -1,13 +1,38 @@
 # M10 client increment 2 — core durability protocol
 
-## Package identity (through round-17 rulings)
+## Package identity (through round-18 rulings)
 - **Base**: `3e7a0d0` — the accepted increment-1 authority head.
-- **Increment head**: `f78d2e0` — index.html sha256 prefix `682714e7…`.
-- **Cumulative diff** `INCR2-DIFF.patch` = 3e7a0d0 → f78d2e0
-  (529 lines); **narrow round-17 diff**
-  `INCR2-DIFF-FROM-5359060.patch` (389 lines). Everything sits in
+- **Increment head**: `78cb17e`.
+- **Cumulative diff** `INCR2-DIFF.patch` = 3e7a0d0 → 78cb17e;
+  **narrow round-18 diff** `INCR2-DIFF-FROM-f78d2e0.patch`;
+  (round-17 narrow diff retained as
+  `INCR2-DIFF-FROM-5359060.patch`). Everything sits in
   `M10-BLOCK-2 … M10-BLOCK-2-END` plus the delimited wiring section
   and one boot-line edit.
+
+## Round-18 rulings, as landed (P1–P3 = rulings 3–5)
+- P1 (ruling 3): REAL plain-object validation —
+  `Object.getPrototypeOf(v) === Object.prototype`; class instances,
+  custom prototypes, AND null-prototype objects all fail closed (the
+  null-prototype rejection is the documented decision: JSON.parse
+  never produces one, so nothing legitimate does). Tests: class
+  instance, custom prototype, Object.create(null), plain-object
+  control.
+- P2 (ruling 4): adoption annulment is DURABLE — the journal removal
+  is verified; a failed removal raises the shared storage block so
+  the stale intent can never silently run later. Fault-injected test:
+  removal blocked on first boot → hard block, no adoption, edit
+  preserved; reload with the fault cleared → the adopt intent is
+  durably annulled, still zero adoption, and the boot push then
+  surfaces the GENUINE revision conflict as a typed core-ack
+  terminal (dirty + edit intact throughout).
+- P3 (ruling 5): terminal payloads are TYPED — the journal validator
+  requires a safe nonnegative integer `serverRev` for conflict and
+  `staleFence` for displacement; the dispatch arms validate 409
+  bodies BEFORE terminalizing, and a malformed 409 (missing/
+  fractional/non-numeric fields, 4 tests) leaves the journal at
+  intent as a recoverable request — never authoritative review
+  state — with dirty preserved.
 
 ## Round-17 rulings, as landed (N1–N9 = rulings 1–9)
 - N1/N4: `m10cCtx()` captures `{uid, session generation}` at the start

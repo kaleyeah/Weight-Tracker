@@ -1,54 +1,46 @@
-# M10 single-writer — round 18: increment 2 revised per round 17
+# M10 single-writer — round 19: increment 2, round-18 rulings landed
 
 You are the Architect for the Compound project (read-only; rulings bind
 the Engineer; the Owner alone authorizes deployment and live-data
 mutation).
 
-The revised increment 2 only, per your closing list. Head `f78d2e0`
-(index.html sha prefix 682714e7…); exact narrow diff from `5359060`:
-`client-increments/INCR2-DIFF-FROM-5359060.patch` (389 lines);
-cumulative `INCR2-DIFF.patch` = 3e7a0d0 → f78d2e0 (529 lines).
-`INCR2-README.md` opens with the ruling-by-ruling landing (N1–N9).
+The narrow revision only, per your closing list. Head `78cb17e`
+(index.html sha prefix e1c191bd…); exact diff from `f78d2e0`:
+`client-increments/INCR2-DIFF-FROM-f78d2e0.patch` (63 lines);
+regenerated cumulative `INCR2-DIFF.patch` = 3e7a0d0 → 78cb17e
+(548 lines). `INCR2-README.md` carries the ruling-by-ruling record.
 
-The essentials:
-- **Context threading (rulings 1–4)**: `m10cCtx()` = {uid, session
-  generation} captured at the start of push, recovery, bootstrap,
-  pull, and adoption; EVERY asynchronous continuation verifies both
-  or touches nothing. Journal helpers (write/advance/terminalize/
-  complete/quarantine and their reads) operate on the journal's
-  validated owner or the captured uid — `m8Uid()` is never consulted
-  after dispatch. Focused delayed-response tests: switch mid-push
-  (A's intent journal byte-identical, ZERO `wl_core_*__userB` keys);
-  A→B→A (original-session response discarded — the new same-UID
-  session has a new generation); switch during the bootstrap GET and
-  the clean-pull GET (zero adoption, zero B writes).
-- **Pre-adoption revalidation (rulings 5–7)**: pull/bootstrap capture
-  the local bytes before the GET and re-verify session, block state,
-  dirty, and byte-identical local AFTER it; the adoption intent phase
-  re-proves those immediately before the `wl_v1` replacement and
-  annuls itself (journal removed, nothing written) if anything
-  changed. The edit-during-pull race is a dedicated test: delayed
-  GET, mid-flight verified edit → zero adoption, dirty + bytes +
-  base preserved.
-- **Strict canon (ruling 8)**: the ORIGINAL graph is validated before
-  projection — `undefined` only as object-property omission; arrays
-  reject undefined/holes; NaN, ±Infinity, functions, symbols, BigInt,
-  cycles, and non-plain objects (Date tested) fail closed. Positive
-  `auto: undefined` case + a negative case per lossy category + a
-  push-path case (hard block, dirty preserved, zero commits).
-- **Typed success (ruling 9)**: `newRev` must be a safe nonnegative
-  integer EQUAL to expectedRev+1; fractional / missing / wrong-
-  increment successes each block with the journal at intent, dirty
-  preserved, and the base unmoved (three tests).
+1. **Real plain-object validation (ruling 3)** —
+   `Object.getPrototypeOf(v) === Object.prototype`. Class instances
+   and custom-prototype objects fail closed; `Object.create(null)` is
+   REJECTED as the documented decision (JSON.parse never produces a
+   null-prototype object, so nothing legitimate does). Tests: class
+   instance, custom prototype, null-prototype, plain control (T16).
+2. **Durable adoption annulment (ruling 4)** — the annul removal is
+   verified; failure raises the shared storage block. Fault-injected
+   test (T17): a seeded stale adopt intent with a dirty local copy and
+   a BLOCKED removal → hard block ("could not annul…"), zero adoption,
+   edit preserved; reload with the fault cleared → the adopt intent is
+   durably annulled, still zero adoption — and the boot push then
+   surfaces the GENUINE revision conflict as a typed core-ack terminal
+   (dirty + edit intact throughout). The test's second half documents
+   that expected follow-on precisely.
+3. **Typed terminal payloads (ruling 5)** — the journal validator now
+   requires a safe nonnegative integer `serverRev` on conflict
+   terminals and `staleFence` on displacement terminals; the dispatch
+   arms validate 409 bodies BEFORE terminalizing. Malformed 409s
+   (fenceStale without/with fractional fence; conflict without/with
+   non-integer serverRev — 4 tests, T18) leave the journal at intent
+   as a recoverable request, dirty preserved — never review state.
 
-Evidence, all fresh at `f78d2e0`: `INCR2-C16-OUTPUT.txt` 39/39 (the
-29 accepted paths + the 10 ruling cases above);
+Evidence, all fresh at `78cb17e`: `INCR2-C16-OUTPUT.txt` 46/46;
 `INCR2-C15-RERUN.txt` 35/35; `INCR2-M8-REGRESSION.txt` 171/171
 (+artifact-scope recovery 25/25).
 
-Passed: rulings 1–9, locally. Deferred: unchanged (review flows → 3,
-photo queue → 4, gate surface → 5; production actions behind Owner
-gates).
+Rulings 1–2 and 6 of round 18 (context threading, pre-adoption
+revalidation, newRev check) were accepted and are untouched by this
+diff.
 
 Requested ruling: acceptance of increment 2 and authorization for
-increment 3.
+increment 3 (displaced-core review flows on these now-typed terminal
+records).

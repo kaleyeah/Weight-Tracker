@@ -1,16 +1,12 @@
 M8 + C14 client regression matrix vs increment-2 bytes
-(CF_SRC = Weight-Tracker/index.html @ f78d2e0 — the round-17 revised head; rerun 2026-08-03)
+(CF_SRC = Weight-Tracker/index.html @ 78cb17e — the round-18 revised head; run 2026-08-03)
 
 c11m8-accounts:  OK — 6 passed
 c11m8-faults:    OK — 64 passed
 c11m8-matrix:    OK — 9 passed
 c11m8-quota:     OK — 6 passed
 c11m8-replay:    OK — 10 passed
-c11m8-tags:      OK — 5 passed   (this suite CAUGHT the canon defect at 4/5
-                                  on the pre-fix commit 6e89b3b — the strict
-                                  validator hard-blocked core on an
-                                  undefined-valued tag field; green after
-                                  m10cCanon, commit 5359060)
+c11m8-tags:      OK — 5 passed
 c11m8-upgrade:   OK — 4 passed
 c14-correctness: OK — 67 passed
 TOTAL: 171/171

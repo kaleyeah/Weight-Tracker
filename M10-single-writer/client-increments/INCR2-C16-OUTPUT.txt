@@ -37,5 +37,12 @@
   ✓ T15 fractional newRev: blocked, journal at intent, dirty preserved, base unmoved
   ✓ T15 missing newRev: blocked, journal at intent, dirty preserved, base unmoved
   ✓ T15 wrong increment: blocked, journal at intent, dirty preserved, base unmoved
+  ✓ T16 class instance / custom prototype / null-prototype all fail closed; plain passes
+  ✓ T17 failed annul removal: hard block, no adoption, edit preserved
+  ✓ T17 reload: adopt intent durably annulled (no adoption); boot push finds the real conflict
+  ✓ T18 fenceStale without fence: journal stays at intent (recoverable), dirty preserved, NOT review state
+  ✓ T18 fenceStale fractional fence: journal stays at intent (recoverable), dirty preserved, NOT review state
+  ✓ T18 conflict without serverRev: journal stays at intent (recoverable), dirty preserved, NOT review state
+  ✓ T18 conflict non-integer serverRev: journal stays at intent (recoverable), dirty preserved, NOT review state
 
-C16-M10 increment 2: 39 passed, 0 failed
+C16-M10 increment 2: 46 passed, 0 failed

@@ -1,8 +1,8 @@
 diff --git a/index.html b/index.html
-index f6e7d22..cd982a3 100644
+index f6e7d22..1284529 100644
 --- a/index.html
 +++ b/index.html
-@@ -9795,6 +9795,515 @@ function m10Gate(tag){
+@@ -9795,6 +9795,534 @@ function m10Gate(tag){
  }
  /* =============== M10-BLOCK-1-END =============== */
  
@@ -48,8 +48,13 @@ index f6e7d22..cd982a3 100644
 +        if(!r.ok)return r;
 +        arr.push(r.out);}
 +      seen.pop();return {ok:true,out:arr};}
-+    if(Object.prototype.toString.call(v)!=="[object Object]")
-+      return {ok:false,error:path+": unsupported object type"};
++    /* P1 (round-18 ruling 3): a REAL plain-object check. Core data comes
++       from JSON.parse, whose objects always have Object.prototype — class
++       instances, custom prototypes, AND null-prototype objects all fail
++       closed (the null-prototype rejection is the documented decision:
++       nothing legitimate produces one in this store). */
++    if(Object.getPrototypeOf(v)!==Object.prototype)
++      return {ok:false,error:path+": non-plain object"};
 +    var o={};
 +    for(var k in v){
 +      if(!Object.prototype.hasOwnProperty.call(v,k))continue;
@@ -142,7 +147,12 @@ index f6e7d22..cd982a3 100644
 +    if(!(e.fence===null||natOk(e.fence)))return "bad fence";
 +    if(!(typeof e.requestId==="string"&&e.requestId.length>0&&e.requestId.length<=96))return "bad requestId";
 +    if(j.phase==="net-done"||j.phase==="k1"||j.phase==="k2"){if(!natOk(e.newRev))return "bad newRev";}
-+    if(j.phase==="done"&&j.outcome!==undefined&&M10C_J_OUTCOMES.indexOf(j.outcome)<0)return "bad outcome";}
++    if(j.phase==="done"&&j.outcome!==undefined){
++      if(M10C_J_OUTCOMES.indexOf(j.outcome)<0)return "bad outcome";
++      /* P3 (round-18 ruling 5): terminal payloads are TYPED — increment 3
++         consumes these records and must never meet a malformed one. */
++      if(j.outcome==="conflict"&&!natOk(e.serverRev))return "bad conflict serverRev";
++      if(j.outcome==="fence-displaced"&&!natOk(e.staleFence))return "bad staleFence";}}
 +  if(j.op==="core-bootstrap"){
 +    if(!natOk(e.serverRev))return "bad serverRev";
 +    if(!canonOk(e.serverCanon,true))return "bad serverCanon";}
@@ -309,10 +319,15 @@ index f6e7d22..cd982a3 100644
 +      if(!m10cJournalAdvance(j,"net-done",{newRev:nr},ctx.uid)){m10cBlock("could not record the server acknowledgement");cb&&cb(false);return;}
 +      m10cComplete(j,function(ok){if(ok)setSync("ok");cb&&cb(ok);},ctx.uid);
 +      return;}
++    var natRes=function(v2){return typeof v2==="number"&&isFinite(v2)&&v2>=0&&Math.floor(v2)===v2&&v2<=9007199254740990;};
 +    if(r.status===409&&r.body&&r.body.fenceStale===true){
++      /* P3: a malformed 409 never becomes authoritative review state — the
++         journal survives at intent (recoverable request), dirty untouched */
++      if(!natRes(r.body.fence)){setSync("error","core sync received a malformed response");cb&&cb(false);return;}
 +      m10cTerminalize(j,"fence-displaced",{staleFence:r.body.fence},ctx.uid);
 +      setSync("error","another device is the active writer");cb&&cb(false);return;}
 +    if(r.status===409&&r.body&&r.body.conflict===true){
++      if(!natRes(r.body.serverRev)){setSync("error","core sync received a malformed response");cb&&cb(false);return;}
 +      m10cTerminalize(j,"conflict",{serverRev:r.body.serverRev},ctx.uid);
 +      setSync("error","core needs review");cb&&cb(false);return;}
 +    if(r.status===409&&r.body&&/reused/.test(r.body.error||"")){
@@ -419,7 +434,11 @@ index f6e7d22..cd982a3 100644
 +         overwritten, the journal is removed (no data was touched). */
 +      if(m10cRead("dirty",uid).st!=="absent"||window.m8StorageBlocked||
 +         (ctx&&ctx.preLocal!==undefined&&(function(){try{return localStorage.getItem(KEY)!==ctx.preLocal;}catch(ex2){return true;}})())){
-+        m10cRemove("journal",uid);
++        /* P2 (round-18 ruling 4): annulment is DURABLE — the removal is
++           verified; a failed removal raises the shared block so the stale
++           intent can never silently run later. */
++        if(!m10cRemove("journal",uid)||m10cRead("journal",uid).st!=="absent")
++          m10cBlock("could not annul a superseded adoption record");
 +        cb&&cb(false);return;}
 +      try{localStorage.setItem("wl_v1",JSON.stringify(obj));}catch(ex){m10cBlock("could not store the adopted copy");cb&&cb(false);return;}
 +      var back;try{back=localStorage.getItem("wl_v1");}catch(ex){back=null;}
@@ -518,7 +537,7 @@ index f6e7d22..cd982a3 100644
  function cloudTest(){
    if(ownershipAmbiguous()){toast("Paused — this device holds data from another account");return;}
    setSync("syncing");
-@@ -10306,7 +10815,7 @@ if(!logoutRecoveryPending())runRecoveryCapture();
+@@ -10306,7 +10834,7 @@ if(!logoutRecoveryPending())runRecoveryCapture();
  if(bootGated()){
    renderGate();
  }else{
