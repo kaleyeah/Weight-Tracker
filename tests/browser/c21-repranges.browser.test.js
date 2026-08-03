@@ -177,6 +177,60 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
     ok(t9.says);
   });
 
+  /* ---- T10: weight and reps are visually separated -------------------- */
+  const t10=await ev(()=>{
+    const css=[].concat(SRCSS).join('\n');
+    const holder=document.createElement('div');
+    holder.innerHTML=srExerciseHTML({name:'Seated Cable Row',mode:'single',ranges:[{lo:8,hi:12}],
+      sets:[{n:1,w:142.5,r:12,rir:3,lo:8,hi:12}]},true);
+    const wr=holder.querySelector('.set-wr');
+    return {html:wr?wr.innerHTML:null,text:wr?wr.textContent:null,
+      hasX:!!(wr&&wr.querySelector('.wr-x')),
+      xRule:/\.wr-x\{[^}]*\}/.exec(css),
+      gridGap:/\.setgrid\{[^}]*gap:(\d+)px/.exec(css)};
+  });
+  test('T10 the multiply sign is spaced and dimmed so weight and reps read apart',()=>{
+    ok(t10.hasX,'weight×reps is still one run of characters: '+t10.html);
+    ok(t10.xRule&&/padding:0 6px/.test(t10.xRule[0]),'x rule was '+(t10.xRule&&t10.xRule[0]));
+    ok(t10.gridGap&&Number(t10.gridGap[1])>=10,'set grid gap was '+(t10.gridGap&&t10.gridGap[1]));
+    ok(/142\.5/.test(t10.text)&&/12/.test(t10.text),'the numbers must still be there: '+t10.text);
+  });
+
+  /* ---- T11: body fat and lean mass reach the report -------------------- */
+  const t11=await ev(()=>{
+    const wk=weekDays(0).map(d=>toISO(d));
+    const before=toISO(new Date(parseISO(wk[0]).getTime()-10*86400000));
+    state.bodyfat={};state.leanmass={};state.waist={};
+    state.bodyfat[before]=22.1;state.bodyfat[wk[2]]=21.3;   /* down = good */
+    state.leanmass[before]=146.0;state.leanmass[wk[2]]=147.2; /* up = good */
+    state.waist[before]=35.0;                                /* stale only */
+    const inp=srInput(0);
+    const holder=document.createElement('div');
+    holder.innerHTML=srBodyCompHTML(inp);
+    const rows=[].slice.call(holder.querySelectorAll('.bc-row')).map(r=>({
+      k:r.querySelector('.bc-k').textContent,
+      v:r.querySelector('.bc-v').textContent,
+      chg:(r.querySelector('.bc-chg')||{}).textContent||null,
+      cls:(r.querySelector('.bc-chg')||{}).className||null,
+      d:r.querySelector('.bc-d').textContent}));
+    /* and with nothing ever logged the card omits itself entirely */
+    state.bodyfat={};state.leanmass={};state.waist={};
+    const empty=srBodyCompHTML(srInput(0));
+    return {rows,empty};
+  });
+  test('T11 body fat and lean mass appear with direction, and a stale reading says so',()=>{
+    eq(t11.rows.length,3,'body fat, lean mass and waist');
+    eq(t11.rows[0].k,'Body fat');
+    ok(/21\.3/.test(t11.rows[0].v),'value was '+t11.rows[0].v);
+    ok(/good/.test(t11.rows[0].cls||''),'falling body fat should read as good: '+t11.rows[0].cls);
+    eq(t11.rows[1].k,'Lean mass');
+    ok(/147\.2/.test(t11.rows[1].v));
+    ok(/good/.test(t11.rows[1].cls||''),'RISING lean mass must read as good, not bad: '+t11.rows[1].cls);
+    ok(/last logged/.test(t11.rows[2].d),'a pre-week reading must be marked stale: '+t11.rows[2].d);
+    notOk(t11.rows[2].chg,'a stale reading has no in-week change to report');
+    eq(t11.empty,'','with nothing logged the card must omit itself');
+  });
+
   test('T7 no uncaught page errors',()=>{eq(errs,[],'page errors');});
 
   console.log('\nC21 — coach-report rep ranges: '+passed+' passed, '+failures.length+' failed');
