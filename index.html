@@ -856,12 +856,17 @@ input[type=date]::-webkit-calendar-picker-indicator,input[type=time]::-webkit-ca
 .wl-toast.show{opacity:1;transform:translateX(-50%) translateY(-4px);}
 
 .wl-nav{position:fixed;bottom:0;left:0;right:0;max-width:720px;margin:0 auto;
-  /* translate3d forces the nav onto its own compositing layer: iOS Safari's
-     known fixed+backdrop-filter bug otherwise repaints it at a stale scroll
-     offset, leaving the bar "floating" mid-content (seen on the Owner's phone
-     during the release checklist). */
+  /* The bar "floats" mid-content on iOS because of Safari's fixed +
+     backdrop-filter repaint bug: the blurred layer is composited at a stale
+     scroll offset. Build .402 tried to fix it by forcing a compositing layer
+     with translate3d, and it came back (Owner, 2026-08-03) — that hack is
+     unreliable because Safari can still re-rasterise the backdrop layer.
+     The trigger itself is now gone: no backdrop-filter, and the background is
+     fully opaque instead of 94%, which at this colour is indistinguishable.
+     translate3d stays because promoting the layer is still cheap and helps.
+     Do not reintroduce backdrop-filter here. */
   transform:translate3d(0,0,0);
-  background:rgba(20,25,34,.94);backdrop-filter:blur(12px);border-top:1px solid var(--line);
+  background:var(--bg2);border-top:1px solid var(--line);
   display:flex;padding:8px 6px calc(8px + env(safe-area-inset-bottom,0px));z-index:10;}
 .wl-navbtn{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;
   color:var(--faint);font-size:9.5px;font-weight:600;padding:4px 1px;border-radius:10px;}
@@ -921,7 +926,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-03.421-week";
+var APP_BUILD="2026-08-03.422-nav";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
