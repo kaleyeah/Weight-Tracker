@@ -65,6 +65,7 @@ async function boot(browser,srv,st,seed,uid){
   await ctx.exposeFunction('__setRev',(r,which)=>{st.rev=r;if(which==='server')st.data=SERVER;});
   await ctx.exposeFunction('__forceCommit',(status,body)=>{st.forceCommit={status,body};});
   await ctx.exposeFunction('__setLeaseHeld',(v)=>{st.leaseHeld=v;});
+  await ctx.exposeFunction('__slowRecords',(ms)=>{st.recordsDelay=ms;});
   await ctx.route('**/api/**',casMock(st));
   if(seed)await ctx.addInitScript((sd)=>{
     if(localStorage.getItem('c17_seeded'))return;
@@ -490,6 +491,90 @@ const doExport=async(page)=>page.evaluate(async()=>{
     test('T15 lost-response push-mine: reload replays the captured request, single commit, clean',()=>{
       eq(s.state,'clean');eq(s.base,10);eq(s.env,'absent');eq(s.dx,'absent');
       eq(st.rev,10);eq(Object.keys(st.ledger).length,1);ok(st.ledger[rid],'same requestId');});
+    await ctx.close();
+  }
+
+  /* T16 (round-21 ruling 3): pen lost DURING the fresh fetch — both actions */
+  for(const action of ['mine','server']){
+    const st={rev:9,data:SERVER,ledger:{},hasRow:true,recordsDelay:500};
+    const {ctx,page}=await boot(browser,server,st,seedConflict());
+    st.recordsDelay=0;                       // let the boot handoff fetch run fast
+    await new Promise(r=>setTimeout(r,200));
+    await doExport(page);
+    const s=await page.evaluate(async(act)=>{
+      const before=localStorage.getItem('wl_v1');
+      const envBefore=localStorage.getItem('wl_core_displaced__userA');
+      await window.__slowRecords(500);
+      if(act==='mine')m10cxPushMine();
+      else{m10cxTakeServer();await new Promise(r=>setTimeout(r,100));
+        if(state.pendingConfirm){const fn=state.pendingConfirm.fn;state.pendingConfirm=null;fn();}}
+      await new Promise(r=>setTimeout(r,150));
+      M10.holder=false;                      // the lease is lost mid-fetch
+      await new Promise(r=>setTimeout(r,700));
+      return {state:m10cState(),localSame:localStorage.getItem('wl_v1')===before,
+        envSame:localStorage.getItem('wl_core_displaced__userA')===envBefore,
+        dx:m10cRead('dxjournal').st};
+    },action);
+    test(`T16 pen lost during ${action==='mine'?'Keep-local':'Take-server'} fetch: no journal, no replacement, envelope kept`,()=>{
+      eq(s.state,'displaced');ok(s.localSame,'local untouched');ok(s.envSame,'envelope untouched');
+      eq(s.dx,'absent','no resolution journal created');eq(st.commits||0,0,'zero commits');});
+    await ctx.close();
+  }
+
+  /* T17b (rulings 4/5): malformed 409s during push-mine keep the journal */
+  for(const [name,body] of [
+    ['fenceStale without fence',{ok:false,fenceStale:true}],
+    ['conflict missing payload',{ok:false,conflict:true,serverRev:13}],
+    ['conflict invalid payload',{ok:false,conflict:true,serverRev:13,payload:[1,2,3]}]]){
+    const st={rev:9,data:SERVER,ledger:{},hasRow:true};
+    const {ctx,page}=await boot(browser,server,st,seedConflict());
+    await doExport(page);
+    const s=await page.evaluate(async(fb)=>{
+      window.__forceCommit(409,fb);
+      const envBefore=localStorage.getItem('wl_core_displaced__userA');
+      m10cxPushMine();
+      await new Promise(r=>setTimeout(r,600));
+      return {state:m10cState(),dx:m10cRead('dxjournal'),envSame:localStorage.getItem('wl_core_displaced__userA')===envBefore};
+    },body);
+    test(`T17b ${name}: dx journal SURVIVES for replay, envelope untouched`,()=>{
+      eq(s.state,'dx-recovery');eq(s.dx.st,'ok');eq(s.dx.val.phase,'intent');ok(s.envSame);});
+    await ctx.close();
+  }
+
+  /* T17c (ruling 6): auth cleanup removal failure → hard block */
+  {
+    const st={rev:9,data:SERVER,ledger:{},hasRow:true};
+    const {ctx,page}=await boot(browser,server,st,seedConflict());
+    await doExport(page);
+    const s=await page.evaluate(async()=>{
+      window.__forceCommit(401,{ok:false});
+      const orig=localStorage.removeItem.bind(localStorage);
+      localStorage.removeItem=function(k){if(/wl_core_dx_journal__/.test(k))return;return orig(k);};
+      m10cxPushMine();
+      await new Promise(r=>setTimeout(r,600));
+      localStorage.removeItem=orig;
+      return {blocked:m10cHardBlocked,reason:m10cBlockReason,dx:m10cRead('dxjournal').st};
+    });
+    test('T17c auth cleanup removal failure: hard block, journal preserved',()=>{
+      ok(s.blocked);ok(/review record/.test(s.reason),s.reason);eq(s.dx,'ok');});
+    await ctx.close();
+  }
+
+  /* T17d (ruling 7): malformed fresh-fetch revision → no action, no envelope change */
+  {
+    const st={rev:9,data:SERVER,ledger:{},hasRow:true};
+    const {ctx,page}=await boot(browser,server,st,seedConflict());
+    await doExport(page);
+    const s=await page.evaluate(async()=>{
+      await window.__setRev(7.5,null);            // fractional revision from the server
+      const envBefore=localStorage.getItem('wl_core_displaced__userA');
+      m10cxPushMine();
+      await new Promise(r=>setTimeout(r,500));
+      return {state:m10cState(),envSame:localStorage.getItem('wl_core_displaced__userA')===envBefore,
+        dx:m10cRead('dxjournal').st};
+    });
+    test('T17d malformed fresh-fetch revision: refused, envelope untouched, no journal',()=>{
+      eq(s.state,'displaced');ok(s.envSame);eq(s.dx,'absent');eq(st.commits||0,0);});
     await ctx.close();
   }
 
