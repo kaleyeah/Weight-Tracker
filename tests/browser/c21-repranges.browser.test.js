@@ -231,6 +231,61 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
     eq(t11.empty,'','with nothing logged the card must omit itself');
   });
 
+  /* ---- T12: weight leads, columns hold their width, header repeats ----- */
+  const t12=await ev(()=>{
+    const wk=weekDays(0).map(d=>toISO(d));
+    const before=toISO(new Date(parseISO(wk[0]).getTime()-3*86400000));
+    state.settings.strategy='lose';
+    state.weights=[{date:before,weight:186.8},{date:wk[2],weight:184.6}];
+    state.bodyfat={};state.leanmass={};state.waist={};
+    state.bodyfat[before]=22.1;state.bodyfat[wk[2]]=21.3;
+    state.waist[before]=35.0;                       /* stale: no in-week reading */
+    const holder=document.createElement('div');
+    holder.innerHTML=srBodyCompHTML(srInput(0));
+    const rows=[].slice.call(holder.querySelectorAll('.bc-row'));
+    const cellsPerRow=rows.map(r=>r.children.length);
+    const first=rows[0];
+    /* every row must carry all four cells, including the one with no change */
+    const stale=rows.filter(r=>/last logged/.test(r.querySelector('.bc-d').textContent))[0];
+    return {order:rows.map(r=>r.querySelector('.bc-k').textContent),
+      cellsPerRow,
+      firstVal:first.querySelector('.bc-v').textContent,
+      firstChg:first.querySelector('.bc-chg').textContent.trim(),
+      firstCls:first.querySelector('.bc-chg').className,
+      firstDate:first.querySelector('.bc-d').textContent,
+      staleChgText:stale?stale.querySelector('.bc-chg').textContent.trim():null,
+      staleHasChgCell:stale?!!stale.querySelector('.bc-chg'):null,
+      hint:(holder.querySelector('.wl-hint')||{}).textContent||''};
+  });
+  test('T12 weight leads body composition and every row keeps all four columns',()=>{
+    eq(t12.order[0],'Weight','weight must be the first metric');
+    eq(t12.order,['Weight','Body fat','Waist'],'metrics with no data at all are omitted');
+    ok(t12.cellsPerRow.every(n2=>n2===4),'ragged rows will not align: '+JSON.stringify(t12.cellsPerRow));
+    ok(/184\.6/.test(t12.firstVal),'value was '+t12.firstVal);
+    ok(/↓|&#8595;|\u2193/.test(t12.firstChg)||/2\.2/.test(t12.firstChg),'change was "'+t12.firstChg+'"');
+    ok(/good/.test(t12.firstCls),'weight down on a cut should read good: '+t12.firstCls);
+    ok(t12.firstDate.length>0,'weight needs its last-measured date too');
+    ok(t12.staleHasChgCell,'a stale row must still emit the change CELL, empty');
+    eq(t12.staleChgText,'','and that cell must be empty rather than absent');
+    ok(/Dates show the last entry/.test(t12.hint),'hint was: '+t12.hint);
+    notOk(/Measured only when logged/.test(t12.hint),'the old wording is still there');
+  });
+
+  /* ---- T13: the set-column header repeats for every exercise ------------ */
+  const t13=await ev(()=>{
+    const mk=n2=>({name:n2,mode:'single',ranges:[{lo:8,hi:12}],
+      sets:[{n:1,w:100,r:10,rir:2,lo:8,hi:12}]});
+    const holder=document.createElement('div');
+    holder.innerHTML=srExerciseHTML(mk('First'),true)+srExerciseHTML(mk('Second'),false)+srExerciseHTML(mk('Third'),false);
+    const heads=[].slice.call(holder.querySelectorAll('.sethead'));
+    return {n:heads.length,
+      cols:heads.map(h2=>[].slice.call(h2.children).map(c=>c.textContent))};
+  });
+  test('T13 every exercise carries its own Set / Weight × Reps / Target / Range / RIR header',()=>{
+    eq(t13.n,3,'the header appeared on '+t13.n+' of 3 exercises');
+    t13.cols.forEach(c=>eq(c,['Set','Weight × Reps','Target','Range','RIR']));
+  });
+
   test('T7 no uncaught page errors',()=>{eq(errs,[],'page errors');});
 
   console.log('\nC21 — coach-report rep ranges: '+passed+' passed, '+failures.length+' failed');

@@ -936,7 +936,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-03.427-bodycomp";
+var APP_BUILD="2026-08-03.428-bcweight";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -3946,7 +3946,10 @@ function srExerciseHTML(x,first){
   var h='<div class="ex"><div class="ex-name">'+srEsc(x.name)+'</div>';
   var sch=srSchemeTxt(x);
   h+='<div class="ex-scheme"><span class="ptag'+(x.mode==="rpt"?" rpt":"")+'">'+(x.mode==="rpt"?"RPT":"PO")+'</span>'+srEsc(sch)+(x.assumed?'<span class="dag">&dagger;</span>':'')+'</div>';
-  if(first)h+='<div class="setgrid sethead"><span>Set</span><span>Weight &times; Reps</span><span style="text-align:center">Target</span><span style="text-align:center">Range</span><span style="text-align:right">RIR</span></div>';
+  /* the header repeats per exercise (Owner, 2026-08-03: "It only lists it
+     at the very top") — five columns is more than anyone holds in their head
+     while scrolling a report. `first` still controls the leading gap only. */
+  h+='<div class="setgrid sethead"><span>Set</span><span>Weight &times; Reps</span><span style="text-align:center">Target</span><span style="text-align:center">Range</span><span style="text-align:right">RIR</span></div>';
   (x.sets||[]).forEach(function(st,i){
     if(st.skipped){
       h+='<div class="setgrid setrow'+((!first&&i===0)?' pad':'')+'">'+
@@ -3993,15 +3996,18 @@ function srBodyCompHTML(inp){
   if(!rows.length)return "";
   var h='<div class="wl-card"><div class="wl-card-head"><span>Body composition</span></div>';
   rows.forEach(function(r){
-    var chg="";
+    var chg;
     if(r.chg!=null&&r.chg!==0){
       var good=r.goodUp?(r.chg>0):(r.chg<0);
-      chg='<span class="bc-chg '+(good?"good":"bad")+'">'+(r.chg>0?"&#8593; ":"&#8595; ")+srR1(Math.abs(r.chg))+'</span>';
-    }else if(r.chg===0)chg='<span class="bc-chg">no change</span>';
+      chg='<span class="bc-chg '+(good?"good":"bad")+'">'+(r.chg>0?"&#8593;":"&#8595;")+' '+srR1(Math.abs(r.chg))+'</span>';
+    }else if(r.chg===0)chg='<span class="bc-chg flat">&mdash;</span>';
+    /* an empty cell, never an absent one: the column must hold its width or the
+       rows below stop lining up (Owner, 2026-08-03) */
+    else chg='<span class="bc-chg"></span>';
     h+='<div class="bc-row"><span class="bc-k">'+srEsc(r.key)+'</span>'+
        '<span class="bc-v">'+srR1(r.val)+'<em> '+srEsc(r.unit)+'</em></span>'+
        chg+'<span class="bc-d">'+srEsc(r.stale?("last logged "+r.dateLabel):r.dateLabel)+'</span></div>';});
-  h+='<div class="wl-hint">Measured only when logged, so these move less often than the scale. Lean mass holding or rising while weight falls means muscle is being kept.</div>';
+  h+='<div class="wl-hint">Dates show the last entry for each metric. Change is against the previous entry before this week. Lean mass holding or rising while weight falls means muscle is being kept.</div>';
   return h+'</div>';}
 /* the Summary tab's weekly-average hero, change pill included */
 function srHeroHTML(inp){
@@ -4114,15 +4120,16 @@ var SRCSS=[
 ".wl-count{font-family:var(--mono);font-size:11px;color:var(--muted);background:var(--bg2);padding:3px 9px;border-radius:7px;font-weight:500;letter-spacing:.02em;text-transform:uppercase}",
 ".wl-hint{font-size:12px;color:var(--muted);line-height:1.45;margin-top:10px}",
 ".ph-row{display:grid;gap:9px}",
-".bc-row{display:grid;grid-template-columns:1fr auto auto auto;gap:10px;align-items:baseline;padding:7px 0;border-top:1px solid var(--line)}",
+".bc-row{display:grid;grid-template-columns:1fr 96px 62px 66px;gap:8px;align-items:baseline;padding:7px 0;border-top:1px solid var(--line)}",
 ".bc-row:first-of-type{border-top:0}",
 ".bc-k{font-size:12.5px;color:var(--muted);font-weight:700}",
-".bc-v{font-family:var(--mono);font-size:14px;color:var(--text);font-weight:700}",
+".bc-v{font-family:var(--mono);font-size:14px;color:var(--text);font-weight:700;text-align:right}",
 ".bc-v em{font-style:normal;font-size:11px;color:var(--faint);font-weight:600}",
-".bc-chg{font-size:11.5px;font-weight:800;color:var(--muted)}",
+".bc-chg{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:11.5px;font-weight:800;color:var(--muted);text-align:right}",
+".bc-chg.flat{color:var(--faint);font-weight:600}",
 ".bc-chg.good{color:#22c55e}",
 ".bc-chg.bad{color:#ef4444}",
-".bc-d{font-size:10.5px;color:var(--faint);text-align:right;min-width:74px}",
+".bc-d{font-size:10.5px;color:var(--faint);text-align:right;white-space:nowrap}",
 ".cd-row{display:grid;grid-template-columns:1.1fr 2fr .7fr 1fr .8fr;gap:8px;align-items:baseline;padding:7px 0;border-top:1px solid var(--line);font-size:12.5px}",
 ".cd-row span:first-child{color:var(--muted);font-weight:700}",
 ".cd-row .cd-ty{color:var(--text);font-weight:700}",
@@ -4331,11 +4338,16 @@ function srInput(offset){
 function srBodyCompInput(offset){
   var days=weekDays(offset).map(function(d){return toISO(d);});
   var startISO=days[0],u=state.settings.units;
-  var defs=[["bodyfat","Body fat","%",false],["leanmass","Lean mass",u,true],
-            ["waist","Waist",(u==="kg"?"cm":"in"),false]];
+  /* weight leads (Owner, 2026-08-03), and follows the same rule as the rest:
+     latest reading in the week against the latest reading before it, which for
+     a daily-logged metric is exactly "compared to previous week" */
+  var wmap={};(state.weights||[]).forEach(function(x){if(num(x.weight)!=null)wmap[x.date]=x.weight;});
+  var gainUp=((state.settings.strategy||"lose")==="gain");
+  var defs=[["__weight","Weight",u,gainUp],["bodyfat","Body fat","%",false],
+            ["leanmass","Lean mass",u,true],["waist","Waist",(u==="kg"?"cm":"in"),false]];
   var out=[],any=false;
   defs.forEach(function(d){
-    var map=state[d[0]]||{};
+    var map=(d[0]==="__weight")?wmap:(state[d[0]]||{});
     var keys=Object.keys(map).filter(function(k){return num(map[k])!=null;}).sort();
     if(!keys.length){out.push({key:d[1],unit:d[2],val:null});return;}
     var inWk=null;
