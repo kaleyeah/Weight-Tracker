@@ -23,5 +23,15 @@
   ✓ T15 after export + confirmation: the delete completes and the photo is gone
   ✓ T16 non-holder photoSync: zero local and zero server photo mutations
   ✓ T17 queue-write failure during delete: fail closed, photo NOT removed
+  ✓ T18 map-write failure: entry held at `acked` with the server id, blocked, no silent loss
+  ✓ T18 reload: the acked entry replays the map write and clears (one upload only)
+  ✓ T19 pen lost at the `acked` boundary: nothing deleted, entry parked
+  ✓ T19 pen restored: the parked phase completes and the photo is removed
+  ✓ T20 bare `intent` with the blob present: promoted to blob-ok and uploaded (never voided)
+  ✓ T20 bare `intent` with the blob absent: voided, never uploaded
+  ✓ T21 destructive Apply with a changed server identity: refused as unverified, photo kept
+  ✓ T22 indistinguishable 404: entry becomes unverified, the local photo is KEPT
+  ✓ T23 adopt sweep: server-only photo journaled, downloaded, mapped, entry cleared
+  ✓ T23 fence replaced during the sweep: no adoption, no queue entries
 
-C18-M10 increment 4: 25 passed, 0 failed
+C18-M10 increment 4: 35 passed, 0 failed

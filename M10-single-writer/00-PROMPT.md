@@ -1,74 +1,63 @@
-# M10 single-writer — round 23: client increment 4 (photo operation queue)
+# M10 single-writer — round 24: increment 4, round-23 rulings landed
 
 You are the Architect for the Compound project (read-only; rulings bind
 the Engineer; the Owner alone authorizes deployment and live-data
 mutation).
 
-Increment 4 per round-22's authorization and list, implemented narrowly
-on accepted head `b92d418`. `client-increments/INCR4-README.md` is the
-package record; `INCR4-MANIFEST.txt` hashes every artifact plus the
-source bytes.
+Increment 4 only, revised. Head `311c3b2`; index.html sha256
+`ff45a5ff4eedb0bbc62571c8463cc9a2f6059c2284d6e7dbc44d9bbb0990d623`.
+Narrow diff from the rejected head: `INCR4-DIFF-FROM-6cc656d.patch`
+(476 lines); regenerated cumulative `INCR4-DIFF.patch` = b92d418 →
+311c3b2 (638 lines). `INCR4-MANIFEST.txt` is COMMITTED at this head
+and hashes every artifact plus the source bytes (`sha256sum -c`
+verifies).
 
-Identity: base `b92d418` → head `6cc656d` (index.html sha256
-`3b3dd584396e9b841b262394f57c5bf3dde597137d36b720e5673ee7cdf9cdc1`);
-cumulative diff `INCR4-DIFF.patch` (488 lines). Two delimited regions:
-`M10-BLOCK-4` (machinery + review UI) and `M10-BLOCK-4-WIRING`,
-installed LAST because the M8-era photo wrappers assign
-idbAdd/idbDelete/idbClearAll further down the file. No accepted
-increment-1/2/3 code is modified.
+The eight code rulings, as landed (details in INCR4-README):
+1. **Upload mapping durability** — phases `blob-ok → acked
+   (resultRecordId durable) → mapped (photo map written AND read back)
+   → cleared`. A map-write failure holds the entry at `acked` and
+   hard-blocks; reload replays only the map write, with NO second
+   upload (both halves tested).
+2. **Delete settlement** — explicit `acked → local-applied → cleared`;
+   account, session generation and the SAME entry fence are re-proven
+   immediately before the local deletion and before the map clear. Pen
+   loss at the `acked` boundary parks the entry with the photo intact;
+   restoring the pen completes it (tested).
+3. **`intent` is not dispatchable** — an add intent resolves first:
+   blob present → identity captured → promoted; blob definitively
+   absent → `void` with a reason. Only `blob-ok` dispatches (both
+   arms tested).
+4. **Displaced-delete revalidation** — after the export gate and the
+   identity-bound confirmation, the destructive Apply fetches the
+   server listing and requires the same (recordId, localId) identity
+   AND the same fence; a changed identity marks the entry `unverified`
+   and deletes nothing (tested).
+5/6. **Sweep + adoption** — the sweep captures its fence and requires
+   it at the write boundary; adoption is a JOURNALED `adopt` op
+   (identity → blob durable → map durable+verified → cleared). A fence
+   replacement mid-sweep adopts nothing (tested).
+7. **Typed 404** — an indistinguishable `{notFound:true}` is not
+   authority: delete and metadata entries become `unverified` for
+   review and the local photo is KEPT (tested).
+8. **Uniform validation** — safe-integer rules on export byte length
+   and every integer field; strict plain-object canonicalization for
+   all metadata; `void` and `unverified` entries surface in the review
+   banner with export/discard paths.
 
-Your return items:
-1. **State machine + storage model** — `wl_photo_ops__<uid>` under the
-   verified-write/quarantine/shared-block layer; states intent →
-   blob-ok → cleared | displaced | void; per-op entry schemas
-   preserving the FULL operation (add carries blob sha256 + byte
-   length so a missing/changed blob is voided, never uploaded; delete
-   carries the captured local meta + server identity; meta carries
-   old+new). Entries validated on read AND write; malformed queues
-   quarantine + block.
-2. **Identity/idempotency (item 6)** — every op is account-bound,
-   generation-bound, identity-bound and replayable: upload declares
-   the byte length, the SERVER hashes the received bytes, and the
-   client validates `{ok, recordId, identity.sha256, identity
-   .byteLength}` against the captured blob identity before touching
-   local state; metadata/delete results are validated against the
-   submitted serverId; replays are answered by the ledger with the
-   SAME requestId.
-3. **Crash matrix (item 8)** — C18 covers upload/update/delete through
-   their phases, lost responses (reload replays: ONE server record,
-   ONE ledger key), reload with a pending add and a pending delete,
-   queue-write (quota) failure (blocks BOTH sides), blob-write failure
-   (void), A→B→A, stale fences on all three ops, malformed
-   success/identity-mismatch/untyped-fence bodies (entry survives, not
-   displaced, no local change), and cleanup-removal failure.
-4. **Displaced-photo review (G6)** — typed fenceStale only (safe
-   integer fence required); banner per pending change; Apply re-queues
-   so the dispatcher revalidates; Discard is explicitly confirmed and
-   keeps the local photo.
-5. **Destructive resolution (item 8)** — Apply of a displaced DELETE
-   requires a delivery-evidenced export of that photo whose evidence
-   is bound to the blob's sha256 + byte length, then an identity-bound
-   confirmation naming the digest and size. Refused without the
-   export (tested); nothing is deleted.
-6. **Pen/account boundaries (item 7)** — separate tests for REAL
-   deadline expiry and same-account fence replacement, plus A→B→A
-   (A's queue byte-identical, zero `__userB` keys, no map write).
-7. **A defect this suite found and fixed** — the M8-era `photoSync`
-   uploaded via raw `pbPhotoUpload` (bypassing the queue and its
-   identity binding) and DELETED local photos absent from a server
-   listing. That is a silent content deletion under M10, so the sweep
-   is REPLACED: drain the queue, then holder-only additive downloads
-   with revalidation immediately before each IndexedDB write; never
-   deletes, never relabels, never overwrites local bytes. Non-holders
-   perform zero local and zero server photo mutations (tested).
-8. **Evidence** (fresh at `6cc656d`): `INCR4-C18-OUTPUT.txt` 25/25;
-   `INCR4-C17-RERUN.txt` 37/37; `INCR4-C16-RERUN.txt` 49/49;
-   `INCR4-C15-RERUN.txt` 35/35; `INCR4-M8-REGRESSION.txt` 171/171
-   (+artifact-scope recovery 25/25); `INCR4-MANIFEST.txt`.
+Records (rulings 9/10): the manifest is committed at this head, and
+the mandatory `reports/PROJECT_LOG.md` /
+`reports/MAESTRO_PROGRAM_CONTEXT.md` live on the repo's `main` branch
+(the deployed-lineage checkout) — they are NOT presented as artifacts
+of this branch; see RECORDS-LOCATION-EVIDENCE.md. Their governance
+content was updated there after round 22 to record the accepted
+increments.
 
-Deferred: increment 5 (the 92-action m10Gate surface, async
-revalidation at delayed-mutation sites, logout coupling);
-NAS/coach/enforcement/publication behind their Owner gates.
+Evidence, fresh at `311c3b2`: `INCR4-C18-OUTPUT.txt` 35/35 (the
+original 25 plus the seven round-23 phase-boundary arms);
+`INCR4-C17-RERUN.txt` 37/37; `INCR4-C16-RERUN.txt` 49/49;
+`INCR4-C15-RERUN.txt` 35/35; `INCR4-M8-REGRESSION.txt` 171/171
+(+artifact-scope recovery 25/25).
 
 Requested ruling: acceptance of increment 4 and authorization for
-increment 5.
+increment 5 (the m10Gate action surface, async revalidation at
+delayed-mutation sites, logout coupling).

@@ -1,0 +1,476 @@
+diff --git a/index.html b/index.html
+index 70b9bc8..8ba7454 100644
+--- a/index.html
++++ b/index.html
+@@ -10880,8 +10880,8 @@ function idbGetLocal(id){
+     rq.onsuccess=function(){res(rq.result||null);};
+     rq.onerror=function(){rej(rq.error);};});});}
+ 
+-var M10P_STATES=["intent","blob-ok","displaced","void"];
+-var M10P_OPS=["add","delete","meta"];
++var M10P_STATES=["intent","blob-ok","acked","local-applied","mapped","displaced","unverified","void"];
++var M10P_OPS=["add","delete","meta","adopt"];
+ function m10pValidateEntry(en){
+   if(!en||typeof en!=="object")return "not an object";
+   if(M10P_OPS.indexOf(en.op)<0)return "unknown op";
+@@ -10890,23 +10890,32 @@ function m10pValidateEntry(en){
+   if(!(typeof en.requestId==="string"&&en.requestId.length>0&&en.requestId.length<=96))return "bad requestId";
+   var natOk=function(v){return typeof v==="number"&&isFinite(v)&&v>=0&&Math.floor(v)===v&&v<=9007199254740991;};
+   var hexOk=function(v){return typeof v==="string"&&/^[0-9a-f]{64}$/.test(v);};
++  var metaOk=function(m){
++    if(!m||typeof m!=="object"||Object.getPrototypeOf(m)!==Object.prototype)return false;
++    var r=m10cCanon(m);return r.ok;};
+   if(en.op==="add"){
+     if(!(typeof en.localId==="string"&&en.localId.length>0&&en.localId.length<=96))return "bad localId";
+     if(en.state!=="intent"&&en.state!=="void"){
+       if(!natOk(en.blobByteLength))return "bad blobByteLength";
+       if(!hexOk(en.blobSha256))return "bad blobSha256";}
+-    if(!en.meta||typeof en.meta!=="object")return "bad meta";}
++    if(!metaOk(en.meta))return "bad meta";}
+   if(en.exports!==undefined&&en.exports!==null){
+-    if(!(en.exports&&en.exports.done===true&&/^[0-9a-f]{64}$/.test(en.exports.sha256||"")&&
+-         typeof en.exports.byteLength==="number"&&isFinite(en.exports.byteLength)))return "bad exports";}
++    if(!(en.exports&&en.exports.done===true&&hexOk(en.exports.sha256)&&natOk(en.exports.byteLength)))return "bad exports";}
++  if(en.resultRecordId!==undefined&&en.resultRecordId!==null){
++    if(!(typeof en.resultRecordId==="string"&&en.resultRecordId.length>=10&&en.resultRecordId.length<=32))return "bad resultRecordId";}
+   if(en.op==="delete"){
+     if(!(typeof en.localId==="string"&&en.localId.length>0))return "bad localId";
+     if(!(typeof en.serverId==="string"||en.serverId===null))return "bad serverId";
+-    if(!en.capturedLocalMeta||typeof en.capturedLocalMeta!=="object")return "bad capturedLocalMeta";}
++    if(!metaOk(en.capturedLocalMeta))return "bad capturedLocalMeta";}
+   if(en.op==="meta"){
+     if(!(typeof en.serverId==="string"&&en.serverId.length>0))return "bad serverId";
+-    if(!en.oldMeta||typeof en.oldMeta!=="object")return "bad oldMeta";
+-    if(!en.newMeta||typeof en.newMeta!=="object")return "bad newMeta";}
++    if(!metaOk(en.oldMeta))return "bad oldMeta";
++    if(!metaOk(en.newMeta))return "bad newMeta";}
++  if(en.op==="adopt"){
++    if(!(typeof en.localId==="string"&&en.localId.length>0))return "bad localId";
++    if(!(typeof en.serverId==="string"&&en.serverId.length>0))return "bad serverId";
++    if(!(typeof en.file==="string"&&en.file.length>0))return "bad file";
++    if(!metaOk(en.meta))return "bad meta";}
+   return null;}
+ function m10pRead(uid){
+   var r=m10cRead("photoops",uid);
+@@ -10988,110 +10997,225 @@ function m10pUploadRoute(en,blob,pen){
+     .then(function(r){return r.json().then(function(j){return {status:r.status,body:j};})
+       .catch(function(){return {status:r.status,body:null};});});}
+ 
+-/* ---- the dispatcher: one entry at a time, ctx+pen bound, replayable ---- */
++/* ---- the dispatcher: ONE entry at a time, ctx+fence bound at every
++   boundary, with explicit crash phases (round-23 rulings 1-3, 7).
++   Phases per op:
++     add    : intent → blob-ok → acked(recordId) → mapped → cleared
++     delete : intent → acked(typed proof) → local-applied → cleared
++     meta   : intent → acked → cleared
++     adopt  : intent(identity) → blob-ok → mapped → cleared
++   Every phase advance is a VERIFIED queue write; every local mutation is
++   preceded by a fresh account+fence check; recovery replays from the
++   recorded phase (all replays are idempotent through the ledger). ---- */
+ var m10pBusy=false;
++function m10pFindEntry(ops){
++  for(var i=0;i<ops.length;i++){
++    var st=ops[i].state;
++    if(st==="blob-ok"||st==="acked"||st==="local-applied"||st==="mapped")return ops[i];
++    if(st==="intent"&&ops[i].op!=="add"&&ops[i].op!=="adopt")return ops[i];
++    if(st==="intent"&&(ops[i].op==="add"||ops[i].op==="adopt"))return ops[i];  /* recovery decides */
++  }
++  return null;}
+ function m10pDispatch(done){
+   var ctx=m10cCtx();
+   var fin=function(ok){m10pBusy=false;done&&done(ok);};
+   if(m10pBusy||!syncOn()||window.m8StorageBlocked){done&&done(false);return;}
+   if(!m10cCtxOk(ctx)){done&&done(false);return;}
+   var ops=m10pOps(ctx.uid);
+-  var en=null;
+-  for(var i=0;i<ops.length;i++){
+-    if(ops[i].state==="intent"||ops[i].state==="blob-ok"){en=ops[i];break;}}
++  var en=m10pFindEntry(ops);
+   if(!en){done&&done(true);return;}
+   var pen=m10pPen();
+-  if(!pen){done&&done(false);return;}          /* content writes need the pen */
++  if(!pen){done&&done(false);return;}
+   m10pBusy=true;
+   var entryFence=pen.fence;
+-  var settle=function(mutfn){
+-    /* every settlement re-proves ctx AND the same fence (item 7) before
+-       touching the queue or local stores */
+-    if(!m10cCtxOk(ctx)){fin(false);return false;}
+-    var pen2=m10pPen();
+-    if(!pen2||pen2.fence!==entryFence){fin(false);return false;}
+-    if(!m10pMutate(ctx.uid,mutfn)){fin(false);return false;}
+-    return true;};
++  /* every mutation point re-proves account, session generation AND the same
++     fence BEFORE touching the queue or any local store (ruling 2/5) */
++  var authOk=function(){
++    if(!m10cCtxOk(ctx))return false;
++    var p2=m10pPen();
++    return !!(p2&&p2.fence===entryFence);};
++  var setPhase=function(patch){
++    if(!authOk())return false;
++    return m10pMutate(ctx.uid,function(ops2){
++      var e2=ops2.find(function(x){return x.id===en.id;});
++      if(!e2)return false;
++      for(var k in patch)e2[k]=patch[k];});};
++  var clearEntry=function(){
++    if(!authOk())return false;
++    return m10pMutate(ctx.uid,function(ops2){
++      var k=ops2.findIndex(function(x){return x.id===en.id;});
++      if(k>=0)ops2.splice(k,1);});};
++  /* durable map write, VERIFIED, before the entry may clear (ruling 1/6) */
++  var mapWriteVerified=function(localId,serverId){
++    try{
++      var m=pbPhotoMap();m[localId]=serverId;setPbPhotoMap(m);
++      var back=pbPhotoMap();
++      return back[localId]===serverId;
++    }catch(e){return false;}};
++  var mapClearVerified=function(localId){
++    try{
++      var m=pbPhotoMap();delete m[localId];setPbPhotoMap(m);
++      var back=pbPhotoMap();
++      return back[localId]===undefined;
++    }catch(e){return false;}};
++  var next=function(ok){fin(ok);if(ok)m10pDispatch();};
++
++  /* ---------- add ---------- */
+   if(en.op==="add"){
+-    idbGetLocal(en.localId).then(function(rec){
+-      if(!m10cCtxOk(ctx)){fin(false);return;}
+-      if(!rec||!rec.blob){
+-        /* blob missing/changed: NEVER uploadable (G5) — terminal void */
+-        settle(function(ops2){var e2=ops2.find(function(x){return x.id===en.id;});if(e2)e2.state="void";})&&fin(false);
+-        return;}
+-      m10pSha256(rec.blob).then(function(idn){
+-        if(idn.hex!==en.blobSha256||idn.byteLength!==en.blobByteLength){
+-          settle(function(ops2){var e2=ops2.find(function(x){return x.id===en.id;});if(e2)e2.state="void";})&&fin(false);
+-          return;}
+-        m10pUploadRoute(en,rec.blob,pen).then(function(r){
+-          if(!m10cCtxOk(ctx)){fin(false);return;}
+-          if(r.status===200&&m10pValidUploadResult(r.body,en.blobSha256,en.blobByteLength)){
+-            var sid=r.body.recordId;
+-            if(!settle(function(ops2){
+-              var k=ops2.findIndex(function(x){return x.id===en.id;});
+-              if(k>=0)ops2.splice(k,1);}))return;
+-            try{var m=pbPhotoMap();m[en.localId]=sid;setPbPhotoMap(m);}catch(ex){}
+-            fin(true);m10pDispatch();return;}
+-          if(r.status===409&&r.body&&r.body.fenceStale===true){
+-            /* R2: displacement is authoritative ONLY with a typed fence */
+-            if(!m10pNat(r.body.fence)){fin(false);return;}
+-            settle(function(ops2){var e2=ops2.find(function(x){return x.id===en.id;});if(e2)e2.state="displaced";})&&fin(false);
+-            try{render();}catch(ex){}
+-            return;}
+-          if(r.status===409&&r.body&&/reused/.test((r.body.error||""))){
+-            m10cBlock("a photo request identity was reused");fin(false);return;}
+-          /* malformed success, 5xx, transport: entry SURVIVES for replay */
+-          fin(false);
++    if(en.state==="intent"){
++      /* ruling 3: an intent is NOT dispatchable — resolve its identity first,
++         distinguishing "blob present (promote)" from "definitively absent" */
++      idbGetLocal(en.localId).then(function(rec){
++        if(!authOk()){fin(false);return;}
++        if(!rec||!rec.blob){setPhase({state:"void",voidReason:"blob-absent"});fin(false);return;}
++        m10pSha256(rec.blob).then(function(idn){
++          if(!authOk()){fin(false);return;}
++          setPhase({blobSha256:idn.hex,blobByteLength:idn.byteLength,state:"blob-ok"})&&next(true);
+         }).catch(function(){fin(false);});
+       }).catch(function(){fin(false);});
+-    }).catch(function(){fin(false);});
+-    return;}
++      return;}
++    if(en.state==="blob-ok"){
++      idbGetLocal(en.localId).then(function(rec){
++        if(!authOk()){fin(false);return;}
++        if(!rec||!rec.blob){setPhase({state:"void",voidReason:"blob-absent"});fin(false);return;}
++        m10pSha256(rec.blob).then(function(idn){
++          if(!authOk()){fin(false);return;}
++          if(idn.hex!==en.blobSha256||idn.byteLength!==en.blobByteLength){
++            setPhase({state:"void",voidReason:"blob-changed"});fin(false);return;}
++          m10pUploadRoute(en,rec.blob,{fence:entryFence}).then(function(r){
++            if(!authOk()){fin(false);return;}
++            if(r.status===200&&m10pValidUploadResult(r.body,en.blobSha256,en.blobByteLength)){
++              /* phase: acked — the server id is DURABLE before anything else */
++              if(!setPhase({state:"acked",resultRecordId:r.body.recordId})){fin(false);return;}
++              if(!authOk()){fin(false);return;}
++              if(!mapWriteVerified(en.localId,r.body.recordId)){
++                m10cBlock("could not record where a photo was saved");fin(false);return;}
++              if(!setPhase({state:"mapped"})){fin(false);return;}
++              clearEntry()&&next(true);return;}
++            if(r.status===409&&r.body&&r.body.fenceStale===true){
++              if(!m10pNat(r.body.fence)){fin(false);return;}
++              setPhase({state:"displaced",displacedReason:"fence"});fin(false);
++              try{render();}catch(ex){}
++              return;}
++            if(r.status===409&&r.body&&/reused/.test((r.body.error||""))){
++              m10cBlock("a photo request identity was reused");fin(false);return;}
++            fin(false);
++          }).catch(function(){fin(false);});
++        }).catch(function(){fin(false);});
++      }).catch(function(){fin(false);});
++      return;}
++    if(en.state==="acked"){
++      /* crash between ack and the durable map: replay the map write only */
++      if(!en.resultRecordId){setPhase({state:"blob-ok"});fin(false);return;}
++      if(!mapWriteVerified(en.localId,en.resultRecordId)){
++        m10cBlock("could not record where a photo was saved");fin(false);return;}
++      setPhase({state:"mapped"})&&clearEntry()&&next(true);
++      return;}
++    if(en.state==="mapped"){clearEntry()&&next(true);return;}
++    fin(false);return;}
++
++  /* ---------- adopt (server → this device), journaled (ruling 6) ---------- */
++  if(en.op==="adopt"){
++    if(en.state==="intent"){
++      idbGetLocal(en.localId).then(function(existing){
++        if(!authOk()){fin(false);return;}
++        if(existing){clearEntry()&&next(true);return;}   /* never overwrite local bytes */
++        pbFileToken().then(function(tok){
++          if(!authOk()){fin(false);return;}
++          pbPhotoFetchBlob({id:en.serverId,file:en.file},tok).then(function(b){
++            if(!authOk()){fin(false);return;}
++            m10pSha256(b).then(function(idn){
++              if(!authOk()){fin(false);return;}
++              var nrec={id:en.localId,date:en.meta.date,week:en.meta.week||en.meta.date,
++                pose:en.meta.pose||"",kind:en.meta.kind||"progress",blob:b,ts:en.meta.ts||Date.now()};
++              if(en.meta.meal)nrec.meal=en.meta.meal;
++              idbAddLocal(nrec).then(function(){
++                if(!authOk()){fin(false);return;}
++                idbGetLocal(en.localId).then(function(back){
++                  if(!authOk()){fin(false);return;}
++                  if(!back||!back.blob){fin(false);return;}   /* not durable: retry later */
++                  setPhase({state:"blob-ok",blobSha256:idn.hex,blobByteLength:idn.byteLength});
++                  if(!mapWriteVerified(en.localId,en.serverId)){
++                    m10cBlock("could not record where a photo was saved");fin(false);return;}
++                  setPhase({state:"mapped"})&&clearEntry()&&next(true);
++                }).catch(function(){fin(false);});
++              }).catch(function(){fin(false);});
++            }).catch(function(){fin(false);});
++          }).catch(function(){fin(false);});
++        }).catch(function(){fin(false);});
++      }).catch(function(){fin(false);});
++      return;}
++    if(en.state==="blob-ok"){
++      if(!mapWriteVerified(en.localId,en.serverId)){
++        m10cBlock("could not record where a photo was saved");fin(false);return;}
++      setPhase({state:"mapped"})&&clearEntry()&&next(true);
++      return;}
++    if(en.state==="mapped"){clearEntry()&&next(true);return;}
++    fin(false);return;}
++
++  /* ---------- meta ---------- */
+   if(en.op==="meta"){
++    if(en.state==="acked"){clearEntry()&&next(true);return;}
+     m10pRoute("update",{serverId:en.serverId,oldMeta:en.oldMeta,newMeta:en.newMeta,
+-      idempotencyKey:en.requestId,fence:pen.fence,deviceId:m10DeviceId(),
++      idempotencyKey:en.requestId,fence:entryFence,deviceId:m10DeviceId(),
+       clientBuild:(typeof APP_BUILD==="string"?APP_BUILD:"")}).then(function(r){
+-      if(!m10cCtxOk(ctx)){fin(false);return;}
++      if(!authOk()){fin(false);return;}
+       if(r.status===200&&m10pValidMetaResult(r.body,en.serverId)){
+-        if(!settle(function(ops2){
+-          var k=ops2.findIndex(function(x){return x.id===en.id;});
+-          if(k>=0)ops2.splice(k,1);}))return;
+-        fin(true);m10pDispatch();return;}
++        setPhase({state:"acked"})&&clearEntry()&&next(true);return;}
+       if(r.status===404&&r.body&&r.body.notFound===true){
+-        /* target gone on the server: freeze for review, never silent */
+-        settle(function(ops2){var e2=ops2.find(function(x){return x.id===en.id;});if(e2)e2.state="displaced";})&&fin(false);
++        /* ruling 7: an indistinguishable 404 is not authority — freeze for
++           review, change nothing */
++        setPhase({state:"unverified",unverifiedReason:"target-not-found"});fin(false);
++        try{render();}catch(ex){}
+         return;}
+       if(r.status===409&&r.body&&r.body.fenceStale===true){
+         if(!m10pNat(r.body.fence)){fin(false);return;}
+-        settle(function(ops2){var e2=ops2.find(function(x){return x.id===en.id;});if(e2)e2.state="displaced";})&&fin(false);
++        setPhase({state:"displaced",displacedReason:"fence"});fin(false);
+         try{render();}catch(ex){}
+         return;}
+       fin(false);
+     }).catch(function(){fin(false);});
+     return;}
++
++  /* ---------- delete ---------- */
+   if(en.op==="delete"){
++    if(en.state==="local-applied"){
++      if(!mapClearVerified(en.localId)){m10cBlock("could not clear a photo mapping");fin(false);return;}
++      clearEntry()&&next(true);return;}
++    if(en.state==="acked"){
++      /* ruling 2: revalidate IMMEDIATELY before the local deletion */
++      if(!authOk()){fin(false);return;}
++      idbDeleteLocal(en.localId).then(function(){
++        if(!authOk()){fin(false);return;}
++        if(!setPhase({state:"local-applied"})){fin(false);return;}
++        if(!mapClearVerified(en.localId)){m10cBlock("could not clear a photo mapping");fin(false);return;}
++        try{if(state.view==="photos")render();}catch(ex){}
++        clearEntry()&&next(true);
++      }).catch(function(){fin(false);});
++      return;}
+     if(!en.serverId){
+-      /* never uploaded: the local deletion already happened; entry completes */
+-      settle(function(ops2){var k=ops2.findIndex(function(x){return x.id===en.id;});if(k>=0)ops2.splice(k,1);})&&fin(true);
++      /* never uploaded: no server authority is needed */
++      if(!authOk()){fin(false);return;}
++      idbDeleteLocal(en.localId).then(function(){
++        setPhase({state:"local-applied"})&&clearEntry()&&next(true);
++      }).catch(function(){fin(false);});
+       return;}
+     m10pRoute("delete",{serverId:en.serverId,capturedIdentity:en.capturedServerIdentity||{},
+-      idempotencyKey:en.requestId,fence:pen.fence,deviceId:m10DeviceId(),
++      idempotencyKey:en.requestId,fence:entryFence,deviceId:m10DeviceId(),
+       clientBuild:(typeof APP_BUILD==="string"?APP_BUILD:"")}).then(function(r){
+-      if(!m10cCtxOk(ctx)){fin(false);return;}
+-      if((r.status===200&&m10pValidDeleteResult(r.body,en.serverId))||
+-         (r.status===404&&r.body&&r.body.notFound===true)){
+-        /* acked (or already gone): NOW the local blob may go (G5 ordering) */
+-        idbDeleteLocal(en.localId).then(function(){
+-          if(!settle(function(ops2){
+-            var k=ops2.findIndex(function(x){return x.id===en.id;});
+-            if(k>=0)ops2.splice(k,1);}))return;
+-          try{var m=pbPhotoMap();delete m[en.localId];setPbPhotoMap(m);}catch(ex){}
+-          try{if(state.view==="photos")render();}catch(ex){}
+-          fin(true);m10pDispatch();
+-        }).catch(function(){fin(false);});
++      if(!authOk()){fin(false);return;}
++      /* ruling 7: ONLY a typed deletion result (this request's own outcome,
++         incl. its ledger replay) authorizes removing the local copy. A bare
++         404 — deliberately indistinguishable from a foreign id — does not. */
++      if(r.status===200&&m10pValidDeleteResult(r.body,en.serverId)){
++        setPhase({state:"acked"})&&next(true);return;}
++      if(r.status===404&&r.body&&r.body.notFound===true){
++        setPhase({state:"unverified",unverifiedReason:"delete-unproven"});fin(false);
++        try{render();}catch(ex){}
+         return;}
+       if(r.status===409&&r.body&&r.body.fenceStale===true){
+         if(!m10pNat(r.body.fence)){fin(false);return;}
+-        settle(function(ops2){var e2=ops2.find(function(x){return x.id===en.id;});if(e2)e2.state="displaced";})&&fin(false);
++        setPhase({state:"displaced",displacedReason:"fence"});fin(false);
+         try{render();}catch(ex){}
+         return;}
+       fin(false);
+@@ -11099,10 +11223,12 @@ function m10pDispatch(done){
+     return;}
+   fin(false);}
+ 
++
+ /* ---- displaced-photo review (G6): Apply revalidates the captured server
+    identity; Discard is explicit; nothing auto-applies ---- */
+ function m10pDisplaced(uid){
+-  return m10pOps(uid).filter(function(x){return x.state==="displaced";});}
++  return m10pOps(uid).filter(function(x){
++    return x.state==="displaced"||x.state==="unverified"||x.state==="void";});}
+ /* R1: the photo bytes leave the device (delivery-evidenced) and the athlete
+    confirms the EXACT identity before any destructive apply. The evidence is
+    bound to the blob's sha256+length, so a changed photo re-arms the gate. */
+@@ -11142,22 +11268,45 @@ function m10pReviewApply(opId){
+   if(!m10cCtxOk(ctx))return;
+   var pen=m10pPen();
+   if(!pen){toast("Take over as the active writer first");return;}
+-  var en=m10pOps(ctx.uid).find(function(x){return x.id===opId&&x.state==="displaced";});
++  var en=m10pOps(ctx.uid).find(function(x){return x.id===opId&&
++    (x.state==="displaced"||x.state==="unverified");});
+   if(!en)return;
+   var requeue=function(){
+     if(!m10pMutate(ctx.uid,function(ops){
+-      var e2=ops.find(function(x){return x.id===opId&&x.state==="displaced";});
++      var e2=ops.find(function(x){return x.id===opId&&
++        (x.state==="displaced"||x.state==="unverified");});
+       if(!e2)return false;
+       e2.state="intent";                        /* re-queued; dispatch revalidates */
+     }))return;
+     m10pDispatch(function(){try{render();}catch(e){}});};
+   if(en.op!=="delete"){requeue();return;}       /* add/meta destroy nothing */
++  var entryFence=pen.fence;
+   /* destructive: export gate + identity-bound confirmation (R1) */
+   idbGetLocal(en.localId).then(function(rec){
+     if(!rec||!rec.blob){requeue();return;}      /* nothing left to protect */
+     m10pSha256(rec.blob).then(function(idn){
+       if(!m10pExportGateOpen(en,idn)){toast("Export this photo first");try{render();}catch(e){}return;}
+-      askConfirm("Delete this photo everywhere? Identity "+idn.hex.slice(0,12)+"… ("+idn.byteLength+" bytes). Your export is the only remaining copy.",requeue,{label:"Delete it",danger:true});
++      askConfirm("Delete this photo everywhere? Identity "+idn.hex.slice(0,12)+"… ("+idn.byteLength+" bytes). Your export is the only remaining copy.",function(){
++        /* ruling 4: the server record's (id, localId, file) triple must still
++           be the SAME before a destructive deletion proceeds */
++        pbPhotoList().then(function(list){
++          if(!m10cCtxOk(ctx))return;
++          var p2=m10pPen();
++          if(!p2||p2.fence!==entryFence){toast("The active-writer pen changed — review again");return;}
++          var srec=(list||[]).find(function(x){return x.id===en.serverId;});
++          if(!srec||srec.localId!==en.localId){
++            m10pMutate(ctx.uid,function(ops){
++              var e3=ops.find(function(x){return x.id===opId;});
++              if(e3){e3.state="unverified";e3.unverifiedReason="server-identity-changed";}});
++            toast("That photo is no longer the same on the server — review again");
++            try{render();}catch(e){}
++            return;}
++          m10pMutate(ctx.uid,function(ops){
++            var e4=ops.find(function(x){return x.id===opId;});
++            if(e4)e4.capturedServerIdentity={recordId:srec.id,localId:srec.localId,file:srec.file};});
++          requeue();
++        }).catch(function(){toast("No connection — try again");});
++      },{label:"Delete it",danger:true});
+     }).catch(function(){});
+   }).catch(function(){});}
+ function m10pReviewDiscard(opId){
+@@ -11165,7 +11314,8 @@ function m10pReviewDiscard(opId){
+   if(!m10cCtxOk(ctx))return;
+   askConfirm("Discard this pending photo change? The photo on this device stays exactly as it is now.",function(){
+     m10pMutate(ctx.uid,function(ops){
+-      var k=ops.findIndex(function(x){return x.id===opId&&x.state==="displaced";});
++      var k=ops.findIndex(function(x){return x.id===opId&&
++        (x.state==="displaced"||x.state==="unverified"||x.state==="void");});
+       if(k<0)return false;
+       ops.splice(k,1);});
+     try{render();}catch(e){}
+@@ -11675,33 +11825,33 @@ idbClearAll=function(){
+     if(window.m8StorageBlocked){done&&done();return;}
+     var ctx=m10cCtx();
+     if(!m10pPen()){done&&done();return;}            /* non-holders: read-only */
++    var sweepFence=m10pPen().fence;              /* ruling 5: bind the sweep */
+     m10pDispatch(function(){
+       if(m10pOps(uid).length){done&&done();return;} /* pending/displaced: no adoption */
+       Promise.all([idbAll(),pbPhotoList()]).then(function(res){
++        if(!m10cCtxOk(ctx)){done&&done();return;}
++        var p2=m10pPen();
++        if(!p2||p2.fence!==sweepFence){done&&done();return;}
+         var local=res[0]||[],server=res[1]||[];
+         var localIds={};local.forEach(function(l){localIds[l.id]=1;});
+-        var missing=server.filter(function(s2){return s2.localId&&!localIds[s2.localId];});
++        var missing=server.filter(function(s2){return s2.localId&&s2.file&&!localIds[s2.localId];});
+         if(!missing.length){done&&done();return;}
+-        pbFileToken().then(function(tok){
+-          var chain=Promise.resolve();
++        /* ruling 6: adoption is JOURNALED — identity captured in a verified
++           queue entry, then blob durable, then map durable+verified */
++        var okq=m10pMutate(uid,function(ops){
+           missing.forEach(function(s2){
+-            chain=chain.then(function(){
+-              return pbPhotoFetchBlob(s2,tok).then(function(b){
+-                /* revalidate IMMEDIATELY before the local write */
+-                if(!m10cCtxOk(ctx)||!m10pPen()||window.m8StorageBlocked||m10pOps(uid).length)return;
+-                return idbGetLocal(s2.localId).then(function(existing){
+-                  if(existing)return;              /* never overwrite local bytes */
+-                  var nrec={id:s2.localId,date:s2.date,week:s2.week||s2.date,pose:s2.pose||"",
+-                    kind:s2.kind||"progress",blob:b,ts:s2.ts||Date.now()};
+-                  if(s2.meal)nrec.meal=s2.meal;
+-                  return idbAddLocal(nrec).then(function(){
+-                    try{var m=pbPhotoMap();m[s2.localId]=s2.id;setPbPhotoMap(m);}catch(e){}});});
+-              }).catch(function(){});});});
+-          chain.then(function(){
+-            try{wkPhotoKey=null;refreshWeekPhotos();}catch(e){}
+-            try{if(state.view==="photos"||state.view==="diary")render();}catch(e){}
+-            done&&done();});
+-        }).catch(function(){done&&done();});
++            var opId=m10pOpId(),rid=m10cRequestId();
++            if(!opId||!rid)return;
++            ops.push({id:opId,op:"adopt",localId:String(s2.localId),serverId:String(s2.id),
++              file:String(s2.file),requestId:rid,state:"intent",
++              meta:{kind:s2.kind==="progress"?"progress":"food",date:String(s2.date||"").slice(0,10),
++                week:String(s2.week||"").slice(0,10),pose:String(s2.pose||"").slice(0,20),
++                meal:String(s2.meal||"").slice(0,20),ts:String(s2.ts||"")}});});});
++        if(!okq){done&&done();return;}
++        m10pDispatch(function(){
++          try{wkPhotoKey=null;refreshWeekPhotos();}catch(e){}
++          try{if(state.view==="photos"||state.view==="diary")render();}catch(e){}
++          done&&done();});
+       }).catch(function(){done&&done();});});};
+   /* boot: resume the queue after the core settles */
+   var origCoreBoot2=m10cBoot;

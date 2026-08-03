@@ -2,13 +2,54 @@
 
 ## Package identity
 - **Base**: `b92d418` — the accepted increment-3 head.
-- **Increment head**: `6cc656d` — index.html sha256 prefix `3b3dd584…` (full hash in INCR4-MANIFEST.txt).
-- **Cumulative diff** `INCR4-DIFF.patch` = b92d418 → 6cc656d (488 lines). Two
+- **Increment head**: `311c3b2` — index.html sha256
+  `ff45a5ff4eedb0bbc62571c8463cc9a2f6059c2284d6e7dbc44d9bbb0990d623`
+  (prior head 6cc656d revised by the round-23 rulings; narrow diff
+  `INCR4-DIFF-FROM-6cc656d.patch`, 476 lines).
+- **Cumulative diff** `INCR4-DIFF.patch` = b92d418 → 311c3b2 (638 lines). Two
   delimited regions: `M10-BLOCK-4` (machinery + review UI) and
   `M10-BLOCK-4-WIRING` — the wiring is installed LAST, after the
   M8-era photo wrappers, because those assign `idbAdd`/`idbDelete`/
   `idbClearAll` further down the file and would otherwise win. No
   accepted increment-1/2/3 code is modified.
+
+## Round-23 rulings, as landed
+- **1 (upload mapping durability)**: the entry advances to a durable
+  `acked` phase carrying `resultRecordId` BEFORE anything else; the
+  photo map is then written and READ BACK (verified) and the entry
+  advances to `mapped` before it may clear. A map-write failure holds
+  the entry at `acked` and hard-blocks; reload replays only the map
+  write — no second upload (tested both halves).
+- **2 (delete settlement)**: explicit `acked` → `local-applied` →
+  cleared phases; account + session generation + the SAME entry fence
+  are re-proven immediately before the local deletion and before the
+  map clear. Pen loss at the `acked` boundary parks the entry with the
+  photo intact; restoring the pen completes it (tested).
+- **3 (intent is not dispatchable)**: an add `intent` is resolved
+  first — blob present → identity captured → promoted to `blob-ok`;
+  blob definitively absent → `void` with a reason. Only `blob-ok`
+  dispatches (both arms tested).
+- **4 (displaced-delete revalidation)**: after the export gate and the
+  identity-bound confirmation, the destructive Apply fetches the
+  server listing and requires the SAME (recordId, localId) identity
+  and the same fence; a changed identity marks the entry `unverified`
+  and deletes nothing (tested).
+- **5/6 (sweep + adoption)**: the download sweep captures its fence
+  and requires the same fence at the write boundary; adoption is a
+  JOURNALED `adopt` op (identity captured → blob durable → map
+  durable+verified → cleared). A fence replacement during the sweep
+  adopts nothing (tested).
+- **7 (typed 404)**: an indistinguishable `{notFound:true}` is not
+  authority — delete and metadata entries become `unverified` for
+  review and the local photo is KEPT (tested).
+- **8 (uniform validation)**: safe-integer rules applied to export
+  byte length and every integer field; all metadata objects must pass
+  strict plain-object canonicalization; `void` and `unverified`
+  entries surface in the review banner with export/discard paths.
+- **9/10 (records)**: this bundle's manifest is committed at the head;
+  the mandatory reports live on the repo's `main` branch (the
+  deployed-lineage checkout) and are NOT presented as artifacts of
+  this branch — see RECORDS-LOCATION-EVIDENCE.md from round 20.
 
 ## Storage model
 `wl_photo_ops__<uid>` — an account-keyed durable queue under the same
@@ -82,7 +123,7 @@ existing local bytes. Non-holders perform zero local and zero server
 photo mutations (tested).
 
 ## Evidence
-- `INCR4-C18-OUTPUT.txt` — C18 25/25: upload happy path + ordering;
+- `INCR4-C18-OUTPUT.txt` — C18 35/35: upload happy path + ordering;
   lost-response replay (same requestId, single record); delete
   ordering; metadata; stale fence on all three ops; malformed
   success/identity-mismatch/untyped-fence bodies (entry survives);
@@ -90,6 +131,9 @@ photo mutations (tested).
   failure; blob-write failure → void; A→B→A; deadline expiry;
   fence replacement; Apply after takeover; Discard; the destructive
   export + identity gate (refused, then completed); non-holder
-  zero-mutation; cleanup-failure fail-closed.
+  zero-mutation; cleanup-failure fail-closed; plus the round-23
+  phase-boundary arms (map-write failure + replay, acked-pen-loss and
+  recovery, intent promotion vs void, changed server identity, bare
+  404, journaled adopt sweep, fence-replaced sweep).
 - `INCR4-C17/C16/C15-RERUN.txt` — 37/37, 49/49, 35/35.
 - `INCR4-M8-REGRESSION.txt` — the full client matrix.
