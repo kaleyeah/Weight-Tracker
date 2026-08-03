@@ -156,9 +156,15 @@ daily check-in card. It takes the slot at the TOP of Home currently held
 by the "This Week's Progress Photos" card (`view_overview`, the `_ciDay`
 branch) and REPLACES it — the photos are captured inside the check-in now.
 
-- Appears on the athlete's check-in day. **Griffin's day is Monday**
-  (currently derived from the week-start setting; needs its own setting if
-  the two should differ).
+- Appears on the athlete's check-in day, read from the EXISTING profile
+  preference: the day picker labelled **"Weekly check-in day"** in the
+  profile (stored as `settings.weekStart`, rendered at index.html:7108).
+  No new setting is needed — the Owner confirmed this is the dedicated
+  preference, and it already doubles as the week boundary, so the check-in
+  covers exactly the week it closes ("Your week runs Monday through
+  Sunday"). Griffin's is Monday.
+- The card must follow that setting, not a hard-coded day: changing the
+  preference moves the check-in day and re-dates any open week.
 - **Persistent until resolved.** It does not disappear at midnight. The
   status line escalates, in the Owner's own words:
   `Due today · Monday` → `Due yesterday` → `Due Monday · 4 days late` →
