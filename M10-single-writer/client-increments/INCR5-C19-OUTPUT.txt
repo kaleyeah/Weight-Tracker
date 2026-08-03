@@ -1,0 +1,19 @@
+  ✓ T1 gate inventory loaded (104 actions incl. deferred openers, pure actions excluded)
+  ✓ T1 no page errors
+  ✓ T2 non-holder: the gated action is intercepted and the takeover sheet is offered
+  ✓ T3 holder: gated actions run unchanged
+  ✓ T4 corrupt identity: gate fails closed, no mutation
+  ✓ T4 storage blocked: gate fails closed, no mutation
+  ✓ T4 deadline expired: gate fails closed, no mutation
+  ✓ T4 fence missing: gate fails closed, no mutation
+  ✓ T5 picker open → pen lost → change event: the app handler never runs
+  ✓ T5 import picker → fence replaced → change: handler blocked (fence identity checked)
+  ✓ T6 confirmation after the grant expires: the callback does NOT mutate
+  ✓ T6 confirmation while still the holder: the callback runs
+  ✓ T6 confirmation after a session change (A→B→A): the callback does NOT mutate
+  ✓ T7 logout blocked by core dirty
+  ✓ T7 logout blocked by photo pending
+  ✓ T7 logout blocked by core review
+  ✓ T7 clean state: logout is NOT blocked by M10
+
+C19-M10 increment 5: 17 passed, 0 failed

@@ -1,0 +1,54 @@
+  ✓ T1 upload: queue drains, server id mapped, local blob intact
+  ✓ T1 no page errors
+  ✓ T2 add ordering: entry written+identified before dispatch, cleared on ack
+  ✓ T3 lost upload response: reload replays the SAME key, single server record
+  ✓ T4 delete ordering: tombstone first, blob recoverable until ack, then removed
+  ✓ T5 metadata update: queued, dispatched, acked, cleared
+  ✓ T6 add under a stale fence: DISPLACED for review, local bytes intact, banner shown
+  ✓ T6 delete under a stale fence: DISPLACED for review, local bytes intact, banner shown
+  ✓ T6 meta under a stale fence: DISPLACED for review, local bytes intact, banner shown
+  ✓ T7 upload identity mismatch: entry SURVIVES (not displaced, not cleared), no map entry, blob intact
+  ✓ T7 upload missing recordId: entry SURVIVES (not displaced, not cleared), no map entry, blob intact
+  ✓ T7 fenceStale without fence: entry SURVIVES (not displaced, not cleared), no map entry, blob intact
+  ✓ T8 reload with a pending add: the queue resumes and completes
+  ✓ T8 reload with a pending delete: the queue resumes and completes
+  ✓ T9 queue-write failure: add refused, no local blob, no upload
+  ✓ T10 blob-write failure: intent terminalized as void, never uploaded
+  ✓ T11 A→B→A mid-upload: A queue byte-identical (replayable), zero B keys, no map write
+  ✓ T12 expiry during dispatch: outcome NOT applied, entry preserved, blob intact
+  ✓ T12 fence-replaced during dispatch: outcome NOT applied, entry preserved, blob intact
+  ✓ T13 Apply after takeover: re-dispatched with the current fence and completes
+  ✓ T14 Discard: explicit confirmation, entry removed, the local photo STAYS
+  ✓ T15 destructive Apply: refused without an export; export is identity-bound
+  ✓ T15 after export + confirmation: the delete completes and the photo is gone
+  ✓ T16 non-holder photoSync: zero local and zero server photo mutations
+  ✓ T17 queue-write failure during delete: fail closed, photo NOT removed
+  ✓ T18 map-write failure: entry held at `acked` with the server id, blocked, no silent loss
+  ✓ T18 reload: the acked entry replays the map write and clears (one upload only)
+  ✓ T19 pen lost at the `acked` boundary: nothing deleted, entry parked
+  ✓ T19 pen restored: the parked phase completes and the photo is removed
+  ✓ T20 bare `intent` with the blob present: promoted to blob-ok and uploaded (never voided)
+  ✓ T20 bare `intent` with the blob absent: voided, never uploaded
+  ✓ T21 destructive Apply with a changed server identity: refused as unverified, photo kept
+  ✓ T22 indistinguishable 404: entry becomes unverified, the local photo is KEPT
+  ✓ T23 adopt sweep: server-only photo journaled, downloaded, mapped, entry cleared
+  ✓ T23 fence replaced during the sweep: no adoption, no queue entries
+  ✓ T24 lightbox relabel: a real UI click journals a meta op (old+new) BEFORE the local write
+  ✓ T24 relabel completes through the transactional route with ZERO raw PATCHes
+  ✓ T25a adopt crash at `fetched` with MATCHING bytes: mapping completed
+  ✓ T25b adopt `fetched` vs DIFFERENT local bytes: unverified, no mapping, local kept
+  ✓ T25c adopt `intent` with an existing local record: never guessed — unverified
+  ✓ T30 `fetched` with no local blob: refetched, validated, written, mapped (no infinite park)
+  ✓ T30 refetched bytes differ from the durable identity: unverified, nothing written or mapped
+  ✓ T30 temporary refetch failure: obligation preserved at `fetched`, retry succeeds
+  ✓ T32 corrupt read-back: NO map write, obligation not cleared
+  ✓ T33 failed blob-ok phase write: NO map write, entry not cleared
+  ✓ T31 local-write failure through the UI: NO false success, honest failure, label unchanged
+  ✓ T27 metadata: the LOCAL side lands in its own phase before the server ack
+  ✓ T27 reload at `local-applied`: the server side completes, entry clears
+  ✓ T28 metadata local-write failure: entry parked at intent, NO server update
+  ✓ T29 identity uncaptured at displacement: unverified, destructive Apply refuses, photo kept
+  ✓ T26 displacement captures the authoritative server identity (incl. file)
+  ✓ T26 failed identity+state write: no dispatch, photo intact
+
+C18-M10 increment 4: 52 passed, 0 failed

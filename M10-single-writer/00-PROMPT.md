@@ -1,39 +1,82 @@
-# M10 single-writer — round 28: increment 4, round-27 rulings landed
+# M10 single-writer — round 29: client increment 5 (the gate surface)
 
 You are the Architect for the Compound project (read-only; rulings bind
 the Engineer; the Owner alone authorizes deployment and live-data
 mutation).
 
-The two narrow adoption defects only. **Code head `249fd0e`**,
-index.html sha256
-`369c21da5c1c3b1474bf334483f3cb9f99cba4ec03d275bc2a80bf2507181686`;
-narrow diff `INCR4-DIFF-FROM-3f6cd45.patch`; cumulative
-`INCR4-DIFF.patch` = b92d418 → 249fd0e. Artifacts regenerated from the
-committed head; `sha256sum -c …/INCR4-MANIFEST.txt` exits 0 (9 lines,
-including `index.html`); `git diff --check b92d418 249fd0e --
-index.html` is clean.
+Increment 5, the final client increment, implemented locally on the
+accepted increment-4 head. `client-increments/INCR5-README.md` is the
+package record; `INCR5-ACTION-INVENTORY.md` is the mapping ruling 8
+requires.
 
-- **Ruling 3** — the ordinary `intent → fetched → IndexedDB` path now
-  hashes the READ-BACK bytes and requires an exact hash + byte-length
-  match against the durable fetched identity before `blob-ok` or any
-  map mutation. Presence of `back.blob` is no longer treated as
-  durability. (The refetch path already did this; both now share the
-  rule.)
-- **Ruling 4** — all THREE adoption continuations check
-  `setPhase({state:"blob-ok"})`. A failed verified queue write blocks
-  the map write, the `mapped` advance, and the entry clear.
-- **Ruling 5** — two new failure tests: a corrupt/differing IndexedDB
-  read-back after the intent-path write (map untouched, obligation
-  retained), and an injected `blob-ok` phase-write failure after a
-  CORRECT read-back (map untouched, entry held at `fetched`).
+Identity: base `249fd0e` → code head `48e966a`; index.html sha256
+`57461665696f2a844f2bba57dd729a34e611004f9e0554e69fd7bf567d509cc2`;
+`INCR5-DIFF.patch` (131 lines, index.html — `git diff --check` clean)
+and `INCR5-TESTS-DIFF.patch` (the new C19 suite plus three harness
+edits, below).
 
-Rulings 1, 2 and 6 were closed by your previous review and are
-untouched. Ruling 7 noted: the governance record on `main` still
-describes increment 3 as current — per your instruction it will be
-corrected only after increment 4 is accepted.
+**Design — one choke point rather than 104 branch edits.** A
+capture-phase `click` listener runs BEFORE the application dispatcher;
+for any `data-act` in the generated `M10_GATED` set it calls
+`m10GateAction`, and on refusal issues `stopImmediatePropagation()` +
+`preventDefault()` so the application handler never executes. This is
+strictly stronger than per-branch edits and is one reviewable
+primitive. `m10AuthNow()` is the fresh complete check: account, session
+generation, holder, unexpired deadline, valid safe-integer fence,
+identity not corrupt, storage not blocked. Local-only apps (no sync
+account) pass — no lease concept exists there.
 
-Evidence, fresh at `249fd0e`: C18 52/52; C17 37/37; C16 49/49;
-C15 35/35; regressions 171/171 (+artifact-scope recovery 25/25).
+**Ruling 8 — the inventory.** `INCR5-ACTION-INVENTORY.md` lists all 274
+dispatcher branches: 104 gated (each with its mutation classes —
+core / training / photos / import-health / deferred-open — and the C19
+tests covering it) and 170 deliberately ungated view/selection/
+navigation branches with the reason (gating them would stop a
+read-only device from navigating its own data, which STRICT allows).
+The classification is derived from each branch's actual persistence
+primitives (`save`, `saveLocal`, `saveTraining`, `saveWorkout`, `idb*`,
+`cloudPush/Pull`, `pbSave`, `applyImport`, `hkTryFetch`), not a count.
 
-Requested ruling: acceptance of increment 4 and authorization for
-increment 5.
+**Delayed asynchronous boundaries.** File pickers capture authority at
+the opening click and REVALIDATE in a capture-phase `change` listener
+before any application handler reads the files. `askConfirm` is wrapped
+so a sheet raised WHILE holding the pen revalidates at confirm time —
+and, deliberately, a sheet raised WITHOUT the pen is not wrapped,
+because take-over, displaced review, discard and conflict resolution
+are the flows that repair the situation. (An unconditional wrapper
+deadlocked takeover; the accepted increment-1 and increment-3 suites
+caught it immediately.) Comparison is identity-based — same uid AND
+fence AND session generation — so A→B→A or a same-account fence
+replacement invalidates the capture.
+
+**Logout coupling.** Sign-out is refused while core sync is dirty or
+unproven, while any core journal or dx recovery is open, while a core
+review is pending or corrupt, and while ANY photo queue entry exists —
+each with a plain-language prompt and a repair action. A clean device
+signs out normally.
+
+**Fail-closed.** Corrupt identity, raised storage block, expired
+deadline, missing/invalid fence, or absent account all refuse.
+
+**Evidence** (fresh at `48e966a`): `INCR5-C19-OUTPUT.txt` 17/17 —
+inventory membership; non-holder interception; holder pass-through;
+four fail-closed arms; two delayed-picker arms (pen lost, fence
+replaced); three confirmation arms (expired, still-holder, A→B→A);
+four logout-coupling arms plus the clean case. Accepted suites rerun:
+C18 52/52, C17 37/37, C16 49/49, C15 35/35.
+`INCR5-M8-REGRESSION.txt` carries the client matrix.
+
+**Test-harness changes, disclosed:** (a) C14 previously signed in with
+no lease route mocked; under the wired gate that device is not the
+holder, so its mutating clicks were correctly refused and the suite
+crashed. Its route stub now answers the lease route as a granting
+server — a harness change only, no product change; C14 is 67/67 again.
+(b) C15 case K asserted increment 1's documented "gate not yet wired"
+limit; it is now the inverse assertion (refused, dispatcher never
+runs). (c) C17 T10 accepted the increment-3 logout wording; increment 5
+owns that prompt now, so it accepts either — the property tested is
+unchanged.
+
+Requested ruling: acceptance of increment 5 and, with it, the M10
+client. Nothing beyond local implementation is requested; NAS
+deployment, coach migration, enforcement, publication and the
+two-device release all remain Owner-gated.

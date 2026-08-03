@@ -1,0 +1,131 @@
+diff --git a/index.html b/index.html
+index 6bd8e9e..8524f7d 100644
+--- a/index.html
++++ b/index.html
+@@ -12001,6 +12001,126 @@ document.addEventListener("click",function(e){
+ });
+ /* =============== M10-BLOCK-4-END =============== */
+ 
++/* ================= M10-BLOCK-5: the gate surface (design v9.1 §5, increment 5) =================
++   Authorized round 28 on accepted head 249fd0e. ONE choke point: a
++   capture-phase listener that runs BEFORE the application's own dispatcher and
++   refuses every mutation-capable action unless this device holds the pen for
++   this account. Delayed mutations (file pickers, share sheets, confirmations,
++   network callbacks) are revalidated again immediately before they mutate —
++   entry gating alone proves nothing once an await intervenes. Fail closed: if
++   the gate state or durable storage is unavailable, nothing mutates. */
++var M10_GATED={};
++["act:addcat","act:del","act:toggle","cal:ignore","cal:overwrite","cal:usecalc","cardio:del","cardio:save","cf:newtype","conn:remove","day:clear","ex:clearall","ex:del","ex:save","ex:seedall","exseed:add","fb:done","fb:set","glp:compoundsave","glp:dose:del","glp:dose:save","glp:enable","glp:showdue","glp:siterot","glp:skip","glp:sym:del","glp:sym:newsave","glp:sym:save","glp:symptoms","glp:titration","hk:import","import","invite:create","invite:join","lift:del","lift:save","lift:savedetail","m10cx:takeover","m8:cx:server","macro:keep","macro:suggest","max:open","night:toggle","note:del","note:save","ob:back","ob:recalc","paste:do","pb:pwsave","pbk:import","photo:add","pphoto:add","preset:del","reminder:add","reset:ask","reset:do","ri:mv","ri:pick","ri:prog","ri:remove","rt:del","rt:new","rt:save","set:activity","set:sex","set:strategy","set:theme","set:ttype","set:units","set:weekstart","skip:calories","skip:sleep","skip:steps","skip:weight","status:end","status:endnow","status:save","sum:toggle","sync:pull","sync:push","tdee:apply","tdee:later","weight:add","weight:del","wo:addset","wo:begin","wo:bwsave","wo:delset","wo:discard","wo:discardnow","wo:endnow","wo:exaddset","wo:exmove","wo:exremove","wo:finish","wo:finishback","wo:log","wo:replacepick","wo:replsave:fwd","wo:resume","wo:savesession","wo:skipset","wo:skipthem","wu:no"].forEach(function(a){M10_GATED[a]=1;});
++
++/* fresh, complete authority check — account, session generation, holder,
++   deadline AND fence identity, plus storage health */
++function m10AuthNow(){
++  if(!syncOn())return {ok:true,local:true};       /* no account: no lease concept */
++  if(M10.corrupt)return {ok:false,why:"corrupt"};
++  if(window.m8StorageBlocked)return {ok:false,why:"blocked"};
++  var uid=null;try{uid=pbUid();}catch(e){}
++  if(!uid)return {ok:false,why:"no-account"};
++  if(!M10.holder||M10.uid!==uid)return {ok:false,why:"not-holder"};
++  if(!(performance.now()<M10.deadline))return {ok:false,why:"expired"};
++  if(!m10pNat(M10.fence)||M10.fence<1)return {ok:false,why:"no-fence"};
++  return {ok:true,uid:uid,fence:M10.fence,gen:M10.gen};}
++
++function m10GateReason(why){
++  if(why==="corrupt")return "Sync identity problem \u2014 this device is read-only";
++  if(why==="blocked")return "Sync is paused \u2014 see the banner";
++  if(why==="expired")return "This device is no longer the active writer";
++  return null;}
++
++/* the entry gate: TRUE to proceed */
++function m10GateAction(tag){
++  var a=m10AuthNow();
++  if(a.ok)return true;
++  var msg=m10GateReason(a.why);
++  if(msg){toast(msg);return false;}
++  m10TakeoverSheet();
++  return false;}
++
++/* the delayed-boundary gate: captured at the start of a deferred flow, checked
++   again immediately before the mutation it authorizes */
++function m10Capture(){
++  var a=m10AuthNow();
++  return a.ok?{local:!!a.local,uid:a.uid||null,fence:a.fence||null,gen:a.gen||null}:null;}
++function m10StillValid(cap){
++  if(!cap)return false;
++  var a=m10AuthNow();
++  if(!a.ok)return false;
++  if(cap.local||a.local)return !!(cap.local&&a.local);
++  return a.uid===cap.uid&&a.fence===cap.fence&&a.gen===cap.gen;}
++
++/* capture-phase interception: the application's dispatcher never sees a
++   refused action */
++document.addEventListener("click",function(e){
++  var el=e.target&&e.target.closest&&e.target.closest("[data-act]");
++  if(!el)return;
++  var a=el.getAttribute("data-act");
++  if(!a||!M10_GATED[a])return;
++  if(!m10GateAction(a)){e.stopImmediatePropagation();e.preventDefault();}
++},true);
++
++/* delayed-mutation boundaries: file inputs and the import/photo chains */
++(function(){
++  var caps={};
++  ["wl-photo-input","wl-import","wl-pbk-import"].forEach(function(id){
++    var elx=document.getElementById(id);
++    if(!elx)return;
++    /* capture at picker OPEN (the click that reaches .click()) */
++    elx.addEventListener("click",function(){caps[id]=m10Capture();},true);
++    /* revalidate at CHANGE, before any handler reads the files */
++    elx.addEventListener("change",function(ev){
++      if(!m10StillValid(caps[id])){
++        ev.stopImmediatePropagation();ev.preventDefault();
++        try{elx.value="";}catch(e2){}
++        toast("This device is no longer the active writer \u2014 nothing was changed");}
++    },true);});
++})();
++
++/* confirmation callbacks are delayed mutations too: capture when the sheet is
++   raised, revalidate when the athlete confirms */
++(function(){
++  var origAsk=askConfirm;
++  askConfirm=function(message,fn,opts){
++    var cap=m10Capture();
++    /* Only sheets raised WHILE holding the pen are revalidated. A sheet
++       raised without it (take over, review a displaced change, discard a
++       pending photo op, resolve a conflict) is precisely the flow that
++       repairs the situation — gating those would deadlock the device.
++       Mutating actions are already refused at the dispatcher entry. */
++    if(!cap)return origAsk(message,fn,opts);
++    var wrapped=function(){
++      if(!m10StillValid(cap)){toast("This device is no longer the active writer \u2014 nothing was changed");return;}
++      return fn&&fn();};
++    return origAsk(message,wrapped,opts);};
++})();
++
++/* logout coupling: every M10 obligation blocks sign-out (nothing may be
++   erased while work is owed), on top of the M8 training gate */
++(function(){
++  var origLogout=pbLogout;
++  pbLogout=function(){
++    var uid=null;try{uid=pbUid();}catch(e){}
++    if(uid&&syncOn()){
++      var cst=m10cState();
++      var pend=m10pOps(uid).length;
++      if(cst==="dirty"||cst==="dirty-unproven"||cst==="journal-recovery"||cst==="dx-recovery"){
++        askConfirm("This device holds body data the server hasn\u2019t confirmed. Logout stays off until it syncs \u2014 try now?",function(){
++          m10cPush(true,function(){});},{label:"Sync now",danger:false});
++        return;}
++      if(cst==="displaced"||cst==="review-pending"||cst==="corrupt"){
++        askConfirm("Body data needs review before you can sign out \u2014 nothing can be erased while it is unresolved.",function(){try{render();}catch(e){}},{label:"Review",danger:false});
++        return;}
++      if(pend){
++        askConfirm(pend+" photo change"+(pend===1?"":"s")+" haven\u2019t finished syncing. Logout stays off until they do.",function(){
++          m10pDispatch(function(){});},{label:"Try now",danger:false});
++        return;}}
++    origLogout();};
++})();
++/* =============== M10-BLOCK-5-END =============== */
++
+ /* ---- lightbox with "Edit meal type" ----
+    Full replacement of the app's openLightbox: identical navigation, delete, swipe
+    and close-rerender behavior, plus — for FOOD photos only — an "Edit meal type"
