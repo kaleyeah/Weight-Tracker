@@ -785,6 +785,114 @@ const ADD=`async function(id){
     await ctx.close();
   }
 
+  /* T30 (round-26 rulings 2/3/5): `fetched` with NO local record refetches */
+  {
+    const st=mkSt();
+    const {ctx,page}=await boot(browser,server,st);
+    /* a real server photo whose bytes the fetch mock will serve */
+    st.photos={'pidxxxxxxxxxx7':{id:'pidxxxxxxxxxx7',localId:'srv-7',file:'p.jpg',date:'2026-08-02',kind:'food',meal:'lunch',ts:'1'}};
+    const s=await page.evaluate(async()=>{
+      /* learn the identity the fetch mock will serve, then delete the blob to
+         simulate a crash after the durable `fetched` phase */
+      const tok=await pbFileToken();
+      const b=await pbPhotoFetchBlob({id:'pidxxxxxxxxxx7',file:'p.jpg'},tok);
+      const buf=await b.arrayBuffer();
+      const h=await crypto.subtle.digest('SHA-256',buf);
+      const hex=Array.from(new Uint8Array(h)).map(x=>('0'+x.toString(16)).slice(-2)).join('');
+      m10pMutate(m8Uid(),function(ops){ops.push({id:'pop-fetch00001',op:'adopt',localId:'srv-7',
+        serverId:'pidxxxxxxxxxx7',file:'p.jpg',requestId:'m10c-seedfet0000000000000000',
+        state:'fetched',blobSha256:hex,blobByteLength:buf.byteLength,
+        meta:{kind:'food',date:'2026-08-02',week:'',pose:'',meal:'lunch',ts:'1'}});});
+      m10pDispatch();
+      await new Promise(r=>setTimeout(r,1200));
+      return {ops:m10pOps().length,mapped:pbPhotoMap()['srv-7']||null,blob:!!(await idbGetLocal('srv-7'))};
+    });
+    test('T30 `fetched` with no local blob: refetched, validated, written, mapped (no infinite park)',()=>{
+      eq(s.ops,0);eq(s.mapped,'pidxxxxxxxxxx7');ok(s.blob);});
+    await ctx.close();
+  }
+  {
+    const st=mkSt();
+    const {ctx,page}=await boot(browser,server,st);
+    st.photos={'pidxxxxxxxxxx8':{id:'pidxxxxxxxxxx8',localId:'srv-8',file:'p.jpg',date:'2026-08-02',kind:'food',meal:'lunch',ts:'1'}};
+    const s=await page.evaluate(async()=>{
+      /* the durable identity does NOT match what the server now serves */
+      m10pMutate(m8Uid(),function(ops){ops.push({id:'pop-fetch00002',op:'adopt',localId:'srv-8',
+        serverId:'pidxxxxxxxxxx8',file:'p.jpg',requestId:'m10c-seedfet0000000000000001',
+        state:'fetched',blobSha256:'c'.repeat(64),blobByteLength:12345,
+        meta:{kind:'food',date:'2026-08-02',week:'',pose:'',meal:'lunch',ts:'1'}});});
+      m10pDispatch();
+      await new Promise(r=>setTimeout(r,1200));
+      const ops=m10pOps();
+      return {state:ops[0]&&ops[0].state,reason:ops[0]&&ops[0].unverifiedReason,
+        mapped:pbPhotoMap()['srv-8']||null,blob:!!(await idbGetLocal('srv-8'))};
+    });
+    test('T30 refetched bytes differ from the durable identity: unverified, nothing written or mapped',()=>{
+      eq(s.state,'unverified');eq(s.reason,'adopt-server-differs');ok(!s.mapped);ok(!s.blob);});
+    await ctx.close();
+  }
+  {
+    const st=mkSt();
+    const {ctx,page}=await boot(browser,server,st);
+    st.photos={'pidxxxxxxxxxx9':{id:'pidxxxxxxxxxx9',localId:'srv-9',file:'p.jpg',date:'2026-08-02',kind:'food',meal:'lunch',ts:'1'}};
+    const s=await page.evaluate(async()=>{
+      const tok=await pbFileToken();
+      const b=await pbPhotoFetchBlob({id:'pidxxxxxxxxxx9',file:'p.jpg'},tok);
+      const buf=await b.arrayBuffer();
+      const h=await crypto.subtle.digest('SHA-256',buf);
+      const hex=Array.from(new Uint8Array(h)).map(x=>('0'+x.toString(16)).slice(-2)).join('');
+      m10pMutate(m8Uid(),function(ops){ops.push({id:'pop-fetch00003',op:'adopt',localId:'srv-9',
+        serverId:'pidxxxxxxxxxx9',file:'p.jpg',requestId:'m10c-seedfet0000000000000002',
+        state:'fetched',blobSha256:hex,blobByteLength:buf.byteLength,
+        meta:{kind:'food',date:'2026-08-02',week:'',pose:'',meal:'lunch',ts:'1'}});});
+      /* a TEMPORARY refetch failure must preserve the obligation */
+      const origFetch=pbPhotoFetchBlob;
+      pbPhotoFetchBlob=function(){return Promise.reject(new Error('offline'));};
+      m10pDispatch();
+      await new Promise(r=>setTimeout(r,700));
+      const held=m10pOps();
+      pbPhotoFetchBlob=origFetch;
+      m10pDispatch();
+      await new Promise(r=>setTimeout(r,1200));
+      return {heldState:held[0]&&held[0].state,heldLen:held.length,
+        ops:m10pOps().length,mapped:pbPhotoMap()['srv-9']||null,blob:!!(await idbGetLocal('srv-9'))};
+    });
+    test('T30 temporary refetch failure: obligation preserved at `fetched`, retry succeeds',()=>{
+      eq(s.heldLen,1);eq(s.heldState,'fetched');eq(s.ops,0);ok(s.mapped);ok(s.blob);});
+    await ctx.close();
+  }
+
+  /* T31 (ruling 6): the lightbox reports success ONLY on the real outcome */
+  {
+    const st=mkSt();
+    const {ctx,page}=await boot(browser,server,st);
+    const s=await page.evaluate(async(addSrc)=>{
+      await eval('('+addSrc+')')('l-31');
+      await new Promise(r=>setTimeout(r,800));
+      const toasts=[];const t0=window.toast;window.toast=function(m){toasts.push(m);return t0(m);};
+      const origAdd=idbAddLocal;
+      idbAddLocal=function(){return Promise.reject(new Error('idb down'));};
+      state.view='photos';
+      openLightbox('l-31');
+      await new Promise(r=>setTimeout(r,500));
+      const edit=document.querySelector('[data-lb="mealedit"]');if(edit)edit.click();
+      await new Promise(r=>setTimeout(r,250));
+      const chips=Array.from(document.querySelectorAll('[data-lb="meal"]'));
+      const chip=chips.find(c=>c.getAttribute('data-meal')&&c.getAttribute('data-meal')!=='lunch');
+      if(chip)chip.click();
+      await new Promise(r=>setTimeout(r,2600));
+      idbAddLocal=origAdd;window.toast=t0;
+      const rec=await idbGetLocal('l-31');
+      return {saidMoved:toasts.some(x=>/^Moved to/.test(x)),
+        saidFailed:toasts.some(x=>/Couldn’t move the photo/.test(x)),
+        meal:rec&&rec.meal,updates:0};
+    },ADD);
+    test('T31 local-write failure through the UI: NO false success, honest failure, label unchanged',()=>{
+      ok(!s.saidMoved,'never claims Moved');ok(s.saidFailed,'reports the failure');
+      eq(s.meal,'lunch');eq(st.updates||0,0,'server untouched');});
+    await ctx.close();
+  }
+
   /* T27 (rulings 2/7): metadata crash arms on BOTH sides */
   {
     const st=mkSt({updateDelay:600});
