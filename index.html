@@ -2115,14 +2115,11 @@ function feelCardHTML(){
   h+=feelPhaseStripHTML();
   return h+'</div>';
 }
-/* Top of the fold in the coach recap: the trend leads, so the coach sees
-   accumulating fatigue before reading anything else. */
-function feelReportHTML(iso){
-  var isos=feelDays(14,iso);
-  if(!feelAnyAnswered(isos))return '';
-  return '<div class="wl-card" style="margin:0 0 12px;padding:13px 14px"><div class="wl-card-head" style="margin-bottom:2px"><span>How you’re feeling</span><span class="wl-count">14 days</span></div>'+
-    feelBarsHTML(iso,14)+feelWatchHTML(iso)+'</div>';
-}
+/* The daily recap deliberately does NOT render this trend (Owner, 2026-08-03:
+   "Coach can have the data and comment, but no need to display it"). The
+   ratings ride along in the synced record, so the coach reads them and writes
+   about them in his own words; the charts live on the Progress tab and in the
+   weekly check-in form, where they are asked for rather than pushed. */
 
 /* ============================================================================
    Weekly check-in — the athlete answers only what the app cannot know.
@@ -2469,7 +2466,7 @@ function view_overview(){
     var _nav='';/* recap arrows retired 2026-08-02: the header day nav navigates days, and the recap follows the viewed day */
     var _canRegen=SHOW_TESTBTN&&!state.nightBusy&&state.nightlySummary&&state.nightlySummary.date===_rcDate&&state.nightlySummary.text;
     var _regen=_canRegen?'<button class="wl-recaplink" data-act="night:gen" aria-label="Regenerate recap">↻ Regenerate</button>':'';
-    _recapCard='<div class="wl-card'+(_unrdThis?' wl-recap-new':'')+'"><div class="wl-recaphead"><button class="wl-collapse-head" style="flex:1;min-width:0" data-act="night:toggle">'+coachHeadHTML("Daily recap",fmtShort(parseISO(_rcDate)),_unrdThis,_no)+'</button>'+_regen+_nav+'</div>'+(_no?'<div class="wl-ai-summary" style="margin-top:6px">'+feelReportHTML(_rcDate)+maxMoodHTML(_rc.mood)+renderSummary(_rc.text)+'</div>':'')+'</div>';}
+    _recapCard='<div class="wl-card'+(_unrdThis?' wl-recap-new':'')+'"><div class="wl-recaphead"><button class="wl-collapse-head" style="flex:1;min-width:0" data-act="night:toggle">'+coachHeadHTML("Daily recap",fmtShort(parseISO(_rcDate)),_unrdThis,_no)+'</button>'+_regen+_nav+'</div>'+(_no?'<div class="wl-ai-summary" style="margin-top:6px">'+maxMoodHTML(_rc.mood)+renderSummary(_rc.text)+'</div>':'')+'</div>';}
   var _recapUnit=_recapCard+(SHOW_TESTBTN?completeBtnHTML(_sel):"");
   var _hsw=sortedWeights(),_hstart=num(state.settings.startingWeight),_hgoal=num(state.settings.goalWeight);
   var _hcur=_hsw.length?_hsw[_hsw.length-1].weight:_hstart;

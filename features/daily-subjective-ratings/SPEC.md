@@ -95,7 +95,19 @@ A "How you've felt" card on the **Progress** tab:
 - Below it, a **compound-phase strip**: every day since the current dose
   step, so a trend across a titration is visible rather than just the week.
 
-## Coach report — the trend block leads (Owner decision)
+## Coach report — data yes, chart no (Owner decision, superseded twice)
+
+**Final, 2026-08-03 (in force):** the daily recap displays NO rating chart.
+The Owner's words: *"Dont include the charts in the daily recap. That's too
+much. Coach can have the data and comment, but no need to display it."* The
+ratings sync to the server in the record, so the coach reads them and writes
+about them in his own prose. The charts live where they are asked for: the
+Progress tab and the weekly check-in form.
+
+The superseded version is kept below for the reasoning it records, but the
+recap block described in it was built and then removed the same day.
+
+### (superseded) Coach report — the trend block leads
 
 The trend goes at the TOP OF THE FOLD of the coach report, above training,
 nutrition and steps. Its purpose is explicit: let the coach see whether the

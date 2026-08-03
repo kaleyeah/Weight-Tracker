@@ -196,7 +196,9 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
     ok(t10.cells.every(c=>c.na?c.t==='–':/^[1-5]$/.test(c.t)),'cells were '+JSON.stringify(t10.cells));
   });
 
-  /* ---- T11: the coach report leads with the trend block ----------------- */
+  /* ---- T11: the recap carries NO chart, but the coach still gets the data
+       (Owner, 2026-08-03: "Coach can have the data and comment, but no need
+       to display it") ---------------------------------------------------- */
   const t11=await ev(()=>{
     const d=parseISO(todayISO());state.ratings={};
     for(let i=13;i>=0;i--){const x=new Date(d);x.setDate(x.getDate()-i);
@@ -205,20 +207,23 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
     state.nightlyLog={};state.nightlyLog[todayISO()]={text:'Solid week.',generated:1,mood:null};
     state.nightOpen=true;save();state.view='overview';render();
     const body=document.querySelector('.wl-ai-summary');
-    const first=body?body.firstElementChild:null;
-    return {has:!!body,firstIsTrend:!!(first&&/How you’re feeling/.test(first.textContent)),
+    const p=payload();
+    return {has:!!body,
       rows:body?body.querySelectorAll('.wl-frow').length:0,
-      bars:body?body.querySelectorAll('.wl-frow .wl-fbars i').length:0,
-      watch:body?(body.querySelector('.wl-fwatch')||{}).textContent||'':'',
-      tags:body?[].slice.call(body.querySelectorAll('.wl-ftag')).map(t=>t.textContent):[]};
+      bars:body?body.querySelectorAll('.wl-fbars i').length:0,
+      watch:body?body.querySelectorAll('.wl-fwatch').length:0,
+      text:body?body.textContent:'',
+      inPayload:!!(p.ratings&&Object.keys(p.ratings).length===14),
+      sample:p.ratings?p.ratings[toISO(d)]:null};
   });
-  test('T11 the recap opens with the 14-day trend block, above the coach’s text',()=>{
+  test('T11 the daily recap shows no rating chart, while the coach still receives the data',()=>{
     ok(t11.has,'no recap body rendered');
-    ok(t11.firstIsTrend,'the trend block must be the first thing in the recap');
-    eq(t11.rows,6);
-    eq(t11.bars,6*14,'six rows of fourteen day-bars');
-    ok(/recovery/i.test(t11.watch),'watch line should name the falling rating; got: '+t11.watch);
-    ok(t11.tags.indexOf('falling')>=0,'recovery dropped from good to poor; tags were '+JSON.stringify(t11.tags));
+    eq(t11.rows,0,'no trend rows may appear in the recap');
+    eq(t11.bars,0,'no colour bars may appear in the recap');
+    eq(t11.watch,0,'no Watch block may appear in the recap');
+    ok(/Solid week\./.test(t11.text),'the coach’s own text must still render');
+    ok(t11.inPayload,'the ratings must still reach the coach in the synced record');
+    eq(t11.sample.recovery,'poor');
   });
 
   /* ---- T12: unanswered days are grey, never scored as bad --------------- */
