@@ -602,6 +602,48 @@ async function boot(browser,srv,st,init,uid,initArg){
     }
   }
 
+  /* T19 (round-19 ruling 4): unsafe integers rejected everywhere */
+  {
+    const UNSAFE=9007199254740992;      // Number.MAX_SAFE_INTEGER + 1
+    // a) live 409 with an unsafe serverRev → NOT review state
+    {
+      const st={rev:5,data:EMPTY_PAYLOAD,ledger:{},hasRow:true};
+      const {ctx:c5,page:p5}=await boot(browser,server,st);
+      const s5=await p5.evaluate(async(u)=>{
+        window.__forceCommit(409,{ok:false,conflict:true,serverRev:u});
+        state.weights.push({date:'2026-08-02',weight:240});save();
+        await new Promise(r=>{cloudPush(false);setTimeout(r,400);});
+        const j=m10cRead('journal');
+        return {phase:j.val.phase,outcome:j.val.outcome,dirty:m10cRead('dirty').st};
+      },UNSAFE);
+      test('T19a live 409 with unsafe serverRev: journal stays at intent, dirty preserved',()=>{
+        eq(s5.phase,'intent');ok(!s5.outcome);eq(s5.dirty,'ok');});
+      await c5.close();
+    }
+    // b/c) seeded terminal journals with unsafe values → quarantine + block, never review
+    for(const [name,outcome,field] of [['conflict terminal','conflict','serverRev'],
+                                        ['displacement terminal','fence-displaced','staleFence']]){
+      const st={rev:5,data:EMPTY_PAYLOAD,ledger:{},hasRow:true};
+      const expect={oldBaseCanon:JSON.stringify(EMPTY_PAYLOAD),expectedRev:5,
+        pushedCanon:JSON.stringify(EMPTY_PAYLOAD),gen:1,fence:null,requestId:'m10c-seedterm000000000000000'};
+      expect[field]=UNSAFE;
+      const seed={owner:'userA',mark:'m10.1',op:'core-ack',phase:'done',outcome,startedAt:1,expect};
+      const {ctx:c6,page:p6}=await boot(browser,server,st,(sd)=>{
+        localStorage.setItem('wl_core_ack_journal__userA',sd);
+        localStorage.setItem('wl_core_base__userA',JSON.stringify({owner:'userA',mark:'m10.1',canon:1,rev:5,
+          body:'{}'}));
+      },undefined,JSON.stringify(seed));
+      const s6=await p6.evaluate(()=>({state:m10cState(),blocked:window.m8StorageBlocked,
+        journalGone:m10cRead('journal').st==='absent',
+        quarantined:Object.keys(localStorage).some(k=>/^wl_core_corrupt__userA\.journal/.test(k))}));
+      test(`T19 seeded ${name} with unsafe ${field}: quarantined + blocked, never review state`,()=>{
+        ok(s6.state!=='review-pending','not review state: '+s6.state);
+        ok(s6.blocked,'blocked');ok(s6.journalGone,'journal removed from its key');
+        ok(s6.quarantined,'preserved in the corrupt namespace');});
+      await c6.close();
+    }
+  }
+
   await browser.close();server.close();
   console.log(`\nC16-M10 increment 2: ${passed} passed, ${failures.length} failed`);
   process.exit(failures.length?1:0);
