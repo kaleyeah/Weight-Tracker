@@ -2352,19 +2352,10 @@ function activitySummaryHTML(sel){
   else h+='<div class="wl-hint">No activity logged. Add cardio, lifting, or recovery from the Activity tab.</div>';
   return h+'</div>';
 }
-var wkPhotoHave=null,wkPhotoKey=null;
+/* wkPhotoHave / refreshWeekPhotos retired 2026-08-03: they existed only to
+   decide whether to show the "This Week's Progress Photos" prompt, which the
+   weekly check-in card replaced. Nothing reads that state now. */
 
-function refreshWeekPhotos(){if(typeof indexedDB==="undefined"){wkPhotoHave=false;return;}var wk=toISO(weekStartFor(0));var key=wk;
-  /* Go through idb() rather than opening the database directly. Opening "wl_photos"
-     at version 1 without an onupgradeneeded handler CREATES it empty, and since the
-     version then already matches, idb()'s handler never runs and the "photos" object
-     store is never created — permanently breaking photos on any device that opens the
-     app before taking its first photo. idb() is the single owner of the schema. */
-  try{idb().then(function(db){
-    var tx=db.transaction("photos","readonly");var rq=tx.objectStore("photos").index("date").openCursor(IDBKeyRange.lowerBound(wk));
-    rq.onsuccess=function(){var had=wkPhotoHave;wkPhotoHave=!!rq.result;wkPhotoKey=key;if(had!==wkPhotoHave)render();};
-    rq.onerror=function(){wkPhotoHave=false;wkPhotoKey=key;};
-  }).catch(function(){wkPhotoHave=false;wkPhotoKey=key;});}catch(e){wkPhotoHave=false;wkPhotoKey=key;}}
 function maxSheetHTML(){if(!state.maxOpen)return "";var ws=state.weeklySummary;var _ciDay=(new Date().getDay()===(parseInt(state.settings.weekStart,10)||0));
   var inner;
   if(state.genBusy){inner='<div class="wl-mhead"><span class="wl-mav">M</span><span style="min-width:0"><span class="wl-mtitle">Weekly check-in</span><span class="wl-msub">from Coach Max</span></span><button class="wl-maxx" data-act="max:close">\u2715</button></div><div class="wl-hint">\u23f3 Generating your check-in\u2026 this takes about a minute. You can close this and keep using the app.</div>';}
@@ -6351,10 +6342,10 @@ function idb(){return new Promise(function(res,rej){
     r2.onsuccess=function(){photoDB=r2.result;res(photoDB);};
     r2.onerror=function(){rej(r2.error);};};
   r.onerror=function(){rej(r.error);};});}
-function idbAdd(rec){wkPhotoKey=null;srPhotoInvalidate();return idb().then(function(db){return new Promise(function(res,rej){var tx=db.transaction("photos","readwrite");tx.objectStore("photos").put(rec);tx.oncomplete=function(){res();};tx.onerror=function(){rej(tx.error);};});});}
+function idbAdd(rec){srPhotoInvalidate();return idb().then(function(db){return new Promise(function(res,rej){var tx=db.transaction("photos","readwrite");tx.objectStore("photos").put(rec);tx.oncomplete=function(){res();};tx.onerror=function(){rej(tx.error);};});});}
 function idbByDate(date){return idb().then(function(db){return new Promise(function(res,rej){var out=[];var tx=db.transaction("photos","readonly");var rq=tx.objectStore("photos").index("date").openCursor(IDBKeyRange.only(date));rq.onsuccess=function(){var c=rq.result;if(c){out.push(c.value);c.continue();}else res(out.sort(function(a,b){return a.ts-b.ts;}));};rq.onerror=function(){rej(rq.error);};});});}
 function idbAll(){return idb().then(function(db){return new Promise(function(res,rej){var out=[];var tx=db.transaction("photos","readonly");var rq=tx.objectStore("photos").openCursor();rq.onsuccess=function(){var c=rq.result;if(c){out.push(c.value);c.continue();}else res(out);};rq.onerror=function(){rej(rq.error);};});});}
-function idbDelete(id){wkPhotoKey=null;srPhotoInvalidate();return idb().then(function(db){return new Promise(function(res,rej){var tx=db.transaction("photos","readwrite");tx.objectStore("photos").delete(id);tx.oncomplete=function(){res();};tx.onerror=function(){rej(tx.error);};});});}
+function idbDelete(id){srPhotoInvalidate();return idb().then(function(db){return new Promise(function(res,rej){var tx=db.transaction("photos","readwrite");tx.objectStore("photos").delete(id);tx.oncomplete=function(){res();};tx.onerror=function(){rej(tx.error);};});});}
 function idbClearAll(){srPhotoInvalidate();return idb().then(function(db){return new Promise(function(res){var tx=db.transaction("photos","readwrite");tx.objectStore("photos").clear();tx.oncomplete=function(){res();};tx.onerror=function(){res();};});}).catch(function(){});}
 function processImage(file){return new Promise(function(res){
   try{var url=URL.createObjectURL(file);var img=new Image();
@@ -10315,7 +10306,6 @@ function photoSync(done){
   function finish(){
     setPbPhotoMap(map);pbPhotoSyncing=false;
     if(uploaded||downloaded||removed){
-      try{wkPhotoKey=null;refreshWeekPhotos();}catch(e){}
       if(state.view==="photos"||state.view==="diary")render();}
     done&&done({uploaded:uploaded,downloaded:downloaded,removed:removed});}
 
@@ -10522,7 +10512,7 @@ if(!logoutRecoveryPending())runRecoveryCapture();
 if(bootGated()){
   renderGate();
 }else{
-load();loadTraining();migrateProgressionTypes();loadWorkout();rptRetargetAll();ensureIdentity();try{refreshWeekPhotos();}catch(e){}if(resyncAllActivityTags())save();
+load();loadTraining();migrateProgressionTypes();loadWorkout();rptRetargetAll();ensureIdentity();if(resyncAllActivityTags())save();
 /* Anchor the weekly check-in at the week it first ran, so an existing account
    never opens with months of retroactively "late" check-ins. */
 if(state.settings.ciSince==null){state.settings.ciSince=toISO(weekStartFor(0));save();}var _hasSetup=/[#&]setup=/.test(location.hash||"");if(_hasSetup){state.settings.onboarded=true;}else{if(state.settings.onboarded==null)state.settings.onboarded=(state.weights.length>0||num(state.settings.goalWeight)!=null||num(state.settings.startingWeight)!=null||!!(state.settings.name&&(""+state.settings.name).trim()));if(!state.settings.onboarded){state.onboarding=true;state.obStep=0;}}applyTheme(state.settings.theme||"dark");makeIcon();if(state.workout)state.view="train";render();if(syncOn()){pbRefresh(function(){autoSync();photoSync();});}if(state.workout)startWoTick();if(_hasSetup)checkSetupLink();
