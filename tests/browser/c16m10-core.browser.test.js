@@ -27,6 +27,7 @@ function casMock(st){
     const reply=(status,body)=>route.fulfill({status,contentType:'application/json',body:JSON.stringify(body)});
     if(/cf\/appdata\/commit/.test(url)){
       if(st.commitDelay)await new Promise(r=>setTimeout(r,st.commitDelay));
+      if(st.forceCommit){const f=st.forceCommit;st.forceCommit=null;return reply(f.status,f.body);}
       if(st.dropCommits){st.dropped=(st.dropped||0)+1;
         // commit LANDS server-side but the response is lost (transport ambiguity)
         const b=JSON.parse(route.request().postData());
@@ -43,6 +44,7 @@ function casMock(st){
       st.rev++;st.data=b.payload;st.ledger[b.idempotencyKey]={rev:st.rev};
       return reply(200,{ok:true,subsystem:'core',newRev:st.rev});}
     if(/collections\/appdata\/records/.test(url)&&method==='GET'){
+      if(st.recordsDelay)await new Promise(r=>setTimeout(r,st.recordsDelay));
       const items=st.hasRow?[{id:'rec1',user:'userA',data:st.data,coreRev:st.rev,training:null,trainingRev:0}]:[];
       return reply(200,{items});}
     if(/cf\/writer\/lease/.test(url)){
@@ -57,6 +59,8 @@ async function boot(browser,srv,st,init,uid,initArg){
   const ctx=await browser.newContext();
   await ctx.exposeFunction('__bump',()=>{st.fence=(st.fence||1)+1;});
   await ctx.exposeFunction('__setRev',(r,dataName)=>{st.rev=r;if(dataName==='server')st.data=SERVER_DATA;});
+  await ctx.exposeFunction('__setRecordsDelay',(ms)=>{st.recordsDelay=ms;});
+  await ctx.exposeFunction('__forceCommit',(status,body)=>{st.forceCommit={status,body};});
   await ctx.route('**/api/**',casMock(st));
   if(init)await ctx.addInitScript(init,initArg);
   await ctx.addInitScript((u)=>{
@@ -362,6 +366,149 @@ async function boot(browser,srv,st,init,uid,initArg){
       eq(s.state,'dirty');eq(s.base,6);eq(s.dirty.st,'ok');
       ok(s.dirty.val.gen>s.dirty.val.persistedGen-1,'newer generation kept');eq(s.journal,'absent');});
     await ctx.close();
+  }
+
+  /* T12 (ruling 4): account switch DURING core network operations */
+  {
+    // a) switch A→B while the push response is in flight
+    const st={rev:5,data:EMPTY_PAYLOAD,ledger:{},hasRow:true,commitDelay:500};
+    const {ctx,page}=await boot(browser,server,st);
+    const s=await page.evaluate(async()=>{
+      state.weights.push({date:'2026-08-02',weight:220});save();
+      const p=new Promise(r=>{cloudPush(false);setTimeout(r,900);});
+      await new Promise(r=>setTimeout(r,120));
+      const aJournal=localStorage.getItem('wl_core_ack_journal__userA');
+      pbClearSession(true);
+      localStorage.setItem('wl_pb',JSON.stringify({uid:'userB',base:'https://pb.test',token:'tok',email:'b@x.com'}));
+      await p;
+      const bKeys=Object.keys(localStorage).filter(k=>/wl_core_.*__userB/.test(k));
+      return {aJournalSame:localStorage.getItem('wl_core_ack_journal__userA')===aJournal,
+        aJournalPhase:JSON.parse(localStorage.getItem('wl_core_ack_journal__userA')).phase,
+        aDirty:localStorage.getItem('wl_core_dirty__userA')!==null,bKeys:bKeys.length};
+    });
+    test('T12a switch mid-push: A journal byte-identical at intent (replayable), zero B writes',()=>{
+      ok(s.aJournalSame,'journal untouched');eq(s.aJournalPhase,'intent');
+      ok(s.aDirty,'A dirty preserved');eq(s.bKeys,0,'no wl_core_*__userB keys');});
+    await ctx.close();
+  }
+  {
+    // b) A→B→A: the ORIGINAL session's response must not complete under the new A session
+    const st={rev:5,data:EMPTY_PAYLOAD,ledger:{},hasRow:true,commitDelay:500};
+    const {ctx,page}=await boot(browser,server,st);
+    const s=await page.evaluate(async()=>{
+      state.weights.push({date:'2026-08-02',weight:221});save();
+      const p=new Promise(r=>{cloudPush(false);setTimeout(r,900);});
+      await new Promise(r=>setTimeout(r,120));
+      pbClearSession(true);                                    // away (gen bump)
+      const c=JSON.parse(localStorage.getItem('wl_pb')||'{}');
+      localStorage.setItem('wl_pb',JSON.stringify({uid:'userA',base:'https://pb.test',token:'tok2',email:'a@x.com'}));
+      // back as A — but a NEW session (no boot run; gen differs from the op's)
+      await p;
+      return {phase:JSON.parse(localStorage.getItem('wl_core_ack_journal__userA')).phase,
+        dirty:localStorage.getItem('wl_core_dirty__userA')!==null,
+        base:JSON.parse(localStorage.getItem('wl_core_base__userA')).rev};
+    });
+    test('T12b A→B→A: original-session response discarded (journal still intent, base unmoved)',()=>{
+      eq(s.phase,'intent');ok(s.dirty);eq(s.base,5);});
+    await ctx.close();
+  }
+  {
+    // c) switch during the bootstrap GET and the clean-pull GET
+    for(const arm of ['bootstrap','pull']){
+      const st={rev:9,data:SERVER_DATA,ledger:{},hasRow:true,recordsDelay:500};
+      const init=arm==='pull'?()=>{
+        localStorage.setItem('wl_core_base__userA',JSON.stringify({owner:'userA',mark:'m10.1',canon:1,rev:5,
+          body:JSON.stringify({settings:{onboarded:true,units:'lbs'},weights:[],food:{},workouts:{},steps:{},notes:{},sleep:{},bodyfat:{},waist:{},leanmass:{},statuses:[],presets:[],skips:{},nightlyLog:{}})}));
+      }:null;
+      const {ctx:c2,page:p2}=await boot(browser,server,st,init);
+      const s2=await p2.evaluate(async()=>{
+        // relaunch the operation with a delayed GET, switch mid-flight
+        const before=localStorage.getItem('wl_v1');
+        const p=new Promise(r=>{cloudPull(false,r);});
+        await new Promise(r=>setTimeout(r,120));
+        pbClearSession(true);
+        localStorage.setItem('wl_pb',JSON.stringify({uid:'userB',base:'https://pb.test',token:'tok',email:'b@x.com'}));
+        const pulled=await p;
+        const bKeys=Object.keys(localStorage).filter(k=>/wl_core_.*__userB/.test(k));
+        return {pulled,localSame:localStorage.getItem('wl_v1')===before,bKeys:bKeys.length};
+      });
+      test(`T12c switch during ${arm} GET: zero adoption, zero B writes`,()=>{
+        ok(s2.pulled===false);ok(s2.localSame);eq(s2.bKeys,0);});
+      await c2.close();
+    }
+  }
+
+  /* T13 (ruling 7): edit lands while the pull GET is in flight → zero adoption */
+  {
+    const st={rev:5,data:EMPTY_PAYLOAD,ledger:{},hasRow:true};
+    const {ctx,page}=await boot(browser,server,st);
+    const s=await page.evaluate(async()=>{
+      await window.__setRev(9,'server');
+      window.__setRecordsDelay(500);
+      const p=new Promise(r=>{cloudPull(false,r);});
+      await new Promise(r=>setTimeout(r,120));
+      state.weights.push({date:'2026-08-02',weight:222});save();   // the mid-flight edit
+      const localAfterEdit=localStorage.getItem('wl_v1');
+      const pulled=await p;
+      return {pulled,localSame:localStorage.getItem('wl_v1')===localAfterEdit,
+        dirty:m10cRead('dirty').st,base:m10cRead('base').val.rev,weights:state.weights.length};
+    });
+    test('T13 edit during pull GET: adoption refused, edit + dirty preserved, base unchanged',()=>{
+      ok(s.pulled===false);ok(s.localSame);eq(s.dirty,'ok');eq(s.base,5);eq(s.weights,1);});
+    await ctx.close();
+  }
+
+  /* T14 (ruling 8): strict pre-projection validation */
+  {
+    const st={rev:5,data:EMPTY_PAYLOAD,ledger:{},hasRow:true};
+    const {ctx,page}=await boot(browser,server,st);
+    const s=await page.evaluate(()=>{
+      const r={};
+      r.autoUndef=m10cCanon({a:1,tag:{name:'x',auto:undefined}}).ok;          // permitted omission
+      r.nan=m10cCanon({a:NaN}).ok;
+      r.inf=m10cCanon({a:Infinity}).ok;
+      r.fn=m10cCanon({a:function(){}}).ok;
+      r.arrUndef=m10cCanon({a:[1,undefined]}).ok;
+      const holey=[1];holey[3]=2;r.hole=m10cCanon({a:holey}).ok;
+      const cyc={};cyc.self=cyc;r.cycle=m10cCanon(cyc).ok;
+      r.date=m10cCanon({a:new Date()}).ok;
+      return r;
+    });
+    test('T14 canon: auto:undefined permitted; every lossy category rejected',()=>{
+      ok(s.autoUndef===true,'auto:undefined');
+      for(const k of ['nan','inf','fn','arrUndef','hole','cycle','date'])
+        ok(s[k]===false,k+' must be rejected');});
+    // and a push-path case: invalid state fails closed with dirty preserved
+    const s2=await page.evaluate(async()=>{
+      state.weights.push({date:'2026-08-02',weight:NaN});save();
+      await new Promise(r=>{cloudPush(false);setTimeout(r,400);});
+      return {blocked:m10cHardBlocked,reason:m10cBlockReason,dirty:m10cRead('dirty').st};
+    });
+    test('T14 push with invalid value: hard block, dirty preserved, no commit',()=>{
+      ok(s2.blocked);ok(/failed validation/.test(s2.reason));eq(s2.dirty,'ok');eq(st.commits||0,0);});
+    await ctx.close();
+  }
+
+  /* T15 (ruling 9): malformed SUCCESS must not advance the base */
+  {
+    for(const [name,body] of [
+      ['fractional newRev',{ok:true,subsystem:'core',newRev:5.5}],
+      ['missing newRev',{ok:true,subsystem:'core'}],
+      ['wrong increment',{ok:true,subsystem:'core',newRev:9}]]){
+      const st={rev:5,data:EMPTY_PAYLOAD,ledger:{},hasRow:true};
+      const {ctx:c3,page:p3}=await boot(browser,server,st);
+      const s3=await p3.evaluate(async(fb)=>{
+        window.__forceCommit(200,fb);
+        state.weights.push({date:'2026-08-02',weight:223});save();
+        await new Promise(r=>{cloudPush(false);setTimeout(r,400);});
+        return {blocked:m10cHardBlocked,journal:m10cRead('journal'),dirty:m10cRead('dirty').st,
+          base:m10cRead('base').val.rev};
+      },body);
+      test(`T15 ${name}: blocked, journal at intent, dirty preserved, base unmoved`,()=>{
+        ok(s3.blocked,'blocked');eq(s3.journal.st,'ok');eq(s3.journal.val.phase,'intent');
+        eq(s3.dirty,'ok');eq(s3.base,5);});
+      await c3.close();
+    }
   }
 
   await browser.close();server.close();
