@@ -936,7 +936,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-03.425-adhview";
+var APP_BUILD="2026-08-03.426-cardio";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -3612,9 +3612,15 @@ function lrRangePos(r,lo,hi){
 function lrPrescription(en,n,rt){
   n=Math.max(1,n|0);
   var prog=(en&&en.progression)||null,it=null,inferred=false;
-  if(!prog&&rt){
-    it=(rt.items||[]).filter(function(x){return x.exerciseId===(en&&en.exerciseId);})[0]||null;
-    prog=(it&&it.progression)||rt.progression||null;
+  /* Resolve the routine item ALWAYS, not only when the entry lacks a
+     progression. Reverse pyramid already fell back to the item's setRanges,
+     but double progression only ever read the entry's own repLow/repHigh — so
+     a session logged before the item's range was set, or an exercise swapped in
+     ad hoc, printed no range at all on the report while its neighbours printed
+     theirs (Owner, 2026-08-03: seated cable row, day 1). */
+  if(rt)it=(rt.items||[]).filter(function(x){return x.exerciseId===(en&&en.exerciseId);})[0]||null;
+  if(!prog){
+    prog=(it&&it.progression)||(rt&&rt.progression)||null;
     if(prog)inferred=true;}
   if(prog==="rpt"){
     var mv=(en&&en.movement)||(it&&it.movement)||"compound";
@@ -3628,9 +3634,14 @@ function lrPrescription(en,n,rt){
       if(!(rg[i]&&rg[i].lo!=null&&rg[i].hi!=null&&rg[i].hi>=rg[i].lo)){rg[i]=def[i];full=false;}}
     return {mode:"rpt",ranges:rg,assumed:(inferred||!full)};}
   var lo=num(en&&en.repLow),hi=num(en&&en.repHigh);
+  /* the entry's own range wins; the routine item is the fallback, and taking it
+     is an inference, so it is flagged assumed rather than passed off as logged */
+  if(!(lo!=null&&hi!=null&&hi>=lo)&&it){
+    var ilo=num(it.repLow),ihi=num(it.repHigh);
+    if(ilo!=null&&ihi!=null&&ihi>=ilo){lo=ilo;hi=ihi;inferred=true;}}
   if(lo!=null&&hi!=null&&hi>=lo){
     var one=[];for(var k=0;k<n;k++)one.push({lo:lo,hi:hi});
-    return {mode:"single",ranges:one,assumed:false};}
+    return {mode:"single",ranges:one,assumed:inferred};}
   return {mode:"none",ranges:[],assumed:false};}
 function lrWeekStartISO(iso){
   var ws=parseInt(state.settings.weekStart,10)||0;
@@ -4027,8 +4038,27 @@ function srDailyHTML(inp){
   return h+'</tbody></table></div>';}
 /* one card per lifting session: day chip, duration · session RPE · total lifted,
    then each exercise with its progression chip and set grid, then the note */
+/* Cardio leads the workouts section (Owner, 2026-08-03), and unlike the weekly
+   zone-2+ goal this lists EVERY session whatever its zone — the coach wants the
+   whole picture, not just what counts toward a target. */
+function srCardioHTML(inp){
+  var list=inp.cardio||[];
+  if(!list.length)return '<div class="wl-card"><div class="wl-card-head"><span>Cardio</span></div><div class="wl-hint" style="margin-top:0">No cardio logged this week.</div></div>';
+  var h='<div class="wl-card"><div class="wl-card-head"><span>Cardio</span><span class="wl-count">'+srInt(list.length)+'</span></div>';
+  h+='<div class="cd-row cd-hd"><span>Day</span><span>Type</span><span>Zone</span><span>Time</span><span>Cals</span></div>';
+  list.forEach(function(c){
+    h+='<div class="cd-row">'+
+       '<span>'+srEsc(c.dayLabel)+'</span>'+
+       '<span class="cd-ty">'+srEsc(c.type)+'</span>'+
+       '<span>'+(c.zone!=null?'Z'+srInt(c.zone):SRDASH)+'</span>'+
+       '<span>'+(c.mins!=null?srInt(c.mins)+' min':SRDASH)+'</span>'+
+       '<span>'+(c.cal!=null?srInt(c.cal):SRDASH)+'</span></div>';
+    if(c.note)h+='<div class="cd-note">'+srEsc(c.note)+'</div>';});
+  return h+'</div>';}
 function srWorkoutsHTML(inp){
   var h='<div class="secLbl">This week&rsquo;s workouts</div>';
+  h+=srCardioHTML(inp);
+  h+='<div class="secLbl" style="margin-top:16px">Weightlifting</div>';
   if(!(inp.sessions||[]).length)return h+'<div class="wl-card"><div class="wl-hint" style="margin-top:0">No lifting sessions logged this week.</div></div>';
   inp.sessions.forEach(function(s){
     h+='<div class="wl-card"><div class="wl-card-head"><span>'+srEsc(s.name)+'</span><span class="wl-count">'+srEsc(s.dateLabel)+'</span></div>';
@@ -4062,6 +4092,12 @@ var SRCSS=[
 ".wl-count{font-family:var(--mono);font-size:11px;color:var(--muted);background:var(--bg2);padding:3px 9px;border-radius:7px;font-weight:500;letter-spacing:.02em;text-transform:uppercase}",
 ".wl-hint{font-size:12px;color:var(--muted);line-height:1.45;margin-top:10px}",
 ".ph-row{display:grid;gap:9px}",
+".cd-row{display:grid;grid-template-columns:1.1fr 2fr .7fr 1fr .8fr;gap:8px;align-items:baseline;padding:7px 0;border-top:1px solid var(--line);font-size:12.5px}",
+".cd-row span:first-child{color:var(--muted);font-weight:700}",
+".cd-row .cd-ty{color:var(--text);font-weight:700}",
+".cd-hd{border-top:0;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);font-weight:800}",
+".cd-hd span{color:var(--faint)!important;font-weight:800!important}",
+".cd-note{font-size:11.5px;color:var(--muted);padding:0 0 7px;font-style:italic}",
 ".ph-slot{background:var(--bg2);border:1px solid var(--line);border-radius:12px;overflow:hidden;position:relative;aspect-ratio:3/4;display:flex;align-items:center;justify-content:center}",
 /* contain, never cover: a cropped progress photo is a useless progress photo —
    the coach is comparing outlines week to week (Owner, 2026-08-03). */
@@ -4253,7 +4289,19 @@ function srInput(offset){
     macros:{note:((_elapsed>0&&_elapsed<7)?(_elapsed+" of 7 days so far"):"7 of 7 days"),rows:macRows},
     averages:averages,activity:activity,
     daily:{label:fmtShort(M.ws)+" – "+fmtShort(M.we),rows:dailyRows},
+    cardio:srCardioInput(offset),
     sessions:sessions,assumed:!!M.anyAssumed};}
+/* every cardio session in the week, in day order, regardless of zone */
+function srCardioInput(offset){
+  var out=[];
+  weekDays(offset).forEach(function(d){
+    var iso=toISO(d);
+    var list=(((state.training||{}).sessions||{})[iso]||[]).filter(function(x){return x&&x.kind==="cardio";});
+    list.forEach(function(c){
+      out.push({dayLabel:DAYS3[d.getDay()],date:iso,
+        type:(c.type||"Cardio"),zone:num(c.zone),mins:num(c.mins),
+        cal:num(c.cal),hr:num(c.hr),note:(c.notes||"").trim()});});});
+  return out;}
 /* ---- progress photos for the report: prefetch, cache, never block the tap ----
    iOS requires transient user activation for navigator.share — awaiting slow
    async work (IndexedDB reads + canvas re-encoding) between the tap and share()
