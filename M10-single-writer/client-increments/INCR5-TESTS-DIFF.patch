@@ -1,3 +1,23 @@
+diff --git a/tests/browser/c11m8-faults.browser.test.js b/tests/browser/c11m8-faults.browser.test.js
+index f3d1f2e..0c599bf 100644
+--- a/tests/browser/c11m8-faults.browser.test.js
++++ b/tests/browser/c11m8-faults.browser.test.js
+@@ -34,6 +34,15 @@ const OLDT={cardioTypes:["Peloton"],exercises:[],liftSessions:{},routines:[],ses
+     },o);
+     let srvT=o.serverTraining!==undefined?o.serverTraining:null,srvR=o.serverRev||0,commits=0;
+     await ctx.route('**/api/**',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[],token:'tok',record:{id:'userA'}})}));
++    /* M10 (increment 5): this suite signs in and resolves conflicts through
++       real UI clicks; under the wired gate a signed-in device must hold the
++       writer lease. Answer the lease route as the granting server (harness
++       only — no product change). */
++    await ctx.route('**/api/cf/writer/lease',r=>{
++      let b={};try{b=JSON.parse(r.request().postData()||'{}');}catch(e){}
++      return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,exists:true,granted:true,
++        fence:1,holderDeviceId:b.deviceId||'dev',deviceName:b.deviceName||'x',active:true,
++        serverNow:Date.now(),ttlMs:86400000})});});
+     await ctx.route('**/api/collections/appdata/records**',async r=>{
+       if(o.holdRecords){await new Promise(res=>{
+         r.request().frame().page().evaluate(()=>new Promise(x=>{window.__releaseRecords=x;})).then(res,res);});}
 diff --git a/tests/browser/c14-correctness-fixes.browser.test.js b/tests/browser/c14-correctness-fixes.browser.test.js
 index a4a34df..e37a9e9 100644
 --- a/tests/browser/c14-correctness-fixes.browser.test.js
@@ -96,10 +116,10 @@ index 432b089..9325426 100644
          localW:JSON.parse(localStorage.getItem('wl_v1')).weights[0].weight};
 diff --git a/tests/browser/c19m10-gate.browser.test.js b/tests/browser/c19m10-gate.browser.test.js
 new file mode 100644
-index 0000000..bffed63
+index 0000000..7c41b06
 --- /dev/null
 +++ b/tests/browser/c19m10-gate.browser.test.js
-@@ -0,0 +1,256 @@
+@@ -0,0 +1,394 @@
 +/* C19-M10 (browser) — increment 5: the gate surface, real Chromium.
 +
 +       CF_SRC=<file> node tests/browser/c19m10-gate.browser.test.js
@@ -160,11 +180,13 @@ index 0000000..bffed63
 +    const st={};
 +    const {ctx,page,errs}=await boot(browser,server,st);
 +    const s=await page.evaluate(()=>({gated:Object.keys(M10_GATED).length,
-+      hasCore:!!M10_GATED['weight:add']&&!!M10_GATED['wo:log']&&!!M10_GATED['wo:finish']&&!!M10_GATED['day:clear'],
++      hasCore:!!M10_GATED['weight:add']&&!!M10_GATED['wo:log']&&!!M10_GATED['wo:finish']&&!!M10_GATED['day:clear']
++        &&!!M10_GATED['wo:start']&&!!M10_GATED['wo:startroutine']&&!!M10_GATED['wo:endrest']&&!!M10_GATED['wu:yes']
++        &&!!M10_GATED['wo:finishlater']&&!!M10_GATED['day:reopendo']&&!!M10_GATED['sync:pasteapply'],
 +      hasDeferred:!!M10_GATED['photo:add']&&!!M10_GATED['import']&&!!M10_GATED['reset:ask'],
 +      pureNotGated:!M10_GATED['nav:go']&&!M10_GATED['cal:sel']}));
-+    test('T1 gate inventory loaded (104 actions incl. deferred openers, pure actions excluded)',()=>{
-+      eq(s.gated,104);ok(s.hasCore);ok(s.hasDeferred);ok(s.pureNotGated);});
++    test('T1 gate inventory loaded (129 actions incl. deferred openers, pure actions excluded)',()=>{
++      eq(s.gated,129);ok(s.hasCore);ok(s.hasDeferred);ok(s.pureNotGated);});
 +    test('T1 no page errors',()=>eq(errs.length,0,errs.join(';')));
 +    await ctx.close();
 +  }
@@ -349,6 +371,142 @@ index 0000000..bffed63
 +    });
 +    test('T7 clean state: logout is NOT blocked by M10',()=>{
 +      ok(!/body data|photo change/.test(s.sheet),'no M10 block: '+s.sheet);});
++    await ctx.close();
++  }
++
++  /* T8 (round-29 ruling 1/7): DIRECT input/change persistence is gated —
++     a non-holder's typing produces no in-memory and no durable change */
++  {
++    const st={leaseHeld:true};
++    const {ctx,page}=await boot(browser,server,st);
++    const s=await page.evaluate(async()=>{
++      const inp=document.createElement('input');
++      inp.type='number';inp.id='wl-sleep-h';document.body.appendChild(inp);
++      inp.focus();inp.dispatchEvent(new Event('focusin',{bubbles:true}));
++      const before=JSON.stringify({sleep:state.sleep,v:localStorage.getItem('wl_v1')});
++      inp.value='7';
++      inp.dispatchEvent(new Event('input',{bubbles:true}));
++      inp.dispatchEvent(new Event('change',{bubbles:true}));
++      await new Promise(r=>setTimeout(r,250));
++      return {holder:M10.holder,same:JSON.stringify({sleep:state.sleep,v:localStorage.getItem('wl_v1')})===before,
++        reverted:inp.value===''};
++    });
++    test('T8 non-holder input/change: no in-memory change, no durable change, value reverted',()=>{
++      ok(!s.holder);ok(s.same,'state and storage byte-identical');ok(s.reverted,'field restored');});
++    await ctx.close();
++  }
++  {
++    const st={};
++    const {ctx,page}=await boot(browser,server,st);
++    const s=await page.evaluate(async()=>{
++      const inp=document.createElement('input');inp.type='number';document.body.appendChild(inp);
++      inp.dispatchEvent(new Event('focusin',{bubbles:true}));
++      inp.value='7';
++      let reached=false;
++      document.addEventListener('input',function(){reached=true;});
++      inp.dispatchEvent(new Event('input',{bubbles:true}));
++      await new Promise(r=>setTimeout(r,150));
++      return {holder:M10.holder,reached};
++    });
++    test('T8 holder input: the application handler still runs',()=>{ok(s.holder);ok(s.reached);});
++    await ctx.close();
++  }
++  {
++    const st={leaseHeld:true};
++    const {ctx,page}=await boot(browser,server,st);
++    const s=await page.evaluate(async()=>{
++      /* sign-in and server-config fields must remain usable on a read-only
++         device — they are how it recovers */
++      const inp=document.createElement('input');inp.id='pb-email';document.body.appendChild(inp);
++      let reached=false;
++      document.addEventListener('input',function(){reached=true;});
++      inp.dispatchEvent(new Event('input',{bubbles:true}));
++      await new Promise(r=>setTimeout(r,150));
++      return {holder:M10.holder,reached};
++    });
++    test('T8 sign-in fields stay usable for a non-holder',()=>{ok(!s.holder);ok(s.reached);});
++    await ctx.close();
++  }
++
++  /* T9 (ruling 2): the newly reclassified action families are gated */
++  {
++    const st={leaseHeld:true};
++    const {ctx,page}=await boot(browser,server,st);
++    const s=await page.evaluate(async()=>{
++      const out={};
++      for(const a of ['wo:start','wo:startroutine','wo:endrest','wu:yes','wo:finishlater','day:reopendo','sync:pasteapply']){
++        const b=document.createElement('button');b.setAttribute('data-act',a);document.body.appendChild(b);
++        let reached=false;
++        const probe=function(){reached=true;};
++        document.addEventListener('click',probe);
++        b.click();
++        document.removeEventListener('click',probe);
++        out[a]={gated:!!M10_GATED[a],blocked:!reached};
++        state.pendingConfirm=null;
++      }
++      return out;
++    });
++    for(const a of Object.keys(s))
++      test(`T9 ${a}: in the inventory and intercepted for a non-holder`,()=>{
++        ok(s[a].gated,'in M10_GATED');ok(s[a].blocked,'bubble-phase listener never reached');});
++    await ctx.close();
++  }
++
++  /* T10 (ruling 3): the HealthKit callback revalidates before mutating */
++  {
++    const st={};
++    const {ctx,page}=await boot(browser,server,st);
++    const s=await page.evaluate(async()=>{
++      state.hkWait={ts:Date.now()};
++      const before=JSON.stringify(state.steps);
++      /* the pen is lost between the Shortcut opening and the callback */
++      M10.holder=false;
++      hkTryFetch();
++      await new Promise(r=>setTimeout(r,400));
++      return {same:JSON.stringify(state.steps)===before,waitCleared:state.hkWait===null};
++    });
++    test('T10 HealthKit callback after pen loss: zero import, the wait is cleared honestly',()=>{
++      ok(s.same,'health stores untouched');ok(s.waitCleared);});
++    await ctx.close();
++  }
++
++  /* T11 (ruling 4): file flows revalidate AFTER the async work, not just at change */
++  {
++    const st={};
++    const {ctx,page}=await boot(browser,server,st);
++    const s=await page.evaluate(async()=>{
++      const before=JSON.stringify(state.weights);
++      const inp=document.getElementById('wl-import');
++      const backup=JSON.stringify({weights:[{date:'2026-08-02',weight:999}],settings:{}});
++      const file=new File([backup],'b.json',{type:'application/json'});
++      const dt=new DataTransfer();dt.items.add(file);
++      inp.files=dt.files;
++      inp.dispatchEvent(new Event('change',{bubbles:true}));   /* authority captured here */
++      M10.holder=false;                                        /* lost during FileReader */
++      await new Promise(r=>setTimeout(r,600));
++      return {same:JSON.stringify(state.weights)===before};
++    });
++    test('T11 import: pen lost after change but before FileReader.onload → zero mutation',()=>ok(s.same));
++    await ctx.close();
++  }
++
++  /* T12 (ruling 5): a malformed photo queue blocks logout */
++  {
++    const st={};
++    const {ctx,page}=await boot(browser,server,st);
++    const s=await page.evaluate(async()=>{
++      localStorage.setItem('wl_photo_ops__userA','{not json at all');
++      const read=m10pRead('userA').st;
++      pbLogout();
++      await new Promise(r=>setTimeout(r,200));
++      const msg=state.pendingConfirm?state.pendingConfirm.message:'';
++      state.pendingConfirm=null;
++      return {read,msg,signedIn:!!pbUid(),
++        preserved:localStorage.getItem('wl_photo_ops__userA')==='{not json at all'};
++    });
++    test('T12 malformed photo queue: logout blocked, evidence preserved (never read as empty)',()=>{
++      eq(s.read,'malformed');ok(/damaged|preserved/.test(s.msg),'message: '+s.msg);
++      ok(s.signedIn);ok(s.preserved,'the damaged bytes are untouched');});
 +    await ctx.close();
 +  }
 +

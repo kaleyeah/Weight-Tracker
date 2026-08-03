@@ -1,4 +1,4 @@
-  ✓ T1 gate inventory loaded (104 actions incl. deferred openers, pure actions excluded)
+  ✓ T1 gate inventory loaded (129 actions incl. deferred openers, pure actions excluded)
   ✓ T1 no page errors
   ✓ T2 non-holder: the gated action is intercepted and the takeover sheet is offered
   ✓ T3 holder: gated actions run unchanged
@@ -15,5 +15,18 @@
   ✓ T7 logout blocked by photo pending
   ✓ T7 logout blocked by core review
   ✓ T7 clean state: logout is NOT blocked by M10
+  ✓ T8 non-holder input/change: no in-memory change, no durable change, value reverted
+  ✓ T8 holder input: the application handler still runs
+  ✓ T8 sign-in fields stay usable for a non-holder
+  ✓ T9 wo:start: in the inventory and intercepted for a non-holder
+  ✓ T9 wo:startroutine: in the inventory and intercepted for a non-holder
+  ✓ T9 wo:endrest: in the inventory and intercepted for a non-holder
+  ✓ T9 wu:yes: in the inventory and intercepted for a non-holder
+  ✓ T9 wo:finishlater: in the inventory and intercepted for a non-holder
+  ✓ T9 day:reopendo: in the inventory and intercepted for a non-holder
+  ✓ T9 sync:pasteapply: in the inventory and intercepted for a non-holder
+  ✓ T10 HealthKit callback after pen loss: zero import, the wait is cleared honestly
+  ✓ T11 import: pen lost after change but before FileReader.onload → zero mutation
+  ✓ T12 malformed photo queue: logout blocked, evidence preserved (never read as empty)
 
-C19-M10 increment 5: 17 passed, 0 failed
+C19-M10 increment 5: 30 passed, 0 failed

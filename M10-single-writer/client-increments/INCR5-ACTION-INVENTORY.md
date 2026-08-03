@@ -1,136 +1,165 @@
-# M10 increment 5 — action → gate → test inventory
+# M10 increment 5 — mutation-boundary inventory (action → gate → test)
 
-Generated from the shipping dispatcher at the increment-5 head. Every
-`data-act` branch in the application dispatcher is listed exactly once.
-The gate is ONE capture-phase listener (M10-BLOCK-5) that runs before the
-application's own click handler; a refused action is stopped with
-`stopImmediatePropagation` so the dispatcher never sees it.
+Regenerated after round 29. Classification follows CALLEES transitively
+(depth ≤ 5), not branch text: a branch is gated when it reaches any
+persistence primitive (`save`, `saveLocal`, `saveTraining`,
+`saveWorkout`, `setSyncCfg`, `idbAdd/Delete/ClearAll`,
+`cloudPush/Pull`, `m8Push`, `m10cPush`, `pbSave`, `applyImport`,
+`hkTryFetch`, `importProgressPhotos`) directly or through any callee.
+The render/view layer is excluded from the walk: persistence there is a
+lazy migration, not user-initiated mutation, and gating it would stop a
+read-only device from viewing its own data (STRICT allows reading).
 
-- **Gate**: `m10GateAction` → `m10AuthNow` (account + session generation +
-  holder + unexpired deadline + valid fence + storage health).
-- **Tests**: C19 T1 asserts this exact inventory is loaded (count and
-  membership); T2 proves a gated action is intercepted for a non-holder;
-  T3 proves it runs for the holder; T4 proves fail-closed on corrupt
-  identity, blocked storage, expired deadline and missing fence. Deferred
-  openers additionally have T5 (picker → pen lost / fence replaced) and
-  T6 (confirmation revalidation).
+## Mutation boundaries — ALL of them, not only clicks
 
-## Gated actions (104)
+| boundary | gate | tests |
+|---|---|---|
+| dispatcher `click` on `[data-act]` | capture-phase interceptor → `m10GateAction` | C19 T1–T4, T9 |
+| global `input` / `change` on form controls | capture-phase interceptor (value restored; sign-in/server-config and M10 sheets exempt) | C19 T8 ×3 |
+| file pickers (`wl-photo-input`, `wl-import`, `wl-pbk-import`) | authority captured at open AND at change; revalidated again after `FileReader.onload`, after `processImage`, and before every `idbAdd`/`idbDelete` | C19 T5 ×2, T11 |
+| confirmation callbacks (`askConfirm`) | captured when raised by a holder; revalidated at confirm (sheets raised WITHOUT the pen are exempt so takeover/review can repair) | C19 T6 ×3 |
+| HealthKit import callback (`hkTryFetch`) | authority captured at start; revalidated before the local mutation AND before each mailbox clear | C19 T10 |
+| photo/core/training transport | owned by M10-BLOCK-2/3/4 (fenced routes, journals, queue) | C15–C18 |
+| logout | every M10 obligation blocks, including a MALFORMED photo queue (typed read, evidence preserved) | C19 T7 ×5, T12 |
 
-| action | mutation classes | gate | tests |
-|---|---|---|---|
-| `act:addcat` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `act:del` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `act:toggle` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `cal:ignore` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `cal:overwrite` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `cal:usecalc` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `cardio:del` | training+core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `cardio:save` | training+core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `cf:newtype` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `conn:remove` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `day:clear` | training+core+photos | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `ex:clearall` | training | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `ex:del` | training | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `ex:save` | training | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `ex:seedall` | training | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `exseed:add` | training | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `fb:done` | training | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `fb:set` | training | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `glp:compoundsave` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `glp:dose:del` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `glp:dose:save` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `glp:enable` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `glp:showdue` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `glp:siterot` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `glp:skip` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `glp:sym:del` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `glp:sym:newsave` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `glp:sym:save` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `glp:symptoms` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `glp:titration` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `hk:import` | deferred-open | capture-phase m10GateAction | C19 T1/T2/T3/T4 + T5/T6 |
-| `import` | deferred-open | capture-phase m10GateAction | C19 T1/T2/T3/T4 + T5/T6 |
-| `invite:create` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `invite:join` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `lift:del` | training+core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `lift:save` | training+core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `lift:savedetail` | training+core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `m10cx:takeover` | deferred-open | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `m8:cx:server` | deferred-open | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `macro:keep` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `macro:suggest` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `max:open` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `night:toggle` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `note:del` | training | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `note:save` | training | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `ob:back` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `ob:recalc` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `paste:do` | import/health | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `pb:pwsave` | photos | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `pbk:import` | deferred-open | capture-phase m10GateAction | C19 T1/T2/T3/T4 + T5/T6 |
-| `photo:add` | deferred-open | capture-phase m10GateAction | C19 T1/T2/T3/T4 + T5/T6 |
-| `pphoto:add` | deferred-open | capture-phase m10GateAction | C19 T1/T2/T3/T4 + T5/T6 |
-| `preset:del` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `reminder:add` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `reset:ask` | deferred-open | capture-phase m10GateAction | C19 T1/T2/T3/T4 + T5/T6 |
-| `reset:do` | training+core+photos | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `ri:mv` | training | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `ri:pick` | training | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `ri:prog` | training | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `ri:remove` | training | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `rt:del` | training | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `rt:new` | training | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `rt:save` | training | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `set:activity` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `set:sex` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `set:strategy` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `set:theme` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `set:ttype` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `set:units` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `set:weekstart` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `skip:calories` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `skip:sleep` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `skip:steps` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `skip:weight` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `status:end` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `status:endnow` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `status:save` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `sum:toggle` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `sync:pull` | deferred-open | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `sync:push` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `tdee:apply` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `tdee:later` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `weight:add` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `weight:del` | core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `wo:addset` | training | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `wo:begin` | training | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `wo:bwsave` | training | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `wo:delset` | training | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `wo:discard` | training | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `wo:discardnow` | training | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `wo:endnow` | training | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `wo:exaddset` | training | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `wo:exmove` | training | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `wo:exremove` | training | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `wo:finish` | training | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `wo:finishback` | training | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `wo:log` | training | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `wo:replacepick` | training | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `wo:replsave:fwd` | training | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `wo:resume` | training | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `wo:savesession` | training+core | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `wo:skipset` | training | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `wo:skipthem` | training | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
-| `wu:no` | training | capture-phase m10GateAction | C19 T1/T2/T3/T4 |
+## Gated actions (129)
 
-## Non-mutating actions (170) — deliberately ungated
+| action | why gated | tests |
+|---|---|---|
+| `act:addcat` | direct | C19 T1/T2/T3/T4 |
+| `act:del` | direct | C19 T1/T2/T3/T4 |
+| `act:toggle` | direct | C19 T1/T2/T3/T4 |
+| `ai:copy` | via weeklyAIText | C19 T1/T2/T3/T4 |
+| `ai:gen` | via genSummary | C19 T1/T2/T3/T4 |
+| `cal:ignore` | direct | C19 T1/T2/T3/T4 |
+| `cal:overwrite` | direct | C19 T1/T2/T3/T4 |
+| `cal:usecalc` | direct | C19 T1/T2/T3/T4 |
+| `cardio:del` | direct | C19 T1/T2/T3/T4 |
+| `cardio:save` | direct | C19 T1/T2/T3/T4 |
+| `cf:newtype` | direct | C19 T1/T2/T3/T4 |
+| `conn:remove` | direct | C19 T1/T2/T3/T4 |
+| `day:clear` | direct | C19 T1/T2/T3/T4 |
+| `day:reopendo` | via reopenDay | C19 T1/T2/T3/T4 + T9 |
+| `ex:clearall` | direct | C19 T1/T2/T3/T4 |
+| `ex:del` | direct | C19 T1/T2/T3/T4 |
+| `ex:save` | direct | C19 T1/T2/T3/T4 |
+| `ex:seedall` | direct | C19 T1/T2/T3/T4 |
+| `exseed:add` | direct | C19 T1/T2/T3/T4 |
+| `fb:done` | direct | C19 T1/T2/T3/T4 |
+| `fb:set` | direct | C19 T1/T2/T3/T4 |
+| `glp:compound` | via glpNormalize | C19 T1/T2/T3/T4 |
+| `glp:compoundsave` | direct | C19 T1/T2/T3/T4 |
+| `glp:dose:del` | direct | C19 T1/T2/T3/T4 |
+| `glp:dose:open` | via glpNormalize | C19 T1/T2/T3/T4 |
+| `glp:dose:save` | direct | C19 T1/T2/T3/T4 |
+| `glp:enable` | direct | C19 T1/T2/T3/T4 |
+| `glp:showdue` | direct | C19 T1/T2/T3/T4 |
+| `glp:siterot` | direct | C19 T1/T2/T3/T4 |
+| `glp:skip` | direct | C19 T1/T2/T3/T4 |
+| `glp:sym:del` | direct | C19 T1/T2/T3/T4 |
+| `glp:sym:edit` | via glpNormalize | C19 T1/T2/T3/T4 |
+| `glp:sym:newsave` | direct | C19 T1/T2/T3/T4 |
+| `glp:sym:open` | via glpNormalize | C19 T1/T2/T3/T4 |
+| `glp:sym:save` | direct | C19 T1/T2/T3/T4 |
+| `glp:symptoms` | direct | C19 T1/T2/T3/T4 |
+| `glp:titration` | direct | C19 T1/T2/T3/T4 |
+| `hk:import` | direct | C19 T1/T2/T3/T4 + T5/T10/T11 |
+| `import` | deferred-open | C19 T1/T2/T3/T4 + T5/T10/T11 |
+| `invite:create` | direct | C19 T1/T2/T3/T4 |
+| `invite:join` | direct | C19 T1/T2/T3/T4 |
+| `lift:del` | direct | C19 T1/T2/T3/T4 |
+| `lift:save` | direct | C19 T1/T2/T3/T4 |
+| `lift:savedetail` | direct | C19 T1/T2/T3/T4 |
+| `m10cx:server` | via m10cxTakeServer | C19 T1/T2/T3/T4 |
+| `m10cx:takeover` | direct | C19 T1/T2/T3/T4 |
+| `m10p:apply` | via m10pReviewApply | C19 T1/T2/T3/T4 |
+| `m10p:export` | via m10pExport | C19 T1/T2/T3/T4 |
+| `m8:cx:local` | via m8CxChooseLocal | C19 T1/T2/T3/T4 |
+| `m8:cx:server` | direct | C19 T1/T2/T3/T4 |
+| `macro:keep` | direct | C19 T1/T2/T3/T4 |
+| `macro:suggest` | direct | C19 T1/T2/T3/T4 |
+| `max:open` | direct | C19 T1/T2/T3/T4 |
+| `night:gen` | via genNightly | C19 T1/T2/T3/T4 |
+| `night:toggle` | direct | C19 T1/T2/T3/T4 |
+| `note:del` | direct | C19 T1/T2/T3/T4 |
+| `note:save` | direct | C19 T1/T2/T3/T4 |
+| `ob:back` | direct | C19 T1/T2/T3/T4 |
+| `ob:recalc` | direct | C19 T1/T2/T3/T4 |
+| `paste:do` | direct | C19 T1/T2/T3/T4 |
+| `pb:adv` | via pbRenderLogin | C19 T1/T2/T3/T4 |
+| `pb:pwsave` | direct | C19 T1/T2/T3/T4 |
+| `pbk:import` | deferred-open | C19 T1/T2/T3/T4 + T5/T10/T11 |
+| `photo:add` | deferred-open | C19 T1/T2/T3/T4 + T5/T10/T11 |
+| `photo:view` | via openLightbox | C19 T1/T2/T3/T4 |
+| `pphoto:add` | deferred-open | C19 T1/T2/T3/T4 + T5/T10/T11 |
+| `preset:del` | direct | C19 T1/T2/T3/T4 |
+| `reminder:add` | direct | C19 T1/T2/T3/T4 |
+| `reset:ask` | deferred-open | C19 T1/T2/T3/T4 + T5/T10/T11 |
+| `reset:do` | direct | C19 T1/T2/T3/T4 |
+| `ri:mv` | direct | C19 T1/T2/T3/T4 |
+| `ri:pick` | direct | C19 T1/T2/T3/T4 |
+| `ri:prog` | direct | C19 T1/T2/T3/T4 |
+| `ri:remove` | direct | C19 T1/T2/T3/T4 |
+| `rt:del` | direct | C19 T1/T2/T3/T4 |
+| `rt:new` | direct | C19 T1/T2/T3/T4 |
+| `rt:save` | direct | C19 T1/T2/T3/T4 |
+| `set:activity` | direct | C19 T1/T2/T3/T4 |
+| `set:sex` | direct | C19 T1/T2/T3/T4 |
+| `set:strategy` | direct | C19 T1/T2/T3/T4 |
+| `set:theme` | direct | C19 T1/T2/T3/T4 |
+| `set:ttype` | direct | C19 T1/T2/T3/T4 |
+| `set:units` | direct | C19 T1/T2/T3/T4 |
+| `set:weekstart` | direct | C19 T1/T2/T3/T4 |
+| `skip:calories` | direct | C19 T1/T2/T3/T4 |
+| `skip:sleep` | direct | C19 T1/T2/T3/T4 |
+| `skip:steps` | direct | C19 T1/T2/T3/T4 |
+| `skip:weight` | direct | C19 T1/T2/T3/T4 |
+| `status:end` | direct | C19 T1/T2/T3/T4 |
+| `status:endnow` | direct | C19 T1/T2/T3/T4 |
+| `status:save` | direct | C19 T1/T2/T3/T4 |
+| `sum:coachreport` | via srExport | C19 T1/T2/T3/T4 |
+| `sum:exportall` | via exportAllFiles | C19 T1/T2/T3/T4 |
+| `sum:exportweek` | via exportWeekFiles | C19 T1/T2/T3/T4 |
+| `sum:toggle` | direct | C19 T1/T2/T3/T4 |
+| `sync:pasteapply` | direct | C19 T1/T2/T3/T4 + T9 |
+| `sync:pull` | direct | C19 T1/T2/T3/T4 |
+| `sync:push` | direct | C19 T1/T2/T3/T4 |
+| `sync:test` | via cloudTest | C19 T1/T2/T3/T4 |
+| `tdee:apply` | direct | C19 T1/T2/T3/T4 |
+| `tdee:later` | direct | C19 T1/T2/T3/T4 |
+| `weight:add` | direct | C19 T1/T2/T3/T4 |
+| `weight:del` | direct | C19 T1/T2/T3/T4 |
+| `wo:addset` | direct | C19 T1/T2/T3/T4 |
+| `wo:begin` | direct | C19 T1/T2/T3/T4 |
+| `wo:bwsave` | direct | C19 T1/T2/T3/T4 |
+| `wo:delset` | direct | C19 T1/T2/T3/T4 |
+| `wo:discard` | direct | C19 T1/T2/T3/T4 |
+| `wo:discardnow` | direct | C19 T1/T2/T3/T4 |
+| `wo:endnow` | direct | C19 T1/T2/T3/T4 |
+| `wo:endrest` | via woTransition | C19 T1/T2/T3/T4 + T9 |
+| `wo:exaddset` | direct | C19 T1/T2/T3/T4 |
+| `wo:exmove` | direct | C19 T1/T2/T3/T4 |
+| `wo:exprog` | via switchEntryProgression | C19 T1/T2/T3/T4 |
+| `wo:exremove` | direct | C19 T1/T2/T3/T4 |
+| `wo:finish` | direct | C19 T1/T2/T3/T4 |
+| `wo:finishback` | direct | C19 T1/T2/T3/T4 |
+| `wo:finishlater` | via pauseWorkout | C19 T1/T2/T3/T4 + T9 |
+| `wo:log` | direct | C19 T1/T2/T3/T4 |
+| `wo:replacepick` | direct | C19 T1/T2/T3/T4 |
+| `wo:replsave:fwd` | direct | C19 T1/T2/T3/T4 |
+| `wo:resume` | direct | C19 T1/T2/T3/T4 |
+| `wo:savesession` | direct | C19 T1/T2/T3/T4 |
+| `wo:skipset` | direct | C19 T1/T2/T3/T4 |
+| `wo:skipthem` | direct | C19 T1/T2/T3/T4 |
+| `wo:start` | via startWorkout | C19 T1/T2/T3/T4 + T9 |
+| `wo:startroutine` | via woTransition | C19 T1/T2/T3/T4 + T9 |
+| `wu:no` | direct | C19 T1/T2/T3/T4 |
+| `wu:yes` | via markWarmup | C19 T1/T2/T3/T4 + T9 |
 
-These branches change only view state, selection, UI toggles or
-navigation and reach no persistence primitive (`save`, `saveLocal`,
-`saveTraining`, `saveWorkout`, `idb*`, `cloudPush/Pull`, `pbSave`,
-`applyImport`, `hkTryFetch`). Gating them would block a read-only
-device from navigating its own data, which the Owner's STRICT ruling
-explicitly allows.
+## Ungated actions (145)
 
-`act:addopen`, `act:editmode`, `act:pick`, `actpick:close`, `adopt:ask`, `adopt:yes`, `ai:copy`, `ai:gen`, `al:change`, `alert:dismiss`, `app:update`, `bc:tab`, `browse:close`, `browse:open`, `cal:expand`, `cal:next`, `cal:prev`, `cal:sel`, `card:toggle`, `cardio:add`, `cardio:cancel`, `cardio:edit`, `cardio:pick`, `cardio:repick`, `cf:type`, `cf:typeedit`, `cf:zone`, `chart:pt`, `confirm:no`, `confirm:yes`, `copy`, `day:next`, `day:prev`, `day:reopenask`, `day:reopencancel`, `day:reopendo`, `device:close`, `device:copylink`, `device:open`, `diary:older`, `dl:open`, `ex:add`, `ex:bw`, `ex:cancel`, `ex:edit`, `ex:muscle`, `ex:mv`, `export`, `food:pick`, `glp:compound`, `glp:compoundback`, `glp:dose:open`, `glp:prog:mode`, `glp:setup`, `glp:sev`, `glp:sheetclose`, `glp:site`, `glp:sym:edit`, `glp:sym:new`, `glp:sym:open`, `glp:sym:pick`, `glp:timeline`, `glp:unit`, `go`, `hist:day`, `hist:more`, `hist:tab`, `hk:cancel`, `info`, `info:close`, `invite:copy`, `invite:joincancel`, `invite:open`, `lf:zone`, `lift:back`, `lift:cancel`, `lift:edit`, `lift:editcancel`, `lift:summaryback`, `lift:tofinish`, `lift:view`, `lrec:finish`, `lrec:restore`, `m10cx:close`, `m10cx:export`, `m10cx:mine`, `m10cx:open`, `m10cx:server`, `m10p:apply`, `m10p:discard`, `m10p:export`, `m8:cx:close`, `m8:cx:export`, `m8:cx:local`, `m8:cx:open`, `max:close`, `morestats`, `night:gen`, `noop`, `note:add`, `note:cancel`, `note:edit`, `note:pin`, `ob:install`, `ob:next`, `ob:start`, `openday`, `opentoday`, `paste`, `paste:cancel`, `pb:adv`, `pb:logout`, `pb:pwtoggle`, `pbk:export`, `photo:view`, `qe:close`, `reset:cancel`, `ri:add`, `ri:pickclose`, `rt:open`, `rt:openedit`, `rt:openedit_dummy`, `set:back`, `set:page`, `status:close`, `status:open`, `status:type`, `sum:coachreport`, `sum:day`, `sum:exportall`, `sum:exportweek`, `sum:next`, `sum:prev`, `sum:tocur`, `sync:copy`, `sync:paste`, `sync:pasteapply`, `sync:pastecancel`, `sync:test`, `syncdot`, `trend:mode`, `trend:next`, `trend:prev`, `trend:tocur`, `wo:bw`, `wo:bwcancel`, `wo:completethem`, `wo:endrest`, `wo:exmenu`, `wo:exmenu:close`, `wo:exnote`, `wo:exprog`, `wo:exreplace`, `wo:fbopen`, `wo:finishlater`, `wo:hist`, `wo:histclose`, `wo:promptcancel`, `wo:quick`, `wo:replacecancel`, `wo:replsave:once`, `wo:resumeask`, `wo:resumecancel`, `wo:setmenu`, `wo:setmenu:close`, `wo:start`, `wo:startroutine`, `wof:zone`, `wt:add`, `wu:yes`
+View, selection, navigation and sheet-open branches that reach no
+persistence primitive through any callee. A read-only device must still
+be able to look at its own data.
+
+`act:addopen`, `act:editmode`, `act:pick`, `actpick:close`, `adopt:ask`, `adopt:yes`, `al:change`, `alert:dismiss`, `app:update`, `bc:tab`, `browse:close`, `browse:open`, `cal:expand`, `cal:next`, `cal:prev`, `cal:sel`, `card:toggle`, `cardio:add`, `cardio:cancel`, `cardio:edit`, `cardio:pick`, `cardio:repick`, `cf:type`, `cf:typeedit`, `cf:zone`, `chart:pt`, `confirm:no`, `confirm:yes`, `copy`, `day:next`, `day:prev`, `day:reopenask`, `day:reopencancel`, `device:close`, `device:copylink`, `device:open`, `diary:older`, `dl:open`, `ex:add`, `ex:bw`, `ex:cancel`, `ex:edit`, `ex:muscle`, `ex:mv`, `export`, `food:pick`, `glp:compoundback`, `glp:prog:mode`, `glp:setup`, `glp:sev`, `glp:sheetclose`, `glp:site`, `glp:sym:new`, `glp:sym:pick`, `glp:timeline`, `glp:unit`, `go`, `hist:day`, `hist:more`, `hist:tab`, `hk:cancel`, `info`, `info:close`, `invite:copy`, `invite:joincancel`, `invite:open`, `lf:zone`, `lift:back`, `lift:cancel`, `lift:edit`, `lift:editcancel`, `lift:summaryback`, `lift:tofinish`, `lift:view`, `lrec:finish`, `lrec:restore`, `m10cx:close`, `m10cx:export`, `m10cx:mine`, `m10cx:open`, `m10p:discard`, `m8:cx:close`, `m8:cx:export`, `m8:cx:open`, `max:close`, `morestats`, `noop`, `note:add`, `note:cancel`, `note:edit`, `note:pin`, `ob:install`, `ob:next`, `ob:start`, `openday`, `opentoday`, `paste`, `paste:cancel`, `pb:logout`, `pb:pwtoggle`, `pbk:export`, `qe:close`, `reset:cancel`, `ri:add`, `ri:pickclose`, `rt:open`, `rt:openedit`, `rt:openedit_dummy`, `set:back`, `set:page`, `status:close`, `status:open`, `status:type`, `sum:day`, `sum:next`, `sum:prev`, `sum:tocur`, `sync:copy`, `sync:paste`, `sync:pastecancel`, `syncdot`, `trend:mode`, `trend:next`, `trend:prev`, `trend:tocur`, `wo:bw`, `wo:bwcancel`, `wo:completethem`, `wo:exmenu`, `wo:exmenu:close`, `wo:exnote`, `wo:exreplace`, `wo:fbopen`, `wo:hist`, `wo:histclose`, `wo:promptcancel`, `wo:quick`, `wo:replacecancel`, `wo:replsave:once`, `wo:resumeask`, `wo:resumecancel`, `wo:setmenu`, `wo:setmenu:close`, `wof:zone`, `wt:add`
