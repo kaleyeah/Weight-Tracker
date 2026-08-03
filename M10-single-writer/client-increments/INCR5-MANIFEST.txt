@@ -1,4 +1,4 @@
-# INCR5 manifest — round 34. Verify with:  sha256sum -c INCR5-MANIFEST.txt
+# INCR5 manifest — round 36 (records correction only; code and tests unchanged since round 34). Verify with:  sha256sum -c INCR5-MANIFEST.txt
 # (run from the repository root: /home/griffin/projects/Weight-Tracker)
 8f9c2ff0861b0ec2a73581444edf2f76f6ee7b6ba534dadc2fbbf4c575f74efc  index.html
 d93fb15b3c5afb07864471f0e28fb3b1b9c83ff79429262e4e76442c7ade1f60  tests/browser/c15m10-lease.browser.test.js

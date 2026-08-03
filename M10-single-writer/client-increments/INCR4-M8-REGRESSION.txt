@@ -4,8 +4,19 @@
 !! whose exit status was checked. Round 32's edition of this claim was
 !! written while the last regression batch was still running and filled in
 !! with anticipated numbers; the same practice produced the totals in this
-!! file. On the very heads these files were shipped for, `c11m8-faults`
-!! ABORTED at test L and `c11m8-quota` FAILED B6/13.
+!! file.
+!!
+!! WHY IT IS INVALID — precisely (round-35 ruling 7):
+!!   * These totals are invalid because they were manually ANTICIPATED,
+!!     without completed-run and exit-status evidence. That alone is enough.
+!!   * The `c11m8-faults` abort at L and the `c11m8-quota` B6/13 failure were
+!!     observed only AFTER the increment-5 primitive gate landed at `3cd7311`,
+!!     which is later than the heads these files were shipped for.
+!!   * Their existence therefore demonstrates the danger of the old evidence
+!!     process. It does NOT prove that the earlier accepted code heads failed.
+!!   * Equally, the old totals are NOT reinstated or endorsed merely because
+!!     failure on those historical heads is unproven — they remain unusable
+!!     because of how they were produced.
 !!
 !! Nothing in this file may be used as evidence. The only valid client
 !! matrix is INCR5-MATRIX/TOTALS.txt, generated mechanically by
