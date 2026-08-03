@@ -1,46 +1,71 @@
-# M10 single-writer — round 20: increment 2, round-19 corrections
+# M10 single-writer — round 21: client increment 3 (displaced-core review)
 
 You are the Architect for the Compound project (read-only; rulings bind
 the Engineer; the Owner alone authorizes deployment and live-data
 mutation).
 
-The narrow correction only, per your closing list. Head `3056e8d`
-(index.html sha prefix 1bf63e59…); exact diff from `78cb17e`:
-`client-increments/INCR2-DIFF-FROM-78cb17e.patch` (15 lines — the
-one-line validator change plus its comment); regenerated cumulative
-`INCR2-DIFF.patch` = 3e7a0d0 → 3056e8d (550 lines).
+Increment 3 per round-20's closing list, implemented narrowly on
+accepted head `3056e8d`. `client-increments/INCR3-README.md` is the
+package record (state machine, actions, guarantees, and the two
+defects this increment's own tests caught and fixed).
 
-1. **Genuine safe-integer validation (ruling 4)** — the validator's
-   `natOk` now requires finite, nonnegative, integral, AND
-   ≤ 9007199254740991 (Number.MAX_SAFE_INTEGER) — applied uniformly
-   to every integer journal field (expectedRev, newRev, gen, fence,
-   serverRev, staleFence). Three new tests (T19), all green:
-   MAX_SAFE_INTEGER+1 in a live 409 → the journal stays at intent
-   with dirty preserved (not review state); the same unsafe value
-   SEEDED into a conflict terminal and into a displacement terminal →
-   each follows the established quarantine-and-block path (preserved
-   in the corrupt namespace, never review state).
-2. **Self-consistent package records (ruling 5)** — INCR2-README
-   identity and evidence sections corrected and audited: head
-   `3056e8d`, C16 49/49, regressions vs `3056e8d`; no stale
-   `f78d2e0`/39-case statements remain anywhere in the bundle.
-3. **Records-location evidence (ruling 6)** —
-   `client-increments/RECORDS-LOCATION-EVIDENCE.md`: repository
-   history proves the mandatory reports were never renamed, moved, or
-   removed — `git log engineering/m8 -- reports/` is EMPTY across the
-   branch's entire history, while `main` carries 32 maintaining
-   commits on PROJECT_LOG.md (latest two cited). This is the
-   documented two-checkout layout from the round-14 bundle. No page
-   to Griffin is needed (nothing retired, no product judgment); if
-   you want the records mirrored into this branch, rule so and it
-   will be a merge from `main`, not a recreation.
+Identity: base `3056e8d` → head `65e1d12` (index.html sha prefix
+2b47374b…); cumulative diff `INCR3-DIFF.patch` (516 lines) — one
+delimited block `M10-BLOCK-3` whose wiring only WRAPS increment-1/2
+functions (no accepted code modified) plus a delegated `m10cx:*`
+click listener.
 
-Evidence, all fresh at `3056e8d`: `INCR2-C16-OUTPUT.txt` 49/49;
-`INCR2-C15-RERUN.txt` 35/35; `INCR2-M8-REGRESSION.txt` 171/171
-(+artifact-scope recovery 25/25).
+Your eight return items, in order:
+1. **State machine + actions** — README §state-machine/§actions:
+   entry ONLY via validator-passing terminal journals (ruling 7; auth
+   terminals are cleanup-only and the kept dirty re-pushes — tested);
+   states dx-recovery/displaced layered via a wrapped m10cState; the
+   G8 handoff (dx intent verified before terminal-ack removal, all
+   three crash arms tested); actions: export (delivery-evidenced,
+   gen+identity-bound), Keep-this-device's-copy, Take-the-server's-
+   copy, Take-over, Decide-later.
+2. **Preservation/export guarantees** — the envelope holds BOTH
+   copies; ordinary push/pull are REFUSED while displaced (wrapped,
+   fail closed); local editing continues via journaled core-refresh
+   with the export gate closing automatically on any edit or server
+   change; the destructive action demands an explicit whole-snapshot
+   confirmation and an in-action fresh fetch.
+3. **Journal phases + crash recovery** — core-displace
+   (intent→net-done(fetch)→k1(envelope)→done), core-refresh, core-
+   push-mine (intent→net-done→k1 base→k2 dirty→k3 envelope→done),
+   core-take-server (intent→k1 wl_v1 verified→k2 base→k3 cleanup→
+   done); crash arms seeded at EVERY phase of both resolution ops
+   (8 arms) plus the 3 handoff arms — all recover to the correct
+   terminal state with nothing lost.
+4. **Account isolation** — A→B→A mid-push-mine dispatch: the
+   response is discarded, the dx journal stays BYTE-IDENTICAL for
+   replay under A's next session, zero `wl_core_*__userB` keys.
+5. **Edit-during-review + lease-change** — the envelope's local copy
+   follows the live store (journaled refresh) and the gate closes;
+   a non-holder sees disabled resolution buttons + an inline
+   take-over offer, and a push attempt refuses with zero commits.
+6. **Storage-failure injection** — envelope write (block + dx journal
+   survives for retry), refresh write (block; the edit itself is
+   safe in wl_v1), resolution cleanup removal (block; the base
+   already durable) — each fail-closed.
+7. **Evidence** — `INCR3-C17-OUTPUT.txt` 30/30 (all arms above);
+   `INCR3-C16-RERUN.txt` 49/49 and `INCR3-C15-RERUN.txt` 35/35
+   (accepted increments unchanged); `INCR3-M8-REGRESSION.txt`
+   171/171 + artifact-scope recovery 25/25 — all fresh at `65e1d12`.
+8. **Artifacts** — the cumulative diff above; the README doubles as
+   the narrow record since increment 3 is a single review round so
+   far. Two defects found by this increment's own tests are recorded
+   honestly in the README (boot gen-sync on the recovery path; the
+   G8 gap arm's terminal-ack removal).
 
-Rulings 1–3 of round 19 (plain-object validation, durable annulment,
-live malformed-409 handling) were accepted and are untouched.
+No destructive default exists (ruling 9): reload keeps the review,
+logout is blocked while unresolved, account switches touch nothing,
+lease expiry only disables buttons — all tested.
 
-Requested ruling: acceptance of increment 2 and authorization for
-increment 3.
+Deferred: photo queue (increment 4), gate surface + logout coupling
+(5); NAS/coach/enforcement/publication behind their Owner gates,
+unrequested.
+
+Requested ruling: acceptance of increment 3 and authorization for
+increment 4 (the photo operation queue + displaced-photo review on
+the reviewed transactional photo routes).
