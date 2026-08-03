@@ -2,13 +2,37 @@
 
 ## Package identity
 - **Base**: `249fd0e` — the accepted increment-4 head.
-- **Code head**: `3cd7311` — index.html sha256
-  `12e839b01138169c37a2f49cc41ea5de7cce714fbe14a4c31ab07cc35eb9612f`.
+- **Code head**: `87e9d84` — index.html sha256
+  `d2c8ed29cb9258c2c277350e0cb94eddcd9b8ad31c179fb2797c4589694b0a3b`
+  (round-31 corrections; narrow diff `INCR5-DIFF-FROM-3cd7311.patch`, 96 lines).
 - **Records head**: this commit and later — harness/artefacts only;
   `index.html` byte-identical (the manifest checks it).
 - **Diffs**: `INCR5-DIFF.patch` = 249fd0e → 3cd7311 (`git diff --check`
   clean); `INCR5-DIFF-FROM-793e591.patch` = the round-30 corrections alone;
   `INCR5-TESTS-DIFF.patch` = the C19 suite plus the disclosed harness edits.
+
+## Round-31 rulings, as landed
+- **1** HealthKit captures at the `hk:import` CLICK, stored on
+  `state.hkWait`, covering the initial mailbox clear; `hkTryFetch` never
+  manufactures a missing capture (T14 ×3, incl. A→B→A before the first poll
+  and a non-holder producing zero health writes).
+- **2** `INCR5-DURABLE-WRITERS.md`: all 13 durable writers inventoried and
+  classified — gated at source / substrate (journal, queue, quarantine —
+  gating them would break recovery, authority proven at their call sites) /
+  account-local infrastructure. The four-function claim is withdrawn.
+- **3** `m10InternalWrite` REMOVED — it was declared and never set, so the
+  claim it guarded anything was false. The real authorization path is
+  documented instead.
+- **4** T13: a non-holder navigating every view, plus `migrateProgressionTypes`
+  and `resyncAllActivityTags` fired directly, leaves wl_v1, wl_training_v1
+  and wl_workout byte-identical.
+- **5** `adopt:ask`, `adopt:yes`, `lrec:restore`, `lrec:finish` are EXEMPT
+  from the ordinary gate: they run on terminal boot screens before lease
+  initialisation, so requiring the pen could make recovery impossible (T15).
+- **6** `m10cx:mine` / `m10p:discard` reclassified as M10 review actions that
+  persist and prove authority INSIDE their handlers (T16).
+- **7** imported photos stage under a fresh unique id, so a reused incoming
+  id can never overwrite the pre-image in place.
 
 ## Round-30 rulings, as landed
 - **1 (HealthKit)**: ONE immutable capture is stored with `state.hkWait`
@@ -92,7 +116,7 @@ gate never "assumes yes" when it cannot prove authority.
   129 gated actions with WHY each is gated (direct primitive or the
   callee that reaches one) and its tests; then the 145 ungated
   view/selection/navigation actions and the reason.
-- `INCR5-C19-OUTPUT.txt` — C19 30/30: inventory membership; non-holder
+- `INCR5-C19-OUTPUT.txt` — C19 36/36: inventory membership; non-holder
   interception; holder pass-through; four fail-closed arms; two
   delayed-picker arms (pen lost, fence replaced); three confirmation
   arms (expired, valid, A→B→A); four logout-coupling arms + the clean

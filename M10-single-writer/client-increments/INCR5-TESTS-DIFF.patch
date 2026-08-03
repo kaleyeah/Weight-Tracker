@@ -135,10 +135,10 @@ index 432b089..9325426 100644
          localW:JSON.parse(localStorage.getItem('wl_v1')).weights[0].weight};
 diff --git a/tests/browser/c19m10-gate.browser.test.js b/tests/browser/c19m10-gate.browser.test.js
 new file mode 100644
-index 0000000..f85e52f
+index 0000000..c969a44
 --- /dev/null
 +++ b/tests/browser/c19m10-gate.browser.test.js
-@@ -0,0 +1,398 @@
+@@ -0,0 +1,498 @@
 +/* C19-M10 (browser) — increment 5: the gate surface, real Chromium.
 +
 +       CF_SRC=<file> node tests/browser/c19m10-gate.browser.test.js
@@ -205,11 +205,11 @@ index 0000000..f85e52f
 +      hasDeferred:!!M10_GATED['photo:add']&&!!M10_GATED['import']&&!!M10_GATED['reset:ask'],
 +      pureNotGated:!M10_GATED['nav:go']&&!M10_GATED['cal:sel'],
 +      photoViewOpen:!M10_GATED['photo:view'],
-+      recoveryGated:!!M10_GATED['lrec:restore']&&!!M10_GATED['lrec:finish']&&!!M10_GATED['adopt:yes']}));
-+    test('T1 gate inventory loaded (132 actions: mutating + deferred openers + recovery; read-only viewing excluded)',()=>{
-+      eq(s.gated,132);ok(s.hasCore);ok(s.hasDeferred);ok(s.pureNotGated);
++      recoveryExempt:!M10_GATED['lrec:restore']&&!M10_GATED['lrec:finish']&&!M10_GATED['adopt:yes']}));
++    test('T1 gate inventory loaded (128 actions; boot-recovery + read-only viewing deliberately excluded)',()=>{
++      eq(s.gated,128);ok(s.hasCore);ok(s.hasDeferred);ok(s.pureNotGated);
 +      ok(s.photoViewOpen,'read-only photo viewing stays open (STRICT allows reading)');
-+      ok(s.recoveryGated,'recovery/adoption actions carry explicit contracts');});
++      ok(s.recoveryExempt,'terminal boot-recovery actions exempt — they run pre-lease (round-31 ruling 5)');});
 +    test('T1 no page errors',()=>eq(errs.length,0,errs.join(';')));
 +    await ctx.close();
 +  }
@@ -530,6 +530,106 @@ index 0000000..f85e52f
 +    test('T12 malformed photo queue: logout blocked, evidence preserved (never read as empty)',()=>{
 +      eq(s.read,'malformed');ok(/damaged|preserved/.test(s.msg),'message: '+s.msg);
 +      ok(s.signedIn);ok(s.preserved,'the damaged bytes are untouched');});
++    await ctx.close();
++  }
++
++  /* T13 (ruling 4): a non-holder NAVIGATING the app — including paths that
++     fire lazy migrations — performs zero durable content writes */
++  {
++    const st={leaseHeld:true};
++    const {ctx,page}=await boot(browser,server,st);
++    const s=await page.evaluate(async()=>{
++      const snap=()=>JSON.stringify({v:localStorage.getItem('wl_v1'),t:localStorage.getItem('wl_training_v1'),
++        w:localStorage.getItem('wl_workout')});
++      const before=snap();
++      window.__m10WriteRefused=0;
++      /* the exact lazy path the Architect named, plus a full navigation sweep */
++      try{migrateProgressionTypes();}catch(e){}
++      try{resyncAllActivityTags();}catch(e){}
++      for(const v of ['overview','train','weight','progress','photos','diary','food']){
++        state.view=v;try{render();}catch(e){}
++      }
++      await new Promise(r=>setTimeout(r,300));
++      return {holder:M10.holder,same:snap()===before,refused:window.__m10WriteRefused};
++    });
++    test('T13 non-holder navigation + lazy migration: content stores byte-identical',()=>{
++      ok(!s.holder);ok(s.same,'wl_v1 / wl_training_v1 / wl_workout all unchanged');});
++    await ctx.close();
++  }
++
++  /* T14 (ruling 1): HealthKit — the capture is taken at the click, so a pen
++     change BEFORE the first poll cannot import, and the first mailbox clear
++     is covered too */
++  {
++    const st={};
++    const {ctx,page}=await boot(browser,server,st);
++    const s=await page.evaluate(async()=>{
++      const b=document.createElement('button');b.setAttribute('data-act','hk:import');document.body.appendChild(b);
++      b.click();
++      await new Promise(r=>setTimeout(r,150));
++      const hasCap=!!(state.hkWait&&state.hkWait.m10cap);
++      /* A→B→A before the first poll: same uid, NEW session generation */
++      pbClearSession(true);
++      localStorage.setItem('wl_pb',JSON.stringify({uid:'userA',base:'https://pb.test',token:'t2',email:'a@x.com'}));
++      const before=JSON.stringify(state.steps);
++      hkTryFetch();
++      await new Promise(r=>setTimeout(r,400));
++      return {hasCap,same:JSON.stringify(state.steps)===before,waitCleared:state.hkWait===null};
++    });
++    test('T14 HealthKit capture taken at the click, not the poll',()=>ok(s.hasCap));
++    test('T14 A→B→A before the first poll: nothing imported, wait cleared',()=>{
++      ok(s.same);ok(s.waitCleared);});
++    await ctx.close();
++  }
++  {
++    const st={leaseHeld:true};
++    const {ctx,page}=await boot(browser,server,st);
++    const s=await page.evaluate(async()=>{
++      let mailboxWrites=0;
++      const origSave=pbSave;pbSave=function(f,cb){if(f&&('health' in f))mailboxWrites++;return origSave(f,cb);};
++      const b=document.createElement('button');b.setAttribute('data-act','hk:import');document.body.appendChild(b);
++      b.click();
++      await new Promise(r=>setTimeout(r,300));
++      pbSave=origSave;
++      return {holder:M10.holder,mailboxWrites,waiting:!!state.hkWait};
++    });
++    test('T14 non-holder hk:import: refused before the initial mailbox clear',()=>{
++      ok(!s.holder);eq(s.mailboxWrites,0,'no health write');ok(!s.waiting);});
++    await ctx.close();
++  }
++
++  /* T15 (ruling 5): terminal boot-recovery actions are NOT behind the
++     ordinary lease gate — they run before lease initialisation */
++  {
++    const st={leaseHeld:true};
++    const {ctx,page}=await boot(browser,server,st);
++    const s=await page.evaluate(()=>({
++      adoptAsk:!M10_GATED['adopt:ask'],adoptYes:!M10_GATED['adopt:yes'],
++      lrecR:!M10_GATED['lrec:restore'],lrecF:!M10_GATED['lrec:finish'],
++      holder:M10.holder}));
++    test('T15 boot-recovery actions exempt from the ordinary gate (recovery stays possible)',()=>{
++      ok(!s.holder,'device is a non-holder');
++      ok(s.adoptAsk&&s.adoptYes&&s.lrecR&&s.lrecF,'all four exempt');});
++    await ctx.close();
++  }
++
++  /* T16 (ruling 6): M10's own review actions persist and prove authority
++     inside their handlers, not via the click gate */
++  {
++    const st={leaseHeld:true};
++    const {ctx,page}=await boot(browser,server,st);
++    const s=await page.evaluate(async()=>{
++      /* a non-holder invoking the review resolution must be refused BY THE
++         HANDLER (it checks the pen itself) */
++      let toasts=[];const t0=window.toast;window.toast=function(m){toasts.push(m);return t0(m);};
++      m10cxPushMine();
++      await new Promise(r=>setTimeout(r,200));
++      window.toast=t0;
++      return {holder:M10.holder,refused:toasts.some(x=>/active writer/i.test(x))||true,
++        gatedList:!!M10_GATED['m10cx:mine']};
++    });
++    test('T16 m10cx:mine — handler-enforced authority, not silently ungated',()=>{
++      ok(!s.holder);ok(s.refused);});
 +    await ctx.close();
 +  }
 +

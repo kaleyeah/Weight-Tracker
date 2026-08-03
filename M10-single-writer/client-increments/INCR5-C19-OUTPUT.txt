@@ -1,4 +1,4 @@
-  ✓ T1 gate inventory loaded (132 actions: mutating + deferred openers + recovery; read-only viewing excluded)
+  ✓ T1 gate inventory loaded (128 actions; boot-recovery + read-only viewing deliberately excluded)
   ✓ T1 no page errors
   ✓ T2 non-holder: the gated action is intercepted and the takeover sheet is offered
   ✓ T3 holder: gated actions run unchanged
@@ -28,5 +28,11 @@
   ✓ T10 HealthKit callback after pen loss: zero import, the wait is cleared honestly
   ✓ T11 import: pen lost after change but before FileReader.onload → zero mutation
   ✓ T12 malformed photo queue: logout blocked, evidence preserved (never read as empty)
+  ✓ T13 non-holder navigation + lazy migration: content stores byte-identical
+  ✓ T14 HealthKit capture taken at the click, not the poll
+  ✓ T14 A→B→A before the first poll: nothing imported, wait cleared
+  ✓ T14 non-holder hk:import: refused before the initial mailbox clear
+  ✓ T15 boot-recovery actions exempt from the ordinary gate (recovery stays possible)
+  ✓ T16 m10cx:mine — handler-enforced authority, not silently ungated
 
-C19-M10 increment 5: 30 passed, 0 failed
+C19-M10 increment 5: 36 passed, 0 failed
