@@ -38,7 +38,17 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
         {exerciseId:'e-row',name:'Row',muscle:'back',sets:[{weight:50,reps:10,rir:1,status:'done'},{weight:50,reps:9,rir:0,status:'done'}]}]}]}
     }));
   });
-  await ctx.route('**/api/**',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[],token:'tok',record:{id:'userA'}})}));
+  /* M10 (increment 5): this suite signs in, so the device must hold the
+     writer lease for its mutating actions to be allowed. Answer the lease
+     route as the granting server; everything else keeps the old stub. */
+  await ctx.route('**/api/**',r=>{
+    const u=r.request().url();
+    if(/cf\/writer\/lease/.test(u)){
+      let b={};try{b=JSON.parse(r.request().postData()||'{}');}catch(e){}
+      return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,exists:true,granted:true,
+        fence:1,holderDeviceId:b.deviceId||'dev',deviceName:b.deviceName||'x',active:true,
+        serverNow:Date.now(),ttlMs:86400000})});}
+    return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[],token:'tok',record:{id:'userA'}})});});
   const page=await ctx.newPage();
   const errs=[];page.on('pageerror',e=>errs.push(String(e)));
   await page.goto('http://127.0.0.1:'+server.address().port,{waitUntil:'load'});
