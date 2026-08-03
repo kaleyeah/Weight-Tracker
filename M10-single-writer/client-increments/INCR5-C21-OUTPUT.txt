@@ -1,0 +1,19 @@
+
+C21 (browser) — coach-report rep ranges
+  source: /home/griffin/projects/Weight-Tracker/index.html
+  build : 2026-08-03.428-bcweight
+  ✓ T1 an entry with no range of its own inherits the routine item’s range
+  ✓ T2 a range recorded on the entry is never overridden by the routine
+  ✓ T3 with no range anywhere the report still shows nothing rather than inventing one
+  ✓ T4 an inverted or half-filled routine range is refused, an equal pair is valid
+  ✓ T5 reverse pyramid keeps its own ladder resolution
+  ✓ T6 the printed cell shows the range instead of an em dash
+  ✓ T8 cardio is listed first, with day/type/zone/time/cals, at every zone
+  ✓ T9 an empty cardio week still shows the heading and says nothing was logged
+  ✓ T10 the multiply sign is spaced and dimmed so weight and reps read apart
+  ✓ T11 body fat and lean mass appear with direction, and a stale reading says so
+  ✓ T12 weight leads body composition and every row keeps all four columns
+  ✓ T13 every exercise carries its own Set / Weight × Reps / Target / Range / RIR header
+  ✓ T7 no uncaught page errors
+
+C21 — coach-report rep ranges: 13 passed, 0 failed

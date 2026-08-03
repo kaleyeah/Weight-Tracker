@@ -1,7 +1,7 @@
 
 C14 (browser) — correctness fixes
   source: /home/griffin/projects/Weight-Tracker/index.html
-  build : 2026-08-02.417-fx
+  build : 2026-08-03.428-bcweight
   ✓ workout bw is today's weigh-in (184)
   ✓ #6 pull-up defaults to TODAY'S bodyweight, not last session's 186.8
   ✓ #6 no stale sugW advertised for bodyweight sets

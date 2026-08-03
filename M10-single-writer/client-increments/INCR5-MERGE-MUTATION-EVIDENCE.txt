@@ -1,0 +1,129 @@
+INCR5 — MERGE MUTATION EVIDENCE (2026-08-03)
+============================================
+Every assertion added or changed by the merge of `main` into `engineering/m8`
+was checked the same way: break the thing it claims to guard, and require the
+assertion to go red. An assertion that no mutant catches is decoration.
+
+Each mutant is a one-hunk edit to a COPY of the merged index.html; the suite
+is run UNMODIFIED against it with CF_SRC. The clean bytes are index.html
+sha256 c6bb72fc1a4fed878f45105dca77fd2007c1049f07bf4615bd737e5bd4707f83,
+which is green on all three suites (C19 142/142, C20 34/34, C21 13/13).
+
+  M1  index.html   "rat:set" removed from M10_GATED
+  M2  index.html   "ci:send","ci:skipyes","ci:unskip" removed from M10_GATED
+  M3  index.html   m10EditableAllowed() returns true for every TEXTAREA
+                   (the check-in draft slips past the input/change boundary)
+  M4  index.html   srInput() filters cardio below zone 2
+  M5  index.html   srInput() labels each cardio row with the WRONG weekday
+  M6  index.html   srWorkoutsHTML() puts Weightlifting before Cardio
+  M7  index.html   ratSet() no longer calls save()
+  M8  index.html   the wl-ci-input handler no longer calls save()
+
+M7 and M8 exist to prove the HOLDER contrast arm is not vacuous: if the
+feature simply did not persist, the holder arm must fail. M8 caught a genuinely
+weak assertion on the first pass — the holder draft test asserted only
+"wl_v1 changed", which an earlier step in the same run already satisfied, so
+M8 passed. The assertion was rewritten to name the durable record (the STORED
+checkins must contain the answer), and M8 then failed as it should. Every
+number below is from the rewritten, committed suite.
+
+----------------------------------------------------------------
+MUTANT M1 — c19m10-gate.browser.test.js
+----------------------------------------------------------------
+  ✗ T1 gate inventory loaded (132 actions; boot-recovery + read-only viewing deliberately excluded)
+      eq: 131 !== 132
+  ✓ T1 no page errors
+--
+  ✗ T20 non-holder: the run really was read-only
+      all four actions are in M10_GATED: "false,true,true,true" !== "true,true,true,true"
+  ✗ T20 non-holder: rat:set changes no rating and no stored byte
+      state.ratings unchanged: "{\"2026-08-03\":{\"energy\":\"good\"}}" !== "{}"
+  ✓ T20 non-holder: the check-in draft textarea is refused and the field reverted
+  ✓ T20 holder: no page errors
+
+----------------------------------------------------------------
+MUTANT M2 — c19m10-gate.browser.test.js
+----------------------------------------------------------------
+  ✗ T1 gate inventory loaded (132 actions; boot-recovery + read-only viewing deliberately excluded)
+      eq: 129 !== 132
+  ✓ T1 no page errors
+--
+  ✗ T20 non-holder: the run really was read-only
+      all four actions are in M10_GATED: "true,false,false,false" !== "true,true,true,true"
+  ✓ T20 non-holder: rat:set changes no rating and no stored byte
+--
+  ✗ T20 non-holder: ci:skipyes writes no check-in
+      eq: "{\"2026-08-02\":{\"status\":\"skipped\",\"ts\":1785791169970,\"answers\":{},\"updated\":1785791169970}}" !== "{}"
+  ✗ T20 non-holder: ci:unskip writes no check-in
+      eq: "{\"2026-08-02\":{\"status\":\"draft\",\"ts\":1785791169970,\"answers\":{},\"updated\":1785791170123}}" !== "{}"
+  ✗ T20 non-holder: ci:send writes no check-in
+      eq: "{\"2026-08-02\":{\"status\":\"sent\",\"ts\":1785791170276,\"answers\":{},\"updated\":1785791170276,\"adherence\":{\"band\":\"off\",\"label\":\"Off plan\",\"summary\":\"Logging can improve\",\"pct\":0,\"hit\":0,\"of\":7,\"days\":7,\"strands\":[{\"key\":\"Logged\",\"hit\":0,\"of\":7,\"avg\":null,\"goal\":null,\"count\":true}]},\"ratings14\":[]}}" !== "{}"
+  ✓ T20 non-holder: opening and closing the check-in view is still allowed and persists nothing
+  ✓ T20 holder: no page errors
+
+----------------------------------------------------------------
+MUTANT M3 — c19m10-gate.browser.test.js
+----------------------------------------------------------------
+  ✗ T20 non-holder: the check-in draft textarea is refused and the field reverted
+      state.checkins unchanged: "{\"2026-08-02\":{\"status\":\"draft\",\"ts\":1785791292661,\"answers\":{\"win\":\"a good week\"}}}" !== "{}"
+  ✗ T20 non-holder: ci:skipyes writes no check-in
+      eq: "{\"2026-08-02\":{\"status\":\"draft\",\"ts\":1785791292661,\"answers\":{\"win\":\"a good week\"}}}" !== "{}"
+  ✗ T20 non-holder: ci:unskip writes no check-in
+      eq: "{\"2026-08-02\":{\"status\":\"draft\",\"ts\":1785791292661,\"answers\":{\"win\":\"a good week\"}}}" !== "{}"
+  ✗ T20 non-holder: ci:send writes no check-in
+      eq: "{\"2026-08-02\":{\"status\":\"draft\",\"ts\":1785791292661,\"answers\":{\"win\":\"a good week\"}}}" !== "{}"
+  ✓ T20 non-holder: opening and closing the check-in view is still allowed and persists nothing
+  ✓ T20 holder: no page errors
+
+----------------------------------------------------------------
+MUTANT M7 — c19m10-gate.browser.test.js
+----------------------------------------------------------------
+  ✗ T20 holder: rat:set records the rating in memory AND on disk
+      stored ratings: {}
+  ✓ T20 holder: the check-in draft textarea persists the answer
+  ✓ T20 holder: no page errors
+
+----------------------------------------------------------------
+MUTANT M8 — c19m10-gate.browser.test.js
+----------------------------------------------------------------
+  ✗ T20 holder: the check-in draft textarea persists the answer
+      stored checkins: {}
+  ✓ T20 holder: ci:skipyes then ci:unskip move the week skipped → draft
+  ✓ T20 holder: no page errors
+
+----------------------------------------------------------------
+MUTANT M4 — c21-repranges.browser.test.js
+----------------------------------------------------------------
+  ✗ T8 cardio is listed first, with day/type/zone/time/cals, at every zone
+      all three sessions, including the zone-1 one: expected 3, got 2
+  ✓ T9 an empty cardio week still shows the heading and says nothing was logged
+
+
+----------------------------------------------------------------
+MUTANT M5 — c21-repranges.browser.test.js
+----------------------------------------------------------------
+  ✗ T8 cardio is listed first, with day/type/zone/time/cals, at every zone
+      zone 1 must not be filtered out: expected ["Tue","Peloton","Z1","22 min","180"], got ["Wed","Peloton","Z1","22 min","180"]
+  ✓ T9 an empty cardio week still shows the heading and says nothing was logged
+
+
+----------------------------------------------------------------
+MUTANT M6 — c21-repranges.browser.test.js
+----------------------------------------------------------------
+  ✗ T8 cardio is listed first, with day/type/zone/time/cals, at every zone
+      Cardio must come before Weightlifting
+  ✓ T9 an empty cardio week still shows the heading and says nothing was logged
+
+
+----------------------------------------------------------------
+SUMMARY — every mutant is caught, by the assertion that claims it
+----------------------------------------------------------------
+M1 -> C19 T1 (131 != 132) and T20 non-holder rat:set          RED
+M2 -> C19 T1 (129 != 132) and T20 non-holder ci:* x3          RED
+M3 -> C19 T20 non-holder draft textarea (+ the ci:* steps it
+      pollutes downstream)                                    RED
+M4 -> C21 T8 — the zone-1 session is dropped                  RED
+M5 -> C21 T8 — the day column no longer matches the date      RED
+M6 -> C21 T8 — cardio no longer leads the section             RED
+M7 -> C19 T20 HOLDER rat:set — stored ratings {}              RED
+M8 -> C19 T20 HOLDER draft textarea — stored checkins {}      RED

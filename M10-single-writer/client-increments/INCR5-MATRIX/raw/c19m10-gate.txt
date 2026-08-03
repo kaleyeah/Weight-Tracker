@@ -1,4 +1,4 @@
-  ✓ T1 gate inventory loaded (128 actions; boot-recovery + read-only viewing deliberately excluded)
+  ✓ T1 gate inventory loaded (132 actions; boot-recovery + read-only viewing deliberately excluded)
   ✓ T1 no page errors
   ✓ T2 non-holder: the gated action is intercepted and the takeover sheet is offered
   ✓ T3 holder: gated actions run unchanged
@@ -126,5 +126,19 @@
   ✓ T19b no page errors
   ✓ T19c an account change during the export is refused — no evidence on either account
   ✓ T19c no page errors
+  ✓ T20 non-holder: the run really was read-only
+  ✓ T20 non-holder: rat:set changes no rating and no stored byte
+  ✓ T20 non-holder: the check-in draft textarea is refused and the field reverted
+  ✓ T20 non-holder: ci:skipyes writes no check-in
+  ✓ T20 non-holder: ci:unskip writes no check-in
+  ✓ T20 non-holder: ci:send writes no check-in
+  ✓ T20 non-holder: opening and closing the check-in view is still allowed and persists nothing
+  ✓ T20 non-holder: no page errors
+  ✓ T20 holder: the contrast arm really does hold the pen
+  ✓ T20 holder: rat:set records the rating in memory AND on disk
+  ✓ T20 holder: the check-in draft textarea persists the answer
+  ✓ T20 holder: ci:skipyes then ci:unskip move the week skipped → draft
+  ✓ T20 holder: ci:send marks the week sent and keeps the draft answer
+  ✓ T20 holder: no page errors
 
-C19-M10 increment 5: 128 passed, 0 failed
+C19-M10 increment 5: 142 passed, 0 failed

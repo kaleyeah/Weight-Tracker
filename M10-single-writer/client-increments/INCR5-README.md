@@ -1,5 +1,149 @@
 # M10 client increment 5 — the gate surface
 
+> ## MERGE OF `main` — 2026-08-03, read this first
+>
+> Everything below was written at round 36, when `engineering/m8` sat on build
+> `.417` and `index.html` was
+> `8f9c2ff0861b0ec2a73581444edf2f76f6ee7b6ba534dadc2fbbf4c575f74efc`. That
+> head is no longer current. `main` has since shipped `.428-bcweight` — the six
+> daily subjective ratings, the weekly check-in, measured plan adherence, the
+> coach-report body-composition / cardio / rep-range work, the keyboard-aware
+> nav — and `main` has been merged into `engineering/m8` so the M10 client sits
+> on the current live lineage. **Nothing below is withdrawn; all of it still
+> holds.** What follows is what the merge changed on top of it.
+>
+> - **Merge commit**: `a0b3d46`, over accepted head `f2dbec6`.
+> - **Code head**: `index.html` sha256
+>   `c6bb72fc1a4fed878f45105dca77fd2007c1049f07bf4615bd737e5bd4707f83`
+>   (`INCR5-MANIFEST.txt` is regenerated at this head).
+> - **Diffs**: `INCR5-DIFF-FROM-f2dbec6.patch` (index.html) and
+>   `INCR5-TESTS-DIFF-FROM-f2dbec6.patch` (tests/browser). `git diff --check`
+>   is clean on both.
+>
+> ### The nine index.html conflicts, and how each was resolved
+>
+> | # | region | resolution |
+> |---|---|---|
+> | 1 | `.wl-nav` CSS | **main.** main REMOVES the `backdrop-filter` that HEAD's `translate3d` hack was masking; HEAD's comment describes a fix main supersedes. |
+> | 2 | `APP_BUILD` | **main** (`2026-08-03.428-bcweight`). |
+> | 3 | `var state={...}` | **main** — adds `ratings:{}`, `checkins:{}`. |
+> | 4 | `load()` | **main** — typed rehydration of both. |
+> | 5 | `payload()` | **main** — both join the synced payload. |
+> | 6 | `applyCloud()` | **main** — both rehydrated on pull. |
+> | 7 | M10-BLOCK-1..4 (1891 lines, main side empty) | **HEAD.** A pure addition; nothing of main's was displaced. |
+> | 8 | photo meal relabel | **HEAD.** HEAD routes the relabel through the verified M10 photo queue (round-23 ruling 2); main still had the raw `PATCH /api/collections/photos/records/<id>`. Taking main here would have re-opened an unfenced server write. |
+> | 9 | the boot line | **by hand.** HEAD's M10 boot wiring, MINUS `refreshWeekPhotos()` (retired on main), PLUS main's weekly check-in anchor — moved into `ciAnchorSince()`, see below. |
+>
+> `features/daily-subjective-ratings/SPEC.md` also conflicted (add/add);
+> main's copy is a strict superset and was taken whole. One dead reference to
+> the retired `refreshWeekPhotos` survived inside an M10-only block and was
+> removed.
+>
+> ### `M10_GATED`: 128 → 132
+>
+> Eight new dispatcher actions arrived with main. Each was classified on the
+> same basis as the rest of the inventory — follow the callees to a
+> persistence primitive, not the branch text.
+>
+> | action | verdict | why |
+> |---|---|---|
+> | `rat:set` | **GATED** | `ratSet()` writes `state.ratings[iso][q]` and calls `save()` |
+> | `ci:send` | **GATED** | `ciDraft()` + `save()`, plus `pushDataPromise()` and `photoSync()` |
+> | `ci:skipyes` | **GATED** | `ciDraft(wk).status="skipped"` + `save()` |
+> | `ci:unskip` | **GATED** | `ciDraft(wk).status="draft"` + `save()` |
+> | `ci:open` | open | sets `state.ciWeek` / `ciFrom` / `view`, re-renders |
+> | `ci:close` | open | restores the previous view |
+> | `ci:skipask` | open | sets `state.ciSkipAsk` |
+> | `ci:skipcancel` | open | clears `state.ciSkipAsk` |
+>
+> `view_checkin()` reads through `ciRec()` and never calls `ciDraft()`, so
+> merely opening the form creates no record — that is what makes the four
+> "open" verdicts safe, and C19 T20 asserts it rather than assuming it. A
+> read-only device may still READ its check-in; every control inside the form
+> that writes is refused at its own boundary.
+>
+> `dl:open data-sec="feel"` stays ungated, unchanged: it raises a sheet, and
+> the `rat:set` chips inside the sheet are gated. That is exactly the existing
+> treatment of `dl:open data-sec="calories"`.
+>
+> The check-in draft `<textarea class="wl-ci-input">` is a member of the
+> `input`/`change` boundary, not the click boundary. It carries no id and no
+> recovery ancestor, so `m10EditableAllowed()` already returns false for it and
+> the existing capture-phase interceptor refuses the edit and restores the
+> prior value. C19 T20 pins that; mutant M3 proves the pin bites.
+>
+> ### One new durable writer that is not an action: `ciAnchorSince()`
+>
+> main anchored the check-in backlog with an inline
+> `if(state.settings.ciSince==null){...;save();}` on the boot line. Under M10
+> that line needs three properties it did not have, so it became a named
+> function:
+>
+> - the anchor is an **in-memory normalisation always**; the durable part goes
+>   through the gated `save()`, so a non-holder anchors nothing on disk. This
+>   is the same shape as the neighbouring `if(resyncAllActivityTags())save();`
+>   and as `migrateProgressionTypes()` (round-33 item 6).
+> - it **amends an existing `wl_v1` and never creates one.** Without this, the
+>   boot that follows a completed interrupted-logout wipe writes a fresh
+>   defaults payload and resurrects the store the wipe had just verified as
+>   gone — caught by **C19 T15c**, which is an existing assertion and was not
+>   touched.
+> - it is **not re-run after `m10Boot()` settles.** A first attempt did re-run
+>   it there, mirroring the Z1 training migration; that delayed write landed
+>   after the recovery screens had cleared storage and broke C19 T7 and T15c.
+>   The trade is that on a device that never writes again, the anchor is not
+>   persisted and the next boot re-anchors to that boot's week — which is what
+>   `ciSince()`'s own fallback already does, and it never fabricates backlog.
+>
+> ### Tests
+>
+> - **C19 gains T20** — twelve assertions over two arms, both driven through
+>   real `data-act` controls and a real `input` event. NON-HOLDER: `rat:set`,
+>   the draft textarea, `ci:skipyes`, `ci:unskip` and `ci:send` each change no
+>   in-memory record, no stored record, and leave `wl_v1` **byte-identical**;
+>   the typed text is reverted; open/close stays allowed and persists nothing.
+>   HOLDER: the same five all work, each asserted against the DURABLE record
+>   rather than "wl_v1 changed", so a refusal can never be mistaken for the
+>   feature simply being broken. T1 now asserts 132 and names the four new
+>   gated actions and the four deliberately-open ones.
+> - **C20 / C21 arrived from main** and both sign in, so under M10 they must
+>   hold the lease. Each gains the disclosed lease-granting route stub that
+>   `c14`, `c11m8-faults` and `c11m8-quota` already use. This is disclosed, not
+>   silent: without it C20 dies at T5 with `state.ratings` undefined, because
+>   the gate correctly refused the write.
+> - **C21 T8 was corrected, not weakened.** It hard-coded `Mon`/`Wed`/`Fri`
+>   for `wk[1]`/`wk[3]`/`wk[5]` while its own fixture seeds `weekStart:'1'`.
+>   That only ever held because main's legacy pull overwrote `state.settings`
+>   with the DEFAULTS at boot (the stubbed server returns an empty document);
+>   M8's sync does not do that, so the seed is now honoured and the week starts
+>   on Monday. The day column is now derived in Node from the date each session
+>   is actually filed under — weekStart-independent, strictly stronger, still
+>   green against main's own `index.html`, and mutant M5 proves it is not
+>   vacuous.
+>
+> ### Evidence at this head
+>
+> - `INCR5-MATRIX/TOTALS.txt` — regenerated by
+>   `tests/browser/run-client-matrix.sh`: **13/13 PASS, 506 assertions passed,
+>   0 failed**, VERDICT GREEN. Raw per-suite output in `INCR5-MATRIX/raw/`.
+> - `INCR5-C20-OUTPUT.txt` — 34 passed, 0 failed.
+> - `INCR5-C21-OUTPUT.txt` — 13 passed, 0 failed.
+> - `INCR5-MERGE-MUTATION-EVIDENCE.txt` — eight mutants, every one caught by
+>   the assertion that claims it, including the two that exist purely to prove
+>   the holder contrast arm is not vacuous.
+> - `INCR5-ACTION-INVENTORY.md` — re-audited: gated 128 → 132, read-only
+>   136 → 140, and the boot check-in anchor added to the boundary table.
+>
+> ### Open, and not proven here
+>
+> - C20 and C21 are **not** in `run-client-matrix.sh`. They were run by hand
+>   against this head and their raw output is included, but they are outside
+>   the mechanical matrix, so their numbers do not appear in `TOTALS.txt`.
+> - `state.ratings` and `state.checkins` join `payload()` and therefore the M8
+>   canonicaliser and the sync route. Nothing here exercises a ratings or
+>   check-in payload across the M8 conflict/quarantine paths; the client-side
+>   gate is what is proven.
+
 ## Package identity
 - **Base**: `249fd0e` — the accepted increment-4 head.
 - **Previous code head**: `87e9d84` — index.html sha256

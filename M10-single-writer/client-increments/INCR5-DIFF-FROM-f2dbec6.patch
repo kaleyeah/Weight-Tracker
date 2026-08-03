@@ -1,0 +1,1076 @@
+diff --git a/index.html b/index.html
+index 8f05314..372a7a0 100644
+--- a/index.html
++++ b/index.html
+@@ -758,6 +758,79 @@ input[type=date]::-webkit-calendar-picker-indicator,input[type=time]::-webkit-ca
+ .wl-ck-reopen-btns .wl-btn{flex:1;padding:10px 0;font-size:14px;}
+ .wl-ck-note{flex:1;text-align:right;font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+ .wl-ck-go{color:var(--faint);font-size:16px;flex:none;}
++/* ---- How you felt: daily ratings (shown in the quick-entry sheet) ---- */
++.wl-feelq{margin-top:12px;}
++.wl-feelq:first-child{margin-top:0;}
++.wl-feelq-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;font-size:13px;font-weight:700;margin-bottom:7px;}
++.wl-feelq-h span:first-child{color:var(--text);}
++.wl-feelq-h .a{color:var(--accent);font-weight:800;}
++.wl-feelq-h .na{color:var(--faint);font-weight:600;font-style:italic;}
++.wl-feelchips{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;}
++.wl-feelchip{min-height:46px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
++  background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--muted);
++  font-family:var(--sans);font-size:10.5px;font-weight:600;line-height:1.15;text-align:center;padding:5px 3px;cursor:pointer;}
++.wl-feelchip .dot{width:7px;height:7px;border-radius:50%;border:1.5px solid var(--line2);flex:none;}
++.wl-feelchip.on{background:var(--accent-dim);border-color:var(--accent);color:var(--text);font-weight:800;}
++.wl-feelchip.on .dot{background:var(--accent);border-color:var(--accent);}
++.wl-feelchip .sm{display:none;}
++@media(max-width:365px){.wl-feelchip .lg{display:none;}.wl-feelchip .sm{display:block;}}
++/* ---- trend grid + bars ---- */
++.wl-fgrid{display:grid;grid-template-columns:76px 1fr;gap:6px 8px;align-items:center;}
++.wl-fgrid .k{font-size:11.5px;font-weight:700;color:var(--muted);}
++.wl-fcells{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
++.wl-fcell{height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;
++  font-size:11px;font-weight:800;color:#0F1218;}
++.wl-fcell.na{background:var(--bg2);color:var(--faint);font-weight:600;}
++.wl-fdow{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
++.wl-fdow span{text-align:center;font-size:9.5px;font-weight:700;color:var(--faint);letter-spacing:.4px;}
++.wl-fbars{display:flex;align-items:flex-end;gap:2px;height:34px;}
++.wl-fbars i{flex:1;border-radius:2px 2px 0 0;background:var(--line);min-height:2px;}
++.wl-frow{display:grid;grid-template-columns:76px 1fr 76px;gap:8px;align-items:end;margin-top:9px;}
++.wl-frow .k{font-size:11.5px;font-weight:700;color:var(--muted);padding-bottom:2px;}
++.wl-ftag{font-size:10px;font-weight:800;text-align:right;padding-bottom:2px;letter-spacing:.2px;}
++.wl-ftag.up{color:var(--good);}
++.wl-ftag.dn{color:var(--bad);}
++.wl-ftag.fl{color:var(--faint);}
++.wl-fwatch{margin-top:12px;padding:10px 12px;border-radius:10px;background:var(--bg2);
++  border-left:3px solid var(--accent);font-size:12.5px;line-height:1.5;color:var(--muted);}
++.wl-fwatch b{color:var(--text);}
++.wl-fphase{display:flex;gap:2px;margin-top:5px;}
++.wl-fphase i{flex:1;height:14px;border-radius:2px;background:var(--bg2);min-width:2px;}
++/* ---- weekly check-in ---- */
++.wl-ci{border:1px solid var(--accent);}
++.wl-ci.late{border-color:var(--bad);}
++.wl-ci.done{border:1px solid var(--line);}
++.wl-ci-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:11px;}
++.wl-ci-t{font-size:14.5px;font-weight:800;color:var(--text);}
++.wl-ci-st{font-size:11.5px;font-weight:800;color:var(--accent);text-align:right;}
++.wl-ci-st.late{color:var(--bad);}
++.wl-ci-st.ok{color:var(--good);}
++.wl-citiles{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
++.wl-citile{aspect-ratio:3/4;border-radius:10px;background:var(--bg2);border:1px dashed var(--line2);
++  display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--faint);
++  background-size:cover;background-position:center;cursor:pointer;padding:0;width:100%;}
++.wl-citile.has{border:1px solid var(--good);color:transparent;}
++.wl-citlbl{display:block;text-align:center;font-size:10px;font-weight:700;color:var(--muted);margin-top:5px;}
++.wl-cifill{display:grid;grid-template-columns:1fr auto;gap:6px 12px;font-size:12.5px;line-height:1.5;}
++.wl-cifill .k{color:var(--muted);font-weight:600;}
++.wl-cifill .v{color:var(--text);font-weight:700;text-align:right;}
++.wl-cihist{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid var(--line);}
++.wl-cihist .w{font-size:13px;font-weight:700;color:var(--text);}
++.wl-cihist .s{font-size:11px;font-weight:600;color:var(--muted);margin-top:2px;}
++.wl-cihist .s.ok{color:var(--good);}
++.wl-cihist .s.sk{color:var(--faint);}
++.wl-ciskip{margin-top:18px;padding-top:14px;border-top:1px solid var(--line);}
++/* iOS anchors position:fixed to the LAYOUT viewport, so when the soft
++   keyboard opens the nav is left floating in the middle of the screen
++   (Owner, 2026-08-03: "the keyboard is pushing the nav bar to the top when
++   there is a text field I’m entering"). While a text field has focus the
++   bar slides out of the way — it is unreachable behind a keyboard anyway. */
++.wl-nav.kbd{transform:translate3d(0,150%,0);pointer-events:none;}
++.wl-adhbar{height:8px;border-radius:5px;background:var(--bg2);overflow:hidden;display:flex;}
++.wl-adhbar i{display:block;height:100%;}
++.wl-adhbar i.hit{background:var(--good);}
++.wl-adhbar i.miss{background:var(--accent);}
++
+ .wl-ck-top .wl-ck-val{flex:1;}
+ .wl-mbar{display:flex;height:8px;border-radius:5px;overflow:hidden;background:var(--bg2);}
+ .wl-mbar i{display:block;height:100%;}
+@@ -793,12 +866,17 @@ input[type=date]::-webkit-calendar-picker-indicator,input[type=time]::-webkit-ca
+ .wl-toast.show{opacity:1;transform:translateX(-50%) translateY(-4px);}
+ 
+ .wl-nav{position:fixed;bottom:0;left:0;right:0;max-width:720px;margin:0 auto;
+-  /* translate3d forces the nav onto its own compositing layer: iOS Safari's
+-     known fixed+backdrop-filter bug otherwise repaints it at a stale scroll
+-     offset, leaving the bar "floating" mid-content (seen on the Owner's phone
+-     during the release checklist). */
+-  transform:translate3d(0,0,0);
+-  background:rgba(20,25,34,.94);backdrop-filter:blur(12px);border-top:1px solid var(--line);
++  /* The bar "floats" mid-content on iOS because of Safari's fixed +
++     backdrop-filter repaint bug: the blurred layer is composited at a stale
++     scroll offset. Build .402 tried to fix it by forcing a compositing layer
++     with translate3d, and it came back (Owner, 2026-08-03) — that hack is
++     unreliable because Safari can still re-rasterise the backdrop layer.
++     The trigger itself is now gone: no backdrop-filter, and the background is
++     fully opaque instead of 94%, which at this colour is indistinguishable.
++     translate3d stays because promoting the layer is still cheap and helps.
++     Do not reintroduce backdrop-filter here. */
++  transform:translate3d(0,0,0);transition:transform .18s ease;
++  background:var(--bg2);border-top:1px solid var(--line);
+   display:flex;padding:8px 6px calc(8px + env(safe-area-inset-bottom,0px));z-index:10;}
+ .wl-navbtn{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;
+   color:var(--faint);font-size:9.5px;font-weight:600;padding:4px 1px;border-radius:10px;}
+@@ -858,7 +936,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
+ "use strict";
+ /* ---------------- helpers ---------------- */
+ var DAY=86400000;
+-var APP_BUILD="2026-08-02.417-fx";
++var APP_BUILD="2026-08-03.428-bcweight";
+ var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
+ var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
+ var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
+@@ -1158,7 +1236,7 @@ function dayDots(iso){var seen={},cats=[];function _ad(c){if(!seen[c]){seen[c]=1
+   if(cats.length)return '<span class="wl-cell-dots">'+cats.map(function(c){return '<i class="dot-'+c+'"></i>';}).join("")+'</span>';
+   if(dayHasAny(iso))return '<span class="wl-cell-dots"><i class="dot-data"></i></span>';
+   return '';}
+-var state={settings:Object.assign({},DEFAULT_SETTINGS),weights:[],food:{},workouts:{},steps:{},notes:{},sleep:{},bodyfat:{},waist:{},leanmass:{},statuses:[],weeklySummary:null,nightlySummary:null,nightlyLog:{},presets:DEFAULT_PRESETS.slice(),
++var state={settings:Object.assign({},DEFAULT_SETTINGS),weights:[],food:{},workouts:{},steps:{},notes:{},ratings:{},checkins:{},sleep:{},bodyfat:{},waist:{},leanmass:{},statuses:[],weeklySummary:null,nightlySummary:null,nightlyLog:{},presets:DEFAULT_PRESETS.slice(),
+   view:"overview",calY:new Date().getFullYear(),calM:new Date().getMonth(),weekOffset:0,trendMode:"W",trendOffset:0,calOpen:false,sumOpen:true,nightOpen:true,genBusy:false,nightBusy:false,diaryWeeks:1,
+   training:{cardioTypes:DEFAULT_CARDIO_TYPES.slice(),sessions:{},exercises:[],routines:[],liftSessions:{}},cardioForm:null,manageOpen:false,actAddCat:null,actPick:null,exForm:null,routineId:null,riPickOpen:false,noteEdit:null,liftForm:null,workout:null,setMenu:null,woPrompt:false,bwEdit:false,histView:null,exMenu:null,woReplaceEi:null,woReplSave:null,liftViewId:null,liftViewDate:null,woResume:false,liftEdit:null,quickEntry:null,
+   selDate:todayISO(),foodDate:todayISO(),alertDismissed:false,confirmReset:false,skips:{},glp:glpDefault(),glpDraft:null,glpSheet:null,reopenAsk:null};
+@@ -1168,7 +1246,7 @@ function load(){
+     state.settings=Object.assign({},DEFAULT_SETTINGS,d.settings||{});
+     state.weights=Array.isArray(d.weights)?d.weights:[];
+     state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.bodyfat=d.bodyfat||{};state.waist=d.waist||{};state.leanmass=d.leanmass||{};state.statuses=d.statuses||[];state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;state.nightlyLog=d.nightlyLog||{};state.scriptVer=d.scriptVer||{};if(migrateCoachSeen())save();
+-    state.presets=(Array.isArray(d.presets)&&d.presets.length)?d.presets:DEFAULT_PRESETS.slice();state.skips=d.skips||{};state.glp=d.glp||glpDefault();
++    state.presets=(Array.isArray(d.presets)&&d.presets.length)?d.presets:DEFAULT_PRESETS.slice();state.skips=d.skips||{};state.glp=d.glp||glpDefault();state.ratings=(d.ratings&&typeof d.ratings==="object")?d.ratings:{};state.checkins=(d.checkins&&typeof d.checkins==="object")?d.checkins:{};
+   }}catch(e){}
+   glpNormalize();
+   if(state.settings.macroAuto===undefined&&(num(state.settings.targetProtein)!=null||num(state.settings.targetCarbs)!=null||num(state.settings.targetFat)!=null))state.settings.macroAuto=false;
+@@ -1179,7 +1257,7 @@ function load(){
+   try{state.sumOpen=localStorage.getItem("wl_sumopen")!=="0";}catch(e){}
+   try{state.calOpen=localStorage.getItem("wl_calopen")==="1";}catch(e){}
+ }
+-function payload(){return {settings:state.settings,weights:state.weights,food:state.food,workouts:state.workouts,steps:state.steps,notes:state.notes,sleep:state.sleep,bodyfat:state.bodyfat,waist:state.waist,leanmass:state.leanmass,statuses:state.statuses,weeklySummary:state.weeklySummary,nightlySummary:state.nightlySummary,nightlyLog:state.nightlyLog,presets:state.presets,skips:state.skips,glp:state.glp,scriptVer:state.scriptVer};}
++function payload(){return {settings:state.settings,weights:state.weights,food:state.food,workouts:state.workouts,steps:state.steps,notes:state.notes,ratings:state.ratings,checkins:state.checkins,sleep:state.sleep,bodyfat:state.bodyfat,waist:state.waist,leanmass:state.leanmass,statuses:state.statuses,weeklySummary:state.weeklySummary,nightlySummary:state.nightlySummary,nightlyLog:state.nightlyLog,presets:state.presets,skips:state.skips,glp:state.glp,scriptVer:state.scriptVer};}
+ function saveLocal(){if(localWritesFrozen())return;try{localStorage.setItem(KEY,JSON.stringify(payload()));}catch(e){toast("Couldn't save — storage full or blocked");}}
+ function save(){saveLocal();scheduleCloudPush();}
+ 
+@@ -1246,7 +1324,7 @@ function applyCloud(d){if(!d)return;
+   state.settings=Object.assign({},DEFAULT_SETTINGS,d.settings||{});
+   state.weights=Array.isArray(d.weights)?d.weights:[];
+   state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.bodyfat=d.bodyfat||{};state.waist=d.waist||{};state.leanmass=d.leanmass||{};state.statuses=d.statuses||[];state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;state.nightlyLog=d.nightlyLog||{};state.scriptVer=d.scriptVer||{};if(migrateCoachSeen())save();
+-  state.presets=(Array.isArray(d.presets)&&d.presets.length)?d.presets:DEFAULT_PRESETS.slice();state.skips=d.skips||{};state.glp=d.glp||glpDefault();glpNormalize();
++  state.presets=(Array.isArray(d.presets)&&d.presets.length)?d.presets:DEFAULT_PRESETS.slice();state.skips=d.skips||{};state.glp=d.glp||glpDefault();state.ratings=(d.ratings&&typeof d.ratings==="object")?d.ratings:{};state.checkins=(d.checkins&&typeof d.checkins==="object")?d.checkins:{};glpNormalize();
+   if(state.settings.macroAuto===undefined&&(num(state.settings.targetProtein)!=null||num(state.settings.targetCarbs)!=null||num(state.settings.targetFat)!=null))state.settings.macroAuto=false;
+   if(state.settings.calTargetAuto===undefined&&num(state.settings.targetCalories)!=null)state.settings.calTargetAuto=false;
+   applyAutoMacros();
+@@ -1886,6 +1964,458 @@ function ckCalories(sel){
+     h+='<div class="wl-mlegend"><div class="wl-mseg"><div class="k" style="color:'+pCol+'">Protein</div><div class="v"'+(protLow?' style="color:var(--bad)"':'')+'>'+(p!=null?p+"g":"—")+'</div></div><div class="wl-mseg"><div class="k" style="color:'+cCol+'">Carbs</div><div class="v"'+(carbOver?' style="color:var(--accent)"':'')+'>'+(cb!=null?cb+"g":"—")+'</div></div><div class="wl-mseg"><div class="k" style="color:'+fCol+'">Fat</div><div class="v"'+(fatOver?' style="color:var(--accent)"':'')+'>'+(ft!=null?ft+"g":"—")+'</div></div></div>';}
+   return h+'</button>';
+ }
++/* ============================================================================
++   How you felt — six daily subjective ratings (Owner-approved 2026-08-03)
++   Stored on state.ratings[iso] as stable enum strings, never the visible label,
++   so wording can change without a data migration. An unset rating is null and
++   NEVER blocks "Complete today". Each option carries a goodness score 1..5
++   (1 worst, 5 best) so scales that are best-in-the-middle (Hunger) or
++   best-at-zero (Stress) chart in the same direction as the rest.
++   ==========================================================================*/
++var RATINGS=[
++  ["hunger","Hunger",[["too_low","Too low","Too low",1],["slightly_low","Slightly low","Low",3],["just_right","Just right","Right",5],["slightly_high","Slightly high","High",3],["too_high","Too high","Too high",1]],"off target"],
++  ["sleepQuality","Sleep quality",[["very_poor","Very poor","V. poor",1],["poor","Poor","Poor",2],["okay","Okay","Okay",3],["good","Good","Good",4],["excellent","Excellent","Great",5]],"okay or worse"],
++  ["stress","Stress",[["none","None","None",5],["a_little","A little","Little",4],["some","Some","Some",3],["high","High","High",2],["very_high","Very high","V. high",1]],"elevated"],
++  ["recovery","Recovery",[["very_poor","Very poor","V. poor",1],["poor","Poor","Poor",2],["okay","Okay","Okay",3],["good","Good","Good",4],["excellent","Excellent","Great",5]],"okay or worse"],
++  ["energy","Energy",[["very_low","Very low","V. low",1],["low","Low","Low",2],["okay","Okay","Okay",3],["good","Good","Good",4],["excellent","Excellent","Great",5]],"okay or worse"],
++  ["digestion","Digestion",[["very_poor","Very poor","V. poor",1],["poor","Poor","Poor",2],["okay","Okay","Okay",3],["good","Good","Good",4],["excellent","Excellent","Great",5]],"okay or worse"]
++];
++function ratQ(key){for(var i=0;i<RATINGS.length;i++){if(RATINGS[i][0]===key)return RATINGS[i];}return null;}
++function ratOpt(key,val){var q=ratQ(key);if(!q||!val)return null;for(var i=0;i<q[2].length;i++){if(q[2][i][0]===val)return q[2][i];}return null;}
++function ratLabel(key,val){var o=ratOpt(key,val);return o?o[1]:null;}
++function ratGood(key,val){var o=ratOpt(key,val);return o?o[3]:null;}
++function ratFor(iso){var r=(state.ratings||{})[iso];return (r&&typeof r==="object")?r:{};}
++function ratCount(iso){var r=ratFor(iso),n=0;RATINGS.forEach(function(q){if(ratOpt(q[0],r[q[0]]))n++;});return n;}
++/* Tapping the chosen chip again clears it — a mis-tap must be correctable, and
++   an unanswered question is a legitimate final state. */
++function ratSet(iso,key,val){
++  if(!ratOpt(key,val))return;
++  var all=state.ratings||(state.ratings={});
++  var r=all[iso]||(all[iso]={});
++  r[key]=(r[key]===val)?null:val;
++  var any=false;RATINGS.forEach(function(q){if(r[q[0]])any=true;});
++  if(!any)delete all[iso];
++  save();
++}
++/* The collapsed row. Opening it raises the same sheet the other check-in rows
++   use (Owner 2026-08-03: a screen like Calories, not an accordion). */
++function ckFeel(sel){
++  var n=ratCount(sel),tot=RATINGS.length;
++  var ic=(n===tot)?'<span class="wl-ck-ic done"></span>':'<span class="wl-ck-ic opt">◦</span>';
++  return '<button class="wl-ck-row" data-act="dl:open" data-sec="feel"><span class="wl-ck-l">'+ic+'<span class="wl-ck-lab">How you felt</span></span><span class="wl-ck-val'+(n?'':' empty')+'">'+(n?n+" of "+tot:"Add")+'</span><span class="wl-ck-go">›</span></button>';
++}
++/* The body of that sheet — six questions, five chips each. */
++function feelSheetBody(sel){
++  var r=ratFor(sel);
++  var h='';
++  RATINGS.forEach(function(q){
++    var cur=r[q[0]]||null,lab=ratLabel(q[0],cur),qid="feelq-"+q[0];
++    h+='<div class="wl-feelq" role="group" aria-labelledby="'+qid+'"><div class="wl-feelq-h"><span id="'+qid+'">'+q[1]+'</span><span class="'+(lab?"a":"na")+'">'+(lab||"Not answered")+'</span></div><div class="wl-feelchips">';
++    q[2].forEach(function(o){
++      h+='<button class="wl-feelchip'+(cur===o[0]?" on":"")+'" data-act="rat:set" data-date="'+sel+'" data-q="'+q[0]+'" data-v="'+o[0]+'" aria-pressed="'+(cur===o[0]?"true":"false")+'"><span class="dot"></span><span class="lg">'+o[1]+'</span><span class="sm">'+o[2]+'</span></button>';
++    });
++    h+='</div></div>';
++  });
++  return h+'<div class="wl-hint" style="margin-top:16px">Optional — this never blocks completing your day. Coach Max reads the trend, not any single day.</div>';
++}
++/* ---- trend maths ---- */
++function feelDays(n,endISO){var out=[],d=parseISO(endISO||todayISO());d.setDate(d.getDate()-(n-1));
++  for(var i=0;i<n;i++){out.push(toISO(d));d.setDate(d.getDate()+1);}return out;}
++function feelGoodOn(key,iso){return ratGood(key,ratFor(iso)[key]);}
++var FEELCOL=["#F26D5B","#EF9A5A","#E9C55E","#A8D77E","#5CD6A0"];
++function feelColor(g){return FEELCOL[Math.max(1,Math.min(5,g))-1];}
++function feelMean(key,isos){var sum=0,n=0;isos.forEach(function(d){var g=feelGoodOn(key,d);if(g!=null){sum+=g;n++;}});return n?{avg:sum/n,n:n}:null;}
++/* improving / steady / falling from the trailing 7-day mean against the prior 7 */
++function feelTrend(key,endISO){
++  var d14=feelDays(14,endISO),cur=feelMean(key,d14.slice(7)),prev=feelMean(key,d14.slice(0,7));
++  if(!cur||cur.n<2)return {dir:"none",cur:cur,prev:prev};
++  if(!prev||prev.n<2)return {dir:"new",cur:cur,prev:prev};
++  var d=cur.avg-prev.avg;
++  return {dir:(d>=0.35?"up":(d<=-0.35?"dn":"flat")),cur:cur,prev:prev};
++}
++function feelTagHTML(t){
++  if(t.dir==="up")return '<span class="wl-ftag up">improving</span>';
++  if(t.dir==="dn")return '<span class="wl-ftag dn">falling</span>';
++  if(t.dir==="flat")return '<span class="wl-ftag fl">steady</span>';
++  if(t.dir==="new")return '<span class="wl-ftag fl">first week</span>';
++  return '<span class="wl-ftag fl">—</span>';
++}
++function feelAnyAnswered(isos){for(var i=0;i<isos.length;i++){if(ratCount(isos[i]))return true;}return false;}
++/* The colour-bar block: one row per question, oldest -> today, tallest = best,
++   flat grey = not answered. Used in the coach recap, on the Progress tab and in
++   the weekly check-in form so all three read identically. */
++function feelBarsHTML(endISO,n){
++  n=n||14;var isos=feelDays(n,endISO);
++  var h='';
++  RATINGS.forEach(function(q){
++    var t=feelTrend(q[0],endISO),bars='';
++    isos.forEach(function(d){var g=feelGoodOn(q[0],d);
++      bars+=(g==null)?'<i style="height:3px" title="'+d+' — not answered"></i>'
++                     :'<i style="height:'+Math.round(g/5*100)+'%;background:'+feelColor(g)+'" title="'+d+' — '+ratLabel(q[0],ratFor(d)[q[0]])+'"></i>';});
++    h+='<div class="wl-frow"><span class="k">'+q[1]+'</span><span class="wl-fbars">'+bars+'</span>'+feelTagHTML(t)+'</div>';
++  });
++  return h;
++}
++/* Plain language for the coach: which ratings are low or falling, and for how
++   long, cross-referenced with the current compound step. Ranked worst first and
++   capped at three — a line that names everything names nothing. */
++var FEEL_WATCH_MAX=3;
++function feelWatchHTML(endISO){
++  var isos=feelDays(14,endISO),low=[],falling=[];
++  RATINGS.forEach(function(q){
++    var run=0,sum=0;
++    for(var i=isos.length-1;i>=0;i--){var g=feelGoodOn(q[0],isos[i]);if(g==null)continue;if(g<=3){run++;sum+=g;}else break;}
++    if(run>=3)low.push({q:q,run:run,avg:sum/run});
++    if(feelTrend(q[0],endISO).dir==="dn")falling.push(q);
++  });
++  low.sort(function(a,b){return (a.avg-b.avg)||(b.run-a.run);});
++  var shown=low.slice(0,FEEL_WATCH_MAX),extra=low.length-shown.length;
++  var parts=shown.map(function(x){return "<b>"+x.q[1].toLowerCase()+"</b> "+x.q[3]+" "+x.run+" days running";});
++  if(extra)parts.push(extra+" other"+(extra>1?"s":"")+" also low");
++  var fOnly=falling.filter(function(q){return !low.some(function(x){return x.q[0]===q[0];});})
++                   .slice(0,FEEL_WATCH_MAX).map(function(q){return q[1].toLowerCase();});
++  if(fOnly.length)parts.push("<b>"+fOnly.join(" and ")+"</b> "+(fOnly.length>1?"are":"is")+" trending down");
++  var ph=feelPhase();
++  if(!parts.length){
++    if(!feelAnyAnswered(isos))return '';
++    return '<div class="wl-fwatch">Nothing standing out — no rating has sat low for three days or more.'+(ph&&ph.label?' Current step: <b>'+esc(ph.label)+'</b>.':'')+'</div>';
++  }
++  return '<div class="wl-fwatch"><b>Watch:</b> '+parts.join("; ")+"."+(ph&&ph.label?' Current step <b>'+esc(ph.label)+'</b>, day '+ph.day+'.':'')+'</div>';
++}
++/* The current compound step: the most recent dose whose amount differs from the
++   one before it. A titration is what makes a fortnight of ratings worth reading. */
++function feelPhase(){
++  var g=state.glp;if(!g||!g.compound)return null;
++  var doses=(g.doses||[]).filter(function(d){return !d.skipped&&d.takenAt!=null;}).sort(function(a,b){return a.takenAt-b.takenAt;});
++  if(!doses.length)return null;
++  var startIdx=0;
++  for(var i=doses.length-1;i>0;i--){if(String(doses[i].dose)!==String(doses[i-1].dose)){startIdx=i;break;}}
++  var st=doses[startIdx];
++  var startISO=toISO(new Date(st.takenAt));
++  var day=Math.max(1,Math.round((parseISO(todayISO())-parseISO(startISO))/86400000)+1);
++  var amt=(st.dose!=null&&st.dose!=="")?(st.dose+" "+(st.unit||"mg")):"";
++  return {startISO:startISO,day:day,label:amt?(amt+" since "+fmtShort(parseISO(startISO))):null};
++}
++function feelPhaseStripHTML(){
++  var ph=feelPhase();if(!ph)return '';
++  var isos=[],d=parseISO(ph.startISO),end=parseISO(todayISO()),guard=0;
++  while(d<=end&&guard++<120){isos.push(toISO(d));d.setDate(d.getDate()+1);}
++  if(isos.length>42)isos=isos.slice(isos.length-42);
++  if(!feelAnyAnswered(isos))return '';
++  var bars='';
++  isos.forEach(function(iso){
++    var sum=0,n=0;RATINGS.forEach(function(q){var g=feelGoodOn(q[0],iso);if(g!=null){sum+=g;n++;}});
++    bars+=n?'<i style="background:'+feelColor(Math.round(sum/n))+'" title="'+iso+'"></i>':'<i title="'+iso+' — not answered"></i>';
++  });
++  return '<div style="margin-top:16px"><div style="display:flex;justify-content:space-between;font-size:11.5px;font-weight:700;color:var(--muted)"><span>This compound phase</span><span>'+esc(ph.label||("day "+ph.day))+'</span></div><div class="wl-fphase">'+bars+'</div><div class="wl-hint" style="margin-top:6px">Each bar is one day’s average across the six questions, since your current dose step.</div></div>';
++}
++/* Progress tab card: this week per question, then the phase strip. */
++function feelCardHTML(){
++  var wk=toISO(weekStartFor(0)),isos=[],d=weekStartFor(0);
++  for(var i=0;i<7;i++){isos.push(toISO(d));d.setDate(d.getDate()+1);}
++  var today=todayISO();
++  var h='<div class="wl-card"><div class="wl-card-head"><span>How you’ve felt</span><span class="wl-count">week of '+fmtShort(parseISO(wk))+'</span></div>';
++  if(!feelAnyAnswered(feelDays(28,today)))
++    return h+'<div class="wl-empty">Nothing logged yet. Open <b>How you felt</b> in your daily check-in — a few days is enough to show a trend.</div></div>';
++  var dow=["S","M","T","W","T","F","S"];
++  h+='<div class="wl-fgrid"><span></span><div class="wl-fdow">'+isos.map(function(x){return '<span>'+dow[parseISO(x).getDay()]+'</span>';}).join("")+'</div>';
++  RATINGS.forEach(function(q){
++    var cells='';
++    isos.forEach(function(x){
++      var g=(x<=today)?feelGoodOn(q[0],x):null;
++      cells+=(g==null)?'<div class="wl-fcell na" title="'+x+' — not answered">–</div>'
++                      :'<div class="wl-fcell" style="background:'+feelColor(g)+'" title="'+x+' — '+ratLabel(q[0],ratFor(x)[q[0]])+'">'+g+'</div>';
++    });
++    h+='<span class="k">'+q[1]+'</span><div class="wl-fcells">'+cells+'</div>';
++  });
++  h+='</div><div class="wl-hint" style="margin-top:8px">5 is best, 1 is worst. “–” means the day wasn’t answered — a gap is never read as a bad day.</div>';
++  h+=feelPhaseStripHTML();
++  return h+'</div>';
++}
++/* The daily recap deliberately does NOT render this trend (Owner, 2026-08-03:
++   "Coach can have the data and comment, but no need to display it"). The
++   ratings ride along in the synced record, so the coach reads them and writes
++   about them in his own words; the charts live on the Progress tab and in the
++   weekly check-in form, where they are asked for rather than pushed. */
++
++/* ============================================================================
++   Weekly check-in — the athlete answers only what the app cannot know.
++   The entry point is the top of Home on the check-in day, taking the slot the
++   progress-photo prompt used to hold (the photos are captured in the form now).
++   The day comes from the EXISTING profile preference, settings.weekStart.
++   ==========================================================================*/
++var CI_ADHERENCE=[["off","Off plan"],["mostly_off","Mostly off"],["partly","Partly on"],["mostly_on","Mostly on"],["on","Fully on plan"]];
++/* Adherence is MEASURED, not asked (Owner, 2026-08-03: "based on the data and
++   not subjective to the user"). Each strand scores days-hit / days-with-a-goal,
++   and only strands the athlete actually has a target for are counted — a member
++   with no steps goal is not marked down for it. The breakdown is always shown
++   next to the verdict, so it is never a black box. */
++function ciAdherence(wk){
++  var days=ciCoveredDays(wk).filter(function(x){return x<=todayISO();});
++  if(!days.length)return null;
++  var st=state.settings,strands=[];
++  var tCal=num(st.targetCalories),tPro=num(st.targetProtein),tStep=num(st.stepsGoal),tSleep=sleepGoalMin();
++  var count=function(f){var n=0;days.forEach(function(d){if(f(d))n++;});return n;};
++  var mean=function(get){var t=0,n=0;days.forEach(function(d){var v=get(d);if(v!=null){t+=v;n++;}});return n?t/n:null;};
++  if(tCal!=null){
++    /* "lose" rewards being at or under target; a big overshoot is the miss */
++    var lose=(st.strategy||"lose")==="lose";
++    strands.push({key:"Calories",hit:count(function(d){var c=num((state.food[d]||{}).calories);
++      return c!=null&&(lose?c<=tCal*1.05:Math.abs(c-tCal)<=tCal*0.1);}),
++      of:days.length,
++      avg:mean(function(d){return num((state.food[d]||{}).calories);}),
++      fmt:function(v){return Math.round(v).toLocaleString();},
++      goal:"target "+Math.round(tCal).toLocaleString()});
++  }
++  if(tPro!=null)strands.push({key:"Protein",hit:count(function(d){var p=num((state.food[d]||{}).protein);return p!=null&&p>=tPro*0.9;}),
++    of:days.length,
++    avg:mean(function(d){return num((state.food[d]||{}).protein);}),
++    fmt:function(v){return Math.round(v)+"g";},
++    goal:"target "+Math.round(tPro)+"g"});
++  if(tStep!=null)strands.push({key:"Steps",hit:count(function(d){var s2=num(state.steps[d]);return s2!=null&&s2>=tStep;}),
++    of:days.length,
++    avg:mean(function(d){return num(state.steps[d]);}),
++    fmt:function(v){return Math.round(v).toLocaleString();},
++    goal:"goal "+Math.round(tStep).toLocaleString()});
++  if(tSleep!=null)strands.push({key:"Sleep",hit:count(function(d){var s3=num(state.sleep[d]);return s3!=null&&s3>=tSleep*0.9;}),
++    of:days.length,
++    avg:mean(function(d){return num(state.sleep[d]);}),
++    fmt:function(v){return minToHM(Math.round(v));},
++    goal:"goal "+minToHM(Math.round(tSleep))});
++  strands.push({key:"Logged",hit:count(function(d){
++    return num(state.steps[d])!=null||num(state.sleep[d])!=null||num((state.food[d]||{}).calories)!=null||
++      state.weights.some(function(w){return w.date===d;});}),of:days.length,count:true});
++  var hit=0,of=0;strands.forEach(function(s4){hit+=s4.hit;of+=s4.of;});
++  if(!of)return null;
++  var pct=hit/of;
++  var band=pct>=0.9?"on":pct>=0.75?"mostly_on":pct>=0.5?"partly":pct>=0.25?"mostly_off":"off";
++  var label=(CI_ADHERENCE.filter(function(o){return o[0]===band;})[0]||["",""])[1];
++  /* Owner 2026-08-03: say what to fix, not "Partly on". Name the strands that
++     actually fell short, worst first, and say nothing clever when none did. */
++  var weak=strands.filter(function(x){return x.of&&(x.hit/x.of)<0.7;})
++    .sort(function(a2,b2){return (a2.hit/a2.of)-(b2.hit/b2.of);})
++    .map(function(x){return x.key==="Logged"?"logging":x.key.toLowerCase();});
++  var summary;
++  if(!weak.length)summary=(pct>=0.99?"Everything on target":"On target");
++  else{var nm=weak.slice(0,2);
++    summary=nm.join(" and ").replace(/^./,function(c){return c.toUpperCase();})+" can improve";}
++  return {band:band,label:label,summary:summary,pct:pct,hit:hit,of:of,strands:strands,days:days.length};
++}
++/* The live object carries fmt() closures for rendering. NOTHING with a function
++   in it may reach the record: payload() feeds the M8 canonicaliser, which
++   rejects a function outright and would fail the sync. Store a flat copy. */
++function ciAdherenceStored(wk){
++  var a=ciAdherence(wk);if(!a)return null;
++  return {band:a.band,label:a.label,summary:a.summary,
++    pct:Math.round(a.pct*1000)/1000,hit:a.hit,of:a.of,days:a.days,
++    strands:a.strands.map(function(x){
++      return {key:x.key,hit:x.hit,of:x.of,
++        avg:(x.avg!=null?Math.round(x.avg*10)/10:null),
++        goal:(x.goal||null),count:!!x.count};})};
++}
++var CI_TEXT=[
++  ["win","Biggest win this week","What went well — a lift, a habit, a hard day you got through…"],
++  ["challenge","Biggest challenge","What got in the way — be honest, this is what Max can actually help with."],
++  ["training","How did training feel?","Heavy, easy, flat, strong… how your sessions actually felt."],
++  ["discomfort","Any discomfort or pain?","Anything nagging — joints, gut, injection sites. Leave blank if nothing."]
++];
++function ciRec(wk){var c=(state.checkins||{})[wk];return (c&&typeof c==="object")?c:null;}
++function ciResolved(wk){var r=ciRec(wk);return !!(r&&(r.status==="sent"||r.status==="skipped"));}
++function ciSince(){return state.settings.ciSince||toISO(weekStartFor(0));}
++/* Merge 2026-08-03 (M10): anchoring is an in-memory normalisation ALWAYS; the
++   durable part goes through save(), which the M10 source gate refuses on a
++   device that is not the writer — and also at boot, because the lease has not
++   settled yet. That is deliberate and is the same shape as the neighbouring
++   `if(resyncAllActivityTags())save();`: the value stands in memory and the
++   holder's next accepted write persists it with the rest of the payload.
++
++   Two further M10 constraints on this one line:
++     - it AMENDS an existing record and never CREATES one. A device that has
++       just completed an interrupted-logout wipe has no wl_v1, and a boot-time
++       write here would resurrect the store the wipe had verified as gone
++       (C19 T15c).
++     - it is NOT re-run after m10Boot() settles. A delayed write would land
++       after a recovery screen had already cleared the store, for the same
++       reason. */
++function ciAnchorSince(){
++  if(state.settings.ciSince!=null)return;
++  state.settings.ciSince=toISO(weekStartFor(0));
++  var have=false;try{have=localStorage.getItem(KEY)!=null;}catch(e){have=false;}
++  if(have)save();}
++/* Check-in days from the current one backwards, newest first, never earlier
++   than the week the feature first ran — a fresh install must not open with
++   months of "late" check-ins. */
++function ciWeekList(){
++  var out=[],d=weekStartFor(0),since=ciSince();
++  for(var i=0;i<12;i++){var iso=toISO(d);if(iso<since)break;out.push(iso);d.setDate(d.getDate()-7);}
++  return out;
++}
++function ciOpenWeeks(){return ciWeekList().filter(function(w){return !ciResolved(w);});}
++function ciDaysLate(wk){return Math.round((parseISO(todayISO())-parseISO(wk))/86400000);}
++function ciDayName(wk){return ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][parseISO(wk).getDay()];}
++function ciStatusLine(wks){
++  if(wks.length>1)return wks.length+" weeks open · "+wks.slice(0,2).map(function(w){return fmtShort(parseISO(w));}).join(" and ")+(wks.length>2?" …":"");
++  var n=ciDaysLate(wks[0]);
++  if(n<=0)return "Due today · "+ciDayName(wks[0]);
++  if(n===1)return "Due yesterday";
++  return "Due "+ciDayName(wks[0])+" · "+n+" days late";
++}
++function ciTimeStr(ts){var d=new Date(ts);var h=d.getHours()%12;if(h===0)h=12;var m=(d.getMinutes()<10?"0":"")+d.getMinutes();
++  return ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][d.getDay()]+" "+h+":"+m+(d.getHours()<12?" AM":" PM");}
++function ciAnswered(r){if(!r||!r.answers)return 0;var n=0;CI_TEXT.forEach(function(q){if((r.answers[q[0]]||"").trim())n++;});return n;}
++/* The card that replaces the progress-photo prompt at the top of Home. */
++function ciCardHTML(){
++  var open=ciOpenWeeks(),cur=toISO(weekStartFor(0));
++  if(open.length){
++    var wk=open[0],late=ciDaysLate(wk)>=1;
++    var r=ciRec(wk),draft=(r&&r.status==="draft")?ciAnswered(r):0;
++    return '<div class="wl-card wl-ci'+(late?" late":"")+'">'+
++      '<div class="wl-ci-top"><span class="wl-ci-t">Weekly check-in</span><span class="wl-ci-st'+(late?" late":"")+'">'+ciStatusLine(open)+'</span></div>'+
++      '<button class="wl-btn wl-btn-primary wl-full" data-act="ci:open" data-week="'+wk+'">'+I.camera+(draft?"Finish check-in":"Start check-in")+'</button>'+
++      '<div class="wl-hint" style="margin-top:8px">'+(draft?"Picked up where you left off — "+draft+" of "+CI_TEXT.length+" answered. ":"Four photos and five quick questions for Coach Max. ")+'Everything else is filled in from your logs.</div>'+
++      (open.length>1?'<div class="wl-hint" style="margin-top:6px">Older week still open: '+fmtShort(parseISO(open[1]))+'. Finish this one and it comes up next.</div>':'')+
++      '</div>';
++  }
++  var rc=ciRec(cur);
++  if(rc&&rc.status==="sent")
++    return '<div class="wl-card wl-ci done"><div class="wl-ci-top"><span class="wl-ci-t">Weekly check-in</span><span class="wl-ci-st ok">✓ Sent '+ciTimeStr(rc.updated||rc.ts)+'</span></div>'+
++      '<button class="wl-btn wl-btn-ghost wl-full" data-act="ci:open" data-week="'+cur+'">Edit this week’s check-in</button></div>';
++  if(rc&&rc.status==="skipped")
++    return '<div class="wl-card wl-ci done"><div class="wl-ci-top"><span class="wl-ci-t">Weekly check-in</span><span class="wl-ci-st" style="color:var(--faint)">Skipped this week</span></div>'+
++      '<button class="wl-btn wl-btn-ghost wl-full" data-act="ci:unskip" data-week="'+cur+'">Undo — I’ll do it after all</button></div>';
++  return '';
++}
++/* The week a check-in REPORTS ON is the one that just closed: the previous
++   check-in day through the day before this one. A Monday check-in on Aug 3
++   covers Mon Jul 27 → Sun Aug 2 (Owner, 2026-08-03). The record stays keyed by
++   the check-in day itself, which is what the due/late logic counts from. */
++function ciCovered(wk){
++  var end=new Date(parseISO(wk).getTime()-86400000);
++  var start=new Date(end.getTime()-6*86400000);
++  return {start:toISO(start),end:toISO(end)};
++}
++function ciCoveredDays(wk){
++  var c=ciCovered(wk),out=[],d=parseISO(c.start);
++  for(var i=0;i<7;i++){out.push(toISO(d));d.setDate(d.getDate()+1);}
++  return out;
++}
++function ciCoveredLabel(wk){var c=ciCovered(wk);return fmtShort(parseISO(c.start))+" – "+fmtShort(parseISO(c.end));}
++/* What the app already knows, shown so the athlete never retypes it. */
++function ciFacts(wk){
++  var u=state.settings.units,today=todayISO();
++  /* the closed week is entirely in the past, but clamp anyway so an early or
++     back-dated check-in can never average days that have not happened */
++  var past=ciCoveredDays(wk).filter(function(x){return x<=today;});
++  var wmap={};(state.weights||[]).forEach(function(x){wmap[x.date]=x.weight;});
++  var ws=past.map(function(x){return num(wmap[x]);}).filter(function(v){return v!=null;});
++  var stp=past.map(function(x){return num(state.steps[x]);}).filter(function(v){return v!=null;});
++  var slp=past.map(function(x){return num(state.sleep[x]);}).filter(function(v){return v!=null;});
++  var cal=past.map(function(x){return num((state.food[x]||{}).calories);}).filter(function(v){return v!=null;});
++  var waist=null;for(var j=past.length-1;j>=0;j--){var wv=num(state.waist[past[j]]);if(wv!=null){waist=wv;break;}}
++  var avg=function(a){return a.length?a.reduce(function(x,y){return x+y;},0)/a.length:null;};
++  var tgt=num(state.settings.targetCalories);
++  var rated=past.filter(function(x){return ratCount(x)>0;}).length;
++  var tracked=past.filter(function(x){return num(wmap[x])!=null||num(state.steps[x])!=null||num((state.food[x]||{}).calories)!=null||num(state.sleep[x])!=null;}).length;
++  var rows=[];
++  rows.push(["Weight",ws.length?(r1(ws[ws.length-1])+" "+u+(ws.length>1?" · "+(ws[ws.length-1]-ws[0]<=0?"▼ ":"▲ ")+Math.abs(r1(ws[ws.length-1]-ws[0]))+" this week":"")):"—"]);
++  rows.push(["Waist",waist!=null?(r1(waist)+" "+(u==="kg"?"cm":"in")):"—"]);
++  rows.push(["Steps",stp.length?Math.round(avg(stp)).toLocaleString()+" avg":"—"]);
++  rows.push(["Sleep",slp.length?minToHM(Math.round(avg(slp)))+" avg":"—"]);
++  rows.push(["Calories",cal.length?(Math.round(avg(cal)).toLocaleString()+" avg"+(tgt!=null?" vs "+tgt.toLocaleString()+" target":"")):"—"]);
++  rows.push(["Days tracked",tracked+" of "+past.length]);
++  rows.push(["Daily ratings",rated?rated+" of "+past.length+" days answered":"none yet"]);
++  return {rows:rows,tracked:tracked,days:past.length,calAvg:avg(cal),tgt:tgt};
++}
++function view_checkin(){
++  var wk=state.ciWeek||toISO(weekStartFor(0));
++  var r=ciRec(wk)||{},a=r.answers||{};
++  var sent=(r.status==="sent");
++  var f=ciFacts(wk);
++  var cov=ciCovered(wk);
++  var h='<div class="wl-stack">';
++  h+='<div class="wl-card"><div class="wl-ci-top"><span class="wl-ci-t">'+ciCoveredLabel(wk)+'</span><span class="wl-ci-st'+(sent?" ok":(ciDaysLate(wk)>=1?" late":""))+'">'+(sent?"✓ Sent "+ciTimeStr(r.updated||r.ts):ciStatusLine([wk]))+'</span></div>'+
++    '<div class="wl-hint">'+(sent?"Editing a sent check-in re-sends the corrected version to Max. The original stays in your record.":"This covers the week that just closed — "+ciDayName(cov.start)+" through "+ciDayName(cov.end)+". Answer what you can — nothing here is required.")+'</div></div>';
++  if(feelAnyAnswered(feelDays(14,todayISO())))
++    h+='<div class="wl-card"><div class="wl-card-head"><span>How you’ve felt</span><span class="wl-count">14 days</span></div>'+feelBarsHTML(todayISO(),14)+feelWatchHTML(todayISO())+'</div>';
++  h+='<div class="wl-card"><div class="wl-card-head"><span>This week’s photos</span><span class="wl-count" id="wl-ciphoto-n">—</span></div>'+
++     '<div id="wl-ciphotos" class="wl-citiles"></div>'+
++     '<div class="wl-hint" style="margin-top:10px">Tap a slot to add or retake. Same light, same time of day, same distance — that is what makes them comparable.</div></div>';
++  h+='<div class="wl-card"><div class="wl-card-head"><span>Your week</span></div>';
++  var adh=ciAdherence(wk);
++  if(adh){
++    var _hp=Math.round(adh.pct*100);
++    h+='<div class="wl-feelq"><div class="wl-feelq-h"><span>How well you stuck to the plan</span><span class="a">'+esc(adh.summary)+'</span></div>'+
++       '<div class="wl-adhbar"><i class="hit" style="width:'+_hp+'%"></i><i class="miss" style="width:'+(100-_hp)+'%"></i></div>'+
++       '<div class="wl-cifill" style="margin-top:10px">'+
++       adh.strands.map(function(x){
++         var val=x.count?(x.hit+" of "+x.of+" days")
++               :(x.avg!=null?(x.fmt(x.avg)+" avg"):"—");
++         var sub=x.count?"days logged":esc(x.goal||"");
++         return '<span class="k">'+esc(x.key)+' <em style="color:var(--faint);font-style:normal">'+sub+'</em></span>'+
++                '<span class="v"'+(x.of&&(x.hit/x.of)<0.7?' style="color:var(--accent)"':'')+'>'+esc(val)+'</span>';
++       }).join("")+
++       '</div><div class="wl-hint" style="margin-top:10px">Worked out from your logs across '+adh.days+' days, not a self-rating.</div></div>';
++  }
++  CI_TEXT.forEach(function(q){
++    h+='<label class="wl-field wl-field-full" style="margin-top:16px"><span>'+q[1]+' <em>optional</em></span><textarea class="wl-ci-input" data-ci="'+q[0]+'" data-week="'+wk+'" placeholder="'+esc(q[2])+'" style="width:100%;min-height:64px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:14px;padding:11px 12px;box-sizing:border-box;outline:none;resize:vertical">'+esc(a[q[0]]||"")+'</textarea></label>';
++  });
++  h+='</div>';
++  h+='<div class="wl-card"><div class="wl-card-head"><span>Sent automatically</span></div><div class="wl-cifill">';
++  f.rows.forEach(function(row){h+='<span class="k">'+esc(String(row[0]))+'</span><span class="v">'+esc(String(row[1]))+'</span>';});
++  h+='</div><div class="wl-hint" style="margin-top:10px">Your photos and the 14-day rating trends go with it. You never retype what the app already logged.</div></div>';
++  h+='<button class="wl-btn wl-btn-primary wl-full" data-act="ci:send" data-week="'+wk+'">'+(sent?"Update weekly check-in":"Complete Weekly Check-in")+'</button>';
++  h+='<div class="wl-ciskip">';
++  if(state.ciSkipAsk===wk){
++    h+='<div class="wl-card" style="border:1px solid var(--bad)"><div class="wl-ci-t" style="margin-bottom:8px">Skip this week’s check-in?</div>'+
++       '<div class="wl-hint">Nothing is sent to Max for '+ciCoveredLabel(wk)+' — no photos, no answers. Your daily logs keep flowing as normal, and you can undo this until your next check-in day.</div>'+
++       '<div class="wl-ck-reopen-btns" style="margin-top:12px"><button class="wl-btn wl-btn-ghost" data-act="ci:skipcancel">Cancel</button><button class="wl-btn wl-btn-primary" data-act="ci:skipyes" data-week="'+wk+'">Yes, skip this week</button></div></div>';
++  }else if(!sent){
++    h+='<button class="wl-btn wl-btn-ghost wl-full" data-act="ci:skipask" data-week="'+wk+'">Skip this week’s check-in</button>';
++  }
++  h+='</div>';
++  return h+'</div>';
++}
++function renderCheckinPhotos(){
++  var host=document.getElementById("wl-ciphotos");if(!host)return;
++  var wk=state.ciWeek||toISO(weekStartFor(0));
++  idbAll().then(function(all){
++    var host2=document.getElementById("wl-ciphotos");if(!host2)return;
++    clearPhotoURLs();
++    var progs=all.filter(function(p){return p.kind==="progress"&&p.week===wk;});
++    var html="",n=0;
++    POSES.forEach(function(ps){
++      var found=progs.filter(function(p){return p.pose===ps[0];})[0];
++      if(found){n++;var url=URL.createObjectURL(found.blob);photoURLs.push(url);photoMap[found.id]=url;
++        html+='<div><button class="wl-citile has" data-act="pphoto:add" data-pose="'+ps[0]+'" data-week="'+wk+'" style="background-image:url('+url+')" aria-label="Retake '+ps[1]+'"></button><span class="wl-citlbl">'+ps[1]+'</span></div>';}
++      else html+='<div><button class="wl-citile" data-act="pphoto:add" data-pose="'+ps[0]+'" data-week="'+wk+'" aria-label="Add '+ps[1]+'">＋</button><span class="wl-citlbl">'+ps[1]+'</span></div>';
++    });
++    host2.innerHTML=html;
++    var c=document.getElementById("wl-ciphoto-n");if(c)c.textContent=n+" of "+POSES.length;
++  }).catch(function(){
++    var host2=document.getElementById("wl-ciphotos");
++    if(host2)host2.innerHTML='<div class="wl-hint">Photos aren’t available on this device.</div>';});
++}
++/* A part-filled form is kept as a draft, so a mis-tap out of the view never
++   loses what was typed. Only send/skip resolve the week. */
++function ciDraft(wk){
++  var all=state.checkins||(state.checkins={});
++  var r=all[wk];
++  if(!r||typeof r!=="object"){r={status:"draft",ts:Date.now(),answers:{}};all[wk]=r;}
++  if(!r.answers)r.answers={};
++  return r;
++}
++function ciHistoryHTML(){
++  var wks=ciWeekList().filter(function(w){var r=ciRec(w);return r&&r.status&&r.status!=="draft";});
++  if(!wks.length)return '';
++  var h='<div class="wl-card"><div class="wl-card-head"><span>Weekly check-ins</span><span class="wl-count">'+wks.length+'</span></div>';
++  wks.forEach(function(w,i){
++    var r=ciRec(w),sent=(r.status==="sent");
++    h+='<div class="wl-cihist"'+(i===0?' style="border-top:0"':'')+'><div><div class="w">'+ciCoveredLabel(w)+'</div><div class="s '+(sent?"ok":"sk")+'">'+
++      (sent?"✓ Sent "+ciTimeStr(r.updated||r.ts)+" · "+ciAnswered(r)+" of "+CI_TEXT.length+" answered":"Skipped")+'</div></div>'+
++      '<button class="wl-link" data-act="ci:open" data-week="'+w+'">'+(sent?"Edit":"Open")+' ›</button></div>';
++  });
++  return h+'</div>';
++}
+ function ckNotes(sel){
+   var note=(state.notes[sel]||"").trim();
+   if(note){var snip=note.length>58?note.slice(0,58)+"…":note;
+@@ -1923,7 +2453,7 @@ function todayChecklistHTML(sel){
+     mh+=(steps!=null)?ckRow(true,"Steps",Math.round(steps).toLocaleString(),"steps",false):ckRowSkip("Steps","Optional","steps");
+     mh+=hasCal?ckCalories(sel):ckRowSkip("Calories","Optional","calories");
+     mh+=(sleep!=null)?ckRow(true,"Sleep",minToHM(sleep),"sleep",false):ckRowSkip("Sleep","Optional","sleep");
+-    mh+=ckNotes(sel);if(!_completed)mh+=hkButtonHTML(sel);return mh+'</div>';}
++    mh+=ckFeel(sel);mh+=ckNotes(sel);if(!_completed)mh+=hkButtonHTML(sel);return mh+'</div>';}
+   var wSkip=isSkip(sel,"weight"),stSkip=isSkip(sel,"steps"),slSkip=isSkip(sel,"sleep"),calSkip=isSkip(sel,"calories");
+   var done=((wt!=null||wSkip)?1:0)+((steps!=null||stSkip)?1:0)+((hasCal||calSkip)?1:0)+((sleep!=null||slSkip)?1:0);
+   var _allDone=_completed; /* completion state = day Completed via "Complete today" (a recap exists), not merely 4/4 filled */
+@@ -1932,7 +2462,7 @@ function todayChecklistHTML(sel){
+   h+=(wt!=null)?ckRow(true,"Weight",r1(wt)+" "+u,"weight",false):(wSkip?ckRowSkip("Weight","Skipped","weight"):ckRow(false,"Weight","Add","weight",false));
+   h+=(hasCal||!calSkip)?ckCalories(sel):ckRowSkip("Calories","Skipped","calories");
+   h+=(steps!=null)?ckRow(true,"Steps",Math.round(steps).toLocaleString(),"steps",false):(stSkip?ckRowSkip("Steps","Skipped","steps"):ckRow(false,"Steps","Add","steps",false));
+-  h+=ckNotes(sel);if(!_completed)h+=hkButtonHTML(sel); /* hide Health import only once the day is Completed (recap generated), not merely when 4/4 are filled */
++  h+=ckFeel(sel);h+=ckNotes(sel);if(!_completed)h+=hkButtonHTML(sel); /* hide Health import only once the day is Completed (recap generated), not merely when 4/4 are filled */
+   if(_allDone){
+     if(state.reopenAsk===sel){
+       h+='<div class="wl-ck-done-banner ask"><div class="wl-ck-reopen-q">Reopen this day? Its coach recap will be cleared.</div>'+
+@@ -1955,19 +2485,10 @@ function activitySummaryHTML(sel){
+   else h+='<div class="wl-hint">No activity logged. Add cardio, lifting, or recovery from the Activity tab.</div>';
+   return h+'</div>';
+ }
+-var wkPhotoHave=null,wkPhotoKey=null;
+-
+-function refreshWeekPhotos(){if(typeof indexedDB==="undefined"){wkPhotoHave=false;return;}var wk=toISO(weekStartFor(0));var key=wk;
+-  /* Go through idb() rather than opening the database directly. Opening "wl_photos"
+-     at version 1 without an onupgradeneeded handler CREATES it empty, and since the
+-     version then already matches, idb()'s handler never runs and the "photos" object
+-     store is never created — permanently breaking photos on any device that opens the
+-     app before taking its first photo. idb() is the single owner of the schema. */
+-  try{idb().then(function(db){
+-    var tx=db.transaction("photos","readonly");var rq=tx.objectStore("photos").index("date").openCursor(IDBKeyRange.lowerBound(wk));
+-    rq.onsuccess=function(){var had=wkPhotoHave;wkPhotoHave=!!rq.result;wkPhotoKey=key;if(had!==wkPhotoHave)render();};
+-    rq.onerror=function(){wkPhotoHave=false;wkPhotoKey=key;};
+-  }).catch(function(){wkPhotoHave=false;wkPhotoKey=key;});}catch(e){wkPhotoHave=false;wkPhotoKey=key;}}
++/* wkPhotoHave / refreshWeekPhotos retired 2026-08-03: they existed only to
++   decide whether to show the "This Week's Progress Photos" prompt, which the
++   weekly check-in card replaced. Nothing reads that state now. */
++
+ function maxSheetHTML(){if(!state.maxOpen)return "";var ws=state.weeklySummary;var _ciDay=(new Date().getDay()===(parseInt(state.settings.weekStart,10)||0));
+   var inner;
+   if(state.genBusy){inner='<div class="wl-mhead"><span class="wl-mav">M</span><span style="min-width:0"><span class="wl-mtitle">Weekly check-in</span><span class="wl-msub">from Coach Max</span></span><button class="wl-maxx" data-act="max:close">\u2715</button></div><div class="wl-hint">\u23f3 Generating your check-in\u2026 this takes about a minute. You can close this and keep using the app.</div>';}
+@@ -2092,9 +2613,11 @@ function view_overview(){
+     h+='</div><div class="wl-progress-track"><div class="wl-progress-fill" style="width:'+((_hprog||0)*100)+'%"></div>'+(_hprog!=null?'<div class="wl-progress-marker" style="left:'+(_hprog*100)+'%"></div>':'')+'</div><div class="wl-progress-ends"><span><b>'+r1(_hstart)+'</b> start</span><span class="wl-togo">'+(_htoGo!=null&&_htoGo>0?r1(_htoGo)+" "+u+" to go":"Goal reached")+'</span><span class="pe-r"><span><b>'+r1(_hgoal)+'</b> goal</span>'+_etaHTML+'</span></div></div>';
+   }
+   if(_atTop)h+=_recapUnit;
+-  var _ciDay=(new Date().getDay()===(parseInt(state.settings.weekStart,10)||0));
+-  if(_ciDay&&wkPhotoKey!==toISO(weekStartFor(0)))refreshWeekPhotos();
+-  if(_ciDay&&wkPhotoHave!==true)h+='<div class="wl-card"><button class="wl-btn wl-btn-primary wl-full" data-act="go" data-view="photos">'+I.camera+'This Week\u2019s Progress Photos</button><div class="wl-hint" style="margin-top:8px">Check-in day \u2014 capture Front, Left Side, Right Side, and Back to track your visible progress.</div></div>';
++  /* The weekly check-in owns this slot now (Owner, 2026-08-03). It replaced the
++     "This Week's Progress Photos" prompt because the four photos are captured
++     inside the check-in form itself, and unlike that prompt it persists \u2014 with
++     escalating lateness \u2014 until it is sent or deliberately skipped. */
++  h+=ciCardHTML();
+   h+=todayChecklistHTML(state.selDate);
+   if(!_atTop)h+=_recapUnit;
+   h+=activitySummaryHTML(state.selDate);
+@@ -2329,6 +2852,8 @@ function view_weight(){
+     if(cc.data.length)h+=buildChart(cc,null,bcU,true,ctx.start.getTime(),ctx.end.getTime());else if(!bcHas(bcMap))h+='<div class="wl-empty">No '+(bcTab==="bodyfat"?"body fat":bcTab==="leanmass"?"lean mass":"waist")+' logged yet \u2014 add it from the Weight check-in when you measure.</div>';else h+='<div class="wl-empty">No '+(bcTab==="bodyfat"?"body fat":bcTab==="leanmass"?"lean mass":"waist")+' entries in this period.</div>';
+   }
+   h+='</div>';
++  h+=feelCardHTML();
++  h+=ciHistoryHTML();
+   h+=glpProgressHTML();
+   var moreOpen=state.moreStats!==false; /* Owner 2026-08-02: Progress sections start open */
+   h+='<div class="wl-card"><button class="wl-collapse-head" data-act="morestats"><span>More stats</span><span class="wl-chevron'+(moreOpen?" open":"")+'">\u203a</span></button>';
+@@ -2405,7 +2930,7 @@ function headerNav(){var v=state.view;
+ function quickEntryHTML(){
+   var sec=state.quickEntry;if(!sec)return "";
+   var sel=state.selDate;var u=state.settings.units;
+-  var titles={weight:"Weight",steps:"Steps",sleep:"Sleep",calories:"Calories & macros",notes:"Notes"};
++  var titles={weight:"Weight",steps:"Steps",sleep:"Sleep",calories:"Calories & macros",notes:"Notes",feel:"How you felt"};
+   var wmap={};state.weights.forEach(function(x){wmap[x.date]=x.weight;});
+   var e=state.food[sel]||{};
+   var t={calories:num(state.settings.targetCalories),protein:num(state.settings.targetProtein),carbs:num(state.settings.targetCarbs),fat:num(state.settings.targetFat)};
+@@ -2422,6 +2947,7 @@ function quickEntryHTML(){
+     body+='<label class="wl-field wl-field-full" style="margin-top:14px"><span>Fiber <em>g · optional</em></span><input class="wl-food-input wl-num" data-food="fiber" type="text" inputmode="decimal" placeholder="0" value="'+_fv+'"></label>';
+     body+='<div id="wl-calnotice">'+calNoticeHTML(sel)+'</div>';var _clk=isSkip(sel,"calories");body+=skipBtn("calories",_clk,"food");
+     }
++  else if(sec==="feel")body=feelSheetBody(sel);
+   else if(sec==="notes")body='<textarea class="wl-note-input" placeholder="Any notes for the AI summary (feeling sick, feeling good, on vacation…)" style="width:100%;min-height:96px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:14px;padding:11px 12px;box-sizing:border-box;outline:none;resize:vertical">'+esc(state.notes[sel]||"")+'</textarea>';
+   var h='<div class="wl-confirm"><div class="wl-confirm-card">';
+   h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><div style="font-weight:800;font-size:17px">'+titles[sec]+'</div><button class="wl-icon-btn" data-act="qe:close">✕</button></div>';
+@@ -3106,9 +3632,15 @@ function lrRangePos(r,lo,hi){
+ function lrPrescription(en,n,rt){
+   n=Math.max(1,n|0);
+   var prog=(en&&en.progression)||null,it=null,inferred=false;
+-  if(!prog&&rt){
+-    it=(rt.items||[]).filter(function(x){return x.exerciseId===(en&&en.exerciseId);})[0]||null;
+-    prog=(it&&it.progression)||rt.progression||null;
++  /* Resolve the routine item ALWAYS, not only when the entry lacks a
++     progression. Reverse pyramid already fell back to the item's setRanges,
++     but double progression only ever read the entry's own repLow/repHigh — so
++     a session logged before the item's range was set, or an exercise swapped in
++     ad hoc, printed no range at all on the report while its neighbours printed
++     theirs (Owner, 2026-08-03: seated cable row, day 1). */
++  if(rt)it=(rt.items||[]).filter(function(x){return x.exerciseId===(en&&en.exerciseId);})[0]||null;
++  if(!prog){
++    prog=(it&&it.progression)||(rt&&rt.progression)||null;
+     if(prog)inferred=true;}
+   if(prog==="rpt"){
+     var mv=(en&&en.movement)||(it&&it.movement)||"compound";
+@@ -3122,9 +3654,14 @@ function lrPrescription(en,n,rt){
+       if(!(rg[i]&&rg[i].lo!=null&&rg[i].hi!=null&&rg[i].hi>=rg[i].lo)){rg[i]=def[i];full=false;}}
+     return {mode:"rpt",ranges:rg,assumed:(inferred||!full)};}
+   var lo=num(en&&en.repLow),hi=num(en&&en.repHigh);
++  /* the entry's own range wins; the routine item is the fallback, and taking it
++     is an inference, so it is flagged assumed rather than passed off as logged */
++  if(!(lo!=null&&hi!=null&&hi>=lo)&&it){
++    var ilo=num(it.repLow),ihi=num(it.repHigh);
++    if(ilo!=null&&ihi!=null&&ihi>=ilo){lo=ilo;hi=ihi;inferred=true;}}
+   if(lo!=null&&hi!=null&&hi>=lo){
+     var one=[];for(var k=0;k<n;k++)one.push({lo:lo,hi:hi});
+-    return {mode:"single",ranges:one,assumed:false};}
++    return {mode:"single",ranges:one,assumed:inferred};}
+   return {mode:"none",ranges:[],assumed:false};}
+ function lrWeekStartISO(iso){
+   var ws=parseInt(state.settings.weekStart,10)||0;
+@@ -3429,7 +3966,10 @@ function srExerciseHTML(x,first){
+   var h='<div class="ex"><div class="ex-name">'+srEsc(x.name)+'</div>';
+   var sch=srSchemeTxt(x);
+   h+='<div class="ex-scheme"><span class="ptag'+(x.mode==="rpt"?" rpt":"")+'">'+(x.mode==="rpt"?"RPT":"PO")+'</span>'+srEsc(sch)+(x.assumed?'<span class="dag">&dagger;</span>':'')+'</div>';
+-  if(first)h+='<div class="setgrid sethead"><span>Set</span><span>Weight &times; Reps</span><span style="text-align:center">Target</span><span style="text-align:center">Range</span><span style="text-align:right">RIR</span></div>';
++  /* the header repeats per exercise (Owner, 2026-08-03: "It only lists it
++     at the very top") — five columns is more than anyone holds in their head
++     while scrolling a report. `first` still controls the leading gap only. */
++  h+='<div class="setgrid sethead"><span>Set</span><span>Weight &times; Reps</span><span style="text-align:center">Target</span><span style="text-align:center">Range</span><span style="text-align:right">RIR</span></div>';
+   (x.sets||[]).forEach(function(st,i){
+     if(st.skipped){
+       h+='<div class="setgrid setrow'+((!first&&i===0)?' pad':'')+'">'+
+@@ -3439,7 +3979,9 @@ function srExerciseHTML(x,first){
+         '<span class="set-rng" style="color:#6C7686">'+SRDASH+'</span>'+
+         '<span class="set-rir">'+SRDASH+'</span></div>';
+       return;}
+-    var wr=(st.w!=null?srW(st.w):"BW")+"&times;"+srInt(st.r)+(st.pr?'<span class="pr">'+srEsc(st.pr)+'</span>':'');
++    /* the multiply sign gets its own spacing and is dimmed, so the two numbers
++       read as two numbers (Owner, 2026-08-03: "very tight ... hard to read") */
++    var wr=(st.w!=null?srW(st.w):"BW")+'<span class="wr-x">&times;</span>'+srInt(st.r)+(st.pr?'<span class="pr">'+srEsc(st.pr)+'</span>':'');
+     h+='<div class="setgrid setrow'+((!first&&i===0)?' pad':'')+'">'+
+       '<span class="set-n">'+srInt(st.n)+'</span>'+
+       '<span class="set-wr">'+wr+'</span>'+
+@@ -3464,6 +4006,29 @@ function srPhotosHTML(ph){
+   h+='</div>';
+   if(ph.caption)h+='<div class="wl-hint">'+srEsc(ph.caption)+'</div>';
+   return h+'</div>';}
++/* Body fat, lean mass and waist (Owner, 2026-08-03). These are logged only
++   when measured, so the card reports the latest reading and how it moved since
++   the previous one, and says plainly when the newest reading predates the week
++   rather than passing a stale number off as this week's. Held or rising lean
++   mass while weight falls is the whole point of the training. */
++function srBodyCompHTML(inp){
++  var rows=(inp.bodycomp||[]).filter(function(r){return r.val!=null;});
++  if(!rows.length)return "";
++  var h='<div class="wl-card"><div class="wl-card-head"><span>Body composition</span></div>';
++  rows.forEach(function(r){
++    var chg;
++    if(r.chg!=null&&r.chg!==0){
++      var good=r.goodUp?(r.chg>0):(r.chg<0);
++      chg='<span class="bc-chg '+(good?"good":"bad")+'">'+(r.chg>0?"&#8593;":"&#8595;")+' '+srR1(Math.abs(r.chg))+'</span>';
++    }else if(r.chg===0)chg='<span class="bc-chg flat">&mdash;</span>';
++    /* an empty cell, never an absent one: the column must hold its width or the
++       rows below stop lining up (Owner, 2026-08-03) */
++    else chg='<span class="bc-chg"></span>';
++    h+='<div class="bc-row"><span class="bc-k">'+srEsc(r.key)+'</span>'+
++       '<span class="bc-v">'+srR1(r.val)+'<em> '+srEsc(r.unit)+'</em></span>'+
++       chg+'<span class="bc-d">'+srEsc(r.stale?("last logged "+r.dateLabel):r.dateLabel)+'</span></div>';});
++  h+='<div class="wl-hint">Dates show the last entry for each metric. Change is against the previous entry before this week. Lean mass holding or rising while weight falls means muscle is being kept.</div>';
++  return h+'</div>';}
+ /* the Summary tab's weekly-average hero, change pill included */
+ function srHeroHTML(inp){
+   var u=srEsc(inp.units),he=inp.hero;
+@@ -3521,8 +4086,27 @@ function srDailyHTML(inp){
+   return h+'</tbody></table></div>';}
+ /* one card per lifting session: day chip, duration · session RPE · total lifted,
+    then each exercise with its progression chip and set grid, then the note */
++/* Cardio leads the workouts section (Owner, 2026-08-03), and unlike the weekly
++   zone-2+ goal this lists EVERY session whatever its zone — the coach wants the
++   whole picture, not just what counts toward a target. */
++function srCardioHTML(inp){
++  var list=inp.cardio||[];
++  if(!list.length)return '<div class="wl-card"><div class="wl-card-head"><span>Cardio</span></div><div class="wl-hint" style="margin-top:0">No cardio logged this week.</div></div>';
++  var h='<div class="wl-card"><div class="wl-card-head"><span>Cardio</span><span class="wl-count">'+srInt(list.length)+'</span></div>';
++  h+='<div class="cd-row cd-hd"><span>Day</span><span>Type</span><span>Zone</span><span>Time</span><span>Cals</span></div>';
++  list.forEach(function(c){
++    h+='<div class="cd-row">'+
++       '<span>'+srEsc(c.dayLabel)+'</span>'+
++       '<span class="cd-ty">'+srEsc(c.type)+'</span>'+
++       '<span>'+(c.zone!=null?'Z'+srInt(c.zone):SRDASH)+'</span>'+
++       '<span>'+(c.mins!=null?srInt(c.mins)+' min':SRDASH)+'</span>'+
++       '<span>'+(c.cal!=null?srInt(c.cal):SRDASH)+'</span></div>';
++    if(c.note)h+='<div class="cd-note">'+srEsc(c.note)+'</div>';});
++  return h+'</div>';}
+ function srWorkoutsHTML(inp){
+   var h='<div class="secLbl">This week&rsquo;s workouts</div>';
++  h+=srCardioHTML(inp);
++  h+='<div class="secLbl" style="margin-top:16px">Weightlifting</div>';
+   if(!(inp.sessions||[]).length)return h+'<div class="wl-card"><div class="wl-hint" style="margin-top:0">No lifting sessions logged this week.</div></div>';
+   inp.sessions.forEach(function(s){
+     h+='<div class="wl-card"><div class="wl-card-head"><span>'+srEsc(s.name)+'</span><span class="wl-count">'+srEsc(s.dateLabel)+'</span></div>';
+@@ -3556,8 +4140,26 @@ var SRCSS=[
+ ".wl-count{font-family:var(--mono);font-size:11px;color:var(--muted);background:var(--bg2);padding:3px 9px;border-radius:7px;font-weight:500;letter-spacing:.02em;text-transform:uppercase}",
+ ".wl-hint{font-size:12px;color:var(--muted);line-height:1.45;margin-top:10px}",
+ ".ph-row{display:grid;gap:9px}",
++".bc-row{display:grid;grid-template-columns:1fr 96px 62px 66px;gap:8px;align-items:baseline;padding:7px 0;border-top:1px solid var(--line)}",
++".bc-row:first-of-type{border-top:0}",
++".bc-k{font-size:12.5px;color:var(--muted);font-weight:700}",
++".bc-v{font-family:var(--mono);font-size:14px;color:var(--text);font-weight:700;text-align:right}",
++".bc-v em{font-style:normal;font-size:11px;color:var(--faint);font-weight:600}",
++".bc-chg{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:11.5px;font-weight:800;color:var(--muted);text-align:right}",
++".bc-chg.flat{color:var(--faint);font-weight:600}",
++".bc-chg.good{color:#22c55e}",
++".bc-chg.bad{color:#ef4444}",
++".bc-d{font-size:10.5px;color:var(--faint);text-align:right;white-space:nowrap}",
++".cd-row{display:grid;grid-template-columns:1.1fr 2fr .7fr 1fr .8fr;gap:8px;align-items:baseline;padding:7px 0;border-top:1px solid var(--line);font-size:12.5px}",
++".cd-row span:first-child{color:var(--muted);font-weight:700}",
++".cd-row .cd-ty{color:var(--text);font-weight:700}",
++".cd-hd{border-top:0;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);font-weight:800}",
++".cd-hd span{color:var(--faint)!important;font-weight:800!important}",
++".cd-note{font-size:11.5px;color:var(--muted);padding:0 0 7px;font-style:italic}",
+ ".ph-slot{background:var(--bg2);border:1px solid var(--line);border-radius:12px;overflow:hidden;position:relative;aspect-ratio:3/4;display:flex;align-items:center;justify-content:center}",
+-".ph-slot img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}",
++/* contain, never cover: a cropped progress photo is a useless progress photo —
++   the coach is comparing outlines week to week (Owner, 2026-08-03). */
++".ph-slot img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block}",
+ ".ph-slot svg{width:58%;height:auto;display:block}",
+ ".ph-pose{position:absolute;left:0;right:0;bottom:0;text-align:center;font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);background:rgba(11,15,22,.72);padding:4px 0}",
+ ".ph-slot.empty{border-style:dashed;border-color:var(--line2)}",
+@@ -3613,13 +4215,14 @@ var SRCSS=[
+ ".ex:first-of-type{margin-top:8px}",
+ ".ex-name{font-weight:700;font-size:14.5px;overflow-wrap:anywhere}",
+ ".ex-scheme{font-family:var(--mono);font-size:11px;color:var(--faint);margin-top:2px}",
+-".setgrid{display:grid;grid-template-columns:24px 1fr 52px 30px 30px;align-items:center;gap:6px}",
++".setgrid{display:grid;grid-template-columns:24px 1fr 52px 30px 30px;align-items:center;gap:10px}",
+ ".sethead{margin-top:4px;margin-bottom:0}",
+ ".sethead span{font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}",
+-".setrow{padding:3px 0;border-top:1px solid var(--line)}",
++".setrow{padding:5px 0;border-top:1px solid var(--line)}",
+ ".setrow.pad{margin-top:7px}",
+ ".set-n{font-family:var(--mono);font-size:11px;color:var(--faint)}",
+-".set-wr{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:13px;color:var(--text)}",
++".set-wr{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:13px;color:var(--text);letter-spacing:.02em}",
++".wr-x{padding:0 6px;color:var(--faint);font-weight:400}",
+ ".set-tgt{font-family:var(--mono);font-size:11.5px;color:var(--muted);text-align:center}",
+ ".set-rng{text-align:center}",
+ ".set-rir{font-family:var(--mono);font-size:12px;color:var(--muted);text-align:right;padding-right:2px}",
+@@ -3650,6 +4253,7 @@ function srReportHTML(inp){
+     '</div></div>\n';
+   h+=srPhotosHTML(inp.photos)+"\n";
+   h+=srHeroHTML(inp)+"\n";
++  h+=srBodyCompHTML(inp)+"\n";
+   h+=srChipsHTML(inp)+"\n";
+   h+=srTotalsHTML(inp)+"\n";
+   h+=srMacrosHTML(inp)+"\n";
+@@ -3745,7 +4349,49 @@ function srInput(offset){
+     macros:{note:((_elapsed>0&&_elapsed<7)?(_elapsed+" of 7 days so far"):"7 of 7 days"),rows:macRows},
+     averages:averages,activity:activity,
+     daily:{label:fmtShort(M.ws)+" – "+fmtShort(M.we),rows:dailyRows},
++    bodycomp:srBodyCompInput(offset),
++    cardio:srCardioInput(offset),
+     sessions:sessions,assumed:!!M.anyAssumed};}
++/* Latest body-composition readings for the week, with the move since the
++   previous reading. Falls back to the most recent reading ever, flagged stale,
++   so a coach still sees where the athlete stands. */
++function srBodyCompInput(offset){
++  var days=weekDays(offset).map(function(d){return toISO(d);});
++  var startISO=days[0],u=state.settings.units;
++  /* weight leads (Owner, 2026-08-03), and follows the same rule as the rest:
++     latest reading in the week against the latest reading before it, which for
++     a daily-logged metric is exactly "compared to previous week" */
++  var wmap={};(state.weights||[]).forEach(function(x){if(num(x.weight)!=null)wmap[x.date]=x.weight;});
++  var gainUp=((state.settings.strategy||"lose")==="gain");
++  var defs=[["__weight","Weight",u,gainUp],["bodyfat","Body fat","%",false],
++            ["leanmass","Lean mass",u,true],["waist","Waist",(u==="kg"?"cm":"in"),false]];
++  var out=[],any=false;
++  defs.forEach(function(d){
++    var map=(d[0]==="__weight")?wmap:(state[d[0]]||{});
++    var keys=Object.keys(map).filter(function(k){return num(map[k])!=null;}).sort();
++    if(!keys.length){out.push({key:d[1],unit:d[2],val:null});return;}
++    var inWk=null;
++    keys.forEach(function(k){if(days.indexOf(k)>=0)inWk=k;});
++    var prior=null;
++    keys.forEach(function(k){if(k<startISO)prior=k;});
++    var useK=inWk||keys[keys.length-1];
++    var chg=(inWk&&prior)?(num(map[inWk])-num(map[prior])):null;
++    any=true;
++    out.push({key:d[1],unit:d[2],goodUp:d[3],val:num(map[useK]),
++      dateLabel:fmtShort(parseISO(useK)),stale:!inWk,
++      chg:(chg!=null?Math.round(chg*10)/10:null)});});
++  return any?out:[];}
++/* every cardio session in the week, in day order, regardless of zone */
++function srCardioInput(offset){
++  var out=[];
++  weekDays(offset).forEach(function(d){
++    var iso=toISO(d);
++    var list=(((state.training||{}).sessions||{})[iso]||[]).filter(function(x){return x&&x.kind==="cardio";});
++    list.forEach(function(c){
++      out.push({dayLabel:DAYS3[d.getDay()],date:iso,
++        type:(c.type||"Cardio"),zone:num(c.zone),mins:num(c.mins),
++        cal:num(c.cal),hr:num(c.hr),note:(c.notes||"").trim()});});});
++  return out;}
+ /* ---- progress photos for the report: prefetch, cache, never block the tap ----
+    iOS requires transient user activation for navigator.share — awaiting slow
+    async work (IndexedDB reads + canvas re-encoding) between the tap and share()
+@@ -3774,14 +4420,22 @@ function srShrinkPhoto(blob){return new Promise(function(res){
+ var _srPhotoJob=null,_srPhotoGen=0;
+ function srPhotoInvalidate(){_srPhotoGen++;_srPhotoJob=null;state._srPhotoCache=null;}
+ function srPhotoPrefetch(){
+-  var wkISO=toISO(weekStartFor(state.weekOffset||0));
++  var off=state.weekOffset||0;
++  var wkISO=toISO(weekStartFor(off));
++  /* A week's progress photos are taken at the check-in that CLOSES it, so they
++     are filed under the FOLLOWING week's key. Reporting on Jul 27–Aug 2 must
++     show the set captured on Aug 3 — those are the ones that show the result of
++     that week (Owner, 2026-08-03). Fall back to the week's own key when the
++     closing check-in has not happened yet, e.g. the in-progress week. */
++  var closeISO=toISO(weekStartFor(off+1));
+   var c=state._srPhotoCache;
+   if(c&&c.week===wkISO)return;
+   if(_srPhotoJob===wkISO)return;
+   if(typeof indexedDB==="undefined"){state._srPhotoCache={week:wkISO,photos:[]};return;}
+   _srPhotoJob=wkISO;var gen=_srPhotoGen;
+   idbAll().then(function(all){
+-    var progs=all.filter(function(p){return p.kind==="progress"&&(p.week||p.date)===wkISO;});
++    var atClose=all.filter(function(p){return p.kind==="progress"&&(p.week||p.date)===closeISO;});
++    var progs=atClose.length?atClose:all.filter(function(p){return p.kind==="progress"&&(p.week||p.date)===wkISO;});
+     return Promise.all(POSES.map(function(ps){
+       var found=progs.filter(function(p){return p.pose===ps[0];})[0]||null;
+       if(!found)return Promise.resolve(null);
+@@ -5950,10 +6604,10 @@ function idb(){return new Promise(function(res,rej){
+     r2.onsuccess=function(){photoDB=r2.result;res(photoDB);};
+     r2.onerror=function(){rej(r2.error);};};
+   r.onerror=function(){rej(r.error);};});}
+-function idbAdd(rec){wkPhotoKey=null;srPhotoInvalidate();return idb().then(function(db){return new Promise(function(res,rej){var tx=db.transaction("photos","readwrite");tx.objectStore("photos").put(rec);tx.oncomplete=function(){res();};tx.onerror=function(){rej(tx.error);};});});}
++function idbAdd(rec){srPhotoInvalidate();return idb().then(function(db){return new Promise(function(res,rej){var tx=db.transaction("photos","readwrite");tx.objectStore("photos").put(rec);tx.oncomplete=function(){res();};tx.onerror=function(){rej(tx.error);};});});}
+ function idbByDate(date){return idb().then(function(db){return new Promise(function(res,rej){var out=[];var tx=db.transaction("photos","readonly");var rq=tx.objectStore("photos").index("date").openCursor(IDBKeyRange.only(date));rq.onsuccess=function(){var c=rq.result;if(c){out.push(c.value);c.continue();}else res(out.sort(function(a,b){return a.ts-b.ts;}));};rq.onerror=function(){rej(rq.error);};});});}
+ function idbAll(){return idb().then(function(db){return new Promise(function(res,rej){var out=[];var tx=db.transaction("photos","readonly");var rq=tx.objectStore("photos").openCursor();rq.onsuccess=function(){var c=rq.result;if(c){out.push(c.value);c.continue();}else res(out);};rq.onerror=function(){rej(rq.error);};});});}
+-function idbDelete(id){wkPhotoKey=null;srPhotoInvalidate();return idb().then(function(db){return new Promise(function(res,rej){var tx=db.transaction("photos","readwrite");tx.objectStore("photos").delete(id);tx.oncomplete=function(){res();};tx.onerror=function(){rej(tx.error);};});});}
++function idbDelete(id){srPhotoInvalidate();return idb().then(function(db){return new Promise(function(res,rej){var tx=db.transaction("photos","readwrite");tx.objectStore("photos").delete(id);tx.oncomplete=function(){res();};tx.onerror=function(){rej(tx.error);};});});}
+ function idbClearAll(){srPhotoInvalidate();return idb().then(function(db){return new Promise(function(res){var tx=db.transaction("photos","readwrite");tx.objectStore("photos").clear();tx.oncomplete=function(){res();};tx.onerror=function(){res();};});}).catch(function(){});}
+ function processImage(file){return new Promise(function(res){
+   try{var url=URL.createObjectURL(file);var img=new Image();
+@@ -7274,19 +7928,21 @@ function confirmOverlayHTML(){var c=state.pendingConfirm;if(!c)return "";
+   return '<div class="wl-confirm"><div class="wl-confirm-card"><div class="wl-confirm-msg">'+esc(c.message)+'</div><div class="wl-confirm-btns"><button class="wl-btn wl-btn-ghost wl-full" data-act="confirm:no">Cancel</button><button class="wl-btn wl-full" style="background:'+(c.danger?"var(--bad)":"var(--accent)")+';color:#fff;border:none" data-act="confirm:yes">'+esc(c.label)+'</button></div></div></div>';}
+ function render(){
+   clearPhotoURLs();
+-  var title=state.view==="settings"?"Settings":state.view==="diary"?"Food Diary":state.view==="exlib"?"":state.view==="routine"?"":state.view==="rlaunch"?"Workout":state.view==="quicklog"?"Quick log":state.view==="workout"?"Workout":state.view==="liftview"?"Workout":state.view==="wtadd"?"Weight Training":state.view==="cardioadd"?((state.cardioForm&&state.cardioForm.id)?"Edit Cardio":"Add Cardio"):state.view==="actadd"?(state.actPick==="rest"?"Add Recovery":state.actPick==="supp"?"Add Supplement":"Add"):state.view==="photos"?"Progress Photos":state.view==="glptimeline"?"Weight & dose":(NAV.filter(function(n){return n[0]===state.view;})[0]||["","" ])[1];var hsub=state.view==="workout"?((state.workout&&state.workout.name)||""):state.view==="liftview"?(((getLiftSession()||{}).name)||""):state.view==="quicklog"?(((state.liftForm&&getRoutine(state.liftForm.routineId))||{}).name||""):state.view==="rlaunch"?(((getRoutine(state.routineId))||{}).name||""):"";
+-  var body=state.view==="overview"?view_overview():(state.view==="food"||state.view==="calendar")?view_overview():state.view==="weight"?view_weight():state.view==="summary"?view_summary():state.view==="diary"?view_diary():state.view==="train"?view_train():state.view==="exlib"?view_exlib():state.view==="routine"?view_routine():state.view==="rlaunch"?view_rlaunch():state.view==="quicklog"?view_quicklog():state.view==="workout"?view_workout():state.view==="liftview"?view_liftview():state.view==="wtadd"?view_wtadd():state.view==="cardioadd"?view_cardio():state.view==="actadd"?view_actadd():state.view==="photos"?view_photos():state.view==="glptimeline"?view_glptimeline():view_settings();
++  var title=state.view==="settings"?"Settings":state.view==="diary"?"Food Diary":state.view==="exlib"?"":state.view==="routine"?"":state.view==="rlaunch"?"Workout":state.view==="quicklog"?"Quick log":state.view==="workout"?"Workout":state.view==="liftview"?"Workout":state.view==="wtadd"?"Weight Training":state.view==="cardioadd"?((state.cardioForm&&state.cardioForm.id)?"Edit Cardio":"Add Cardio"):state.view==="actadd"?(state.actPick==="rest"?"Add Recovery":state.actPick==="supp"?"Add Supplement":"Add"):state.view==="photos"?"Progress Photos":state.view==="checkin"?"Weekly check-in":state.view==="glptimeline"?"Weight & dose":(NAV.filter(function(n){return n[0]===state.view;})[0]||["","" ])[1];var hsub=state.view==="workout"?((state.workout&&state.workout.name)||""):state.view==="liftview"?(((getLiftSession()||{}).name)||""):state.view==="quicklog"?(((state.liftForm&&getRoutine(state.liftForm.routineId))||{}).name||""):state.view==="rlaunch"?(((getRoutine(state.routineId))||{}).name||""):"";
++  var body=state.view==="overview"?view_overview():(state.view==="food"||state.view==="calendar")?view_overview():state.view==="weight"?view_weight():state.view==="summary"?view_summary():state.view==="diary"?view_diary():state.view==="train"?view_train():state.view==="exlib"?view_exlib():state.view==="routine"?view_routine():state.view==="rlaunch"?view_rlaunch():state.view==="quicklog"?view_quicklog():state.view==="workout"?view_workout():state.view==="liftview"?view_liftview():state.view==="wtadd"?view_wtadd():state.view==="cardioadd"?view_cardio():state.view==="actadd"?view_actadd():state.view==="photos"?view_photos():state.view==="checkin"?view_checkin():state.view==="glptimeline"?view_glptimeline():view_settings();
+   var nav='<nav class="wl-nav">'+NAV.map(function(n){return '<button class="wl-navbtn '+(state.view===n[0]||(n[0]==="overview"&&(state.view==="food"||state.view==="diary"))||(n[0]==="weight"&&(state.view==="photos"||state.view==="glptimeline"))?"on":"")+'" data-act="go" data-view="'+n[0]+'">'+I[n[0]]+'<span>'+n[1]+'</span></button>';/* unread-recap nudge now lives on the M avatar, not the Home tab */}).join("")+'</nav>';
+   var avatar='<button class="wl-avatar'+(state.view==="settings"?" on":"")+'" data-act="go" data-view="settings" aria-label="Settings"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>';
+   var hdrRight=syncOn()?'<button class="wl-syncdot" data-act="syncdot" aria-label="Sync status"><span class="wl-sdot '+syncDotClass()+'" id="wl-sdot"></span></button>':'';
+   var maxBtn=isOwner()?'<button class="wl-maxb'+(coachUnreadW()?" hot":"")+'" data-act="max:open" aria-label="Messages from Coach Max">M</button>':'';
+-  var backBtn=(state.view==="photos"||state.view==="glptimeline")?'<button class="wl-hdr-back" data-act="go" data-view="weight" aria-label="Back">‹</button>':state.view==="diary"?'<button class="wl-hdr-back" data-act="go" data-view="overview" aria-label="Back">‹</button>':'';
++  var backBtn=state.view==="checkin"?'<button class="wl-hdr-back" data-act="ci:close" aria-label="Back">‹</button>':(state.view==="photos"||state.view==="glptimeline")?'<button class="wl-hdr-back" data-act="go" data-view="weight" aria-label="Back">‹</button>':state.view==="diary"?'<button class="wl-hdr-back" data-act="go" data-view="overview" aria-label="Back">‹</button>':'';
+   var _navH=headerNav();var _brand='<span class="wl-mark">'+BRANDMARK+'</span>';var _md=statusFor(todayISO());var _mbanner=_md?('<button class="wl-modebanner" data-act="go" data-view="settings"><span class="wl-mb-em">'+(_md.status.type==="vacation"?"\ud83c\udfd6\ufe0f":"\ud83e\udd12")+'</span><span>'+(_md.status.type==="vacation"?"Vacation Mode":"Recovery Mode")+'</span><span class="wl-mb-go">Settings \u203a</span></button>'):'';
+   document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header'+(_md?" hasbanner":"")+'">'+_mbanner+'<div class="wl-hdr-brand"><div class="wl-brandrow">'+_brand+'<span class="wl-eyebrow">Compound</span></div>'+hdrRight+'</div><div class="wl-hdr-main">'+backBtn+'<div class="wl-title-slot">'+(title?('<h1 class="wl-title">'+title+'</h1>'):'')+(hsub?'<div class="wl-hsub">'+esc(hsub)+'</div>':'')+'</div><div class="wl-hdr-actions">'+maxBtn+avatar+'</div></div>'+(_navH?'<div class="wl-hdr-datebar">'+_navH+'</div>':'')+'</header><main class="wl-main">'+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML()+statusSheetHTML()+obOverlayHTML()+deviceSheetHTML()+maxSheetHTML()+infoSheetHTML()+glpSheetHTML();
+   var hdr=document.querySelector(".wl-header");if(hdr)document.documentElement.style.setProperty("--headh",hdr.offsetHeight+"px");
+   if(document.getElementById("wl-photostrip"))renderPhotosStrip(state.selDate);
+   if(state.view==="diary")renderDiary();
+   if(state.view==="photos")renderProgressPhotos();
++  if(state.view==="checkin")renderCheckinPhotos();
++  navKbdSync();
+   /* warm the coach-report photo cache while Summary is on screen, so the export
+      tap can stay synchronous (iOS share-sheet activation — see srPhotoPrefetch) */
+   if(state.view==="summary")srPhotoPrefetch();
+@@ -7618,7 +8274,30 @@ document.addEventListener("click",function(e){
+   if(a==="trend:prev"){state.trendOffset=(state.trendOffset||0)+1;state.histMore=false;render();return;}
+   if(a==="trend:next"){state.trendOffset=Math.max(0,(state.trendOffset||0)-1);state.histMore=false;render();return;}
+   if(a==="photo:add"){state.pendingMeal=el.getAttribute("data-meal")||"";state.pendingPose=null;document.getElementById("wl-photo-input").click();return;}
+-  if(a==="pphoto:add"){state.pendingPose=el.getAttribute("data-pose");state.pendingProgWeek=toISO(weekStartFor(0));state.pendingMeal=null;document.getElementById("wl-photo-input").click();return;}
++  if(a==="pphoto:add"){state.pendingPose=el.getAttribute("data-pose");state.pendingProgWeek=el.getAttribute("data-week")||toISO(weekStartFor(0));state.pendingMeal=null;document.getElementById("wl-photo-input").click();return;}
++  /* ---- daily ratings ---- */
++  if(a==="rat:set"){ratSet(el.getAttribute("data-date"),el.getAttribute("data-q"),el.getAttribute("data-v"));render();return;}
++  /* ---- weekly check-in ---- */
++  if(a==="ci:open"){state.ciWeek=el.getAttribute("data-week")||toISO(weekStartFor(0));state.ciSkipAsk=null;state.ciFrom=state.view;state.view="checkin";render();return;}
++  if(a==="ci:close"){state.view=(state.ciFrom==="weight")?"weight":"overview";state.ciSkipAsk=null;render();return;}
++  if(a==="ci:skipask"){state.ciSkipAsk=el.getAttribute("data-week");render();return;}
++  if(a==="ci:skipcancel"){state.ciSkipAsk=null;render();return;}
++  if(a==="ci:skipyes"){var _sw=el.getAttribute("data-week");var _sr=ciDraft(_sw);_sr.status="skipped";_sr.updated=Date.now();
++    state.ciSkipAsk=null;save();state.view=(state.ciFrom==="weight")?"weight":"overview";render();toast("Check-in skipped for that week");return;}
++  if(a==="ci:unskip"){var _uw=el.getAttribute("data-week");var _ur=ciDraft(_uw);_ur.status="draft";_ur.updated=Date.now();save();render();return;}
++  if(a==="ci:send"){
++    var _nw=el.getAttribute("data-week");var _nr=ciDraft(_nw);
++    var _was=(_nr.status==="sent");
++    if(!_was)_nr.ts=Date.now();
++    _nr.status="sent";_nr.updated=Date.now();
++    _nr.adherence=ciAdherenceStored(_nw);
++    _nr.ratings14=feelDays(14,todayISO()).map(function(d){var o={date:d};RATINGS.forEach(function(q){var v=ratFor(d)[q[0]];if(v)o[q[0]]=v;});return o;}).filter(function(o){return Object.keys(o).length>1;});
++    save();
++    if(syncOn()){try{photoSync();}catch(e){}
++      pushDataPromise().then(function(){toast(_was?"Check-in updated":"Weekly check-in complete");})
++        .catch(function(){toast("Saved — it will sync when you're back online");});
++    }else toast("Saved — log in to sync it");
++    state.view=(state.ciFrom==="weight")?"weight":"overview";render();return;}
+   if(a==="photo:view"){openLightbox(el.getAttribute("data-id"));return;}
+   if(a==="openday"){var od=el.getAttribute("data-date");state.selDate=od;var pd=parseISO(od);state.calY=pd.getFullYear();state.calM=pd.getMonth();state.view="overview";render();return;}
+   if(a==="day:clear"){var fdd=state.selDate;
+@@ -7720,6 +8399,17 @@ document.addEventListener("focusin",function(e){var el=e.target;
+     setTimeout(function(){try{if(document.activeElement===el)el.setSelectionRange(0,(el.value||"").length);}catch(_e){}},0);
+   }
+ });
++/* ---- keep the fixed nav out of the way of the soft keyboard ---- */
++function navIsTextEl(el){return !!(el&&(el.tagName==="INPUT"||el.tagName==="TEXTAREA"||el.isContentEditable));}
++function navKbdSync(){var n=document.querySelector(".wl-nav");if(!n)return;
++  if(navIsTextEl(document.activeElement))n.classList.add("kbd");else n.classList.remove("kbd");}
++var _navKbdT=null;
++document.addEventListener("focusin",function(e){if(navIsTextEl(e.target)){clearTimeout(_navKbdT);navKbdSync();}});
++document.addEventListener("focusout",function(e){if(!navIsTextEl(e.target))return;
++  clearTimeout(_navKbdT);
++  /* a short delay so moving between two fields never flashes the bar */
++  _navKbdT=setTimeout(navKbdSync,120);});
++
+ addEventListener("input",function(e){
+   var el=e.target;
+   if(el.classList&&el.classList.contains("wl-num")){var isInt=el.hasAttribute("data-int");var cv=isInt?el.value.replace(/[^\d]/g,""):el.value.replace(/[^\d.]/g,"").replace(/(\..*)\./g,"$1");if(cv!==el.value)el.value=cv;}
+@@ -7732,6 +8422,7 @@ addEventListener("input",function(e){
+         if(_fld==="weight"&&!en.bodyweight&&num(st.sugE)!=null&&!st.repsTouched){var _nw=num(el.value);var _nr=sugInvertReps(st.sugE,_nw);if(_nr!=null){st.reps=String(_nr);st.sugR=_nr;st.sugW=_nw;var _ri=document.querySelector('input[data-wo="reps"][data-ei="'+el.getAttribute("data-ei")+'"][data-si="'+el.getAttribute("data-si")+'"]');if(_ri)_ri.value=String(_nr);}}
+         saveWorkout();}}}if(state.logWarn){state.logWarn=null;var _rw=document.querySelector(".wl-rirwarn");if(_rw)_rw.remove();}return;}
+   if(el.classList&&el.classList.contains("wl-wof-input")){var w=state.workout;if(w){w.finishForm=w.finishForm||{};w.finishForm[el.getAttribute("data-wof")]=el.value;if(el.getAttribute("data-wof")==="hr"){var za=document.getElementById("wl-zonearea");if(za)za.innerHTML=zoneAreaHTML({hr:el.value,zone:w.finishForm.zone||2},"wof");}}return;}
++  if(el.classList&&el.classList.contains("wl-ci-input")){var _cr=ciDraft(el.getAttribute("data-week"));_cr.answers[el.getAttribute("data-ci")]=el.value;save();return;}
+   if(el.classList&&el.classList.contains("wl-lf-input")){if(state.liftForm)state.liftForm[el.getAttribute("data-lf")]=el.value;if(el.getAttribute("data-lf")==="hr"){var za=document.getElementById("wl-zonearea");if(za&&state.liftForm)za.innerHTML=zoneAreaHTML(state.liftForm,"lf");}return;}
+   if(el.classList&&el.classList.contains("wl-rt-name")){var rt=getRoutine(state.routineId);if(rt){rt.name=el.value;saveTraining();}return;}
+   if(el.classList&&el.classList.contains("wl-ri-srng")){var rt=getRoutine(state.routineId);if(rt){var it=rItem(rt,el.getAttribute("data-iid"));if(it){var _n=Math.max(1,it.sets||3);if(!Array.isArray(it.setRanges)||it.setRanges.length!==_n)it.setRanges=rptRangesFor(it,_n);var _si=+el.getAttribute("data-si");it.setRanges[_si]=it.setRanges[_si]||{};it.setRanges[_si][el.getAttribute("data-end")]=(el.value===""?null:num(el.value));saveTraining();}}return;}
+@@ -11910,7 +12601,6 @@ function photoSync(done){
+   function finish(){
+     setPbPhotoMap(map);pbPhotoSyncing=false;
+     if(uploaded||downloaded||removed){
+-      try{wkPhotoKey=null;refreshWeekPhotos();}catch(e){}
+       if(state.view==="photos"||state.view==="diary")render();}
+     done&&done({uploaded:uploaded,downloaded:downloaded,removed:removed});}
+ 
+@@ -12114,7 +12804,9 @@ idbClearAll=function(){
+                 meal:String(s2.meal||"").slice(0,20),ts:String(s2.ts||"")}});});});
+         if(!okq){done&&done();return;}
+         m10pDispatch(function(){
+-          try{wkPhotoKey=null;refreshWeekPhotos();}catch(e){}
++          /* merge 2026-08-03: wkPhotoKey/refreshWeekPhotos were retired on main
++             (the weekly check-in card replaced the prompt they fed). Nothing to
++             invalidate here any more. */
+           try{if(state.view==="photos"||state.view==="diary")render();}catch(e){}
+           done&&done();});
+       }).catch(function(){done&&done();});});};
+@@ -12146,7 +12838,7 @@ document.addEventListener("click",function(e){
+    entry gating alone proves nothing once an await intervenes. Fail closed: if
+    the gate state or durable storage is unavailable, nothing mutates. */
+ var M10_GATED={};
+-["act:addcat","act:del","act:toggle","ai:copy","ai:gen","cal:ignore","cal:overwrite","cal:usecalc","cardio:del","cardio:save","cf:newtype","conn:remove","day:clear","day:reopendo","ex:clearall","ex:del","ex:save","ex:seedall","exseed:add","fb:done","fb:set","glp:compound","glp:compoundsave","glp:dose:del","glp:dose:open","glp:dose:save","glp:enable","glp:showdue","glp:siterot","glp:skip","glp:sym:del","glp:sym:edit","glp:sym:newsave","glp:sym:open","glp:sym:save","glp:symptoms","glp:titration","hk:import","import","invite:create","invite:join","lift:del","lift:save","lift:savedetail","m10cx:server","m10cx:takeover","m10p:apply","m10p:export","m8:cx:local","m8:cx:server","macro:keep","macro:suggest","max:open","night:gen","night:toggle","note:del","note:save","ob:back","ob:recalc","paste:do","pb:adv","pb:pwsave","pbk:import","photo:add","pphoto:add","preset:del","reminder:add","reset:ask","reset:do","ri:mv","ri:pick","ri:prog","ri:remove","rt:del","rt:new","rt:save","set:activity","set:sex","set:strategy","set:theme","set:ttype","set:units","set:weekstart","skip:calories","skip:sleep","skip:steps","skip:weight","status:end","status:endnow","status:save","sum:coachreport","sum:exportall","sum:exportweek","sum:toggle","sync:pasteapply","sync:pull","sync:push","sync:test","tdee:apply","tdee:later","weight:add","weight:del","wo:addset","wo:begin","wo:bwsave","wo:delset","wo:discard","wo:discardnow","wo:endnow","wo:endrest","wo:exaddset","wo:exmove","wo:exprog","wo:exremove","wo:finish","wo:finishback","wo:finishlater","wo:log","wo:replacepick","wo:replsave:fwd","wo:resume","wo:savesession","wo:skipset","wo:skipthem","wo:start","wo:startroutine","wu:no","wu:yes"].forEach(function(a){M10_GATED[a]=1;});
++["act:addcat","act:del","act:toggle","ai:copy","ai:gen","cal:ignore","cal:overwrite","cal:usecalc","cardio:del","cardio:save","cf:newtype","ci:send","ci:skipyes","ci:unskip","conn:remove","day:clear","day:reopendo","ex:clearall","ex:del","ex:save","ex:seedall","exseed:add","fb:done","fb:set","glp:compound","glp:compoundsave","glp:dose:del","glp:dose:open","glp:dose:save","glp:enable","glp:showdue","glp:siterot","glp:skip","glp:sym:del","glp:sym:edit","glp:sym:newsave","glp:sym:open","glp:sym:save","glp:symptoms","glp:titration","hk:import","import","invite:create","invite:join","lift:del","lift:save","lift:savedetail","m10cx:server","m10cx:takeover","m10p:apply","m10p:export","m8:cx:local","m8:cx:server","macro:keep","macro:suggest","max:open","night:gen","night:toggle","note:del","note:save","ob:back","ob:recalc","paste:do","pb:adv","pb:pwsave","pbk:import","photo:add","pphoto:add","preset:del","rat:set","reminder:add","reset:ask","reset:do","ri:mv","ri:pick","ri:prog","ri:remove","rt:del","rt:new","rt:save","set:activity","set:sex","set:strategy","set:theme","set:ttype","set:units","set:weekstart","skip:calories","skip:sleep","skip:steps","skip:weight","status:end","status:endnow","status:save","sum:coachreport","sum:exportall","sum:exportweek","sum:toggle","sync:pasteapply","sync:pull","sync:push","sync:test","tdee:apply","tdee:later","weight:add","weight:del","wo:addset","wo:begin","wo:bwsave","wo:delset","wo:discard","wo:discardnow","wo:endnow","wo:endrest","wo:exaddset","wo:exmove","wo:exprog","wo:exremove","wo:finish","wo:finishback","wo:finishlater","wo:log","wo:replacepick","wo:replsave:fwd","wo:resume","wo:savesession","wo:skipset","wo:skipthem","wo:start","wo:startroutine","wu:no","wu:yes"].forEach(function(a){M10_GATED[a]=1;});
+ 
+ /* fresh, complete authority check — account, session generation, holder,
+    deadline AND fence identity, plus storage health */
+@@ -12566,7 +13258,10 @@ if(!logoutRecoveryPending())runRecoveryCapture();
+ if(bootGated()){
+   renderGate();
+ }else{
+-load();loadTraining();migrateProgressionTypes();loadWorkout();rptRetargetAll();ensureIdentity();try{refreshWeekPhotos();}catch(e){}if(resyncAllActivityTags())save();var _hasSetup=/[#&]setup=/.test(location.hash||"");if(_hasSetup){state.settings.onboarded=true;}else{if(state.settings.onboarded==null)state.settings.onboarded=(state.weights.length>0||num(state.settings.goalWeight)!=null||num(state.settings.startingWeight)!=null||!!(state.settings.name&&(""+state.settings.name).trim()));if(!state.settings.onboarded){state.onboarding=true;state.obStep=0;}}applyTheme(state.settings.theme||"dark");makeIcon();if(state.workout)state.view="train";render();if(syncOn()){pbRefresh(function(){m10Boot().then(function(){try{migrateProgressionTypes();}catch(e){}m10cBoot(function(){autoSync();photoSync();});});});}/* M10 wiring (K3+incr2): lease settles, core journal recovers, then adoption. Z1: the boot migration is re-run once the lease has settled — it is refused durably while this device is not the writer, and it is idempotent, so this is where it actually persists on the device that holds the pen. */if(state.workout)startWoTick();if(_hasSetup)checkSetupLink();
++load();loadTraining();migrateProgressionTypes();loadWorkout();rptRetargetAll();ensureIdentity();if(resyncAllActivityTags())save();
++/* Anchor the weekly check-in at the week it first ran, so an existing account
++   never opens with months of retroactively "late" check-ins. */
++ciAnchorSince();var _hasSetup=/[#&]setup=/.test(location.hash||"");if(_hasSetup){state.settings.onboarded=true;}else{if(state.settings.onboarded==null)state.settings.onboarded=(state.weights.length>0||num(state.settings.goalWeight)!=null||num(state.settings.startingWeight)!=null||!!(state.settings.name&&(""+state.settings.name).trim()));if(!state.settings.onboarded){state.onboarding=true;state.obStep=0;}}applyTheme(state.settings.theme||"dark");makeIcon();if(state.workout)state.view="train";render();if(syncOn()){pbRefresh(function(){m10Boot().then(function(){try{migrateProgressionTypes();}catch(e){}m10cBoot(function(){autoSync();photoSync();});});});}/* M10 wiring (K3+incr2): lease settles, core journal recovers, then adoption. Z1: the boot migration is re-run once the lease has settled — it is refused durably while this device is not the writer, and it is idempotent, so this is where it actually persists on the device that holds the pen. */if(state.workout)startWoTick();if(_hasSetup)checkSetupLink();
+ endRecoveryFreeze();
+ /* Everything below belongs ONLY to the clean path. A gated page is terminal:
+    no persistence request, no announcement write, no update check, no visibility

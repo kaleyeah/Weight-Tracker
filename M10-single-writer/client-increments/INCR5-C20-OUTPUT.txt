@@ -1,0 +1,40 @@
+
+C20 (browser) — how you felt + weekly check-in
+  source: /home/griffin/projects/Weight-Tracker/index.html
+  build : 2026-08-03.428-bcweight
+  ✓ T1 "How you felt" row renders directly above Notes, empty state = "Add"
+  ✓ T2 the questions open in the quick-entry sheet, titled and closable, never inline
+  ✓ T2b six questions, five labelled chips each, all "Not answered"
+  ✓ T3 Hunger not Appetite; Digestion balanced like Recovery
+  ✓ T4 stores the stable enum, header shows the full label, row shows a count only
+  ✓ T5 a past day uses the same "How you felt" wording
+  ✓ T6 unanswered ratings never appear in the completion blockers
+  ✓ T7 best-in-the-middle and best-at-zero scales score in the same direction
+  ✓ T8 non-canonical values and unknown questions are ignored
+  ✓ T9 tapping the chosen chip again clears it and prunes the empty day
+  ✓ T10 Progress tab shows a per-question week grid with "–" for unanswered days
+  ✓ T11 the daily recap shows no rating chart, while the coach still receives the data
+  ✓ T12 an unanswered day renders as a flat uncoloured bar, not a low score
+  ✓ T13 the weekly check-in card takes the photo prompt’s slot above the daily check-in
+  ✓ T14 lateness escalates in the Owner’s wording and the prompt persists
+  ✓ T15 a week that was never answered stays open rather than counting as skipped
+  ✓ T16 the form carries the trend, four poses, five questions and the auto-filled facts
+  ✓ T16b the auto-fill window is the closed week — previous check-in day to the day before
+  ✓ T16c the report for a closed week uses the photos from the check-in that closed it
+  ✓ T16d the export photo slot contains the whole photo instead of cropping it
+  ✓ T17 four capture tiles — Front, Left, Right, Back — bound to the form’s week
+  ✓ T18 a part-filled form persists as a draft and the week stays open
+  ✓ T19 skipping asks first, cancels cleanly, and only then marks the week skipped
+  ✓ T20 a skipped week offers an undo that reopens it
+  ✓ T21 sending marks the week sent, snapshots the ratings, and clears the prompt
+  ✓ T22 a sent check-in can be reopened, corrected and re-sent
+  ✓ T23 the Progress tab lists past check-ins with their state and an edit action
+  ✓ T24 changing the profile’s check-in day moves the check-in week
+  ✓ T25 an account with no check-in history opens exactly one week, not months
+  ✓ T26 records saved before this feature still load, render and round-trip
+  ✓ T27 at 320px the chips switch to short labels, the header keeps the full wording, nothing overflows
+  ✓ T29 plan adherence is computed from the logs and never asked
+  ✓ T30 the fixed nav slides away while a text field has focus, and re-derives it after a render
+  ✓ T28 no uncaught page errors across the whole run
+
+C20 — how you felt + weekly check-in: 34 passed, 0 failed
