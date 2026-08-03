@@ -34,6 +34,15 @@ const OLDT={cardioTypes:["Peloton"],exercises:[],liftSessions:{},routines:[],ses
     },o);
     let srvT=o.serverTraining!==undefined?o.serverTraining:null,srvR=o.serverRev||0,commits=0;
     await ctx.route('**/api/**',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[],token:'tok',record:{id:'userA'}})}));
+    /* M10 (increment 5): this suite signs in and resolves conflicts through
+       real UI clicks; under the wired gate a signed-in device must hold the
+       writer lease. Answer the lease route as the granting server (harness
+       only — no product change). */
+    await ctx.route('**/api/cf/writer/lease',r=>{
+      let b={};try{b=JSON.parse(r.request().postData()||'{}');}catch(e){}
+      return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,exists:true,granted:true,
+        fence:1,holderDeviceId:b.deviceId||'dev',deviceName:b.deviceName||'x',active:true,
+        serverNow:Date.now(),ttlMs:86400000})});});
     await ctx.route('**/api/collections/appdata/records**',async r=>{
       if(o.holdRecords){await new Promise(res=>{
         r.request().frame().page().evaluate(()=>new Promise(x=>{window.__releaseRecords=x;})).then(res,res);});}
