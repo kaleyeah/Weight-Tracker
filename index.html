@@ -5980,24 +5980,39 @@ function exportProgressPhotos(){
       shareOrDownload("compound-progress-photos-"+todayISO()+".json","application/json",JSON.stringify(out));
     }).catch(function(){toast("Couldn't prepare photos");});
   }).catch(function(){toast("Photos aren't available on this device");});}
-function importProgressPhotos(text){
+function importProgressPhotos(text,m10cap){
+  /* X3 (round-30 ruling 3): the capture is taken by the CALLER at the file
+     boundary and threaded through confirmation, idbAll, deletes, blob fetches
+     and adds; every mutation revalidates it. */
+  var _icap=(m10cap!==undefined)?m10cap:((typeof m10Capture==="function")?m10Capture():null);
+  var _iok=function(){return (typeof m10StillValid==="function")?m10StillValid(_icap):true;};
   var data;try{data=JSON.parse(text);}catch(e){toast("That file isn't a valid photo backup");return;}
   var list=(data&&data.photos)||[];
   if(!data||data.kind!=="progress-photos"||!list.length){toast("No progress photos found in that file");return;}
   askConfirm("Import "+list.length+" progress photo"+(list.length===1?"":"s")+" from this file? Any photo for the same week and pose on this device will be replaced.",function(){
+    if(!_iok()){toast("This device is no longer the active writer — nothing was imported");return;}
     toast("Importing "+list.length+" photo"+(list.length===1?"":"s")+"…");
     idbAll().then(function(all){
+      if(!_iok()){toast("This device is no longer the active writer — nothing was imported");return;}
       var existingProg=all.filter(function(p){return p.kind==="progress";});
       var chain=Promise.resolve();var added=0;
       list.forEach(function(rec){
         if(!rec||!rec.dataUrl||!rec.pose)return;
         var wk=rec.week||rec.date;
         chain=chain.then(function(){
+          if(!_iok())return null;
           var dupes=existingProg.filter(function(p){return (p.week||p.date)===wk&&p.pose===rec.pose;});
-          return Promise.all(dupes.map(function(p){return idbDelete(p.id);})).then(function(){
-            return fetch(rec.dataUrl).then(function(r){return r.blob();}).then(function(blob){
-              return idbAdd({id:rec.id||("prog-"+wk+"-"+rec.pose+"-"+Date.now()+"-"+Math.random().toString(36).slice(2,6)),date:wk,week:wk,pose:rec.pose,kind:"progress",blob:blob,ts:rec.ts||(Date.now()+Math.random())}).then(function(){added++;});
-            });
+          /* ADD first, then retire the superseded copies — never leave a slot
+             empty if authority is lost mid-import */
+          return fetch(rec.dataUrl).then(function(r){return r.blob();}).then(function(blob){
+            if(!_iok())return null;
+            return idbAdd({id:rec.id||("prog-"+wk+"-"+rec.pose+"-"+Date.now()+"-"+Math.random().toString(36).slice(2,6)),date:wk,week:wk,pose:rec.pose,kind:"progress",blob:blob,ts:rec.ts||(Date.now()+Math.random())}).then(function(){
+              added++;
+              var dchain=Promise.resolve();
+              dupes.forEach(function(p){dchain=dchain.then(function(){
+                if(!_iok())return null;
+                return idbDelete(p.id).catch(function(){});});});
+              return dchain;});
           });
         });
       });
@@ -7773,7 +7788,7 @@ document.getElementById("wl-pbk-import").addEventListener("change",function(e){
   var _ok2=function(){return (typeof m10StillValid==="function")?m10StillValid(_cap2):true;};
   rd.onload=function(){
     if(!_ok2()){toast("This device is no longer the active writer — nothing was imported");return;}
-    importProgressPhotos(rd.result);};
+    importProgressPhotos(rd.result,_cap2);};
   rd.onerror=function(){toast("Couldn't read that file");};
   rd.readAsText(file);e.target.value="";
 });
@@ -7786,7 +7801,28 @@ document.getElementById("wl-photo-input").addEventListener("change",function(e){
   window.__m10PhotoCap=_m10cap;
   var files=e.target.files;if(!files||!files.length){return;}
   if(state.pendingPose){var _pf=files[0];var _pose=state.pendingPose;var _wk=state.pendingProgWeek||toISO(weekStartFor(0));e.target.value="";state.pendingPose=null;toast("Adding photo\u2026");
-    processImage(_pf).then(function(blob){if(!_m10ok()){toast("This device is no longer the active writer — nothing was changed");return;}idbAll().then(function(all){if(!_m10ok()){toast("This device is no longer the active writer — nothing was changed");return;}var old=all.filter(function(p){return p.kind==="progress"&&p.week===_wk&&p.pose===_pose;});Promise.all(old.map(function(p){return idbDelete(p.id);})).then(function(){if(!_m10ok())return;idbAdd({id:"prog-"+_wk+"-"+_pose+"-"+Date.now(),date:_wk,week:_wk,pose:_pose,kind:"progress",blob:blob,ts:Date.now()+Math.random()}).then(function(){toast("Photo saved");if(state.view==="photos")renderProgressPhotos();else render();});});});});return;}
+    /* X2 (round-30 ruling 2): ADD-then-delete, with authority revalidated
+       immediately before EVERY destructive step. The previous delete-then-add
+       could remove the pre-image and then fail to add — data loss, not just an
+       unauthorized write. Each delete rides the increment-4 queue (tombstone
+       first, server ack, then the local blob), so an interrupted replacement
+       always leaves a recoverable copy. */
+    processImage(_pf).then(function(blob){
+      if(!_m10ok()){toast("This device is no longer the active writer — nothing was changed");return;}
+      idbAll().then(function(all){
+        if(!_m10ok()){toast("This device is no longer the active writer — nothing was changed");return;}
+        var old=all.filter(function(p){return p.kind==="progress"&&p.week===_wk&&p.pose===_pose;});
+        idbAdd({id:"prog-"+_wk+"-"+_pose+"-"+Date.now(),date:_wk,week:_wk,pose:_pose,kind:"progress",blob:blob,ts:Date.now()+Math.random()})
+          .then(function(){
+            var chain=Promise.resolve();
+            old.forEach(function(p){chain=chain.then(function(){
+              if(!_m10ok())return null;                 /* stop: the pre-image stays */
+              return idbDelete(p.id).catch(function(){});});});
+            return chain;})
+          .then(function(){toast("Photo saved");if(state.view==="photos")renderProgressPhotos();else render();})
+          .catch(function(){toast("Couldn’t save the photo");});
+      });});
+    return;}
   var date=state.selDate;var arr=Array.prototype.slice.call(files);e.target.value="";var meal=state.pendingMeal||"";
   toast("Adding "+arr.length+" photo"+(arr.length>1?"s":"")+"…");
   var chain=Promise.resolve();
@@ -11538,10 +11574,18 @@ function hkTryFetch(){
      food, steps, sleep, weight, bodyfat, waist, leanmass AND clears the server
      mailbox. Authority is captured now and REVALIDATED immediately before the
      local mutation and again before the mailbox clear. */
-  var hkCap=(typeof m10Capture==="function")?m10Capture():null;
+  /* X1 (round-30 ruling 1): the capture is taken ONCE, when the import
+     begins, and stored with the wait — every later poll revalidates that
+     IMMUTABLE identity, so an A→B→A round trip across polls cannot import
+     under replacement authority. */
+  if(typeof m10Capture==="function"&&!w.m10cap){
+    var cap0=m10Capture();
+    if(!cap0){state.hkWait=null;toast("This device is not the active writer — nothing was imported");render();return;}
+    w.m10cap=cap0;state.hkWait=w;}
+  var hkCap=w.m10cap||null;
   var hkStill=function(){return (typeof m10StillValid==="function")?m10StillValid(hkCap):true;};
-  if(typeof m10Capture==="function"&&!hkCap){
-    state.hkWait=null;toast("This device is not the active writer — nothing was imported");render();return;}
+  if(typeof m10Capture==="function"&&!hkStill()){
+    state.hkWait=null;toast("This device is no longer the active writer — nothing was imported");render();return;}
   pbGetRecord(function(rec,err){
     var w2=state.hkWait;if(!w2)return;
     var h=(!err&&rec&&rec.health)||null;
@@ -12038,7 +12082,7 @@ document.addEventListener("click",function(e){
    entry gating alone proves nothing once an await intervenes. Fail closed: if
    the gate state or durable storage is unavailable, nothing mutates. */
 var M10_GATED={};
-["act:addcat","act:del","act:toggle","ai:copy","ai:gen","cal:ignore","cal:overwrite","cal:usecalc","cardio:del","cardio:save","cf:newtype","conn:remove","day:clear","day:reopendo","ex:clearall","ex:del","ex:save","ex:seedall","exseed:add","fb:done","fb:set","glp:compound","glp:compoundsave","glp:dose:del","glp:dose:open","glp:dose:save","glp:enable","glp:showdue","glp:siterot","glp:skip","glp:sym:del","glp:sym:edit","glp:sym:newsave","glp:sym:open","glp:sym:save","glp:symptoms","glp:titration","hk:import","import","invite:create","invite:join","lift:del","lift:save","lift:savedetail","m10cx:server","m10cx:takeover","m10p:apply","m10p:export","m8:cx:local","m8:cx:server","macro:keep","macro:suggest","max:open","night:gen","night:toggle","note:del","note:save","ob:back","ob:recalc","paste:do","pb:adv","pb:pwsave","pbk:import","photo:add","photo:view","pphoto:add","preset:del","reminder:add","reset:ask","reset:do","ri:mv","ri:pick","ri:prog","ri:remove","rt:del","rt:new","rt:save","set:activity","set:sex","set:strategy","set:theme","set:ttype","set:units","set:weekstart","skip:calories","skip:sleep","skip:steps","skip:weight","status:end","status:endnow","status:save","sum:coachreport","sum:exportall","sum:exportweek","sum:toggle","sync:pasteapply","sync:pull","sync:push","sync:test","tdee:apply","tdee:later","weight:add","weight:del","wo:addset","wo:begin","wo:bwsave","wo:delset","wo:discard","wo:discardnow","wo:endnow","wo:endrest","wo:exaddset","wo:exmove","wo:exprog","wo:exremove","wo:finish","wo:finishback","wo:finishlater","wo:log","wo:replacepick","wo:replsave:fwd","wo:resume","wo:savesession","wo:skipset","wo:skipthem","wo:start","wo:startroutine","wu:no","wu:yes"].forEach(function(a){M10_GATED[a]=1;});
+["act:addcat","act:del","act:toggle","adopt:ask","adopt:yes","ai:copy","ai:gen","cal:ignore","cal:overwrite","cal:usecalc","cardio:del","cardio:save","cf:newtype","conn:remove","day:clear","day:reopendo","ex:clearall","ex:del","ex:save","ex:seedall","exseed:add","fb:done","fb:set","glp:compound","glp:compoundsave","glp:dose:del","glp:dose:open","glp:dose:save","glp:enable","glp:showdue","glp:siterot","glp:skip","glp:sym:del","glp:sym:edit","glp:sym:newsave","glp:sym:open","glp:sym:save","glp:symptoms","glp:titration","hk:import","import","invite:create","invite:join","lift:del","lift:save","lift:savedetail","lrec:finish","lrec:restore","m10cx:server","m10cx:takeover","m10p:apply","m10p:export","m8:cx:local","m8:cx:server","macro:keep","macro:suggest","max:open","night:gen","night:toggle","note:del","note:save","ob:back","ob:recalc","paste:do","pb:adv","pb:pwsave","pbk:import","photo:add","pphoto:add","preset:del","reminder:add","reset:ask","reset:do","ri:mv","ri:pick","ri:prog","ri:remove","rt:del","rt:new","rt:save","set:activity","set:sex","set:strategy","set:theme","set:ttype","set:units","set:weekstart","skip:calories","skip:sleep","skip:steps","skip:weight","status:end","status:endnow","status:save","sum:coachreport","sum:exportall","sum:exportweek","sum:toggle","sync:pasteapply","sync:pull","sync:push","sync:test","tdee:apply","tdee:later","weight:add","weight:del","wo:addset","wo:begin","wo:bwsave","wo:delset","wo:discard","wo:discardnow","wo:endnow","wo:endrest","wo:exaddset","wo:exmove","wo:exprog","wo:exremove","wo:finish","wo:finishback","wo:finishlater","wo:log","wo:replacepick","wo:replsave:fwd","wo:resume","wo:savesession","wo:skipset","wo:skipthem","wo:start","wo:startroutine","wu:no","wu:yes"].forEach(function(a){M10_GATED[a]=1;});
 
 /* fresh, complete authority check — account, session generation, holder,
    deadline AND fence identity, plus storage health */
@@ -12090,6 +12134,27 @@ document.addEventListener("click",function(e){
   if(!m10GateAction(a)){e.stopImmediatePropagation();e.preventDefault();}
 },true);
 
+/* X4 (round-30 ruling 4): single-writer correctness is about WRITES, not
+   intent. The four persistence primitives are gated at the source, so a
+   read-only device performs zero durable writes even when a lazy migration
+   fires during ordinary navigation. M10's own recovery machinery sets
+   m10InternalWrite around its authorized transitions (they have already
+   proven the pen for their own operation). */
+var m10InternalWrite=0;
+(function(){
+  var prim={save:null,saveLocal:null,saveTraining:null,saveWorkout:null};
+  Object.keys(prim).forEach(function(name){
+    var orig=window[name];
+    if(typeof orig!=="function")return;
+    window[name]=function(){
+      if(!m10InternalWrite){
+        var a=m10AuthNow();
+        if(!a.ok){
+          try{if(!window.__m10WriteRefused)window.__m10WriteRefused=0;window.__m10WriteRefused++;}catch(e){}
+          return undefined;}}
+      return orig.apply(this,arguments);};});
+})();
+
 /* W1 (round-29 ruling 1): the click interceptor is NOT the only mutation
    boundary — the application's global `input`/`change` handlers persist
    directly (sleep, goals, lift-session fields, workout sets, routines,
@@ -12102,7 +12167,12 @@ function m10EditableAllowed(el){
   if(!el)return true;
   var id=(el.id||"");
   if(/^pb-|^wl-pb|^sync-|^setup-/.test(id))return true;     /* sign-in + server config */
-  if(el.closest&&el.closest("#m10-cx,.wl-confirm"))return true;  /* M10 review + confirm sheets */
+  /* X5 (round-30 ruling 5): individually identified recovery controls only.
+     `.wl-confirm` is a generic overlay used by ordinary application forms
+     (workout editors, bodyweight, notes, GLP sheets) — it is NOT an authority
+     boundary. */
+  if(el.closest&&el.closest("#m10-cx"))return true;              /* the M10 core-review sheet */
+  if(/^(m10-|wl-takeover-)/.test(id))return true;                /* M10 recovery controls */
   return false;}
 ["input","change"].forEach(function(evt){
   document.addEventListener(evt,function(e){

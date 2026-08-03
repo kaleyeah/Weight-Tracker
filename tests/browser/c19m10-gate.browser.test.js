@@ -62,9 +62,13 @@ async function boot(browser,srv,st,uid){
         &&!!M10_GATED['wo:start']&&!!M10_GATED['wo:startroutine']&&!!M10_GATED['wo:endrest']&&!!M10_GATED['wu:yes']
         &&!!M10_GATED['wo:finishlater']&&!!M10_GATED['day:reopendo']&&!!M10_GATED['sync:pasteapply'],
       hasDeferred:!!M10_GATED['photo:add']&&!!M10_GATED['import']&&!!M10_GATED['reset:ask'],
-      pureNotGated:!M10_GATED['nav:go']&&!M10_GATED['cal:sel']}));
-    test('T1 gate inventory loaded (129 actions incl. deferred openers, pure actions excluded)',()=>{
-      eq(s.gated,129);ok(s.hasCore);ok(s.hasDeferred);ok(s.pureNotGated);});
+      pureNotGated:!M10_GATED['nav:go']&&!M10_GATED['cal:sel'],
+      photoViewOpen:!M10_GATED['photo:view'],
+      recoveryGated:!!M10_GATED['lrec:restore']&&!!M10_GATED['lrec:finish']&&!!M10_GATED['adopt:yes']}));
+    test('T1 gate inventory loaded (132 actions: mutating + deferred openers + recovery; read-only viewing excluded)',()=>{
+      eq(s.gated,132);ok(s.hasCore);ok(s.hasDeferred);ok(s.pureNotGated);
+      ok(s.photoViewOpen,'read-only photo viewing stays open (STRICT allows reading)');
+      ok(s.recoveryGated,'recovery/adoption actions carry explicit contracts');});
     test('T1 no page errors',()=>eq(errs.length,0,errs.join(';')));
     await ctx.close();
   }
