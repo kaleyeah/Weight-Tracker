@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Compound — daily ratings mockup</title>
+<link rel="stylesheet" href="app.css">
+<style>
+/* ---- MOCKUP-ONLY additions: the four subjective rating rows ---------------
+   Built from the app's existing tokens (--accent, --card, --line, --muted,
+   --faint, --good) and the wl-ck-* check-in patterns. Nothing here overrides
+   app styles; the classes are new (wl-rt-*). */
+body{background:var(--bg);color:var(--text);font-family:var(--sans);margin:0;padding:14px;}
+.frame{max-width:420px;margin:0 auto 26px;}
+.mocklabel{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);
+  font-weight:700;margin:0 0 8px 2px;}
+
+/* the rating row: a header line (label + chosen value) and 5 tap targets */
+.wl-rt{border-top:1px solid var(--line);padding:10px 12px 12px;}
+.wl-rt-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:8px;}
+.wl-rt-lab{font-size:14px;font-weight:600;}
+.wl-rt-val{font-size:12px;font-weight:700;color:var(--accent);text-align:right;}
+.wl-rt-val.empty{color:var(--faint);font-weight:600;}
+.wl-rt-opts{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;}
+.wl-rt-opt{appearance:none;-webkit-appearance:none;background:var(--bg2);border:1px solid var(--line);
+  border-radius:11px;color:var(--muted);font-family:var(--sans);font-size:11px;font-weight:600;
+  line-height:1.15;min-height:46px;padding:6px 3px;cursor:pointer;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:3px;text-align:center;word-break:break-word;}
+.wl-rt-opt .dot{width:7px;height:7px;border-radius:50%;background:var(--line);flex:none;}
+.wl-rt-opt.on{background:rgba(245,181,68,.14);border-color:var(--accent);color:var(--text);font-weight:800;
+  box-shadow:inset 0 0 0 1px var(--accent);}
+.wl-rt-opt.on .dot{background:var(--accent);}
+.wl-rt-opt:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+/* the scale ends are hinted without relying on colour alone */
+.wl-rt-scale{display:flex;justify-content:space-between;font-size:10px;color:var(--faint);
+  margin-top:6px;letter-spacing:.02em;}
+/* responsive labels: the compact form appears on narrow phones so nothing
+   clips or shrinks below a comfortable tap target. The full wording is always
+   visible in the row header once chosen, so the short chip is never ambiguous. */
+.wl-rt-opt .short{display:none;}
+@media (max-width:365px){
+  .wl-rt-opts{gap:5px;}
+  .wl-rt-opt{font-size:11px;min-height:44px;padding:6px 2px;}
+  .wl-rt-opt .full{display:none;}
+  .wl-rt-opt .short{display:inline;}
+}
+
+/* trend chart (mockup) */
+.trend{display:grid;grid-template-columns:64px 1fr;gap:8px;align-items:center;margin-top:10px;}
+.trend .nm{font-size:12px;color:var(--muted);font-weight:600;}
+.trend .cells{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
+.cell{height:22px;border-radius:6px;background:var(--bg2);display:flex;align-items:center;
+  justify-content:center;font-size:10px;font-weight:800;color:var(--bg);}
+.v1{background:#F26D5B}.v2{background:#E8975C}.v3{background:#D9C26A}.v4{background:#93CC86}.v5{background:#5CD6A0}
+.cell.none{background:var(--bg2);color:var(--faint);font-weight:600}
+.days{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-left:72px;margin-top:4px;}
+.days span{font-size:10px;color:var(--faint);text-align:center}
+.phase{margin-top:12px;border-top:1px solid var(--line);padding-top:10px;}
+.phasebar{display:flex;gap:3px;margin-top:6px}
+.phasebar i{flex:1;height:8px;border-radius:3px;display:block}
+.legend{display:flex;gap:10px;flex-wrap:wrap;margin-top:9px;font-size:10px;color:var(--faint)}
+.legend b{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+.rep{font-family:var(--mono);font-size:12px;line-height:1.55;white-space:pre-wrap;color:var(--text)}
+</style></head>
+<body>
+
+<!-- ============ A. CHECK-IN, RATINGS NOT YET ANSWERED ============ -->
+<div class="frame" id="a">
+  <p class="mocklabel">A · Collapsed — one row above Notes</p>
+  <div class="wl-card wl-check">
+    <div class="wl-ck-head"><span class="wl-ck-title">Today’s Check-in</span><span class="wl-ck-cnt">3 of 4 done</span></div>
+
+    <button class="wl-ck-row"><span class="wl-ck-l"><span class="wl-ck-ic done"></span><span class="wl-ck-lab">Sleep</span></span><span class="wl-ck-val">7h 20m</span></button>
+    <button class="wl-ck-row"><span class="wl-ck-l"><span class="wl-ck-ic done"></span><span class="wl-ck-lab">Weight</span></span><span class="wl-ck-val">201.4 lbs</span></button>
+    <button class="wl-ck-row"><span class="wl-ck-l"><span class="wl-ck-ic done"></span><span class="wl-ck-lab">Calories</span></span><span class="wl-ck-val">2,180 · 178p</span></button>
+    <button class="wl-ck-row"><span class="wl-ck-l"><span class="wl-ck-ic opt">+</span><span class="wl-ck-lab">Steps</span></span><span class="wl-ck-val">Add</span></button>
+    <!-- collapsed entry point, sits directly above Notes -->
+    <button class="wl-ck-row" aria-expanded="false"><span class="wl-ck-l"><span class="wl-ck-ic opt">+</span><span class="wl-ck-lab">How you’re feeling</span></span><span class="wl-ck-val">Add</span></button>
+    <button class="wl-ck-row"><span class="wl-ck-l"><span class="wl-ck-ic opt">+</span><span class="wl-ck-lab">Notes</span></span><span class="wl-ck-val">Add</span></button>
+    <button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px">Complete today</button>
+  </div>
+</div>
+
+<!-- ============ B. ANSWERED ============ -->
+<div class="frame" id="b">
+  <p class="mocklabel">B · The same rows, answered</p>
+  <div class="wl-card wl-check">
+    <div class="wl-ck-head"><span class="wl-ck-title">Today’s Check-in</span><span class="wl-ck-cnt allgood">All done</span></div>
+
+    <div class="wl-rt">
+      <div class="wl-rt-head"><span class="wl-rt-lab">Hunger</span><span class="wl-rt-val">Just right</span></div>
+      <div class="wl-rt-opts">
+        <button class="wl-rt-opt"><span class="dot"></span><span class="full">Too low</span><span class="short">Too low</span></button>
+        <button class="wl-rt-opt"><span class="dot"></span><span class="full">Slightly low</span><span class="short">Low</span></button>
+        <button class="wl-rt-opt on" aria-pressed="true"><span class="dot"></span><span class="full">Just right</span><span class="short">Just right</span></button>
+        <button class="wl-rt-opt"><span class="dot"></span><span class="full">Slightly high</span><span class="short">High</span></button>
+        <button class="wl-rt-opt"><span class="dot"></span><span class="full">Too high</span><span class="short">Too high</span></button>
+      </div>
+      <div class="wl-rt-scale"><span>too little</span><span>too much</span></div>
+    </div>
+
+    <div class="wl-rt">
+      <div class="wl-rt-head"><span class="wl-rt-lab">Recovery</span><span class="wl-rt-val">Good</span></div>
+      <div class="wl-rt-opts">
+        <button class="wl-rt-opt"><span class="dot"></span><span class="full">Very poor</span><span class="short">V. poor</span></button>
+        <button class="wl-rt-opt"><span class="dot"></span><span class="full">Poor</span><span class="short">Poor</span></button>
+        <button class="wl-rt-opt"><span class="dot"></span><span class="full">Okay</span><span class="short">Okay</span></button>
+        <button class="wl-rt-opt on" aria-pressed="true"><span class="dot"></span><span class="full">Good</span><span class="short">Good</span></button>
+        <button class="wl-rt-opt"><span class="dot"></span><span class="full">Excellent</span><span class="short">Great</span></button>
+      </div>
+    </div>
+
+    <div class="wl-rt">
+      <div class="wl-rt-head"><span class="wl-rt-lab">Energy</span><span class="wl-rt-val">Okay</span></div>
+      <div class="wl-rt-opts">
+        <button class="wl-rt-opt"><span class="dot"></span><span class="full">Very low</span><span class="short">V. low</span></button>
+        <button class="wl-rt-opt"><span class="dot"></span><span class="full">Low</span><span class="short">Low</span></button>
+        <button class="wl-rt-opt on" aria-pressed="true"><span class="dot"></span><span class="full">Okay</span><span class="short">Okay</span></button>
+        <button class="wl-rt-opt"><span class="dot"></span><span class="full">Good</span><span class="short">Good</span></button>
+        <button class="wl-rt-opt"><span class="dot"></span><span class="full">Excellent</span><span class="short">Great</span></button>
+      </div>
+    </div>
+
+    <div class="wl-rt">
+      <div class="wl-rt-head"><span class="wl-rt-lab">Digestion</span><span class="wl-rt-val">Okay</span></div>
+      <div class="wl-rt-opts">
+        <button class="wl-rt-opt"><span class="dot"></span><span class="full">Very poor</span><span class="short">V. poor</span></button>
+        <button class="wl-rt-opt"><span class="dot"></span><span class="full">Poor</span><span class="short">Poor</span></button>
+        <button class="wl-rt-opt on" aria-pressed="true"><span class="dot"></span><span class="full">Okay</span><span class="short">Okay</span></button>
+        <button class="wl-rt-opt"><span class="dot"></span><span class="full">Good</span><span class="short">Good</span></button>
+        <button class="wl-rt-opt"><span class="dot"></span><span class="full">Excellent</span><span class="short">Great</span></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ C. TRENDS ============ -->
+<div class="frame" id="c">
+  <p class="mocklabel">C · Trends — this week and the compound phase</p>
+  <div class="wl-card">
+    <div class="wl-card-head"><span>How you’ve felt</span><span class="wl-count">This week</span></div>
+    <div class="trend"><span class="nm">Hunger</span><span class="cells">
+      <i class="cell v3">3</i><i class="cell v3">3</i><i class="cell v4">4</i><i class="cell v3">3</i><i class="cell v3">3</i><i class="cell v2">2</i><i class="cell none">–</i></span></div>
+    <div class="trend"><span class="nm">Recovery</span><span class="cells">
+      <i class="cell v2">2</i><i class="cell v3">3</i><i class="cell v4">4</i><i class="cell v4">4</i><i class="cell v5">5</i><i class="cell v4">4</i><i class="cell none">–</i></span></div>
+    <div class="trend"><span class="nm">Energy</span><span class="cells">
+      <i class="cell v2">2</i><i class="cell v2">2</i><i class="cell v3">3</i><i class="cell v4">4</i><i class="cell v4">4</i><i class="cell v3">3</i><i class="cell none">–</i></span></div>
+    <div class="trend"><span class="nm">Digestion</span><span class="cells">
+      <i class="cell v1">1</i><i class="cell v2">2</i><i class="cell v2">2</i><i class="cell v3">3</i><i class="cell v3">3</i><i class="cell v4">4</i><i class="cell none">–</i></span></div>
+    <div class="days"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div>
+    <div class="legend">
+      <span><b class="v1" style="background:#F26D5B"></b>worst</span>
+      <span><b class="v3" style="background:#D9C26A"></b>middle</span>
+      <span><b class="v5" style="background:#5CD6A0"></b>best</span>
+      <span>– not answered</span>
+    </div>
+
+    <div class="phase">
+      <div class="wl-card-head" style="padding:0"><span>Digestion · this compound phase</span><span class="wl-count">5.0 mg · wk 4</span></div>
+      <div class="phasebar">
+        <i class="v1"></i><i class="v1"></i><i class="v2"></i><i class="v2"></i><i class="v2"></i><i class="v3"></i><i class="v3"></i>
+        <i class="v3"></i><i class="v3"></i><i class="v4"></i><i class="v4"></i><i class="v3"></i><i class="v4"></i><i class="v4"></i>
+        <i class="v4"></i><i class="v4"></i><i class="v5"></i><i class="v4"></i><i class="v4"></i><i class="v5"></i><i class="v5"></i>
+      </div>
+      <div class="wl-hint" style="margin-top:7px">Since the 5 mg step on Jul 12 · trending up over 3 weeks</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ D. COACH REPORT ============ -->
+<div class="frame" id="d">
+  <p class="mocklabel">D · How it reaches Coach Max</p>
+  <div class="wl-card">
+    <div class="wl-card-head"><span>Nightly report · excerpt</span><span class="wl-count">Aug 3</span></div>
+    <div class="rep">SUBJECTIVE (athlete-reported)
+  Hunger     just_right       (wk: 3 just_right, 2 slightly_low, 1 blank)
+  Recovery   good             (wk avg trending up, 2→4)
+  Energy     okay             (wk avg flat at okay)
+  Digestion  okay             (wk: improving, very_poor→okay since 5 mg wk 2)</div>
+    <div class="wl-hint" style="margin-top:10px">Stored as stable enum values (<span class="wl-mono">just_right</span>, <span class="wl-mono">very_poor</span>…) so the wording can change later without touching saved data.</div>
+  </div>
+</div>
+
+
+<div class="frame" id="e">
+  <p class="mocklabel">E · The approved row — every state</p>
+  <div class="wl-card wl-check">
+    <div class="wl-ck-head"><span class="wl-ck-title">Today’s Check-in</span><span class="wl-ck-cnt">3 of 4 done</span></div>
+    <button class="wl-ck-row"><span class="wl-ck-l"><span class="wl-ck-ic opt">+</span><span class="wl-ck-lab">How you’re feeling</span></span><span class="wl-ck-val">Add</span></button>
+    <button class="wl-ck-row"><span class="wl-ck-l"><span class="wl-ck-ic opt">+</span><span class="wl-ck-lab">How you’re feeling</span></span><span class="wl-ck-val">2 of 4</span></button>
+    <button class="wl-ck-row"><span class="wl-ck-l"><span class="wl-ck-ic done"></span><span class="wl-ck-lab">How you’re feeling</span></span><span class="wl-ck-val">4 of 4</span></button>
+  </div>
+  <div class="wl-hint" style="margin-top:8px">Top: nothing answered. Middle: partly answered — still no green dot, still never blocks Complete. Bottom: all four in. Same wording on today and on any past day.</div>
+</div>
+</body></html>
