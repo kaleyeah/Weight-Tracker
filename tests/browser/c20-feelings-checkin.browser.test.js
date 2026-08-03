@@ -39,7 +39,7 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
   const errs=[];page.on('pageerror',e=>errs.push(String(e)));
   await page.goto('http://127.0.0.1:'+server.address().port,{waitUntil:'load'});
   await page.waitForFunction(()=>typeof window.render==='function',null,{timeout:15000});
-  console.log('\nC20 (browser) — how you’re feeling + weekly check-in\n  source: '+SRC);
+  console.log('\nC20 (browser) — how you felt + weekly check-in\n  source: '+SRC);
   console.log('  build : '+await page.evaluate(()=>window.APP_BUILD));
 
   const ev=fn=>page.evaluate(fn);
@@ -51,12 +51,12 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
   const t1=await ev(()=>{
     const rows=[].slice.call(document.querySelectorAll('.wl-check .wl-ck-row'));
     const labs=rows.map(r=>(r.querySelector('.wl-ck-lab')||{}).textContent||'');
-    const i=labs.indexOf('How you’re feeling');
+    const i=labs.indexOf('How you felt');
     const feel=rows[i];
     return {labs,i,next:labs[i+1]||null,val:feel?feel.querySelector('.wl-ck-val').textContent:null,
       act:feel?feel.getAttribute('data-act'):null};
   });
-  test('T1 "How you’re feeling" row renders directly above Notes, empty state = "Add"',()=>{
+  test('T1 "How you felt" row renders directly above Notes, empty state = "Add"',()=>{
     ok(t1.i>=0,'row not found; labels were '+JSON.stringify(t1.labs));
     eq(t1.next,'Notes','row after it');
     eq(t1.val,'Add');
@@ -66,7 +66,7 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
   /* ---- T2: opens as a SHEET like Calories, not an inline accordion ------- */
   await ev(()=>{
     [].slice.call(document.querySelectorAll('.wl-check .wl-ck-row'))
-      .filter(r=>(r.querySelector('.wl-ck-lab')||{}).textContent==='How you’re feeling')[0].click();});
+      .filter(r=>(r.querySelector('.wl-ck-lab')||{}).textContent==='How you felt')[0].click();});
   const t2s=await ev(()=>{
     const card=document.querySelector('.wl-confirm .wl-confirm-card');
     return {sheet:!!card,sec:state.quickEntry,
@@ -77,7 +77,7 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
   test('T2 the questions open in the quick-entry sheet, titled and closable, never inline',()=>{
     ok(t2s.sheet,'no sheet was raised');
     eq(t2s.sec,'feel');
-    eq(t2s.title,'How you’re feeling');
+    eq(t2s.title,'How you felt');
     notOk(t2s.inCheckCard,'the questions must not render inside the check-in card');
     ok(t2s.close&&t2s.done,'the sheet needs its ✕ and its Done button');
   });
@@ -120,7 +120,7 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
   const t4=await ev(()=>{
     const stored=JSON.parse(localStorage.getItem('wl_v1')).ratings[todayISO()];
     const row=[].slice.call(document.querySelectorAll('.wl-ck-row'))
-      .filter(r=>(r.querySelector('.wl-ck-lab')||{}).textContent==='How you’re feeling')[0];
+      .filter(r=>(r.querySelector('.wl-ck-lab')||{}).textContent==='How you felt')[0];
     return {stored,val:row.querySelector('.wl-ck-val').textContent,
       hdr:document.querySelector('#feelq-hunger').parentNode.querySelector('.a').textContent,
       pressed:document.querySelector('[data-act="rat:set"][data-q="hunger"][data-v="just_right"]').getAttribute('aria-pressed')};
@@ -140,8 +140,8 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
     const labs=[].slice.call(document.querySelectorAll('.wl-check .wl-ck-lab')).map(x=>x.textContent);
     state.selDate=todayISO();render();
     return labs;});
-  test('T5 a past day uses the same "How you’re feeling" wording',()=>{
-    ok(t5.indexOf('How you’re feeling')>=0,'labels were '+JSON.stringify(t5));
+  test('T5 a past day uses the same "How you felt" wording',()=>{
+    ok(t5.indexOf('How you felt')>=0,'labels were '+JSON.stringify(t5));
   });
 
   /* ---- T6: ratings never block "Complete today" ------------------------- */
@@ -512,7 +512,7 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
   /* ---- T27: narrow screens get the short chip labels ------------------- */
   await ev(()=>{load();state.view='overview';state.selDate=todayISO();state.quickEntry=null;render();
     [].slice.call(document.querySelectorAll('.wl-check .wl-ck-row'))
-      .filter(r=>(r.querySelector('.wl-ck-lab')||{}).textContent==='How you’re feeling')[0].click();});
+      .filter(r=>(r.querySelector('.wl-ck-lab')||{}).textContent==='How you felt')[0].click();});
   await page.setViewportSize({width:320,height:800});
   const t27=await ev(()=>{
     const chip=document.querySelector('.wl-feelchip');
@@ -536,7 +536,7 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
     eq(errs,[],'page errors');
   });
 
-  console.log('\nC20 — how you’re feeling + weekly check-in: '+passed+' passed, '+failures.length+' failed');
+  console.log('\nC20 — how you felt + weekly check-in: '+passed+' passed, '+failures.length+' failed');
   if(failures.length)console.log('  failed: '+failures.join(', '));
   await browser.close();server.close();
   process.exit(failures.length?1:0);

@@ -758,7 +758,7 @@ input[type=date]::-webkit-calendar-picker-indicator,input[type=time]::-webkit-ca
 .wl-ck-reopen-btns .wl-btn{flex:1;padding:10px 0;font-size:14px;}
 .wl-ck-note{flex:1;text-align:right;font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .wl-ck-go{color:var(--faint);font-size:16px;flex:none;}
-/* ---- How you're feeling: daily ratings (shown in the quick-entry sheet) ---- */
+/* ---- How you felt: daily ratings (shown in the quick-entry sheet) ---- */
 .wl-feelq{margin-top:12px;}
 .wl-feelq:first-child{margin-top:0;}
 .wl-feelq-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;font-size:13px;font-weight:700;margin-bottom:7px;}
@@ -921,7 +921,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-03.419-sheet";
+var APP_BUILD="2026-08-03.420-felt";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -1950,7 +1950,7 @@ function ckCalories(sel){
   return h+'</button>';
 }
 /* ============================================================================
-   How you're feeling — six daily subjective ratings (Owner-approved 2026-08-03)
+   How you felt — six daily subjective ratings (Owner-approved 2026-08-03)
    Stored on state.ratings[iso] as stable enum strings, never the visible label,
    so wording can change without a data migration. An unset rating is null and
    NEVER blocks "Complete today". Each option carries a goodness score 1..5
@@ -1987,7 +1987,7 @@ function ratSet(iso,key,val){
 function ckFeel(sel){
   var n=ratCount(sel),tot=RATINGS.length;
   var ic=(n===tot)?'<span class="wl-ck-ic done"></span>':'<span class="wl-ck-ic opt">◦</span>';
-  return '<button class="wl-ck-row" data-act="dl:open" data-sec="feel"><span class="wl-ck-l">'+ic+'<span class="wl-ck-lab">How you’re feeling</span></span><span class="wl-ck-val'+(n?'':' empty')+'">'+(n?n+" of "+tot:"Add")+'</span><span class="wl-ck-go">›</span></button>';
+  return '<button class="wl-ck-row" data-act="dl:open" data-sec="feel"><span class="wl-ck-l">'+ic+'<span class="wl-ck-lab">How you felt</span></span><span class="wl-ck-val'+(n?'':' empty')+'">'+(n?n+" of "+tot:"Add")+'</span><span class="wl-ck-go">›</span></button>';
 }
 /* The body of that sheet — six questions, five chips each. */
 function feelSheetBody(sel){
@@ -2101,7 +2101,7 @@ function feelCardHTML(){
   var today=todayISO();
   var h='<div class="wl-card"><div class="wl-card-head"><span>How you’ve felt</span><span class="wl-count">week of '+fmtShort(parseISO(wk))+'</span></div>';
   if(!feelAnyAnswered(feelDays(28,today)))
-    return h+'<div class="wl-empty">Nothing logged yet. Open <b>How you’re feeling</b> in your daily check-in — a few days is enough to show a trend.</div></div>';
+    return h+'<div class="wl-empty">Nothing logged yet. Open <b>How you felt</b> in your daily check-in — a few days is enough to show a trend.</div></div>';
   var dow=["S","M","T","W","T","F","S"];
   h+='<div class="wl-fgrid"><span></span><div class="wl-fdow">'+isos.map(function(x){return '<span>'+dow[parseISO(x).getDay()]+'</span>';}).join("")+'</div>';
   RATINGS.forEach(function(q){
@@ -2799,7 +2799,7 @@ function headerNav(){var v=state.view;
 function quickEntryHTML(){
   var sec=state.quickEntry;if(!sec)return "";
   var sel=state.selDate;var u=state.settings.units;
-  var titles={weight:"Weight",steps:"Steps",sleep:"Sleep",calories:"Calories & macros",notes:"Notes",feel:"How you’re feeling"};
+  var titles={weight:"Weight",steps:"Steps",sleep:"Sleep",calories:"Calories & macros",notes:"Notes",feel:"How you felt"};
   var wmap={};state.weights.forEach(function(x){wmap[x.date]=x.weight;});
   var e=state.food[sel]||{};
   var t={calories:num(state.settings.targetCalories),protein:num(state.settings.targetProtein),carbs:num(state.settings.targetCarbs),fat:num(state.settings.targetFat)};
