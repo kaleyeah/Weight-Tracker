@@ -1,4 +1,4 @@
-  ✓ T1 gate inventory loaded (129 actions incl. deferred openers, pure actions excluded)
+  ✓ T1 gate inventory loaded (132 actions: mutating + deferred openers + recovery; read-only viewing excluded)
   ✓ T1 no page errors
   ✓ T2 non-holder: the gated action is intercepted and the takeover sheet is offered
   ✓ T3 holder: gated actions run unchanged

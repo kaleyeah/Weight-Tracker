@@ -1,34 +1,38 @@
 # M10 increment 5 — mutation-boundary inventory (action → gate → test)
 
-Regenerated after round 29. Classification follows CALLEES transitively
+Regenerated after round 30. Classification follows CALLEES transitively
 (depth ≤ 5), not branch text: a branch is gated when it reaches any
-persistence primitive (`save`, `saveLocal`, `saveTraining`,
-`saveWorkout`, `setSyncCfg`, `idbAdd/Delete/ClearAll`,
-`cloudPush/Pull`, `m8Push`, `m10cPush`, `pbSave`, `applyImport`,
-`hkTryFetch`, `importProgressPhotos`) directly or through any callee.
-The render/view layer is excluded from the walk: persistence there is a
-lazy migration, not user-initiated mutation, and gating it would stop a
-read-only device from viewing its own data (STRICT allows reading).
+persistence primitive directly or through any callee.
 
-## Mutation boundaries — ALL of them, not only clicks
+**Round-30 change:** the four persistence primitives (`save`, `saveLocal`,
+`saveTraining`, `saveWorkout`) are now ALSO gated at the source, so a write
+is refused wherever it originates — tap, timer, network callback, or a lazy
+migration during rendering. The action list below is therefore the
+*navigational* surface; the primitive gate is the backstop that makes
+"a read-only device performs zero durable writes" true regardless of path.
+
+## Mutation boundaries — all of them
 
 | boundary | gate | tests |
 |---|---|---|
 | dispatcher `click` on `[data-act]` | capture-phase interceptor → `m10GateAction` | C19 T1–T4, T9 |
-| global `input` / `change` on form controls | capture-phase interceptor (value restored; sign-in/server-config and M10 sheets exempt) | C19 T8 ×3 |
-| file pickers (`wl-photo-input`, `wl-import`, `wl-pbk-import`) | authority captured at open AND at change; revalidated again after `FileReader.onload`, after `processImage`, and before every `idbAdd`/`idbDelete` | C19 T5 ×2, T11 |
-| confirmation callbacks (`askConfirm`) | captured when raised by a holder; revalidated at confirm (sheets raised WITHOUT the pen are exempt so takeover/review can repair) | C19 T6 ×3 |
-| HealthKit import callback (`hkTryFetch`) | authority captured at start; revalidated before the local mutation AND before each mailbox clear | C19 T10 |
-| photo/core/training transport | owned by M10-BLOCK-2/3/4 (fenced routes, journals, queue) | C15–C18 |
-| logout | every M10 obligation blocks, including a MALFORMED photo queue (typed read, evidence preserved) | C19 T7 ×5, T12 |
+| global `input` / `change` on form controls | capture-phase interceptor; prior value restored; only individually identified recovery controls exempt (round-30 ruling 5) | C19 T8 ×3 |
+| **persistence primitives** (save/saveLocal/saveTraining/saveWorkout) | gated at source; `m10InternalWrite` guard for M10's own authorized transitions | C19 T4, and every accepted suite |
+| file pickers + their post-async continuations | authority captured at open AND change; revalidated after `FileReader.onload`, after `processImage`/`idbAll`, before every delete/add | C19 T5 ×2, T11 |
+| confirmation callbacks | captured when raised by a holder; revalidated at confirm; sheets raised WITHOUT the pen exempt so takeover/review can repair | C19 T6 ×3 |
+| HealthKit import callback | ONE immutable capture stored with `state.hkWait`; revalidated on every poll, before the local mutation, and before each mailbox clear (round-30 ruling 1) | C19 T10 |
+| photo/core/training transport | M10-BLOCK-2/3/4 (fenced routes, journals, queue) | C15–C18 |
+| logout | every M10 obligation blocks, including a MALFORMED photo queue via the typed read | C19 T7 ×5, T12 |
 
-## Gated actions (129)
+## Gated actions (132)
 
 | action | why gated | tests |
 |---|---|---|
 | `act:addcat` | direct | C19 T1/T2/T3/T4 |
 | `act:del` | direct | C19 T1/T2/T3/T4 |
 | `act:toggle` | direct | C19 T1/T2/T3/T4 |
+| `adopt:ask` | recovery (explicit contract) | C19 T1/T2/T3/T4 — recovery action, explicit contract |
+| `adopt:yes` | recovery (explicit contract) | C19 T1/T2/T3/T4 — recovery action, explicit contract |
 | `ai:copy` | via weeklyAIText | C19 T1/T2/T3/T4 |
 | `ai:gen` | via genSummary | C19 T1/T2/T3/T4 |
 | `cal:ignore` | direct | C19 T1/T2/T3/T4 |
@@ -70,6 +74,8 @@ read-only device from viewing its own data (STRICT allows reading).
 | `lift:del` | direct | C19 T1/T2/T3/T4 |
 | `lift:save` | direct | C19 T1/T2/T3/T4 |
 | `lift:savedetail` | direct | C19 T1/T2/T3/T4 |
+| `lrec:finish` | recovery (explicit contract) | C19 T1/T2/T3/T4 — recovery action, explicit contract |
+| `lrec:restore` | recovery (explicit contract) | C19 T1/T2/T3/T4 — recovery action, explicit contract |
 | `m10cx:server` | via m10cxTakeServer | C19 T1/T2/T3/T4 |
 | `m10cx:takeover` | direct | C19 T1/T2/T3/T4 |
 | `m10p:apply` | via m10pReviewApply | C19 T1/T2/T3/T4 |
@@ -90,7 +96,6 @@ read-only device from viewing its own data (STRICT allows reading).
 | `pb:pwsave` | direct | C19 T1/T2/T3/T4 |
 | `pbk:import` | deferred-open | C19 T1/T2/T3/T4 + T5/T10/T11 |
 | `photo:add` | deferred-open | C19 T1/T2/T3/T4 + T5/T10/T11 |
-| `photo:view` | via openLightbox | C19 T1/T2/T3/T4 |
 | `pphoto:add` | deferred-open | C19 T1/T2/T3/T4 + T5/T10/T11 |
 | `preset:del` | direct | C19 T1/T2/T3/T4 |
 | `reminder:add` | direct | C19 T1/T2/T3/T4 |
@@ -156,10 +161,11 @@ read-only device from viewing its own data (STRICT allows reading).
 | `wu:no` | direct | C19 T1/T2/T3/T4 |
 | `wu:yes` | via markWarmup | C19 T1/T2/T3/T4 + T9 |
 
-## Ungated actions (145)
+## Ungated actions (142)
 
-View, selection, navigation and sheet-open branches that reach no
-persistence primitive through any callee. A read-only device must still
-be able to look at its own data.
+View, selection, navigation and sheet-open branches reaching no
+persistence primitive through any callee. `photo:view` is deliberately
+here (round-30 ruling 7): opening the lightbox is READ-ONLY, and its own
+mutations are gated at their primitives.
 
-`act:addopen`, `act:editmode`, `act:pick`, `actpick:close`, `adopt:ask`, `adopt:yes`, `al:change`, `alert:dismiss`, `app:update`, `bc:tab`, `browse:close`, `browse:open`, `cal:expand`, `cal:next`, `cal:prev`, `cal:sel`, `card:toggle`, `cardio:add`, `cardio:cancel`, `cardio:edit`, `cardio:pick`, `cardio:repick`, `cf:type`, `cf:typeedit`, `cf:zone`, `chart:pt`, `confirm:no`, `confirm:yes`, `copy`, `day:next`, `day:prev`, `day:reopenask`, `day:reopencancel`, `device:close`, `device:copylink`, `device:open`, `diary:older`, `dl:open`, `ex:add`, `ex:bw`, `ex:cancel`, `ex:edit`, `ex:muscle`, `ex:mv`, `export`, `food:pick`, `glp:compoundback`, `glp:prog:mode`, `glp:setup`, `glp:sev`, `glp:sheetclose`, `glp:site`, `glp:sym:new`, `glp:sym:pick`, `glp:timeline`, `glp:unit`, `go`, `hist:day`, `hist:more`, `hist:tab`, `hk:cancel`, `info`, `info:close`, `invite:copy`, `invite:joincancel`, `invite:open`, `lf:zone`, `lift:back`, `lift:cancel`, `lift:edit`, `lift:editcancel`, `lift:summaryback`, `lift:tofinish`, `lift:view`, `lrec:finish`, `lrec:restore`, `m10cx:close`, `m10cx:export`, `m10cx:mine`, `m10cx:open`, `m10p:discard`, `m8:cx:close`, `m8:cx:export`, `m8:cx:open`, `max:close`, `morestats`, `noop`, `note:add`, `note:cancel`, `note:edit`, `note:pin`, `ob:install`, `ob:next`, `ob:start`, `openday`, `opentoday`, `paste`, `paste:cancel`, `pb:logout`, `pb:pwtoggle`, `pbk:export`, `qe:close`, `reset:cancel`, `ri:add`, `ri:pickclose`, `rt:open`, `rt:openedit`, `rt:openedit_dummy`, `set:back`, `set:page`, `status:close`, `status:open`, `status:type`, `sum:day`, `sum:next`, `sum:prev`, `sum:tocur`, `sync:copy`, `sync:paste`, `sync:pastecancel`, `syncdot`, `trend:mode`, `trend:next`, `trend:prev`, `trend:tocur`, `wo:bw`, `wo:bwcancel`, `wo:completethem`, `wo:exmenu`, `wo:exmenu:close`, `wo:exnote`, `wo:exreplace`, `wo:fbopen`, `wo:hist`, `wo:histclose`, `wo:promptcancel`, `wo:quick`, `wo:replacecancel`, `wo:replsave:once`, `wo:resumeask`, `wo:resumecancel`, `wo:setmenu`, `wo:setmenu:close`, `wof:zone`, `wt:add`
+`act:addopen`, `act:editmode`, `act:pick`, `actpick:close`, `al:change`, `alert:dismiss`, `app:update`, `bc:tab`, `browse:close`, `browse:open`, `cal:expand`, `cal:next`, `cal:prev`, `cal:sel`, `card:toggle`, `cardio:add`, `cardio:cancel`, `cardio:edit`, `cardio:pick`, `cardio:repick`, `cf:type`, `cf:typeedit`, `cf:zone`, `chart:pt`, `confirm:no`, `confirm:yes`, `copy`, `day:next`, `day:prev`, `day:reopenask`, `day:reopencancel`, `device:close`, `device:copylink`, `device:open`, `diary:older`, `dl:open`, `ex:add`, `ex:bw`, `ex:cancel`, `ex:edit`, `ex:muscle`, `ex:mv`, `export`, `food:pick`, `glp:compoundback`, `glp:prog:mode`, `glp:setup`, `glp:sev`, `glp:sheetclose`, `glp:site`, `glp:sym:new`, `glp:sym:pick`, `glp:timeline`, `glp:unit`, `go`, `hist:day`, `hist:more`, `hist:tab`, `hk:cancel`, `info`, `info:close`, `invite:copy`, `invite:joincancel`, `invite:open`, `lf:zone`, `lift:back`, `lift:cancel`, `lift:edit`, `lift:editcancel`, `lift:summaryback`, `lift:tofinish`, `lift:view`, `m10cx:close`, `m10cx:export`, `m10cx:mine`, `m10cx:open`, `m10p:discard`, `m8:cx:close`, `m8:cx:export`, `m8:cx:open`, `max:close`, `morestats`, `noop`, `note:add`, `note:cancel`, `note:edit`, `note:pin`, `ob:install`, `ob:next`, `ob:start`, `openday`, `opentoday`, `paste`, `paste:cancel`, `pb:logout`, `pb:pwtoggle`, `pbk:export`, `photo:view`, `qe:close`, `reset:cancel`, `ri:add`, `ri:pickclose`, `rt:open`, `rt:openedit`, `rt:openedit_dummy`, `set:back`, `set:page`, `status:close`, `status:open`, `status:type`, `sum:day`, `sum:next`, `sum:prev`, `sum:tocur`, `sync:copy`, `sync:paste`, `sync:pastecancel`, `syncdot`, `trend:mode`, `trend:next`, `trend:prev`, `trend:tocur`, `wo:bw`, `wo:bwcancel`, `wo:completethem`, `wo:exmenu`, `wo:exmenu:close`, `wo:exnote`, `wo:exreplace`, `wo:fbopen`, `wo:hist`, `wo:histclose`, `wo:promptcancel`, `wo:quick`, `wo:replacecancel`, `wo:replsave:once`, `wo:resumeask`, `wo:resumecancel`, `wo:setmenu`, `wo:setmenu:close`, `wof:zone`, `wt:add`

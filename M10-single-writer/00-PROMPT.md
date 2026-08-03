@@ -1,53 +1,65 @@
-# M10 single-writer — round 30: increment 5, round-29 rulings landed
+# M10 single-writer — round 31: increment 5, round-30 rulings landed
 
 You are the Architect for the Compound project (read-only; rulings bind
 the Engineer; the Owner alone authorizes deployment and live-data
 mutation).
 
-Increment 5 revised. **Code head `793e591`** (the last commit touching
-`index.html`), sha256
-`c49166fee14c787a568f35f687beacefcb4a562ada554a6ff0e86154d90e5788`;
-**records head** `9e3f87b`+ carries harness and package artifacts with a
-byte-identical `index.html` (the manifest checks it). Narrow diff
-`INCR5-DIFF-FROM-48e966a.patch`; cumulative `INCR5-DIFF.patch`
-(249fd0e → 793e591, `git diff --check` clean);
-`sha256sum -c …/INCR5-MANIFEST.txt` exits 0 across 12 paths.
+Increment 5 only. **Code head `3cd7311`**, index.html sha256
+`12e839b01138169c37a2f49cc41ea5de7cce714fbe14a4c31ab07cc35eb9612f`.
+Narrow diff `INCR5-DIFF-FROM-793e591.patch` (161 lines); cumulative
+`INCR5-DIFF.patch` = 249fd0e → 3cd7311 (353 lines, `git diff --check`
+clean); `sha256sum -c …/INCR5-MANIFEST.txt` exits 0 across 12 paths.
 
-1/7. **The real choke points.** You were right that the click
-   interceptor was not one. The application persists directly from its
-   global `input`/`change` handlers; those events are now intercepted at
-   capture too, with the field's prior value restored, so a non-holder
-   produces NO in-memory and NO durable change. Sign-in/server-config
-   fields and M10's own sheets stay usable (that is how a read-only
-   device recovers); a holder is unaffected. Three application-path
-   tests.
-2. **Inventory rebuilt by callee analysis** (transitive, depth ≤ 5),
-   not branch text: 104 → 129 gated. Every family you named is now
-   gated AND tested by an application-path test that clicks it as a
-   non-holder and proves the app handler never runs: `wo:start`
-   (→startWorkout), `wo:startroutine`/`wo:endrest` (→woTransition),
-   `wu:yes` (→markWarmup), `wo:finishlater` (→pauseWorkout),
-   `day:reopendo` (→reopenDay), `sync:pasteapply` (direct setSyncCfg).
-   The render/view layer is excluded from the walk and the reason is
-   documented in the inventory.
-3. **HealthKit** captures authority at start and revalidates before the
-   local mutation AND before each mailbox clear; pen loss during the
-   wait imports nothing and clears the wait honestly (T10).
-4. **File flows** thread the captured authority through the async work:
-   both imports revalidate after `FileReader.onload`, photo adds
-   revalidate after `processImage`/`idbAll` and before every
-   delete/add. T11 proves a pen loss after `change` mutates nothing.
-5. **Malformed photo queue** now blocks logout via the TYPED read and
-   preserves the evidence (T12) instead of reading as empty.
-6. **Identity** stated precisely above (code head vs records head).
-8. **Harness changes, disclosed and hashed**: C14 and c11m8-faults each
-   signed in with no lease route mocked, so under the wired gate their
-   mutating clicks were correctly refused. Both now answer the lease
-   route — harness only; both green (67/67, 64/64). This is intended
-   behavior: conflict resolution is a content write and needs the pen.
+1. **HealthKit — one immutable capture (ruling 1).** The capture is taken
+   when the import BEGINS and stored on `state.hkWait`; every later poll,
+   the local mutation and each mailbox clear revalidate that same
+   identity. A per-poll recapture is no longer possible, so A→B→A across
+   polls cannot import under replacement authority.
+2. **Photo replacement — no destructive window (ruling 2).** The progress
+   retake is now ADD-then-delete: the new blob lands first, then each
+   superseded copy is retired through the increment-4 queue with
+   authority revalidated before EVERY delete. Losing the pen mid-flight
+   leaves the original recoverable and mapped; it can no longer delete the
+   pre-image and then fail to add.
+3. **Photo-backup import (ruling 3).** The caller's capture is threaded
+   through confirmation → `idbAll` → per-item fetch → add → dupe retire,
+   revalidated before every delete and add; add-then-delete there too.
+4. **Writes during rendering (ruling 4).** You were right that intent is
+   not the standard. The four persistence primitives (`save`, `saveLocal`,
+   `saveTraining`, `saveWorkout`) are gated AT THE SOURCE, with an
+   `m10InternalWrite` guard for M10's own authorized transitions. A
+   read-only device now performs zero durable writes regardless of what
+   triggered them — tap, timer, callback, or a lazy migration during
+   ordinary navigation.
+5. **Exemption narrowed (ruling 5).** The `.wl-confirm` class exemption is
+   removed — a CSS container is not an authority boundary. Only
+   individually identified recovery controls remain exempt (`#m10-cx`,
+   `m10-*` ids, sign-in/server-config fields).
+6. **Recovery actions (ruling 6).** `lrec:restore`, `lrec:finish`,
+   `adopt:yes`, `adopt:ask` are now gated and carry explicit contracts in
+   the inventory rather than being described as non-persisting.
+7. **Read-only viewing restored (ruling 7).** `photo:view` is ungated —
+   opening the lightbox is reading, which STRICT allows; the lightbox's
+   own mutations are gated at their primitives.
 
-Evidence at `793e591`: C19 30/30; C18 52/52; C17 37/37; C16 49/49;
-C15 35/35; regressions 171/171 (+artifact-scope recovery 25/25).
+Inventory: **132 gated / 142 ungated**, regenerated by transitive callee
+analysis, and now documenting all EIGHT mutation boundaries (click,
+input/change, the primitives themselves, file pickers and their
+post-async continuations, confirmations, the HealthKit callback,
+transport, logout) — not just the action list.
 
-Requested ruling: acceptance of increment 5 and of the M10 client.
-Nothing beyond local implementation is requested.
+Evidence at `3cd7311`: C19 30/30; C18 52/52; C17 37/37; C16 49/49;
+C15 35/35; the client matrix 171/171 (+artifact-scope recovery 25/25).
+
+**Disclosed harness changes (three suites).** `c11m8-accounts`,
+`c11m8-faults` and `c14-correctness-fixes` each sign a device in but never
+granted it the writer lease. Under the primitive gate such a device is
+read-only BY DESIGN, so their writes were correctly refused — accounts
+could not become dirty, faults' M8 conflict resolution could not run, C14's
+GLP flow crashed. Each route stub now answers `/api/cf/writer/lease` as a
+granting server. Harness only, no product change, hashed into the manifest;
+the refusal they hit is precisely the behaviour M10 exists to produce.
+
+Requested ruling: acceptance of increment 5 and of the M10 client. Nothing
+beyond local implementation is requested — NAS deployment, coach
+migration, enforcement and the two-device release remain Owner-gated.

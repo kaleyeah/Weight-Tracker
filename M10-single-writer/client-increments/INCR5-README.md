@@ -2,45 +2,41 @@
 
 ## Package identity
 - **Base**: `249fd0e` — the accepted increment-4 head.
-- **Code head**: `793e591` — the last commit touching `index.html`;
-  index.html sha256
-  `c49166fee14c787a568f35f687beacefcb4a562ada554a6ff0e86154d90e5788`.
-- **Records head**: `9e3f87b` and later — test-harness and package
-  artifacts only; `index.html` is byte-identical (the manifest checks it).
-- **Diffs**: `INCR5-DIFF.patch` = 249fd0e → 793e591 (index.html, `git
-  diff --check` clean); `INCR5-DIFF-FROM-48e966a.patch` = the round-29
-  corrections alone; `INCR5-TESTS-DIFF.patch` = the C19 suite plus the
-  disclosed harness edits.
+- **Code head**: `3cd7311` — index.html sha256
+  `12e839b01138169c37a2f49cc41ea5de7cce714fbe14a4c31ab07cc35eb9612f`.
+- **Records head**: this commit and later — harness/artefacts only;
+  `index.html` byte-identical (the manifest checks it).
+- **Diffs**: `INCR5-DIFF.patch` = 249fd0e → 3cd7311 (`git diff --check`
+  clean); `INCR5-DIFF-FROM-793e591.patch` = the round-30 corrections alone;
+  `INCR5-TESTS-DIFF.patch` = the C19 suite plus the disclosed harness edits.
 
-## Round-29 rulings, as landed
-- **1/7 (the real choke points)**: the click interceptor was NOT
-  sufficient — the application persists directly from its global
-  `input`/`change` handlers (sleep, goals, lift-session fields, workout
-  sets, routines, notes/food/steps/weight/bodyfat/waist/leanmass, sync
-  config). Those events are now intercepted at capture as well, with the
-  field's prior value restored, so a non-holder produces NO in-memory and
-  NO durable change (tested three ways, including that sign-in/server
-  fields stay usable and a holder is unaffected).
-- **2 (inventory correctness)**: classification now follows CALLEES
-  transitively rather than branch text. That moved the count from 104 to
-  129 and caught every family the Architect named — `wo:start`,
-  `wo:startroutine`, `wo:endrest`, `wu:yes`, `wo:finishlater`,
-  `day:reopendo`, `sync:pasteapply` — each now gated and tested (T9).
-  The render/view layer is excluded from the walk, documented, because
-  its persistence is lazy migration, not user-initiated mutation.
-- **3 (HealthKit)**: `hkTryFetch` captures authority at start and
-  revalidates before the local mutation AND before each mailbox clear;
-  pen loss during the wait imports nothing (T10).
-- **4 (file flows)**: authority is threaded through the async chains and
-  revalidated immediately before every mutation — after
-  `FileReader.onload` for both imports, and after `processImage`/`idbAll`
-  before each delete/add (T11 proves a pen loss after `change` mutates
-  nothing).
-- **5 (malformed queue)**: logout inspects the TYPED queue read; a
-  malformed/unreadable photo queue blocks sign-out and preserves the
-  evidence instead of reading as empty (T12).
-- **6 (identity)**: code head and records head are now stated separately
-  and precisely above.
+## Round-30 rulings, as landed
+- **1 (HealthKit)**: ONE immutable capture is stored with `state.hkWait`
+  when the import begins and revalidated on every poll, before the local
+  mutation and before each mailbox clear — an A→B→A across polls can no
+  longer import under replacement authority.
+- **2 (photo replacement)**: the progress-photo retake is now
+  ADD-then-delete, with authority revalidated before EVERY destructive
+  step and each delete riding the increment-4 queue. The previous
+  delete-then-add could remove the pre-image and then fail to add — data
+  loss, not merely an unauthorized write.
+- **3 (photo-backup import)**: the capture is threaded through the whole
+  chain (confirmation → idbAll → per-item fetch → add → retire dupes) and
+  revalidated before every mutation; add-then-delete there too.
+- **4 (writes during rendering)**: the four persistence primitives are
+  gated at the source with an `m10InternalWrite` guard for M10's own
+  authorized transitions. Single-writer correctness is about writes, not
+  intent — a read-only device performs zero durable writes even when a
+  lazy migration fires during ordinary navigation.
+- **5 (exemption narrowed)**: the `.wl-confirm` class exemption is gone; a
+  CSS container is not an authority boundary. Only identified recovery
+  controls (`#m10-cx`, `m10-*`, sign-in/server fields) are exempt.
+- **6 (recovery actions)**: `lrec:restore`, `lrec:finish`, `adopt:yes`,
+  `adopt:ask` are gated with explicit contracts rather than silently
+  ungated.
+- **7 (read-only viewing)**: `photo:view` is UNGATED again — opening the
+  lightbox is reading, which STRICT allows; its own mutations are gated at
+  their primitives.
 
 ## Design: one choke point, not 104 edits
 A capture-phase `click` listener registered on `document` runs BEFORE

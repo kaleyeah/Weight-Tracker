@@ -1,3 +1,22 @@
+diff --git a/tests/browser/c11m8-accounts.browser.test.js b/tests/browser/c11m8-accounts.browser.test.js
+index 5be8ce4..5da17eb 100644
+--- a/tests/browser/c11m8-accounts.browser.test.js
++++ b/tests/browser/c11m8-accounts.browser.test.js
+@@ -24,6 +24,14 @@ const ok=(v,m)=>{if(!v)throw new Error(m||'expected truthy');};
+     localStorage.setItem('wl_training_base__userA',JSON.stringify({owner:'userZ',mark:'m8.1',canon:1,rev:1,body:'{}'}));
+   });
+   await ctx.route('**/api/**',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[],token:'tok',record:{id:'userA'}})}));
++  /* M10 (increment 5): a signed-in device must hold the writer lease before it
++     may persist anything. Answer the lease route as the granting server —
++     harness only, no product change. */
++  await ctx.route('**/api/cf/writer/lease',r=>{
++    let b={};try{b=JSON.parse(r.request().postData()||'{}');}catch(e){}
++    return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,exists:true,granted:true,
++      fence:1,holderDeviceId:b.deviceId||'dev',deviceName:b.deviceName||'x',active:true,
++      serverNow:Date.now(),ttlMs:86400000})});});
+   await ctx.route('**/api/collections/appdata/records**',r=>r.fulfill({status:200,contentType:'application/json',
+     body:JSON.stringify({items:[{id:'rec1',user:'userA',training:null,trainingRev:0}]})}));
+   let commits=0;
 diff --git a/tests/browser/c11m8-faults.browser.test.js b/tests/browser/c11m8-faults.browser.test.js
 index f3d1f2e..0c599bf 100644
 --- a/tests/browser/c11m8-faults.browser.test.js
@@ -116,10 +135,10 @@ index 432b089..9325426 100644
          localW:JSON.parse(localStorage.getItem('wl_v1')).weights[0].weight};
 diff --git a/tests/browser/c19m10-gate.browser.test.js b/tests/browser/c19m10-gate.browser.test.js
 new file mode 100644
-index 0000000..7c41b06
+index 0000000..f85e52f
 --- /dev/null
 +++ b/tests/browser/c19m10-gate.browser.test.js
-@@ -0,0 +1,394 @@
+@@ -0,0 +1,398 @@
 +/* C19-M10 (browser) — increment 5: the gate surface, real Chromium.
 +
 +       CF_SRC=<file> node tests/browser/c19m10-gate.browser.test.js
@@ -184,9 +203,13 @@ index 0000000..7c41b06
 +        &&!!M10_GATED['wo:start']&&!!M10_GATED['wo:startroutine']&&!!M10_GATED['wo:endrest']&&!!M10_GATED['wu:yes']
 +        &&!!M10_GATED['wo:finishlater']&&!!M10_GATED['day:reopendo']&&!!M10_GATED['sync:pasteapply'],
 +      hasDeferred:!!M10_GATED['photo:add']&&!!M10_GATED['import']&&!!M10_GATED['reset:ask'],
-+      pureNotGated:!M10_GATED['nav:go']&&!M10_GATED['cal:sel']}));
-+    test('T1 gate inventory loaded (129 actions incl. deferred openers, pure actions excluded)',()=>{
-+      eq(s.gated,129);ok(s.hasCore);ok(s.hasDeferred);ok(s.pureNotGated);});
++      pureNotGated:!M10_GATED['nav:go']&&!M10_GATED['cal:sel'],
++      photoViewOpen:!M10_GATED['photo:view'],
++      recoveryGated:!!M10_GATED['lrec:restore']&&!!M10_GATED['lrec:finish']&&!!M10_GATED['adopt:yes']}));
++    test('T1 gate inventory loaded (132 actions: mutating + deferred openers + recovery; read-only viewing excluded)',()=>{
++      eq(s.gated,132);ok(s.hasCore);ok(s.hasDeferred);ok(s.pureNotGated);
++      ok(s.photoViewOpen,'read-only photo viewing stays open (STRICT allows reading)');
++      ok(s.recoveryGated,'recovery/adoption actions carry explicit contracts');});
 +    test('T1 no page errors',()=>eq(errs.length,0,errs.join(';')));
 +    await ctx.close();
 +  }

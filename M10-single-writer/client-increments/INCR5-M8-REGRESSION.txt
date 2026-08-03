@@ -1,17 +1,22 @@
 M8 + C14 client regression matrix vs increment-5 bytes
-(CF_SRC = Weight-Tracker/index.html @ 793e591 — the round-29 code head; run 2026-08-03)
+(CF_SRC = Weight-Tracker/index.html @ 3cd7311 — the round-30 revised head; run 2026-08-03)
 
-c11m8-accounts:  OK — 6 passed
-c11m8-faults:    OK — 64 passed   (harness now answers the writer-lease route:
-                                   M8 conflict resolution is a content write and
-                                   needs the pen under the increment-5 gate)
+c11m8-accounts:  OK — 6 passed    (harness grants the lease — see note)
+c11m8-faults:    OK — 64 passed   (harness grants the lease — see note)
 c11m8-matrix:    OK — 9 passed
 c11m8-quota:     OK — 6 passed
 c11m8-replay:    OK — 10 passed
 c11m8-tags:      OK — 5 passed
 c11m8-upgrade:   OK — 4 passed
-c14-correctness: OK — 67 passed   (same harness change, same reason)
+c14-correctness: OK — 67 passed   (harness grants the lease — see note)
 TOTAL: 171/171
 
 ARTIFACT-SCOPE (unchanged artifact, run as designed):
 c11m8-recovery:  OK — 25 passed
+
+NOTE (disclosed harness change, three suites): each signs a device in but
+never granted it the writer lease. Under the increment-5 gate such a device
+is read-only BY DESIGN, so their writes were correctly refused. Each route
+stub now answers /api/cf/writer/lease as a granting server. Harness only —
+no product change — and the refusal they hit is the behaviour M10 exists to
+produce.
