@@ -38,6 +38,10 @@
   ✓ T25a adopt crash at `fetched` with MATCHING bytes: mapping completed
   ✓ T25b adopt `fetched` vs DIFFERENT local bytes: unverified, no mapping, local kept
   ✓ T25c adopt `intent` with an existing local record: never guessed — unverified
+  ✓ T30 `fetched` with no local blob: refetched, validated, written, mapped (no infinite park)
+  ✓ T30 refetched bytes differ from the durable identity: unverified, nothing written or mapped
+  ✓ T30 temporary refetch failure: obligation preserved at `fetched`, retry succeeds
+  ✓ T31 local-write failure through the UI: NO false success, honest failure, label unchanged
   ✓ T27 metadata: the LOCAL side lands in its own phase before the server ack
   ✓ T27 reload at `local-applied`: the server side completes, entry clears
   ✓ T28 metadata local-write failure: entry parked at intent, NO server update
@@ -45,4 +49,4 @@
   ✓ T26 displacement captures the authoritative server identity (incl. file)
   ✓ T26 failed identity+state write: no dispatch, photo intact
 
-C18-M10 increment 4: 46 passed, 0 failed
+C18-M10 increment 4: 50 passed, 0 failed

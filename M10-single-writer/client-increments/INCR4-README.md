@@ -2,14 +2,14 @@
 
 ## Package identity
 - **Base**: `b92d418` — the accepted increment-3 head.
-- **Code head**: `5095ed6` — index.html sha256
-  `0b226ead91aa18d442a969e86fcc5cf8259e69bfbb7d2cf431091415c385b86d`.
-  (Heads: 6cc656d → 311c3b2 → 47b4daa → 5095ed6; narrow round-25 diff
-  `INCR4-DIFF-FROM-47b4daa.patch`.)
+- **Code head**: `3f6cd45` — index.html sha256
+  `0de01c2e54276038952c2eec3f6e48b8ca7e6bf6a3f13c68558ac8576fa12a5b`.
+  (Heads: 6cc656d → 311c3b2 → 47b4daa → 5095ed6 → 3f6cd45; narrow
+  round-26 diff `INCR4-DIFF-FROM-5095ed6.patch`.)
 - **Records head**: the commit carrying this README, both patches, all
   evidence outputs and `INCR4-MANIFEST.txt` — its `index.html` is
   BYTE-IDENTICAL to `47b4daa` (the manifest asserts that hash).
-- **Cumulative diff** `INCR4-DIFF.patch` = b92d418 → 5095ed6. Two
+- **Cumulative diff** `INCR4-DIFF.patch` = b92d418 → 3f6cd45. Two
   delimited regions: `M10-BLOCK-4` (machinery + review UI) and
   `M10-BLOCK-4-WIRING` — the wiring is installed LAST, after the
   M8-era photo wrappers, because those assign `idbAdd`/`idbDelete`/
@@ -65,6 +65,25 @@
   the mandatory reports live on the repo's `main` branch (the
   deployed-lineage checkout) and are NOT presented as artifacts of
   this branch — see RECORDS-LOCATION-EVIDENCE.md from round 20.
+
+## Round-26 rulings, as landed
+- **2/3/5 (adoption recovery)**: `adopt/fetched` with NO local record
+  now REFETCHES the authoritative server file, validates its hash and
+  byte length against the durable fetched identity, writes IndexedDB,
+  reads the bytes BACK and re-verifies them, and only then writes the
+  map — it can never park in `fetched` forever. Differing refetched
+  bytes → `unverified/adopt-server-differs` with nothing written or
+  mapped; a temporary fetch failure preserves the obligation and the
+  retry succeeds. Three tests.
+- **4 (phase-aware validation)**: every `adopt` entry in `fetched`,
+  `blob-ok`, or `mapped` must carry a valid sha256 and a safe POSITIVE
+  byte length; the validator rejects identity-less phase records.
+- **6 (honest UI result)**: the lightbox result is bound to THIS
+  operation's outcome — it polls the local record for the new label and
+  reports "Moved" only when it is actually applied, otherwise
+  "Couldn't move the photo — it stays where it was". Tested through the
+  production UI with a failing IndexedDB write: no false success, the
+  label unchanged, the server untouched.
 
 ## Round-25 rulings, as landed
 - **1 (adoption identity)**: `adopt` gains a durable `fetched` phase —
@@ -173,7 +192,7 @@ existing local bytes. Non-holders perform zero local and zero server
 photo mutations (tested).
 
 ## Evidence
-- `INCR4-C18-OUTPUT.txt` — C18 46/46: upload happy path + ordering;
+- `INCR4-C18-OUTPUT.txt` — C18 50/50: upload happy path + ordering;
   lost-response replay (same requestId, single record); delete
   ordering; metadata; stale fence on all three ops; malformed
   success/identity-mismatch/untyped-fence bodies (entry survives);

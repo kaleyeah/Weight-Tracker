@@ -1,8 +1,8 @@
 diff --git a/index.html b/index.html
-index 4a5e15e..6a18111 100644
+index 4a5e15e..9ee1e9f 100644
 --- a/index.html
 +++ b/index.html
-@@ -10858,6 +10858,567 @@ document.addEventListener("click",function(e){
+@@ -10858,6 +10858,610 @@ document.addEventListener("click",function(e){
  });
  /* =============== M10-BLOCK-3-END =============== */
  
@@ -63,7 +63,12 @@ index 4a5e15e..6a18111 100644
 +    if(!(typeof en.localId==="string"&&en.localId.length>0))return "bad localId";
 +    if(!(typeof en.serverId==="string"&&en.serverId.length>0))return "bad serverId";
 +    if(!(typeof en.file==="string"&&en.file.length>0))return "bad file";
-+    if(!metaOk(en.meta))return "bad meta";}
++    if(!metaOk(en.meta))return "bad meta";
++    /* U4: every identity-bearing phase MUST carry the identity recovery
++       depends on */
++    if(en.state==="fetched"||en.state==="blob-ok"||en.state==="mapped"){
++      if(!hexOk(en.blobSha256))return "bad adopt blobSha256";
++      if(!(natOk(en.blobByteLength)&&en.blobByteLength>0))return "bad adopt blobByteLength";}}
 +  return null;}
 +function m10pRead(uid){
 +  var r=m10cRead("photoops",uid);
@@ -269,7 +274,45 @@ index 4a5e15e..6a18111 100644
 +         (re)attempted and verified against it */
 +      idbGetLocal(en.localId).then(function(existing){
 +        if(!authOk()){fin(false);return;}
-+        if(!existing||!existing.blob){fin(false);return;}   /* refetch on the next pass */
++        if(!existing||!existing.blob){
++          /* U2 (round-26 ruling 2): the durable identity exists but the local
++             blob does not — REFETCH, validate against that identity, and only
++             then write. Never park in `fetched` forever. */
++          pbFileToken().then(function(tok){
++            if(!authOk()){fin(false);return;}
++            pbPhotoFetchBlob({id:en.serverId,file:en.file},tok).then(function(b2){
++              if(!authOk()){fin(false);return;}
++              m10pSha256(b2).then(function(idnR){
++                if(!authOk()){fin(false);return;}
++                if(idnR.hex!==en.blobSha256||idnR.byteLength!==en.blobByteLength){
++                  /* U3: changed server bytes — nothing written, nothing mapped */
++                  setPhase({state:"unverified",unverifiedReason:"adopt-server-differs"});fin(false);
++                  try{render();}catch(ex){}
++                  return;}
++                var nrec2={id:en.localId,date:en.meta.date,week:en.meta.week||en.meta.date,
++                  pose:en.meta.pose||"",kind:en.meta.kind||"progress",blob:b2,ts:en.meta.ts||Date.now()};
++                if(en.meta.meal)nrec2.meal=en.meta.meal;
++                idbAddLocal(nrec2).then(function(){
++                  if(!authOk()){fin(false);return;}
++                  idbGetLocal(en.localId).then(function(back2){
++                    if(!authOk()){fin(false);return;}
++                    if(!back2||!back2.blob){fin(false);return;}
++                    /* the map is written ONLY after the exact bytes are read
++                       back and re-verified (ruling 5, last bullet) */
++                    m10pSha256(back2.blob).then(function(idnB){
++                      if(!authOk()){fin(false);return;}
++                      if(idnB.hex!==en.blobSha256||idnB.byteLength!==en.blobByteLength){fin(false);return;}
++                      setPhase({state:"blob-ok"});
++                      if(!mapWriteVerified(en.localId,en.serverId)){
++                        m10cBlock("could not record where a photo was saved");fin(false);return;}
++                      setPhase({state:"mapped"})&&clearEntry()&&next(true);
++                    }).catch(function(){fin(false);});
++                  }).catch(function(){fin(false);});
++                }).catch(function(){fin(false);});
++              }).catch(function(){fin(false);});
++            }).catch(function(){fin(false);});   /* U3: transient failure keeps the obligation */
++          }).catch(function(){fin(false);});
++          return;}
 +        m10pSha256(existing.blob).then(function(idn3){
 +          if(!authOk()){fin(false);return;}
 +          if(idn3.hex!==en.blobSha256||idn3.byteLength!==en.blobByteLength){
@@ -570,7 +613,7 @@ index 4a5e15e..6a18111 100644
  function cloudTest(){
    if(ownershipAmbiguous()){toast("Paused — this device holds data from another account");return;}
    setSync("syncing");
-@@ -11252,6 +11813,143 @@ idbClearAll=function(){
+@@ -11252,6 +11856,143 @@ idbClearAll=function(){
      }).then(function(){setPbPhotoMap({});}).catch(function(){});}
    return idbClearAllLocal();};
  
@@ -714,7 +757,7 @@ index 4a5e15e..6a18111 100644
  /* ---- lightbox with "Edit meal type" ----
     Full replacement of the app's openLightbox: identical navigation, delete, swipe
     and close-rerender behavior, plus — for FOOD photos only — an "Edit meal type"
-@@ -11302,23 +12000,44 @@ function openLightbox(id){
+@@ -11302,23 +12043,53 @@ function openLightbox(id){
      var m=b.getAttribute("data-meal");
      if((r.meal||"")===m){mealsRow.style.display="none";return;}
      if(ownershipAmbiguous()){toast("Paused — this device holds data from another account");return;}
@@ -762,15 +805,24 @@ index 4a5e15e..6a18111 100644
 +         week:String(r.week||"").slice(0,10),pose:String(r.pose||"").slice(0,20),
 +         meal:String(m).slice(0,20),ts:String(r.ts||"")});
 +      if(!qd){toast("Couldn’t record the change — try again");return;}
-+      m10pDispatch(function(){
++      /* U6 (ruling 6): the result is bound to THIS operation's own outcome —
++         the local record must actually carry the new label. A busy dispatcher
++         returning early can no longer produce a false "Moved". */
++      var report=function(tries){
 +        idbGetLocal(r.id).then(function(fresh){
-+          if(fresh)r.meal=fresh.meal||r.meal;
-+          dirty=true;
-+          var label="";MEALS.forEach(function(x){if(x[0]===m)label=x[1];});
-+          toast("Moved to "+label);
++          var applied=!!fresh&&(fresh.meal||"")===m;
++          if(applied){
++            r.meal=fresh.meal;dirty=true;
++            var label="";MEALS.forEach(function(x){if(x[0]===m)label=x[1];});
++            toast("Moved to "+label);
++            renderMeals();
++            setTimeout(function(){mealsRow.style.display="none";},350);
++            return;}
++          if(tries>0){setTimeout(function(){report(tries-1);},250);return;}
++          toast("Couldn’t move the photo — it stays where it was");
 +          renderMeals();
-+          setTimeout(function(){mealsRow.style.display="none";},350);
-+        }).catch(function(){});});
++        }).catch(function(){toast("Couldn’t move the photo");});};
++      m10pDispatch(function(){report(6);});
 +      return;}
 +    applyLocal().catch(function(){toast("Couldn’t move the photo");});}
    else if(act==="del"){var pid=ids[idx];askConfirm("Delete this photo?",function(){idbDelete(pid).then(function(){dirty=true;try{URL.revokeObjectURL(urls[pid]);}catch(e){}delete urls[pid];ids.splice(idx,1);if(!ids.length){close();return;}if(idx>=ids.length)idx=ids.length-1;show();});});}});
