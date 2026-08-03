@@ -1,0 +1,128 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>v2</title>
+<link rel="stylesheet" href="app.css">
+<style>
+body{background:var(--bg);color:var(--text);font-family:var(--sans);margin:0;padding:14px}
+.frame{max-width:420px;margin:0 auto 26px}
+.mocklabel{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);font-weight:700;margin:0 0 8px 2px}
+.wl-rt{border-top:1px solid var(--line);padding:10px 12px 12px}
+.wl-rt-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:8px}
+.wl-rt-lab{font-size:14px;font-weight:600}
+.wl-rt-val{font-size:12px;font-weight:700;color:var(--accent)}
+.wl-rt-val.empty{color:var(--faint);font-weight:600}
+.wl-rt-opts{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.wl-rt-opt{background:var(--bg2);border:1px solid var(--line);border-radius:11px;color:var(--muted);
+  font-size:11px;font-weight:600;line-height:1.15;min-height:46px;padding:6px 3px;display:flex;
+  flex-direction:column;align-items:center;justify-content:center;gap:3px;text-align:center}
+.wl-rt-opt .dot{width:7px;height:7px;border-radius:50%;background:var(--line)}
+.wl-rt-opt.on{background:rgba(245,181,68,.14);border-color:var(--accent);color:var(--text);font-weight:800;box-shadow:inset 0 0 0 1px var(--accent)}
+.wl-rt-opt.on .dot{background:var(--accent)}
+/* weekly button inside the daily card */
+.wkbtn{width:100%;margin-top:12px;background:rgba(245,181,68,.10);border:1px solid var(--accent);
+  border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:11px;color:var(--text);
+  font-family:var(--sans);text-align:left;cursor:pointer}
+.wkbtn .ic{width:30px;height:30px;border-radius:9px;background:rgba(245,181,68,.18);color:var(--accent);
+  display:flex;align-items:center;justify-content:center;font-size:15px;flex:none}
+.wkbtn .t{flex:1;min-width:0}
+.wkbtn .t b{display:block;font-size:14px;font-weight:700}
+.wkbtn .t span{display:block;font-size:12px;color:var(--faint);margin-top:1px}
+.wkbtn .go{color:var(--accent);font-size:18px;font-weight:700;flex:none}
+/* colour-bar trend */
+.sparkrow{display:grid;grid-template-columns:78px 1fr auto;gap:8px;align-items:center;margin-top:9px}
+.sparkrow .nm{font-size:12px;color:var(--muted);font-weight:600}
+.spark{display:grid;grid-template-columns:repeat(14,1fr);gap:2px;align-items:end;height:26px}
+.spark i{display:block;border-radius:2px 2px 0 0}
+.spark i.s1{height:20%;background:#F26D5B}.spark i.s2{height:40%;background:#E8975C}
+.spark i.s3{height:60%;background:#D9C26A}.spark i.s4{height:80%;background:#93CC86}
+.spark i.s5{height:100%;background:#5CD6A0}.spark i.s0{height:12%;background:#2A313C}
+.trendtag{font-size:11px;font-weight:800;padding:2px 7px;border-radius:99px;white-space:nowrap}
+.up{background:rgba(92,214,160,.16);color:#5CD6A0}.dn{background:rgba(242,109,91,.16);color:#F26D5B}
+.flat{background:var(--bg2);color:var(--faint)}
+.auto{border-top:1px solid var(--line);padding:9px 12px;display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.auto .k{font-size:13px;color:var(--muted)}.auto .v{font-size:13px;font-weight:600;text-align:right}
+.auto .v em{font-style:normal;color:var(--faint);font-weight:500;font-size:12px}
+.pill{font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:99px;background:rgba(92,214,160,.15);color:#5CD6A0}
+.q{border-top:1px solid var(--line);padding:12px}
+.q .lab{font-size:14px;font-weight:600;margin-bottom:8px;display:block}
+.ta{width:100%;box-sizing:border-box;background:var(--bg2);border:1px solid var(--line);border-radius:11px;
+  color:var(--faint);font-family:var(--sans);font-size:14px;padding:10px 11px;min-height:60px}
+.ta.one{min-height:42px}
+.poses{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:2px}
+.pose{aspect-ratio:3/4;border-radius:12px;border:1px dashed var(--line);background:var(--bg2);display:flex;
+  flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--faint);font-size:12px}
+.pose.done{border-style:solid;border-color:#5CD6A0;background:rgba(92,214,160,.08);color:#5CD6A0;font-weight:700}
+.pose .big{font-size:20px}
+</style></head><body>
+
+<div class="frame">
+  <p class="mocklabel">1 · Daily check-in — six questions, and the weekly button on check-in day</p>
+  <div class="wl-card wl-check">
+    <div class="wl-ck-head"><span class="wl-ck-title">Today’s Check-in</span><span class="wl-ck-cnt">4 of 4 done</span></div>
+    <button class="wl-ck-row"><span class="wl-ck-l"><span class="wl-ck-ic done"></span><span class="wl-ck-lab">Sleep</span></span><span class="wl-ck-val">7h 20m</span></button>
+    <button class="wl-ck-row"><span class="wl-ck-l"><span class="wl-ck-ic done"></span><span class="wl-ck-lab">Weight</span></span><span class="wl-ck-val">199.8 lbs</span></button>
+    <button class="wl-ck-row"><span class="wl-ck-l"><span class="wl-ck-ic done"></span><span class="wl-ck-lab">Calories</span></span><span class="wl-ck-val">2,180 · 178p</span></button>
+    <button class="wl-ck-row"><span class="wl-ck-l"><span class="wl-ck-ic done"></span><span class="wl-ck-lab">Steps</span></span><span class="wl-ck-val">8,412</span></button>
+    <button class="wl-ck-row"><span class="wl-ck-l"><span class="wl-ck-ic done"></span><span class="wl-ck-lab">How you’re feeling</span></span><span class="wl-ck-val">6 of 6</span></button>
+    <button class="wl-ck-row"><span class="wl-ck-l"><span class="wl-ck-ic opt">+</span><span class="wl-ck-lab">Notes</span></span><span class="wl-ck-val">Add</span></button>
+    <button class="wkbtn"><span class="ic">📋</span><span class="t"><b>Weekly check-in</b><span>Sunday · 5 questions + photos · the rest is filled in</span></span><span class="go">›</span></button>
+    <button class="wl-btn wl-btn-primary wl-full" style="margin-top:10px">Complete today</button>
+  </div>
+</div>
+
+<div class="frame">
+  <p class="mocklabel">2 · The six daily questions (sleep quality + stress added)</p>
+  <div class="wl-card wl-check">
+    <div class="wl-ck-head"><span class="wl-ck-title">How you’re feeling</span><span class="wl-ck-cnt allgood">6 of 6</span></div>
+    <div class="wl-rt"><div class="wl-rt-head"><span class="wl-rt-lab">Hunger</span><span class="wl-rt-val">Just right</span></div>
+      <div class="wl-rt-opts"><div class="wl-rt-opt"><span class="dot"></span>Too low</div><div class="wl-rt-opt"><span class="dot"></span>Slightly low</div><div class="wl-rt-opt on"><span class="dot"></span>Just right</div><div class="wl-rt-opt"><span class="dot"></span>Slightly high</div><div class="wl-rt-opt"><span class="dot"></span>Too high</div></div></div>
+    <div class="wl-rt"><div class="wl-rt-head"><span class="wl-rt-lab">Sleep quality</span><span class="wl-rt-val">Good</span></div>
+      <div class="wl-rt-opts"><div class="wl-rt-opt"><span class="dot"></span>Very poor</div><div class="wl-rt-opt"><span class="dot"></span>Poor</div><div class="wl-rt-opt"><span class="dot"></span>Okay</div><div class="wl-rt-opt on"><span class="dot"></span>Good</div><div class="wl-rt-opt"><span class="dot"></span>Excellent</div></div>
+      <div class="wl-hint" style="margin-top:6px">You logged 7h 20m — this is how it <em>felt</em>.</div></div>
+    <div class="wl-rt"><div class="wl-rt-head"><span class="wl-rt-lab">Stress</span><span class="wl-rt-val">A little</span></div>
+      <div class="wl-rt-opts"><div class="wl-rt-opt"><span class="dot"></span>None</div><div class="wl-rt-opt on"><span class="dot"></span>A little</div><div class="wl-rt-opt"><span class="dot"></span>Some</div><div class="wl-rt-opt"><span class="dot"></span>High</div><div class="wl-rt-opt"><span class="dot"></span>Very high</div></div></div>
+    <div class="wl-rt"><div class="wl-rt-head"><span class="wl-rt-lab">Recovery</span><span class="wl-rt-val">Good</span></div>
+      <div class="wl-rt-opts"><div class="wl-rt-opt"><span class="dot"></span>Very poor</div><div class="wl-rt-opt"><span class="dot"></span>Poor</div><div class="wl-rt-opt"><span class="dot"></span>Okay</div><div class="wl-rt-opt on"><span class="dot"></span>Good</div><div class="wl-rt-opt"><span class="dot"></span>Excellent</div></div></div>
+    <div class="wl-rt"><div class="wl-rt-head"><span class="wl-rt-lab">Energy</span><span class="wl-rt-val">Okay</span></div>
+      <div class="wl-rt-opts"><div class="wl-rt-opt"><span class="dot"></span>Very low</div><div class="wl-rt-opt"><span class="dot"></span>Low</div><div class="wl-rt-opt on"><span class="dot"></span>Okay</div><div class="wl-rt-opt"><span class="dot"></span>Good</div><div class="wl-rt-opt"><span class="dot"></span>Excellent</div></div></div>
+    <div class="wl-rt"><div class="wl-rt-head"><span class="wl-rt-lab">Digestion</span><span class="wl-rt-val">Good</span></div>
+      <div class="wl-rt-opts"><div class="wl-rt-opt"><span class="dot"></span>Very poor</div><div class="wl-rt-opt"><span class="dot"></span>Poor</div><div class="wl-rt-opt"><span class="dot"></span>Okay</div><div class="wl-rt-opt on"><span class="dot"></span>Good</div><div class="wl-rt-opt"><span class="dot"></span>Excellent</div></div></div>
+  </div>
+</div>
+
+<div class="frame">
+  <p class="mocklabel">3 · Weekly form — trend bars first, then photos</p>
+  <div class="wl-card">
+    <div class="wl-card-head"><span>Weekly check-in</span><span class="wl-count">Jul 28 – Aug 3</span></div>
+    <div class="sparkrow"><span class="nm">Recovery</span><span class="spark"><i class="s2"></i><i class="s3"></i><i class="s4"></i><i class="s4"></i><i class="s5"></i><i class="s4"></i><i class="s0"></i><i class="s3"></i><i class="s3"></i><i class="s2"></i><i class="s2"></i><i class="s2"></i><i class="s3"></i><i class="s3"></i></span><span class="trendtag dn">↓</span></div>
+    <div class="sparkrow"><span class="nm">Energy</span><span class="spark"><i class="s3"></i><i class="s3"></i><i class="s4"></i><i class="s4"></i><i class="s4"></i><i class="s3"></i><i class="s0"></i><i class="s3"></i><i class="s2"></i><i class="s2"></i><i class="s2"></i><i class="s3"></i><i class="s3"></i><i class="s3"></i></span><span class="trendtag dn">↓</span></div>
+    <div class="sparkrow"><span class="nm">Sleep quality</span><span class="spark"><i class="s3"></i><i class="s4"></i><i class="s4"></i><i class="s3"></i><i class="s4"></i><i class="s4"></i><i class="s0"></i><i class="s4"></i><i class="s3"></i><i class="s3"></i><i class="s4"></i><i class="s4"></i><i class="s4"></i><i class="s4"></i></span><span class="trendtag flat">→</span></div>
+    <div class="sparkrow"><span class="nm">Stress</span><span class="spark"><i class="s4"></i><i class="s4"></i><i class="s3"></i><i class="s3"></i><i class="s2"></i><i class="s2"></i><i class="s0"></i><i class="s2"></i><i class="s2"></i><i class="s3"></i><i class="s3"></i><i class="s3"></i><i class="s4"></i><i class="s4"></i></span><span class="trendtag up">↑</span></div>
+    <div class="sparkrow"><span class="nm">Hunger</span><span class="spark"><i class="s3"></i><i class="s3"></i><i class="s3"></i><i class="s4"></i><i class="s3"></i><i class="s3"></i><i class="s0"></i><i class="s3"></i><i class="s3"></i><i class="s2"></i><i class="s3"></i><i class="s3"></i><i class="s3"></i><i class="s3"></i></span><span class="trendtag flat">→</span></div>
+    <div class="sparkrow"><span class="nm">Digestion</span><span class="spark"><i class="s1"></i><i class="s2"></i><i class="s2"></i><i class="s3"></i><i class="s3"></i><i class="s4"></i><i class="s0"></i><i class="s4"></i><i class="s4"></i><i class="s3"></i><i class="s4"></i><i class="s4"></i><i class="s5"></i><i class="s4"></i></span><span class="trendtag up">↑</span></div>
+    <div class="wl-hint" style="margin-top:8px">14 days · tallest = best · grey = not answered</div>
+
+    <div style="margin-top:14px"><div class="wl-card-head" style="padding:0"><span>This week’s photos</span><span class="wl-count">1 of 3</span></div>
+      <div class="poses"><div class="pose done"><span class="big">✓</span>Front</div><div class="pose"><span class="big">+</span>Back</div><div class="pose"><span class="big">+</span>Side</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="frame">
+  <p class="mocklabel">4 · …then the five questions, the rest auto-filled</p>
+  <div class="wl-card wl-check">
+    <div class="wl-ck-head"><span class="wl-ck-title">Your answers</span><span class="wl-ck-cnt">0 of 5</span></div>
+    <div class="q"><div class="wl-rt-head" style="margin-bottom:8px"><span class="wl-rt-lab">Sticking to the plan</span><span class="wl-rt-val">Mostly</span></div>
+      <div class="wl-rt-opts"><div class="wl-rt-opt"><span class="dot"></span>Way off</div><div class="wl-rt-opt"><span class="dot"></span>Off</div><div class="wl-rt-opt on"><span class="dot"></span>Mostly</div><div class="wl-rt-opt"><span class="dot"></span>Closely</div><div class="wl-rt-opt"><span class="dot"></span>Exactly</div></div>
+      <div class="wl-hint" style="margin-top:7px">Your logs: 7/7 days tracked · 2,180 avg vs 2,150 target</div></div>
+    <div class="q"><span class="lab">Biggest win this week?</span><div class="ta one">Hit all four sessions even on the travel day</div></div>
+    <div class="q"><span class="lab">Biggest challenge?</span><div class="ta">Evenings — hunger came back hard after 8pm</div></div>
+    <div class="q"><span class="lab">How did training feel?</span><div class="ta">Squats moved well, pressing felt heavy by Friday</div></div>
+    <div class="q"><span class="lab">Any discomfort or pain?</span><div class="ta one">Left shoulder on incline — only at the top set</div></div>
+    <div class="autohead" style="border-top:1px solid var(--line);padding:10px 12px 4px;display:flex;justify-content:space-between"><span style="font-size:12px;font-weight:700;color:var(--muted)">SENT AUTOMATICALLY</span><span class="pill">no typing</span></div>
+    <div class="auto"><span class="k">Weight · waist</span><span class="v">199.8 lb <em>−1.6</em> · 34.0 in</span></div>
+    <div class="auto"><span class="k">Steps · sleep</span><span class="v">8,412/day · 7h 05m</span></div>
+    <div class="auto"><span class="k">Training · food</span><span class="v">4/4 sessions · 2,180 cal avg</span></div>
+    <button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px">Send to Max</button>
+  </div>
+</div>
+</body></html>

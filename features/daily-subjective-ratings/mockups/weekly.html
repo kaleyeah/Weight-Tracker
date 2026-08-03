@@ -1,0 +1,111 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Weekly check-in mockup</title><link rel="stylesheet" href="app.css">
+<style>
+body{background:var(--bg);color:var(--text);font-family:var(--sans);margin:0;padding:14px}
+.frame{max-width:420px;margin:0 auto 26px}
+.mocklabel{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);font-weight:700;margin:0 0 8px 2px}
+.auto{border-top:1px solid var(--line);padding:9px 12px;display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.auto .k{font-size:13px;color:var(--muted)}
+.auto .v{font-size:13px;font-weight:600;text-align:right}
+.auto .v em{font-style:normal;color:var(--faint);font-weight:500;font-size:12px}
+.autohead{display:flex;justify-content:space-between;align-items:center;padding:2px 0 8px}
+.pill{font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:99px;background:rgba(92,214,160,.15);color:#5CD6A0}
+.q{border-top:1px solid var(--line);padding:12px}
+.q .lab{font-size:14px;font-weight:600;margin-bottom:8px;display:block}
+.ta{width:100%;box-sizing:border-box;background:var(--bg2);border:1px solid var(--line);border-radius:11px;
+  color:var(--text);font-family:var(--sans);font-size:14px;padding:10px 11px;min-height:64px;resize:none}
+.ta.one{min-height:42px}
+.ph{color:var(--faint)}
+.opts{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.opt{background:var(--bg2);border:1px solid var(--line);border-radius:11px;color:var(--muted);font-size:11px;
+  font-weight:600;min-height:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;text-align:center;padding:5px 3px}
+.opt .dot{width:7px;height:7px;border-radius:50%;background:var(--line)}
+.opt.on{background:rgba(245,181,68,.14);border-color:var(--accent);color:var(--text);font-weight:800;box-shadow:inset 0 0 0 1px var(--accent)}
+.opt.on .dot{background:var(--accent)}
+.qhead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+.qval{font-size:12px;font-weight:700;color:var(--accent)}
+.rep{font-family:var(--mono);font-size:11.5px;line-height:1.55;white-space:pre-wrap}
+</style></head><body>
+
+<div class="frame">
+  <p class="mocklabel">1 · What Compound already answers for you</p>
+  <div class="wl-card">
+    <div class="autohead"><span style="font-weight:700">Week of Jul 28 – Aug 3</span><span class="pill">auto-filled</span></div>
+    <div class="auto"><span class="k">Weight</span><span class="v">199.8 lb <em>· −1.6 this week (7-day avg)</em></span></div>
+    <div class="auto"><span class="k">Waist</span><span class="v">34.0 in <em>· −0.25</em></span></div>
+    <div class="auto"><span class="k">Steps</span><span class="v">8,412/day <em>· 58,884 total</em></span></div>
+    <div class="auto"><span class="k">Sleep</span><span class="v">7h 05m avg <em>· 6 nights logged</em></span></div>
+    <div class="auto"><span class="k">Training</span><span class="v">4 of 4 sessions <em>· 68 sets, +3% volume</em></span></div>
+    <div class="auto"><span class="k">Nutrition</span><span class="v">2,180 cal avg <em>· 178g protein · 7/7 days logged</em></span></div>
+    <div class="auto"><span class="k">How you felt</span><span class="v">Hunger steady · Digestion ↑ <em>· Recovery ↓ Energy ↓</em></span></div>
+    <div class="auto"><span class="k">Photos</span><span class="v">Front · Back · Side <em>· taken Jul 30</em></span></div>
+    <div class="wl-hint" style="margin-top:10px">Nothing to type — this is pulled from your daily check-ins and sent with your answers.</div>
+  </div>
+</div>
+
+<div class="frame">
+  <p class="mocklabel">2 · The questions only you can answer</p>
+  <div class="wl-card wl-check">
+    <div class="wl-ck-head"><span class="wl-ck-title">Weekly check-in</span><span class="wl-ck-cnt">0 of 8 answered</span></div>
+
+    <div class="q"><div class="qhead"><span class="lab" style="margin:0">Sleep quality</span><span class="qval">Good</span></div>
+      <div class="opts">
+        <div class="opt"><span class="dot"></span>Very poor</div><div class="opt"><span class="dot"></span>Poor</div>
+        <div class="opt"><span class="dot"></span>Okay</div><div class="opt on"><span class="dot"></span>Good</div>
+        <div class="opt"><span class="dot"></span>Excellent</div></div></div>
+
+    <div class="q"><div class="qhead"><span class="lab" style="margin:0">Stress</span><span class="qval">Some</span></div>
+      <div class="opts">
+        <div class="opt"><span class="dot"></span>None</div><div class="opt"><span class="dot"></span>A little</div>
+        <div class="opt on"><span class="dot"></span>Some</div><div class="opt"><span class="dot"></span>High</div>
+        <div class="opt"><span class="dot"></span>Very high</div></div></div>
+
+    <div class="q"><div class="qhead"><span class="lab" style="margin:0">Sticking to the plan</span><span class="qval">Mostly</span></div>
+      <div class="opts">
+        <div class="opt"><span class="dot"></span>Way off</div><div class="opt"><span class="dot"></span>Off</div>
+        <div class="opt on"><span class="dot"></span>Mostly</div><div class="opt"><span class="dot"></span>Closely</div>
+        <div class="opt"><span class="dot"></span>Exactly</div></div>
+      <div class="wl-hint" style="margin-top:7px">Your logs say 7/7 days tracked, 2,180 avg vs 2,150 target.</div></div>
+
+    <div class="q"><span class="lab">Biggest win this week?</span><textarea class="ta one" placeholder="Hit all four sessions even on the travel day"></textarea></div>
+    <div class="q"><span class="lab">Biggest challenge?</span><textarea class="ta" placeholder="Evenings — appetite came back hard after 8pm"></textarea></div>
+    <div class="q"><span class="lab">How was training?</span><textarea class="ta" placeholder="Squats moved well, pressing felt heavy by Friday"></textarea></div>
+    <div class="q"><span class="lab">Any discomfort or pain?</span><textarea class="ta one" placeholder="Left shoulder on incline — only at the top set"></textarea></div>
+    <div class="q"><span class="lab">Anything I could do better to help you?</span><textarea class="ta one" placeholder=""></textarea></div>
+
+    <button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px">Send to Max</button>
+    <div class="wl-hint" style="margin-top:8px;text-align:center">Every question optional · saved as you type</div>
+  </div>
+</div>
+
+<div class="frame">
+  <p class="mocklabel">3 · What Max receives</p>
+  <div class="wl-card"><div class="rep">WEEKLY CHECK-IN — Jul 28 → Aug 3
+
+FROM THE LOGS (no self-report needed)
+  Weight    199.8 lb   −1.6 this week, −4.9 over 4 weeks (7-day avg)
+  Waist     34.0 in    −0.25
+  Steps     8,412/day  58,884 total   (target 8,000 — met 5/7 days)
+  Sleep     7h 05m avg 6 nights logged
+  Training  4/4 sessions, 68 sets, volume +3% vs prior week
+  Nutrition 2,180 cal avg vs 2,150 target · 178g protein · 7/7 logged
+  Photos    front/back/side Jul 30 (attached)
+
+HOW HE FELT — 14 days (1 worst … 5 best)
+  Recovery   2 3 4 4 5 4 – 3 3 2 2 2 3 3   falling
+  Energy     3 3 4 4 4 3 – 3 2 2 2 3 3 3   falling
+  Hunger     3 3 3 4 3 3 – 3 3 2 3 3 3 3   steady
+  Digestion  1 2 2 3 3 4 – 4 4 3 4 4 5 4   improving
+
+HIS ANSWERS
+  Sleep quality      good
+  Stress             some
+  Plan adherence     mostly
+  Biggest win        "Hit all four sessions even on the travel day"
+  Biggest challenge  "Evenings — appetite came back hard after 8pm"
+  Training           "Squats moved well, pressing felt heavy by Friday"
+  Discomfort/pain    "Left shoulder on incline — only at the top set"
+  Coach feedback     —</div></div>
+</div>
+</body></html>

@@ -1,4 +1,4 @@
-# Daily subjective ratings — approved design
+# Daily ratings + weekly check-in — approved design
 
 Owner-approved 2026-08-03 from rendered mockups. Source brief:
 `compound-daily-subjective-ratings/00-PROMPT.md` (supplied zip), with the
@@ -9,6 +9,8 @@ Owner decisions below overriding it where they differ. NOT YET BUILT.
 | # | Question | Options (left → right) | Enum values |
 |---|---|---|---|
 | 1 | **Hunger** | Too low · Slightly low · Just right · Slightly high · Too high | `too_low`, `slightly_low`, `just_right`, `slightly_high`, `too_high` |
+| 1b | **Sleep quality** | Very poor · Poor · Okay · Good · Excellent | `very_poor` … `excellent` |
+| 1c | **Stress** | None · A little · Some · High · Very high | `none`, `a_little`, `some`, `high`, `very_high` |
 | 2 | **Recovery** | Very poor · Poor · Okay · Good · Excellent | `very_poor`, `poor`, `okay`, `good`, `excellent` |
 | 3 | **Energy** | Very low · Low · Okay · Good · Excellent | `very_low`, `low`, `okay`, `good`, `excellent` |
 | 4 | **Digestion** | Very poor · Poor · Okay · Good · Excellent | `very_poor`, `poor`, `okay`, `good`, `excellent` |
@@ -19,6 +21,13 @@ Owner replaced it with **Hunger**, which also matches the reference sheet.
 **Owner decision — Digestion is balanced.** The brief's scale had three
 "problems" options (midpoint = "Minor problems"). The Owner ruled it
 balanced, so Digestion uses the same neutral-midpoint shape as Recovery.
+
+**Owner decision (2026-08-03, after reviewing the coach's weekly form):**
+sleep QUALITY and STRESS join the daily set — six questions total. Sleep
+quality is distinct from the logged sleep duration ("you logged 7h 20m —
+this is how it *felt*"). Fatigue is deliberately NOT a separate question:
+Recovery and Energy already cover it (Owner: "keep as we have").
+The collapsed row summary therefore reads "6 of 6".
 
 Stored values are the stable enums above, never the visible label, so the
 wording can change later without a data migration.
@@ -67,7 +76,8 @@ Four fields on the existing per-day record — reusing the current daily
 model, sync, migration and conflict handling. No parallel store, no
 combined "wellness score":
 
-    hungerRating | recoveryRating | energyRating | digestionRating
+    hungerRating | sleepQualityRating | stressRating
+    recoveryRating | energyRating | digestionRating
 
 ## Trends — Progress tab (Owner decision)
 
@@ -128,3 +138,52 @@ otherwise, so the M10 review is not churned mid-flight.
 
 Rendered from the live `.417-fx` stylesheet at 390px and 320px:
 `scratchpad/subj/shot-{a,b,c,d,states,narrow}.png` (session scratch).
+
+
+---
+
+# Weekly check-in (Owner-approved 2026-08-03)
+
+Griffin's coach sends a 23-question weekly form. Compound already holds 13
+of those answers; the athlete should never retype them. This feature adds
+the missing piece: **a form for the questions only the athlete can answer**,
+with everything else auto-filled.
+
+## Entry point
+
+A **Weekly check-in** button inside the daily check-in card, shown on the
+check-in day (default Sunday; follows the week-start setting). Accent
+outline so it reads as distinct from "Complete today" without competing
+with it. Subtitle states the deal plainly: "5 questions + photos · the rest
+is filled in".
+
+## The form
+
+1. **Trend bars first** — the same colour-bar block the Owner approved for
+   the coach report: 14 days × six ratings, tallest = best, grey = not
+   answered, with a direction tag per row.
+2. **This week's photos** — front / back / side capture tiles, reusing the
+   existing progress-photo store and week/pose model (1 of 3 style counter).
+3. **Five questions**: plan adherence (5-choice, with the athlete's own
+   logs shown underneath: "7/7 days tracked · 2,180 avg vs 2,150 target"),
+   biggest win, biggest challenge, how training felt, any discomfort/pain.
+4. **Sent automatically** section listing what is attached without typing:
+   weight + waist, steps + sleep, training + nutrition, photos, and the
+   14-day rating trends.
+
+All questions optional; saved as typed; sending is never blocked.
+
+## Coach-question coverage (from the supplied screenshots)
+
+Auto-filled from existing data (13): weight, waist, weekly steps, sleep
+hours, hunger, recovery, energy, digestion, diet detail, diet adherence
+evidence, current photos, training facts, plus the new sleep-quality and
+stress trends.
+Asked in the form (5): plan adherence judgment, biggest win, biggest
+challenge, how training felt, discomfort/pain.
+**Dropped:** video uploads — Compound has no video support (Owner: "no
+video needed"). Separate fatigue question — covered by Recovery/Energy.
+
+## Sequencing
+
+Same as the daily ratings: land after the M10 client is accepted.
