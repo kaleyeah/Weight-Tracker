@@ -1,0 +1,137 @@
+diff --git a/index.html b/index.html
+index acaf7ad..f6e7d22 100644
+--- a/index.html
++++ b/index.html
+@@ -9594,12 +9594,14 @@ document.addEventListener("click",function(e){
+    validated deviceId (K5), validated informational grant + honest
+    diagnostic-write accounting (K6), classified renew outcomes (K7). */
+ var M10={uid:null,fence:0,holder:false,deadline:0,known:null,corrupt:false,
+-  ttlMs:24*3600*1000,timer:null,booted:false,revokeReason:null,grantWriteFailed:false};
++  ttlMs:24*3600*1000,timer:null,booted:false,revokeReason:null,grantWriteFailed:false,
++  gen:0};   /* L2: the session/operation generation — stale-response guard */
+ 
+ /* K2: THE reset primitive — clears every piece of in-memory authority and the
+    account binding. Corruption is deliberately NOT cleared here: it marks
+    installation-wide storage damage, not session state. */
+ function m10Reset(reason){
++  M10.gen++;                                  /* L2: supersedes every in-flight response */
+   M10.uid=null;M10.fence=0;M10.holder=false;M10.deadline=0;M10.known=null;
+   M10.revokeReason=reason||null;M10.grantWriteFailed=false;
+   if(M10.timer){clearInterval(M10.timer);M10.timer=null;}
+@@ -9615,9 +9617,12 @@ function m10DeviceId(){
+       if(typeof id==="string"&&M10_DEVID_RE.test(id))return id;
+       M10.corrupt=true;return null;                 /* malformed existing id */
+     }
++    /* L3: crypto-random ONLY. No fallback: without getRandomValues the
++       identity contract cannot be met — fail closed, create and persist
++       nothing, attempt no acquire (the caller stays read-only). */
++    if(!((window.crypto||{}).getRandomValues))return null;
+     var a=new Uint8Array(24),chars="abcdefghijklmnopqrstuvwxyz0123456789",out="";
+-    if((window.crypto||{}).getRandomValues)crypto.getRandomValues(a);
+-    else for(var i0=0;i0<24;i0++)a[i0]=Math.floor(Math.random()*256);
++    crypto.getRandomValues(a);
+     for(var i=0;i<24;i++)out+=chars[a[i]%36];
+     id="dev-"+out;
+     if(!M10_DEVID_RE.test(id))return null;
+@@ -9677,8 +9682,19 @@ function m10ValidGrantBody(b,dev){
+   return !!b&&b.ok===true&&
+     typeof b.fence==="number"&&isFinite(b.fence)&&b.fence>=1&&Math.floor(b.fence)===b.fence&&b.fence<=9007199254740990&&
+     typeof b.ttlMs==="number"&&isFinite(b.ttlMs)&&b.ttlMs>0&&b.ttlMs<=7*24*3600*1000&&
++    typeof b.serverNow==="number"&&isFinite(b.serverNow)&&
+     b.holderDeviceId===dev;
+ }
++/* L5: the typed held-409 shape — anything else is malformed, never
++   authoritative takeover information. */
++function m10ValidHeldBody(b){
++  return !!b&&b.held===true&&
++    typeof b.fence==="number"&&isFinite(b.fence)&&b.fence>=0&&Math.floor(b.fence)===b.fence&&b.fence<=9007199254740990&&
++    typeof b.ttlMs==="number"&&isFinite(b.ttlMs)&&b.ttlMs>0&&b.ttlMs<=7*24*3600*1000&&
++    typeof b.serverNow==="number"&&isFinite(b.serverNow)&&
++    typeof b.holderDeviceId==="string"&&b.holderDeviceId.length>0&&b.holderDeviceId.length<=128&&
++    (b.deviceName==null||typeof b.deviceName==="string");
++}
+ function m10ApplyGrant(body,uid,t0){
+   var dev=m10DeviceId();
+   if(!dev||!m10ValidGrantBody(body,dev))return false;
+@@ -9697,21 +9713,26 @@ function m10ApplyGrant(body,uid,t0){
+    before network activity; the async result applies only if the account is
+    still the one this boot started for. */
+ function m10Boot(){
+-  m10Reset("boot");
++  m10Reset("boot");                            /* bumps gen: supersedes prior ops */
+   if(!syncOn())return Promise.resolve();
+   M10.booted=true;
+-  var uid=pbUid();
++  var uid=pbUid(),g=M10.gen;
+   var dev=m10DeviceId();
+   if(!uid||!dev){M10.corrupt=M10.corrupt||!dev;return Promise.resolve();}
+   m10ReadGrant(uid,dev);                      /* corruption detection only */
+   if(M10.corrupt)return Promise.resolve();
+   var t0=performance.now();
+   return m10LeaseCall("acquire",{}).then(function(r){
+-    if(pbUid()!==uid){m10Reset("account-changed");return;}  /* K1: stale response for another account */
++    if(M10.gen!==g){return;}                  /* L2: superseded — install nothing, revoke nothing */
++    if(pbUid()!==uid){m10Reset("account-changed");return;}
+     if(r.status===200&&m10ApplyGrant(r.body,uid,t0)){m10StartTimer();}
+-    else if(r.status===409&&r.body&&r.body.held){M10.uid=uid;M10.holder=false;M10.fence=0;M10.known=r.body;}
++    else if(r.status===409&&r.body&&r.body.held===true){
++      M10.uid=uid;M10.holder=false;M10.fence=0;
++      if(m10ValidHeldBody(r.body)){M10.known=r.body;}
++      else{M10.known=null;M10.revokeReason="malformed-response";}   /* L5 */
++    }
+     else{M10.uid=uid;M10.holder=false;M10.revokeReason="acquire-failed";}
+-  }).catch(function(){if(pbUid()===uid){M10.uid=uid;M10.holder=false;M10.revokeReason="offline";}});
++  }).catch(function(){if(M10.gen===g&&pbUid()===uid){M10.uid=uid;M10.holder=false;M10.revokeReason="offline";}});
+ }
+ /* K7: renewal outcomes are CLASSIFIED. Typed stale (409 stale:true), auth
+    failure (401/403 → full reset per K2), malformed body, server error — all
+@@ -9720,21 +9741,25 @@ function m10Boot(){
+    deadline. A valid 200 extends from ITS OWN send time. */
+ function m10Renew(){
+   if(!M10.holder||M10.uid!==pbUid())return Promise.resolve(false);
+-  var uid=M10.uid,dev=m10DeviceId(),t0=performance.now();
+-  return m10LeaseCall("renew",{fence:M10.fence}).then(function(r){
++  var uid=M10.uid,g=M10.gen,fence=M10.fence,dev=m10DeviceId(),t0=performance.now();
++  if(!dev)return Promise.resolve(false);
++  return m10LeaseCall("renew",{fence:fence}).then(function(r){
++    if(M10.gen!==g)return false;              /* L2: a newer op/reset owns the state now */
+     if(pbUid()!==uid){m10Reset("account-changed");return false;}
+-    if(r.status===200&&r.body&&r.body.ok===true&&r.body.fence===M10.fence&&
+-       typeof r.body.ttlMs==="number"&&isFinite(r.body.ttlMs)&&r.body.ttlMs>0&&r.body.ttlMs<=7*24*3600*1000){
++    /* L4: the SAME strict validator as acquire/steal — including
++       holderDeviceId === this installation and finite serverNow — plus the
++       unchanged-fence requirement. */
++    if(r.status===200&&m10ValidGrantBody(r.body,dev)&&r.body.fence===fence){
+       M10.deadline=t0+r.body.ttlMs;
+       return true;
+     }
+     if(r.status===401||r.status===403){m10Reset("auth-failed");return false;}
+-    M10.holder=false;M10.known=r.body||null;
++    M10.holder=false;M10.known=null;
+     M10.revokeReason=(r.status===409&&r.body&&r.body.stale===true)?"stale"
+       :(r.status===200?"malformed-response":"server-error");
+     return false;
+   }).catch(function(){
+-    return M10.holder&&M10.uid===pbUid()&&performance.now()<M10.deadline;
++    return M10.gen===g&&M10.holder&&M10.uid===pbUid()&&performance.now()<M10.deadline;
+   });
+ }
+ function m10StartTimer(){
+@@ -9749,14 +9774,15 @@ document.addEventListener("visibilitychange",function(){
+ function m10TakeoverSheet(){
+   var name=(M10.known&&M10.known.deviceName)?('"'+M10.known.deviceName+'"'):"another session";
+   askConfirm("Another session is the active writer ("+name+"). Take over on this device?",function(){
+-    var uid=pbUid(),t0=performance.now();
++    var uid=pbUid(),g=++M10.gen,t0=performance.now();   /* L2: this op supersedes prior in-flight ops */
+     m10LeaseCall("steal",{}).then(function(r){
++      if(M10.gen!==g)return;                  /* a newer takeover/reset superseded this one */
+       if(pbUid()!==uid){m10Reset("account-changed");return;}
+       if(r.status===200&&m10ApplyGrant(r.body,uid,t0)){
+         m10StartTimer();
+         toast("This device is now the active writer");render();
+       }else toast("Could not take over");
+-    }).catch(function(){toast("Offline \u2014 taking over needs a connection");});
++    }).catch(function(){if(M10.gen===g)toast("Offline \u2014 taking over needs a connection");});
+   },{label:"Take over",danger:false});
+ }
+ /* K1: the gate requires the account binding, always. */

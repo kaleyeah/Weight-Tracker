@@ -26,5 +26,12 @@
   ✓ J adoption ran only after the lease settled
   ✓ K real dispatcher action executes for a NON-holder (gate not yet wired)
   ✓ K direct local-write compatibility (renamed per round-13 item 9)
+  ✓ L2a same-uid relogin mid-acquire: stale response NOT installed
+  ✓ L2b overlapping boots: later boot owns authority, earlier discarded
+  ✓ L2c reversed takeover responses: superseded op cannot install (fence stays 8)
+  ✓ L2d late valid renew after takeover: neither installs nor revokes (deadline stays 24h-scale)
+  ✓ L3 no crypto: read-only, no id created/persisted, NO lease request
+  ✓ L4 renew 200 naming another device → revoked as malformed-response
+  ✓ L5 malformed held body: known=null, reason=malformed-response, uid bound
 
-C15-M10 increment 1 (revised): 28 passed, 0 failed
+C15-M10 increment 1 (revised): 35 passed, 0 failed

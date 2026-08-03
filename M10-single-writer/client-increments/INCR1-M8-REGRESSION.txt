@@ -1,5 +1,5 @@
-M8 + C14 client regression matrix vs REVISED increment-1 bytes
-(CF_SRC = Weight-Tracker/index.html @ 08e1280, rebased on .417-fx; run 2026-08-03)
+M8 + C14 client regression matrix vs increment-1 bytes after round-14 rulings
+(CF_SRC = Weight-Tracker/index.html @ 3e7a0d0, based on .417-fx; run 2026-08-03)
 
 c11m8-accounts:  OK — 6 passed
 c11m8-faults:    OK — 64 passed
@@ -11,5 +11,5 @@ c11m8-upgrade:   OK — 4 passed
 c14-correctness: OK — 67 passed
 TOTAL: 171/171
 
-ARTIFACT-SCOPE (unchanged artifact, run as designed, prior round):
+ARTIFACT-SCOPE (unchanged artifact, run as designed):
 c11m8-recovery:  OK — 25 passed

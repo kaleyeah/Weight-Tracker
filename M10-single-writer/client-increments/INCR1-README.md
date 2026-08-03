@@ -50,8 +50,32 @@ exactly their expected occurrence). Change: commit 08e1280, exact diff
   (a real `data-act` click through the document handler) and keeps the
   direct-write check under its honest new name.
 
+## Round-14 rulings, as landed (L2–L5 = rulings 2–5)
+- L2 generation guard: `M10.gen` increments on every reset AND at the
+  start of every superseding lease operation (boot, takeover); every
+  async callback (boot acquire, renew, takeover, and their catch
+  arms) captures `(uid, gen)` and discards its response unless BOTH
+  still match — a superseded response neither installs stale
+  authority nor revokes a newer valid grant. Tested: same-uid
+  relogin mid-acquire; overlapping boots; reversed-order takeovers
+  (the superseded op's later response cannot install); a late valid
+  renew after a newer takeover (neither extends nor revokes).
+- L3 no insecure fallback: without `crypto.getRandomValues` the
+  device fails closed — no id created or persisted, NO lease request
+  ever leaves the device, gate blocks (tested with zero mock
+  traffic).
+- L4 one strict validator: `m10ValidGrantBody` (now also requiring
+  finite `serverNow`) is used by acquire, steal, AND renew — renew
+  additionally requires the unchanged fence; a valid-shaped 200
+  naming another device revokes as `malformed-response` (tested).
+- L5 typed held-409: `m10ValidHeldBody` (safe fence, bounded ttl,
+  finite serverNow, nonempty bounded holderDeviceId, string-or-null
+  deviceName); anything else → `known=null`,
+  reason=`malformed-response` — never authoritative takeover info
+  (tested).
+
 ## Evidence
-- `INCR1-C15-OUTPUT.txt` — 28/28 (was 14): all original cases plus
+- `INCR1-C15-OUTPUT.txt` — 35/35 (was 28): all original cases plus
   the round-13 list — A→B switch mid-acquire; session-teardown reset;
   malformed + oversized persisted deviceId; foreign-uid/device grant;
   non-integer fence; unbounded ttl; malformed success body; typed
