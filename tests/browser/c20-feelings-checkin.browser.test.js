@@ -333,7 +333,7 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
     eq(t16.view,'checkin');
     eq(t16.poses,['Front','Left Side','Right Side','Back']);
     ok(t16.tileHost,'no photo tile host');
-    eq(t16.adherence,5,'plan-adherence is a five-choice question');
+    eq(t16.adherence,0,'plan adherence is measured now, never asked');
     eq(t16.texts,['win','challenge','training','discomfort']);
     ok(t16.hasTrend,'the colour-bar trend must lead the form');
     ok(t16.autofill.indexOf('Weight')>=0&&t16.autofill.indexOf('Steps')>=0,'auto-fill rows were '+JSON.stringify(t16.autofill));
@@ -452,13 +452,11 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
     const wk=state.ciWeek;
     const ta=document.querySelector('.wl-ci-input[data-ci="win"]');
     ta.value='Hit 3 plates.';ta.dispatchEvent(new Event('input',{bubbles:true}));
-    document.querySelector('[data-act="ci:adh"][data-v="mostly_on"]').click();
     const stored=JSON.parse(localStorage.getItem('wl_v1')).checkins[wk];
     return {stored,open:ciOpenWeeks().indexOf(wk)>=0};});
   test('T18 a part-filled form persists as a draft and the week stays open',()=>{
     eq(t18.stored.status,'draft');
     eq(t18.stored.answers.win,'Hit 3 plates.');
-    eq(t18.stored.answers.adherence,'mostly_on');
     ok(t18.open,'a draft must not resolve the week');
   });
 
@@ -628,6 +626,70 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
     ok(t27.bodyFits,'the page scrolls horizontally at 320px');
   });
   await page.setViewportSize({width:390,height:844});
+
+  /* ---- T29: adherence is MEASURED, not asked --------------------------- */
+  const t29=await ev(()=>{
+    const wk=toISO(weekStartFor(0));
+    const days=ciCoveredDays(wk);
+    state.settings.targetCalories=2000;state.settings.targetProtein=180;
+    state.settings.stepsGoal=10000;state.settings.sleepGoal='450';
+    state.settings.strategy='lose';
+    state.food={};state.steps={};state.sleep={};state.weights=[];
+    /* a perfect week */
+    days.forEach(d=>{state.food[d]={calories:1900,protein:185};state.steps[d]=11000;state.sleep[d]=460;});
+    save();
+    const good=ciAdherence(wk);
+    /* a week that missed everything */
+    days.forEach(d=>{state.food[d]={calories:3200,protein:80};state.steps[d]=2000;state.sleep[d]=300;});
+    save();
+    const bad=ciAdherence(wk);
+    /* a member with no goals set at all still gets a logging read, not a crash */
+    delete state.settings.targetCalories;delete state.settings.targetProtein;
+    delete state.settings.stepsGoal;state.settings.sleepGoal='';
+    save();
+    const bare=ciAdherence(wk);
+    state.ciWeek=wk;state.view='checkin';render();
+    return {good:{band:good.band,label:good.label,pct:good.pct},
+      bad:{band:bad.band,label:bad.label},
+      bareKeys:bare.strands.map(x=>x.key),
+      asked:document.querySelectorAll('[data-act="ci:adh"]').length,
+      shown:!!/How well you stuck to the plan/.test(document.body.textContent),
+      breakdown:document.querySelectorAll('.wl-adhbar').length};
+  });
+  test('T29 plan adherence is computed from the logs and never asked',()=>{
+    eq(t29.asked,0,'the self-rating control must be gone');
+    ok(t29.shown,'the measured verdict must be shown in the form');
+    eq(t29.breakdown,1,'and shown with its bar');
+    eq(t29.good.band,'on');
+    eq(t29.good.label,'Fully on plan');
+    eq(t29.good.pct,1);
+    eq(t29.bad.band,'off','a week that missed every target must not read as on plan');
+    eq(t29.bareKeys,['Logged'],'with no goals set, only the logging strand counts');
+  });
+
+  /* ---- T30: the nav gets out of the keyboard's way --------------------- */
+  await ev(()=>{state.view='checkin';state.ciWeek=toISO(weekStartFor(0));render();});
+  const t30=await ev(()=>{
+    const nav=document.querySelector('.wl-nav');
+    const before=nav.className;
+    const ta=document.querySelector('.wl-ci-input');
+    ta.focus();ta.dispatchEvent(new FocusEvent('focusin',{bubbles:true}));
+    const focused=document.querySelector('.wl-nav').className;
+    /* a re-render REPLACES the nav element, so the class has to be re-derived
+       from whatever holds focus afterwards — that is what navKbdSync does */
+    render();
+    const fresh=document.querySelector('.wl-ci-input');
+    fresh.focus();navKbdSync();
+    const afterRender=document.querySelector('.wl-nav').className;
+    return {before,focused,afterRender,
+      hasRule:[].slice.call(document.querySelectorAll('style')).some(s=>/\.wl-nav\.kbd\{[^}]*translate3d\(0,150%/.test(s.textContent))};
+  });
+  test('T30 the fixed nav slides away while a text field has focus, and re-derives it after a render',()=>{
+    notOk(/kbd/.test(t30.before),'nav should start visible');
+    ok(/kbd/.test(t30.focused),'focusing a textarea must hide the nav');
+    ok(/kbd/.test(t30.afterRender),'after a re-render the fresh nav must pick the state back up from focus');
+    ok(t30.hasRule,'the .wl-nav.kbd rule must actually move it off screen');
+  });
 
   /* ---- T28: no page errors -------------------------------------------- */
   test('T28 no uncaught page errors across the whole run',()=>{

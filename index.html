@@ -820,6 +820,14 @@ input[type=date]::-webkit-calendar-picker-indicator,input[type=time]::-webkit-ca
 .wl-cihist .s.ok{color:var(--good);}
 .wl-cihist .s.sk{color:var(--faint);}
 .wl-ciskip{margin-top:18px;padding-top:14px;border-top:1px solid var(--line);}
+/* iOS anchors position:fixed to the LAYOUT viewport, so when the soft
+   keyboard opens the nav is left floating in the middle of the screen
+   (Owner, 2026-08-03: "the keyboard is pushing the nav bar to the top when
+   there is a text field I’m entering"). While a text field has focus the
+   bar slides out of the way — it is unreachable behind a keyboard anyway. */
+.wl-nav.kbd{transform:translate3d(0,150%,0);pointer-events:none;}
+.wl-adhbar{height:8px;border-radius:5px;background:var(--bg2);overflow:hidden;}
+.wl-adhbar i{display:block;height:100%;border-radius:5px;background:var(--accent);}
 
 .wl-ck-top .wl-ck-val{flex:1;}
 .wl-mbar{display:flex;height:8px;border-radius:5px;overflow:hidden;background:var(--bg2);}
@@ -865,7 +873,7 @@ input[type=date]::-webkit-calendar-picker-indicator,input[type=time]::-webkit-ca
      fully opaque instead of 94%, which at this colour is indistinguishable.
      translate3d stays because promoting the layer is still cheap and helps.
      Do not reintroduce backdrop-filter here. */
-  transform:translate3d(0,0,0);
+  transform:translate3d(0,0,0);transition:transform .18s ease;
   background:var(--bg2);border-top:1px solid var(--line);
   display:flex;padding:8px 6px calc(8px + env(safe-area-inset-bottom,0px));z-index:10;}
 .wl-navbtn{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;
@@ -926,7 +934,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-03.423-photos";
+var APP_BUILD="2026-08-03.424-adherence-kbd";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -2135,6 +2143,40 @@ function feelCardHTML(){
    The day comes from the EXISTING profile preference, settings.weekStart.
    ==========================================================================*/
 var CI_ADHERENCE=[["off","Off plan"],["mostly_off","Mostly off"],["partly","Partly on"],["mostly_on","Mostly on"],["on","Fully on plan"]];
+/* Adherence is MEASURED, not asked (Owner, 2026-08-03: "based on the data and
+   not subjective to the user"). Each strand scores days-hit / days-with-a-goal,
+   and only strands the athlete actually has a target for are counted — a member
+   with no steps goal is not marked down for it. The breakdown is always shown
+   next to the verdict, so it is never a black box. */
+function ciAdherence(wk){
+  var days=ciCoveredDays(wk).filter(function(x){return x<=todayISO();});
+  if(!days.length)return null;
+  var st=state.settings,strands=[];
+  var tCal=num(st.targetCalories),tPro=num(st.targetProtein),tStep=num(st.stepsGoal),tSleep=sleepGoalMin();
+  var count=function(f){var n=0;days.forEach(function(d){if(f(d))n++;});return n;};
+  if(tCal!=null){
+    /* "lose" rewards being at or under target; a big overshoot is the miss */
+    var lose=(st.strategy||"lose")==="lose";
+    strands.push({key:"Calories",hit:count(function(d){var c=num((state.food[d]||{}).calories);
+      return c!=null&&(lose?c<=tCal*1.05:Math.abs(c-tCal)<=tCal*0.1);}),
+      of:days.length,note:(lose?"at or under ":"within 10% of ")+Math.round(tCal).toLocaleString()});
+  }
+  if(tPro!=null)strands.push({key:"Protein",hit:count(function(d){var p=num((state.food[d]||{}).protein);return p!=null&&p>=tPro*0.9;}),
+    of:days.length,note:"at least "+Math.round(tPro*0.9)+"g"});
+  if(tStep!=null)strands.push({key:"Steps",hit:count(function(d){var s2=num(state.steps[d]);return s2!=null&&s2>=tStep;}),
+    of:days.length,note:Math.round(tStep).toLocaleString()+"+"});
+  if(tSleep!=null)strands.push({key:"Sleep",hit:count(function(d){var s3=num(state.sleep[d]);return s3!=null&&s3>=tSleep*0.9;}),
+    of:days.length,note:minToHM(Math.round(tSleep*0.9))+"+"});
+  strands.push({key:"Logged",hit:count(function(d){
+    return num(state.steps[d])!=null||num(state.sleep[d])!=null||num((state.food[d]||{}).calories)!=null||
+      state.weights.some(function(w){return w.date===d;});}),of:days.length,note:"any entry"});
+  var hit=0,of=0;strands.forEach(function(s4){hit+=s4.hit;of+=s4.of;});
+  if(!of)return null;
+  var pct=hit/of;
+  var band=pct>=0.9?"on":pct>=0.75?"mostly_on":pct>=0.5?"partly":pct>=0.25?"mostly_off":"off";
+  var label=(CI_ADHERENCE.filter(function(o){return o[0]===band;})[0]||["",""])[1];
+  return {band:band,label:label,pct:pct,hit:hit,of:of,strands:strands,days:days.length};
+}
 var CI_TEXT=[
   ["win","Biggest win this week","What went well — a lift, a habit, a hard day you got through…"],
   ["challenge","Biggest challenge","What got in the way — be honest, this is what Max can actually help with."],
@@ -2164,7 +2206,7 @@ function ciStatusLine(wks){
 }
 function ciTimeStr(ts){var d=new Date(ts);var h=d.getHours()%12;if(h===0)h=12;var m=(d.getMinutes()<10?"0":"")+d.getMinutes();
   return ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][d.getDay()]+" "+h+":"+m+(d.getHours()<12?" AM":" PM");}
-function ciAnswered(r){if(!r||!r.answers)return 0;var n=0;if(r.answers.adherence)n++;CI_TEXT.forEach(function(q){if((r.answers[q[0]]||"").trim())n++;});return n;}
+function ciAnswered(r){if(!r||!r.answers)return 0;var n=0;CI_TEXT.forEach(function(q){if((r.answers[q[0]]||"").trim())n++;});return n;}
 /* The card that replaces the progress-photo prompt at the top of Home. */
 function ciCardHTML(){
   var open=ciOpenWeeks(),cur=toISO(weekStartFor(0));
@@ -2174,7 +2216,7 @@ function ciCardHTML(){
     return '<div class="wl-card wl-ci'+(late?" late":"")+'">'+
       '<div class="wl-ci-top"><span class="wl-ci-t">Weekly check-in</span><span class="wl-ci-st'+(late?" late":"")+'">'+ciStatusLine(open)+'</span></div>'+
       '<button class="wl-btn wl-btn-primary wl-full" data-act="ci:open" data-week="'+wk+'">'+I.camera+(draft?"Finish check-in":"Start check-in")+'</button>'+
-      '<div class="wl-hint" style="margin-top:8px">'+(draft?"Picked up where you left off — "+draft+" of 5 answered. ":"Four photos and five quick questions for Coach Max. ")+'Everything else is filled in from your logs.</div>'+
+      '<div class="wl-hint" style="margin-top:8px">'+(draft?"Picked up where you left off — "+draft+" of "+CI_TEXT.length+" answered. ":"Four photos and five quick questions for Coach Max. ")+'Everything else is filled in from your logs.</div>'+
       (open.length>1?'<div class="wl-hint" style="margin-top:6px">Older week still open: '+fmtShort(parseISO(open[1]))+'. Finish this one and it comes up next.</div>':'')+
       '</div>';
   }
@@ -2243,9 +2285,14 @@ function view_checkin(){
      '<div id="wl-ciphotos" class="wl-citiles"></div>'+
      '<div class="wl-hint" style="margin-top:10px">Tap a slot to add or retake. Same light, same time of day, same distance — that is what makes them comparable.</div></div>';
   h+='<div class="wl-card"><div class="wl-card-head"><span>Your week</span></div>';
-  h+='<div class="wl-feelq" role="group" aria-labelledby="ci-adh"><div class="wl-feelq-h"><span id="ci-adh">How well did you stick to the plan?</span><span class="'+(a.adherence?"a":"na")+'">'+(a.adherence?esc((CI_ADHERENCE.filter(function(o){return o[0]===a.adherence;})[0]||["",""])[1]):"Not answered")+'</span></div><div class="wl-feelchips">'+
-    CI_ADHERENCE.map(function(o){return '<button class="wl-feelchip'+(a.adherence===o[0]?" on":"")+'" data-act="ci:adh" data-week="'+wk+'" data-v="'+o[0]+'" aria-pressed="'+(a.adherence===o[0]?"true":"false")+'"><span class="dot"></span><span class="lg">'+o[1]+'</span><span class="sm">'+o[1].split(" ")[0]+'</span></button>';}).join("")+'</div>'+
-    '<div class="wl-hint" style="margin-top:8px">Your logs say: '+f.tracked+' of '+f.days+' days tracked'+(f.calAvg!=null?' · '+Math.round(f.calAvg).toLocaleString()+' avg calories'+(f.tgt!=null?' vs '+f.tgt.toLocaleString()+' target':''):'')+'.</div></div>';
+  var adh=ciAdherence(wk);
+  if(adh){
+    h+='<div class="wl-feelq"><div class="wl-feelq-h"><span>How well you stuck to the plan</span><span class="a">'+esc(adh.label)+'</span></div>'+
+       '<div class="wl-adhbar"><i style="width:'+Math.round(adh.pct*100)+'%"></i></div>'+
+       '<div class="wl-cifill" style="margin-top:10px">'+
+       adh.strands.map(function(x){return '<span class="k">'+esc(x.key)+' <em style="color:var(--faint);font-style:normal">'+esc(x.note)+'</em></span><span class="v">'+x.hit+' of '+x.of+'</span>';}).join("")+
+       '</div><div class="wl-hint" style="margin-top:10px">Worked out from your logs, not a self-rating — '+adh.hit+' of '+adh.of+' targets hit across the week.</div></div>';
+  }
   CI_TEXT.forEach(function(q){
     h+='<label class="wl-field wl-field-full" style="margin-top:16px"><span>'+q[1]+' <em>optional</em></span><textarea class="wl-ci-input" data-ci="'+q[0]+'" data-week="'+wk+'" placeholder="'+esc(q[2])+'" style="width:100%;min-height:64px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:14px;padding:11px 12px;box-sizing:border-box;outline:none;resize:vertical">'+esc(a[q[0]]||"")+'</textarea></label>';
   });
@@ -2301,7 +2348,7 @@ function ciHistoryHTML(){
   wks.forEach(function(w,i){
     var r=ciRec(w),sent=(r.status==="sent");
     h+='<div class="wl-cihist"'+(i===0?' style="border-top:0"':'')+'><div><div class="w">'+ciCoveredLabel(w)+'</div><div class="s '+(sent?"ok":"sk")+'">'+
-      (sent?"✓ Sent "+ciTimeStr(r.updated||r.ts)+" · "+ciAnswered(r)+" of 5 answered":"Skipped")+'</div></div>'+
+      (sent?"✓ Sent "+ciTimeStr(r.updated||r.ts)+" · "+ciAnswered(r)+" of "+CI_TEXT.length+" answered":"Skipped")+'</div></div>'+
       '<button class="wl-link" data-act="ci:open" data-week="'+w+'">'+(sent?"Edit":"Open")+' ›</button></div>';
   });
   return h+'</div>';
@@ -7673,6 +7720,7 @@ function render(){
   if(state.view==="diary")renderDiary();
   if(state.view==="photos")renderProgressPhotos();
   if(state.view==="checkin")renderCheckinPhotos();
+  navKbdSync();
   /* warm the coach-report photo cache while Summary is on screen, so the export
      tap can stay synchronous (iOS share-sheet activation — see srPhotoPrefetch) */
   if(state.view==="summary")srPhotoPrefetch();
@@ -8002,8 +8050,6 @@ document.addEventListener("click",function(e){
   /* ---- weekly check-in ---- */
   if(a==="ci:open"){state.ciWeek=el.getAttribute("data-week")||toISO(weekStartFor(0));state.ciSkipAsk=null;state.ciFrom=state.view;state.view="checkin";render();return;}
   if(a==="ci:close"){state.view=(state.ciFrom==="weight")?"weight":"overview";state.ciSkipAsk=null;render();return;}
-  if(a==="ci:adh"){var _cw=el.getAttribute("data-week");var _cr=ciDraft(_cw);var _cv=el.getAttribute("data-v");
-    _cr.answers.adherence=(_cr.answers.adherence===_cv)?null:_cv;save();render();return;}
   if(a==="ci:skipask"){state.ciSkipAsk=el.getAttribute("data-week");render();return;}
   if(a==="ci:skipcancel"){state.ciSkipAsk=null;render();return;}
   if(a==="ci:skipyes"){var _sw=el.getAttribute("data-week");var _sr=ciDraft(_sw);_sr.status="skipped";_sr.updated=Date.now();
@@ -8014,6 +8060,7 @@ document.addEventListener("click",function(e){
     var _was=(_nr.status==="sent");
     if(!_was)_nr.ts=Date.now();
     _nr.status="sent";_nr.updated=Date.now();
+    _nr.adherence=ciAdherence(_nw);
     _nr.ratings14=feelDays(14,todayISO()).map(function(d){var o={date:d};RATINGS.forEach(function(q){var v=ratFor(d)[q[0]];if(v)o[q[0]]=v;});return o;}).filter(function(o){return Object.keys(o).length>1;});
     save();
     if(syncOn()){try{photoSync();}catch(e){}
@@ -8122,6 +8169,17 @@ document.addEventListener("focusin",function(e){var el=e.target;
     setTimeout(function(){try{if(document.activeElement===el)el.setSelectionRange(0,(el.value||"").length);}catch(_e){}},0);
   }
 });
+/* ---- keep the fixed nav out of the way of the soft keyboard ---- */
+function navIsTextEl(el){return !!(el&&(el.tagName==="INPUT"||el.tagName==="TEXTAREA"||el.isContentEditable));}
+function navKbdSync(){var n=document.querySelector(".wl-nav");if(!n)return;
+  if(navIsTextEl(document.activeElement))n.classList.add("kbd");else n.classList.remove("kbd");}
+var _navKbdT=null;
+document.addEventListener("focusin",function(e){if(navIsTextEl(e.target)){clearTimeout(_navKbdT);navKbdSync();}});
+document.addEventListener("focusout",function(e){if(!navIsTextEl(e.target))return;
+  clearTimeout(_navKbdT);
+  /* a short delay so moving between two fields never flashes the bar */
+  _navKbdT=setTimeout(navKbdSync,120);});
+
 addEventListener("input",function(e){
   var el=e.target;
   if(el.classList&&el.classList.contains("wl-num")){var isInt=el.hasAttribute("data-int");var cv=isInt?el.value.replace(/[^\d]/g,""):el.value.replace(/[^\d.]/g,"").replace(/(\..*)\./g,"$1");if(cv!==el.value)el.value=cv;}
