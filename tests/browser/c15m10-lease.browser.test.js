@@ -24,10 +24,12 @@ function leaseMock(state){
   return async(route)=>{
     const b=JSON.parse(route.request().postData()||'{}');
     const now=Date.now();
-    if(state.delayMs)await new Promise(r=>setTimeout(r,state.delayMs));
+    const d=(state.delaySeq&&state.delaySeq.length)?state.delaySeq.shift():state.delayMs;
+    if(d)await new Promise(r=>setTimeout(r,d));
     const reply=(status,body)=>route.fulfill({status,contentType:'application/json',body:JSON.stringify(body)});
     if(state.forceStatus)return reply(state.forceStatus,state.forceBody||{ok:false});
-    if(state.mutateBody){const m=state.mutateBody;state.mutateBody=null;return reply(200,m);}
+    if(state.mutateBody&&(!state.mutateFor||state.mutateFor===b.op)){
+      const m=state.mutateBody;state.mutateBody=null;state.mutateFor=null;return reply(200,m);}
     const statusBody=(extra)=>Object.assign({ok:true,exists:!!state.row,
       fence:state.row?state.row.fence:0,
       holderDeviceId:state.row?state.row.holder:null,
@@ -61,6 +63,9 @@ function leaseMock(state){
 
 async function boot(browser,srv,st,init,uid){
   const ctx=await browser.newContext();
+  await ctx.exposeFunction('__st_mutate',(b,op)=>{st.mutateBody=b;st.mutateFor=op||null;});
+  await ctx.exposeFunction('__st_delays',(a)=>{st.delaySeq=a;});
+  await ctx.exposeFunction('__delaySeqSet',()=>{st.delaySeq=[500,50];});
   const appdataLog=[];
   await ctx.route('**/api/**',r=>{
     if(/collections\/appdata\/records/.test(r.request().url()))appdataLog.push(Date.now());
@@ -291,6 +296,122 @@ async function boot(browser,srv,st,init,uid){
     });
     test('K real dispatcher action executes for a NON-holder (gate not yet wired)',()=>{ok(!s.holder);ok(s.dispatched);});
     test('K direct local-write compatibility (renamed per round-13 item 9)',()=>ok(s.directWrite));
+    await ctx.close();
+  }
+
+  /* L2a: logout + login as the SAME uid while acquire is pending */
+  {
+    const st={ttlMs:24*3600*1000,row:null,delaySeq:[600]};
+    const {ctx,page}=await boot(browser,server,st);
+    const s=await page.evaluate(async()=>{
+      m10Reset('t');const p=m10Boot();          // delayed acquire in flight
+      await new Promise(r=>setTimeout(r,100));
+      pbClearSession(true);                      // logout (reset, gen bump)
+      const c=JSON.parse(localStorage.getItem('wl_pb')||'{}');
+      localStorage.setItem('wl_pb',JSON.stringify({uid:'userA',base:'https://pb.test',token:'tok2',email:'a@x.com'}));
+      await p;                                   // stale same-uid response arrives
+      return {holder:M10.holder,uid:M10.uid,reason:M10.revokeReason};
+    });
+    test('L2a same-uid relogin mid-acquire: stale response NOT installed',()=>{
+      ok(!s.holder,'holder');ok(s.uid===null,'uid stays reset');eq(s.reason,'session-cleared');});
+    await ctx.close();
+  }
+
+  /* L2b: two overlapping boots, same uid — the later boot owns the state */
+  {
+    const st={ttlMs:24*3600*1000,row:null,delaySeq:[500,50]};
+    const {ctx,page}=await boot(browser,server,st,null,'userA');
+    const s=await page.evaluate(async()=>{
+      m10Reset('t');
+      const p1=m10Boot();                        // slow response
+      const p2=m10Boot();                        // fast response, later gen
+      const genAfterStarts=M10.gen;
+      await Promise.all([p1,p2]);
+      return {holder:M10.holder,uid:M10.uid,gen:M10.gen,genAfterStarts};
+    });
+    test('L2b overlapping boots: later boot owns authority, earlier discarded',()=>{
+      ok(s.holder,'holder from the later boot');eq(s.uid,'userA');eq(s.gen,s.genAfterStarts,'no post-hoc overwrite');});
+    await ctx.close();
+  }
+
+  /* L2c: two overlapping takeovers, responses in reverse order */
+  {
+    const st={ttlMs:24*3600*1000,row:{fence:7,holder:'other',name:'iPad',active:true,renewedMs:Date.now()},delaySeq:[]};
+    const {ctx,page}=await boot(browser,server,st);
+    const s=await page.evaluate(async()=>{
+      // open the sheet twice and fire both confirms; the second op supersedes
+      m10Gate('t');const fn1=state.pendingConfirm.fn;state.pendingConfirm=null;
+      m10Gate('t');const fn2=state.pendingConfirm?state.pendingConfirm.fn:fn1;state.pendingConfirm=null;
+      window.__delaySeqSet&&window.__delaySeqSet();
+      fn1();fn2();
+      await new Promise(r=>setTimeout(r,900));
+      return {fence:M10.fence,holder:M10.holder};
+    });
+    // mock: op1 delayed 500 (mutates second → fence 9), op2 delayed 50 (mutates first → fence 8)
+    // client: op2 has the higher gen → its response (fence 8) owns the state;
+    // op1's later response (fence 9) is superseded and must NOT install.
+    test('L2c reversed takeover responses: superseded op cannot install (fence stays 8)',()=>{
+      ok(s.holder,'holder');eq(s.fence,8);});
+    await ctx.close();
+  }
+
+  /* L2d: valid renewal response arriving after a newer takeover */
+  {
+    const st={ttlMs:24*3600*1000,row:null,delaySeq:[]};
+    const {ctx,page}=await boot(browser,server,st);
+    const s=await page.evaluate(async()=>{
+      const dev=localStorage.getItem('wl_m10_deviceid');
+      // craft a delayed VALID 200 renew, then take over before it lands
+      await window.__st_mutate({ok:true,fence:M10.fence,ttlMs:5000,serverNow:Date.now(),holderDeviceId:dev},'renew');
+      await window.__st_delays([400,0]);
+      const renewP=m10Renew();
+      const g=++M10.gen;const t0=performance.now();
+      const r=await m10LeaseCall('steal',{});
+      if(M10.gen===g)m10ApplyGrant(r.body,pbUid(),t0);
+      const renewed=await renewP;
+      return {renewed,remaining:M10.deadline-performance.now(),holder:M10.holder,fence:M10.fence};
+    });
+    test('L2d late valid renew after takeover: neither installs nor revokes (deadline stays 24h-scale)',()=>{
+      ok(s.renewed===false,'renew discarded');ok(s.holder);ok(s.remaining>3600*1000,'takeover deadline kept: '+Math.round(s.remaining));});
+    await ctx.close();
+  }
+
+  /* L3: crypto.getRandomValues unavailable → fail closed, zero lease traffic */
+  {
+    const st={ttlMs:24*3600*1000,row:null,log:[]};
+    const {ctx,page}=await boot(browser,server,st,()=>{
+      Object.defineProperty(window,'crypto',{value:{},configurable:true});
+    });
+    const s=await page.evaluate(()=>({holder:M10.holder,corrupt:M10.corrupt,
+      dev:localStorage.getItem('wl_m10_deviceid'),gate:m10Gate('t')===false}));
+    test('L3 no crypto: read-only, no id created/persisted, NO lease request',()=>{
+      ok(!s.holder);ok(s.dev===null,'no persisted id');ok(s.gate,'gate blocks');eq(st.log.length,0,'zero lease calls');});
+    await ctx.close();
+  }
+
+  /* L4: valid-shaped 200 renew naming ANOTHER device must not extend */
+  {
+    const st={ttlMs:24*3600*1000,row:null,delaySeq:[]};
+    const {ctx,page}=await boot(browser,server,st);
+    const s=await page.evaluate(async()=>{
+      await window.__st_mutate({ok:true,fence:M10.fence,ttlMs:86400000,serverNow:Date.now(),
+        holderDeviceId:'dev-zzzzzzzzzzzzzzzzzzzzzzzz'},'renew');
+      const r=await m10Renew();
+      return {r,holder:M10.holder,reason:M10.revokeReason};
+    });
+    test('L4 renew 200 naming another device → revoked as malformed-response',()=>{
+      ok(s.r===false);ok(!s.holder);eq(s.reason,'malformed-response');});
+    await ctx.close();
+  }
+
+  /* L5: garbage held-409 body is malformed, not authoritative */
+  {
+    const st={ttlMs:24*3600*1000,row:null,forceStatus:409,
+      forceBody:{ok:false,held:true,fence:'nine',ttlMs:-1,holderDeviceId:''}};
+    const {ctx,page}=await boot(browser,server,st);
+    const s=await page.evaluate(()=>({holder:M10.holder,known:M10.known,reason:M10.revokeReason,uid:M10.uid}));
+    test('L5 malformed held body: known=null, reason=malformed-response, uid bound',()=>{
+      ok(!s.holder);ok(s.known===null);eq(s.reason,'malformed-response');eq(s.uid,'userA');});
     await ctx.close();
   }
 
