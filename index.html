@@ -944,7 +944,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-04.435-syncwhy";
+var APP_BUILD="2026-08-04.436-reviewfix";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -7969,7 +7969,7 @@ function render(){
   var maxBtn=isOwner()?'<button class="wl-maxb'+(coachUnreadW()?" hot":"")+'" data-act="max:open" aria-label="Messages from Coach Max">M</button>':'';
   var backBtn=state.view==="checkin"?'<button class="wl-hdr-back" data-act="ci:close" aria-label="Back">‹</button>':(state.view==="photos"||state.view==="glptimeline")?'<button class="wl-hdr-back" data-act="go" data-view="weight" aria-label="Back">‹</button>':state.view==="diary"?'<button class="wl-hdr-back" data-act="go" data-view="overview" aria-label="Back">‹</button>':'';
   var _navH=headerNav();var _brand='<span class="wl-mark">'+BRANDMARK+'</span>';var _md=statusFor(todayISO());var _mbanner=_md?('<button class="wl-modebanner" data-act="go" data-view="settings"><span class="wl-mb-em">'+(_md.status.type==="vacation"?"\ud83c\udfd6\ufe0f":"\ud83e\udd12")+'</span><span>'+(_md.status.type==="vacation"?"Vacation Mode":"Recovery Mode")+'</span><span class="wl-mb-go">Settings \u203a</span></button>'):'';
-  document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header'+(_md?" hasbanner":"")+'">'+_mbanner+'<div class="wl-hdr-brand"><div class="wl-brandrow">'+_brand+'<span class="wl-eyebrow">Compound</span></div>'+hdrRight+'</div><div class="wl-hdr-main">'+backBtn+'<div class="wl-title-slot">'+(title?('<h1 class="wl-title">'+title+'</h1>'):'')+(hsub?'<div class="wl-hsub">'+esc(hsub)+'</div>':'')+'</div><div class="wl-hdr-actions">'+maxBtn+avatar+'</div></div>'+(_navH?'<div class="wl-hdr-datebar">'+_navH+'</div>':'')+'</header>'+m10RoBarHTML()+'<main class="wl-main">'+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML()+statusSheetHTML()+obOverlayHTML()+deviceSheetHTML()+maxSheetHTML()+infoSheetHTML()+glpSheetHTML();
+  document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header'+(_md?" hasbanner":"")+'">'+_mbanner+'<div class="wl-hdr-brand"><div class="wl-brandrow">'+_brand+'<span class="wl-eyebrow">Compound</span></div>'+hdrRight+'</div><div class="wl-hdr-main">'+backBtn+'<div class="wl-title-slot">'+(title?('<h1 class="wl-title">'+title+'</h1>'):'')+(hsub?'<div class="wl-hsub">'+esc(hsub)+'</div>':'')+'</div><div class="wl-hdr-actions">'+maxBtn+avatar+'</div></div>'+(_navH?'<div class="wl-hdr-datebar">'+_navH+'</div>':'')+'</header>'+m10RoBarHTML()+'<main class="wl-main">'+m10cxShellBannerHTML()+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML()+statusSheetHTML()+obOverlayHTML()+deviceSheetHTML()+maxSheetHTML()+infoSheetHTML()+glpSheetHTML();
   var hdr=document.querySelector(".wl-header");if(hdr)document.documentElement.style.setProperty("--headh",hdr.offsetHeight+"px");
   if(document.getElementById("wl-photostrip"))renderPhotosStrip(state.selDate);
   if(state.view==="diary")renderDiary();
@@ -10987,7 +10987,7 @@ function m10cDispatch(j,payloadObj,cb,ctx){
     if(r.status===409&&r.body&&r.body.conflict===true){
       if(!natRes(r.body.serverRev)){setSync("error","core sync received a malformed response");cb&&cb(false);return;}
       m10cTerminalize(j,"conflict",{serverRev:r.body.serverRev},ctx.uid);
-      setSync("error","core needs review");cb&&cb(false);return;}
+      setSync("error","core needs review");try{render();}catch(_e){}cb&&cb(false);return;}
     if(r.status===409&&r.body&&/reused/.test(r.body.error||"")){
       m10cBlock("a sync request identity was reused");cb&&cb(false);return;}
     if(r.status===401||r.status===403){
@@ -11053,7 +11053,7 @@ function m10cBootstrap(cb,ctx){
       /* G10: deletion/change evidence — review, never a first push */
       var jd={op:"core-bootstrap",phase:"intent",startedAt:Date.now(),expect:{serverRev:serverRev,serverCanon:null}};
       if(m10cJournalWrite(jd,uid))m10cTerminalize(jd,"bootstrap-conflict",null,uid);
-      setSync("error","core needs review");cb&&cb(false);return;}
+      setSync("error","core needs review");try{render();}catch(_e){}cb&&cb(false);return;}
     var sc=m10cCanon(serverData);
     if(!sc.ok){m10cBlock("the server core copy failed validation");cb&&cb(false);return;}
     /* The server answered and it HAS a core — never a first run. Set this in
@@ -11072,7 +11072,7 @@ function m10cBootstrap(cb,ctx){
     /* differing, local nonempty: BOTH copies preserved; review is increment 3 */
     var jc={op:"core-bootstrap",phase:"intent",startedAt:Date.now(),expect:{serverRev:serverRev,serverCanon:sc.canon}};
     if(m10cJournalWrite(jc,uid))m10cTerminalize(jc,"bootstrap-conflict",null,uid);
-    setSync("error","core needs review");cb&&cb(false);});}
+    setSync("error","core needs review");try{render();}catch(_e){}cb&&cb(false);});}
 
 function m10cFinishBootAdopt(j,cb,ctx){
   var uid=j.owner||((ctx&&ctx.uid)||m8Uid());
@@ -11345,7 +11345,7 @@ function m10cxBuildEnvelope(j,uid,cb){
   if(!m10cxDxAdvance(j,"done",null,uid)){cb&&cb(false);return;}
   m10cRemove("dxjournal",uid);
   if(m10cRead("dxjournal",uid).st!=="absent"){m10cBlock("could not clear a finished review record");cb&&cb(false);return;}
-  try{setSync("error","core needs review");}catch(ex){}
+  try{setSync("error","core needs review");try{render();}catch(_e){}}catch(ex){}
   try{render();}catch(ex){}
   cb&&cb(true);}
 
@@ -11587,16 +11587,26 @@ function m10cxTakeServer(){
   var env=m10cxEnvelope(ctx.uid);
   if(env.st!=="ok")return;
   if(!m10cxExportGateOpen(env.val)){toast("Export both copies first");try{render();}catch(e){}return;}
-  if(!m10cxHolder()){toast("Take over as the active writer first");return;}
+  /* NO PEN REQUIRED. Taking the SERVER's copy writes only to this device —
+     m10cWrite("base"), load(), markDirty(false) — and never calls a server
+     route. Requiring the pen created a genuine deadlock: a read-only device
+     with a conflict could not review it, and could not take the pen without
+     resolving the review first (Owner, 2026-08-03, iPad: "it tells me i need
+     to take the pen first"). Keeping THIS device's copy still requires the
+     pen — see m10cxPushMine — because that one does write to the server. */
   if(env.val.serverData===null){toast("The server holds no copy — keep this device’s copy instead");return;}
+  var entryHeld=m10cxHolder();
   var entryFence=M10.fence;
   askConfirm("Replace EVERYTHING on this device — weights, food, steps, settings, all of it — with the server’s copy? Your export is the only remaining copy of this device’s data.",function(){
     m10cxFreshCheck(ctx,function(fresh){
       if(!fresh||fresh.canon===null)return;
-      /* Q1: pen revalidated after BOTH asynchronous boundaries (the confirm
-         pause and the fetch) — no pen, no replacement */
-      if(!m10cxHolder()||M10.fence!==entryFence){
-        toast("The active-writer pen changed — take over and review again");return;}
+      /* Q1: if this device HELD the pen at entry, it must still hold the same
+         one after both asynchronous boundaries (the confirm pause and the
+         fetch). A device that never held it is adopting the server copy
+         locally, so there is no authority to revalidate — but it must not have
+         GAINED the pen mid-flight either, which would change what this means. */
+      if(m10cxHolder()!==entryHeld||(entryHeld&&M10.fence!==entryFence)){
+        toast("The active-writer state changed — review again");return;}
       var j={op:"core-take-server",phase:"intent",startedAt:Date.now(),
         expect:{serverRev:fresh.rev,serverCanon:fresh.canon}};
       if(!m10cxDxWrite(j,ctx.uid))return;
@@ -11668,6 +11678,16 @@ function syncIdleReason(){
     if(st==="journal-recovery")return "finishing an interrupted sync";
     if(typeof M10!=="undefined"&&!M10.holder)return "read-only: another device is the active writer (pulls still run)";
     return "";
+  }catch(e){return "";}
+}
+/* The review banner used to be injected by WRAPPING view_overview, so it lived
+   on the Home tab only and only if that wrapper held. It renders from the shell
+   now, on every tab. The Home wrapper stays (harmless, and it keeps the banner
+   above Home's own cards); this de-duplicates so it never appears twice. */
+function m10cxShellBannerHTML(){
+  try{
+    if(state.view==="overview")return "";     /* the Home wrapper already places it */
+    return m10cxBannerHTML();
   }catch(e){return "";}
 }
 function m10RoBarHTML(){

@@ -420,6 +420,78 @@ async function freshDevice(browser,routeHandler){
   });
   await d8.ctx.close();
 
+  /* ---------- T14: the review banner is REACHABLE, on every tab ---------
+       Owner, 2026-08-03: the app knew it needed review and showed nothing —
+       the state changed in the background and the screen was never redrawn, and
+       the banner only existed on Home anyway. --------------------------- */
+  const d9=await freshDevice(browser,emptyServer);
+  d9.page.on('pageerror',e=>errs.push(String(e)));
+  await d9.page.goto(URL,{waitUntil:'load'});
+  await d9.page.waitForFunction(()=>typeof window.m10cState==='function',null,{timeout:20000});
+  await d9.page.waitForTimeout(2000);
+  const t14=await d9.page.evaluate(()=>{
+    const uid=(typeof m8Uid==='function')?m8Uid():'userA';
+    const j={op:'core-bootstrap',phase:'done',outcome:'bootstrap-conflict',
+      startedAt:Date.now(),expect:{serverRev:300,serverCanon:null}};
+    m10cJournalWrite(j,uid);
+    const seen={};
+    ['overview','weight','train','summary'].forEach(v=>{
+      state.view=v;render();
+      seen[v]={shown:/Body data needs your review/.test(document.body.textContent||''),
+        count:document.querySelectorAll('[data-act="m10cx:prepare"]').length,
+        prepare:!!document.querySelector('[data-act="m10cx:prepare"]')};
+    });
+    state.view='overview';render();
+    return {state:m10cState(),seen};
+  });
+  const d9x=d9;
+  test('T14 the review banner appears on every tab, exactly once',()=>{
+    eq(t14.state,'review-pending');
+    ['overview','weight','train','summary'].forEach(v=>{
+      ok(t14.seen[v].shown,'no review banner on the '+v+' tab');
+      eq(t14.seen[v].count,1,'the banner is duplicated on '+v);
+      ok(t14.seen[v].prepare,'no Prepare control on '+v);
+    });
+  });
+
+  /* ---------- T15: SOURCE-LEVEL check -----------------------------------
+       I could not build a clean fixture for the in-place redraw (the review
+       state is sticky across renders in the harness), so this asserts the
+       weaker thing I can actually verify: every path that enters the review
+       state redraws. Stated as a source check, not dressed up as behavioural. */
+  const t15=await d9.page.evaluate(()=>{
+    const src=document.documentElement.outerHTML;
+    const hits=(src.match(/setSync\("error","core needs review"\);try\{render\(\);\}catch/g)||[]).length;
+    const total=(src.match(/setSync\("error","core needs review"\)/g)||[]).length;
+    return {hits,total};
+  });
+  test('T15 [source] every path entering the review state redraws the screen',()=>{
+    ok(t15.total>0,'no review-entry sites found at all');
+    eq(t15.hits,t15.total,'only '+t15.hits+' of '+t15.total+' review-entry sites redraw');
+  });
+
+  /* ---------- T16: a READ-ONLY device can resolve its own conflict ------
+       Owner, 2026-08-03: "it tells me i need to take the pen first". Taking the
+       SERVER's copy writes only locally, so requiring the pen made a conflicted
+       read-only device unrecoverable — it could not review, and could not take
+       the pen without reviewing. Keeping THIS device's copy still needs the pen,
+       because that one writes to the server. --------------------------- */
+  const t16=await d9x.page.evaluate(()=>{
+    const src=m10cxTakeServer.toString();
+    const mine=m10cxPushMine.toString()+
+      (typeof m10cxPushMineComplete==='function'?m10cxPushMineComplete.toString():'');
+    return {
+      takeServerDemandsPen:/Take over as the active writer first/.test(src),
+      pushMineDemandsPen:/Take over as the active writer first/.test(mine),
+      takeServerWritesLocallyOnly:/m10cWrite\("base"|markDirty\(false\)/.test(src)};
+  });
+  test('T16 a read-only device may adopt the server copy; only pushing needs the pen',()=>{
+    notOk(t16.takeServerDemandsPen,'taking the SERVER copy still demands the pen — the deadlock');
+    ok(t16.pushMineDemandsPen,'pushing THIS device up must still require the pen');
+    ok(t16.takeServerWritesLocallyOnly,'taking the server copy should install it locally');
+  });
+  await d9x.ctx.close();
+
   test('T7 no uncaught page errors',()=>{eq(errs,[],'page errors');});
 
   console.log('\nC22 — onboarding gate + review dead end: '+passed+' passed, '+failures.length+' failed');

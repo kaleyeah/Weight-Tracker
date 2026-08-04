@@ -276,16 +276,24 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
 
   /* ---- T13: the check-in card replaces the progress-photo prompt -------- */
   const t13=await ev(()=>{
+    /* Pin the check-in day to TODAY's weekday. This case asserts the "Due today"
+       wording, so run it on any other day and it correctly reads "Due yesterday"
+       and the case fails for reasons that have nothing to do with the card. */
+    const _wsWas=state.settings.weekStart;
+    state.settings.weekStart=String(parseISO(todayISO()).getDay());
     state.checkins={};state.settings.ciSince=toISO(weekStartFor(0));save();state.view='overview';render();
     const cards=[].slice.call(document.querySelectorAll('.wl-card'));
     const ci=document.querySelector('.wl-ci');
     const photoPrompt=cards.filter(c=>/This Week’s Progress Photos/.test(c.textContent))[0];
     const stack=document.querySelector('.wl-stack');
     const check=document.querySelector('.wl-check');
-    return {hasCi:!!ci,hasOldPrompt:!!photoPrompt,
+    const _r13={hasCi:!!ci,hasOldPrompt:!!photoPrompt,
       status:(ci.querySelector('.wl-ci-st')||{}).textContent,
       btn:(ci.querySelector('[data-act="ci:open"]')||{}).getAttribute?ci.querySelector('[data-act="ci:open"]').getAttribute('data-week'):null,
       beforeCheckin:!!(check&&(ci.compareDocumentPosition(check)&Node.DOCUMENT_POSITION_FOLLOWING))};
+    /* put the Owner's real setting back so later cases are unaffected */
+    state.settings.weekStart=_wsWas;state.settings.ciSince=toISO(weekStartFor(0));save();render();
+    return _r13;
   });
   test('T13 the weekly check-in card takes the photo prompt’s slot above the daily check-in',()=>{
     ok(t13.hasCi,'no weekly check-in card');
