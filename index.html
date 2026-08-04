@@ -944,7 +944,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-03.434-obevidence";
+var APP_BUILD="2026-08-04.435-syncwhy";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -8306,7 +8306,8 @@ document.addEventListener("click",function(e){
   if(a==="hist:day"){var hd=el.getAttribute("data-date");state.selDate=hd;var hp=parseISO(hd);state.calY=hp.getFullYear();state.calM=hp.getMonth();state.view="train";render();return;}
   if(a==="bc:tab"){state.bcTab=el.getAttribute("data-tab");render();return;}
   if(a==="morestats"){state.moreStats=(state.moreStats===false);render();return;}
-  if(a==="syncdot"){var lt=getLastSync();toast((syncLabel()||"Sync")+(lt?" \u00b7 "+fmtClock(lt):"")+(syncState.msg?" \u2014 "+syncState.msg:""));return;}
+  if(a==="syncdot"){var _sr=syncIdleReason();if(_sr){toast("Sync: "+_sr);return;}
+var lt=getLastSync();toast((syncLabel()||"Sync")+(lt?" \u00b7 "+fmtClock(lt):"")+(syncState.msg?" \u2014 "+syncState.msg:""));return;}
   if(a==="trend:tocur"){state.trendOffset=0;state.histMore=false;render();return;}
   if(a==="trend:prev"){state.trendOffset=(state.trendOffset||0)+1;state.histMore=false;render();return;}
   if(a==="trend:next"){state.trendOffset=Math.max(0,(state.trendOffset||0)-1);state.histMore=false;render();return;}
@@ -11194,7 +11195,11 @@ function autoSync(){
   m10cPull(false,function(){
     var st=m10cState();
     if(st==="dirty"){m10cPush(false,function(ok){if(ok)setSync("ok");try{render();}catch(e){}});return;}
-    if(st==="clean")setSync("ok");
+    /* A successful PULL is a sync too. setLastSync() only ever ran on push and
+       login paths, so a read-only device — which never pushes — could pull
+       correctly every minute and still display the time it last signed in
+       (Owner, 2026-08-03: "the last sync is still 5:56"). */
+    if(st==="clean"){try{setLastSync();}catch(e){}setSync("ok");}
     try{render();}catch(e){}});}
 /* =============== M10-WIRING-END (increment 2) =============== */
 
@@ -11640,6 +11645,31 @@ function m10cxSummary(canon){
    provoke. Owner, 2026-08-03: "a bar that says Another device is already logged
    in. Click here to take over. And a warning that says save any progress on
    other device first." It shows on EVERY tab, not just Home. */
+/* Why is this device not syncing? Every silent early-return in autoSync and
+   m10cPull, named. The Owner spent tonight guessing at a read-only iPad that
+   pulled nothing and showed a stale timestamp; the app knew why and said
+   nothing. Read-only: computes a string, changes no state. */
+function syncIdleReason(){
+  try{
+    if(!syncOn())return "not signed in on this device";
+    if(typeof ownershipAmbiguous==="function"&&ownershipAmbiguous())
+      return "this device holds data that hasn't been matched to your account — sync is paused";
+    if(window.m8StorageBlocked)return "storage is blocked on this device";
+    var st=m10cState();
+    if(st==="dirty"||st==="dirty-unproven"){
+      return (typeof M10!=="undefined"&&!M10.holder)
+        ? "this device has unsent changes AND another device is the active writer — it cannot upload them, and it will not pull until they are resolved"
+        : "this device has unsent changes waiting to upload";
+    }
+    if(st==="displaced")return "body data needs review before syncing";
+    if(st==="dx-recovery")return "preparing the body-data review";
+    if(st==="review-pending")return "a sync conflict is waiting to be prepared for review";
+    if(st==="corrupt")return "a local sync record is damaged and was preserved for review";
+    if(st==="journal-recovery")return "finishing an interrupted sync";
+    if(typeof M10!=="undefined"&&!M10.holder)return "read-only: another device is the active writer (pulls still run)";
+    return "";
+  }catch(e){return "";}
+}
 function m10RoBarHTML(){
   if(typeof M10==="undefined"||!M10.booted)return "";
   if(!syncOn()||!pbUid())return "";
@@ -11650,7 +11680,10 @@ function m10RoBarHTML(){
   var who=(M10.known&&M10.known.deviceName)?esc(M10.known.deviceName):"Another device";
   return '<button class="wl-robar" data-act="m10:takeover">'
     +'<span class="wl-robar-main"><span class="wl-robar-t">'+who+' is already logged in</span>'
-    +'<span class="wl-robar-s">Tap to take over. Save any progress on that device first.</span></span>'
+    +'<span class="wl-robar-s">Tap to take over. Save any progress on that device first.</span>'
+    +(function(){var r=syncIdleReason();
+        return (r&&!/^read-only/.test(r))?'<span class="wl-robar-s" style="color:var(--bad)">Sync paused \u2014 '+esc(r)+'</span>':'';})()
+    +'</span>'
     +'<span class="wl-robar-go">Take over</span></button>';
 }
 function m10cxBannerHTML(){
