@@ -944,7 +944,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-04.438-photodiag";
+var APP_BUILD="2026-08-04.439-photocounts";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -2417,7 +2417,13 @@ function photoDiagHTML(){
   var r=psReport();
   var line;
   if(!r)line="Photo sync hasn’t run yet on this device.";
-  else if(r.ok)line="Last photo sync: "+r.down+" downloaded, "+r.up+" uploaded"+(r.rm?", "+r.rm+" removed":"")+".";
+  else if(r.ok){
+    var sn=r.seen||{};
+    line="Last photo sync: "+r.down+" downloaded, "+r.up+" uploaded"+(r.rm?", "+r.rm+" removed":"")+
+      ". Server had "+(sn.server==null?"?":sn.server)+" photo"+(sn.server===1?"":"s")+
+      " ("+(sn.serverProgress==null?"?":sn.serverProgress)+" progress); this device had "+
+      (sn.local==null?"?":sn.local)+" ("+(sn.localProgress==null?"?":sn.localProgress)+" progress).";
+  }
   else line="Photo sync did not run — "+(r.why||"reason unknown")+".";
   return '<div class="wl-hint" style="margin-top:8px">'+esc(line)+
     ' <button class="wl-link" data-act="photo:resync">Download photos now</button></div>';
@@ -12779,13 +12785,13 @@ function pbPhotoFetchBlob(srec,token){
 
 /* ---- the sync itself ---- */
 var pbPhotoSyncing=false;
-var _psLast=null;   /* last photoSync outcome, for the on-device diagnostic */
+var _psLast=null,_psSeen=null;   /* last photoSync outcome, for the on-device diagnostic */
 function psReport(){return _psLast;}
 function photoSync(done){
   var _psDone=done;
   done=function(r){
     try{
-      if(r&&typeof r==="object")_psLast={ok:true,at:Date.now(),up:r.uploaded|0,down:r.downloaded|0,rm:r.removed|0};
+      if(r&&typeof r==="object")_psLast={ok:true,at:Date.now(),up:r.uploaded|0,down:r.downloaded|0,rm:r.removed|0,seen:_psSeen};
       else if(!_psLast||_psLast.ok!==false)_psLast={ok:false,at:Date.now(),why:"stopped before syncing"};
     }catch(e){}
     _psDone&&_psDone(r);
@@ -12810,8 +12816,15 @@ function photoSync(done){
       if(state.view==="photos"||state.view==="diary")render();}
     done&&done({uploaded:uploaded,downloaded:downloaded,removed:removed});}
 
-  Promise.all([idbAll(),pbPhotoList()]).then(function(res){
+  Promise.all([idbAll(),pbPhotoList().catch(function(e){
+    _psLast={ok:false,at:Date.now(),why:"the server photo list failed ("+(e&&e.message?e.message:e)+")"};
+    throw e;})]).then(function(res){
     var local=res[0]||[],server=res[1]||[];
+    /* counts for the on-device diagnostic: "nothing new to download" is
+       ambiguous between an empty server list and everything already local */
+    _psSeen={server:server.length,local:local.length,
+      serverProgress:server.filter(function(x){return x.kind==="progress";}).length,
+      localProgress:local.filter(function(x){return x.kind==="progress";}).length};
     var byLocalId={};server.forEach(function(s){if(s.localId)byLocalId[s.localId]=s;});
     var localIds={};local.forEach(function(l){localIds[l.id]=l;});
 
