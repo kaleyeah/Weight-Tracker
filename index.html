@@ -944,7 +944,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-04.447-reportarrive";
+var APP_BUILD="2026-08-04.448-sheetscroll";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -13660,6 +13660,14 @@ document.addEventListener("visibilitychange",function(){if(!document.hidden){che
     pulling=false;
     if(!syncOn()||scrollTop()>0)return;
     if(e.target.closest&&e.target.closest("input,textarea,select"))return;
+    /* The coach window scrolls ITSELF (.wl-maxsheet, overflow-y:auto), but
+       the page behind it sits at scrollTop 0 — so this armed on every
+       upward swipe inside a long report and hijacked the scroll into a
+       refresh (Owner, 2026-08-04: don't let that motion refresh the app
+       while the coach window is open). The sheet owns its own scrolling;
+       pull-to-refresh stays out of it entirely. */
+    if(state.maxOpen)return;
+    if(e.target.closest&&e.target.closest(".wl-maxsheet"))return;
     startY=e.touches[0].clientY;pulling=true;dist=0;
   },{passive:true});
   document.addEventListener("touchmove",function(e){
