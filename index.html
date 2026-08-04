@@ -944,7 +944,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-04.439-photocounts";
+var APP_BUILD="2026-08-04.442-exportfix";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -9074,6 +9074,22 @@ function endRecoveryFreeze(){recoveryFreeze=false;}
    collision with today's fields but cannot promise one against a field added
    years from now, and payload() must never be able to overwrite the metadata a
    restore reads to decide how to interpret the file. */
+/* backupJSON() returns a STRING. Object.assign({}, <string>, {...}) spreads it
+   into numbered CHARACTER keys, so both conflict exports were written as ~150k
+   entries of {"0":"{","1":"\"",...} instead of the data — 4MB of unusable
+   noise, and these are the safety artifact the user is told to take BEFORE
+   choosing which copy to keep (Owner, 2026-08-04). Build the object properly. */
+function conflictExportText(marker){
+  var raw=backupJSON();
+  var obj=null;
+  try{obj=JSON.parse(raw);}catch(e){obj=null;}
+  if(obj&&typeof obj==="object"&&!Array.isArray(obj)){
+    obj.__conflict=marker;
+    return JSON.stringify(obj,null,2);
+  }
+  /* never silently emit a broken artifact: keep the payload readable */
+  return JSON.stringify({__conflict:marker,__note:"backup could not be parsed; raw payload preserved below",backup:raw},null,2);
+}
 function backupJSON(){
   var contains=[];
   var out={};
@@ -10300,7 +10316,7 @@ function m8CxExport(cb){
   if(!lcNow.ok){m8Block("training failed validation");cb&&cb(false);return;}
   var fileLocalCanon=lcNow.canon;/* the identity the files actually carry */
   var files=[{name:"conflict-local-"+todayISO()+".json",mime:"application/json",
-      text:JSON.stringify(Object.assign({},backupJSON(),{__conflict:"local"}))},
+      text:conflictExportText("local")},
     {name:"conflict-server-"+todayISO()+".json",mime:"application/json",
       text:JSON.stringify({__conflict:"server",serverRev:cx.serverRev,training:cx.serverAtEntry?JSON.parse(cx.serverAtEntry):null})}];
   var markDelivered=function(){
@@ -10967,6 +10983,18 @@ function m10cPush(manual,done){
   if(st==="bootstrap"){m10cBootstrap(function(ok){if(ok)m10cPush(manual,done);else fin(false);});return;}
   if(st==="dirty-unproven"){m10cSoftBlock("recent changes could not be verified on this device");fin(false);return;}
   if(st!=="dirty"){fin(true);return;}                       /* clean: nothing to push */
+  /* A device WITHOUT the pen must not push. It used to send the commit anyway
+     with fence:null, and with FENCING_ENFORCED off the server accepts that — so
+     both devices were writing, and two copies of the same data at different
+     revisions manufactured "conflicts" where nothing actually differed (Owner,
+     2026-08-04, twice in one evening). Reading stays allowed; the changes stay
+     local and dirty until this device takes the pen, which the read-only bar
+     offers. This is the client half of STRICT; FENCING_ENFORCED is the server
+     half and is still off pending the coach migration. */
+  if(typeof M10!=="undefined"&&M10.booted&&syncOn()&&
+     !(M10.holder&&M10.uid===uid&&performance.now()<M10.deadline)){
+    if(manual)toast("Another device is the active writer — take over to upload these changes");
+    fin(false);return;}
   var d=m10cRead("dirty");if(d.st!=="ok"){fin(false);return;}
   var b=m10cRead("base");if(b.st!=="ok"){fin(false);return;}
   var pc=m10cCanon(payload());
@@ -11454,7 +11482,7 @@ function m10cxExport(cb){
   if(!lc.ok){m10cBlock("core data failed validation ("+lc.error+")");cb&&cb(false);return;}
   var fileLocalCanon=lc.canon,fileServerCanon=env.val.serverData;
   var files=[{name:"conflict-core-local-"+todayISO()+".json",mime:"application/json",
-      text:JSON.stringify(Object.assign({},backupJSON(),{__conflict:"core-local"}))},
+      text:conflictExportText("core-local")},
     {name:"conflict-core-server-"+todayISO()+".json",mime:"application/json",
       text:JSON.stringify({__conflict:"core-server",coreRev:env.val.coreRevSeen,
         data:fileServerCanon?JSON.parse(fileServerCanon):null})}];
@@ -11672,12 +11700,38 @@ function m10cxFinishTakeServer(j,uid,cb,ctx){
 
 /* ---- review UI (session wording; whole-snapshot honesty per D8) ---- */
 var m10cxOpen=false;
+/* Counts alone do not help you choose — two copies can hold the same number of
+   entries and differ only in which is NEWER (Owner, 2026-08-04: "it needs the
+   time stamp of the last saved states"). Report the newest dated entry on each
+   side, and flag which side is ahead. */
+function m10cxNewest(o){
+  var newest="";
+  (o.weights||[]).forEach(function(w){if(w&&w.date&&w.date>newest)newest=w.date;});
+  ["food","workouts","steps","notes","sleep","bodyfat","waist","leanmass","ratings","checkins"].forEach(function(k){
+    Object.keys(o[k]||{}).forEach(function(d){if(d>newest)newest=d;});});
+  return newest||null;
+}
 function m10cxSummary(canon){
   if(canon===null)return "no copy recorded";
   var o;try{o=JSON.parse(canon);}catch(e){return "unreadable";}
   var days={};["food","workouts","steps","notes","sleep","bodyfat","waist","leanmass"].forEach(function(k){
     Object.keys(o[k]||{}).forEach(function(d){days[d]=1;});});
-  return (o.weights||[]).length+" weigh-ins · "+Object.keys(days).length+" days with entries";}
+  var nw=m10cxNewest(o);
+  return (o.weights||[]).length+" weigh-ins · "+Object.keys(days).length+" days with entries"+
+    (nw?" · newest entry "+fmtShort(parseISO(nw)):" · no dated entries");}
+/* which side is ahead, in plain words, or that they match */
+function m10cxAheadLine(v){
+  var pl=null,ps=null;
+  try{pl=v.localData?m10cxNewest(JSON.parse(v.localData)):null;}catch(e){}
+  try{ps=v.serverData?m10cxNewest(JSON.parse(v.serverData)):null;}catch(e){}
+  if(!pl&&!ps)return "";
+  if(pl&&ps&&pl===ps)
+    return '<div class="wl-hint" style="margin-top:8px">Both copies reach the same day ('+esc(fmtShort(parseISO(pl)))+
+      '), so neither is obviously newer. If they also match above, either choice keeps the same data.</div>';
+  var newerServer=(!pl)||(ps&&ps>pl);
+  return '<div class="wl-hint" style="margin-top:8px"><b>'+(newerServer?"The server copy":"This device\u2019s copy")+
+    ' has the more recent entry</b> ('+esc(fmtShort(parseISO(newerServer?ps:pl)))+' vs '+
+    esc(pl&&ps?fmtShort(parseISO(newerServer?pl:ps)):"none")+').</div>';}
 /* A read-only device said nothing persistent: the sync dot stayed green (it is
    sync health, not writer status) and the only signal was a toast you had to
    provoke. Owner, 2026-08-03: "a bar that says Another device is already logged
@@ -11764,6 +11818,7 @@ function m10cxViewHTML(){
   h+='<div style="font-size:13px;line-height:1.6;margin-bottom:10px">';
   h+='<b>This device:</b> '+esc(m10cxSummary(v.localData))+'<br>';
   h+='<b>Server:</b> '+esc(m10cxSummary(v.serverData))+'</div>';
+  h+=m10cxAheadLine(v);
   if(!holder)h+='<div class="wl-hint" style="margin-bottom:6px">Another session is the active writer — you can still take the SERVER’s copy here; keeping this device’s copy needs the pen.</div>'
     +'<button class="wl-btn wl-btn-primary wl-full" data-act="m10cx:takeover">Take over on this device</button>';
   h+='<button class="wl-btn '+(exported?'wl-btn-ghost':'wl-btn-primary')+' wl-full" style="margin-top:12px" data-act="m10cx:export">'+(exported?'Exported ✓ — export again':'Export both copies first')+'</button>';

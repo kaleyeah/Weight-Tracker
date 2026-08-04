@@ -515,6 +515,101 @@ async function freshDevice(browser,routeHandler){
     notOk(t17.penCopyStillClaimsBoth,'the copy still tells the user BOTH choices need the pen');
   });
 
+  /* ---------- T18: the review must say which copy is NEWER ---------------
+       Owner, 2026-08-04: "The info isn't helpful to select. It needs the time
+       stamp of the last saved states." Counts alone cannot separate two copies
+       holding the same number of entries. ------------------------------- */
+  const t18=await d9.page.evaluate(()=>{
+    const mk=o=>JSON.stringify(o);
+    const older=mk({weights:[{date:'2026-08-01',weight:184}],food:{'2026-08-01':{calories:2000}},
+      steps:{},notes:{},sleep:{},bodyfat:{},waist:{},leanmass:{},workouts:{}});
+    const newer=mk({weights:[{date:'2026-08-03',weight:183}],food:{'2026-08-03':{calories:2100}},
+      steps:{},notes:{},sleep:{},bodyfat:{},waist:{},leanmass:{},workouts:{}});
+    return {
+      summaryHasDate:/newest entry/.test(m10cxSummary(newer)),
+      serverAhead:m10cxAheadLine({localData:older,serverData:newer}),
+      deviceAhead:m10cxAheadLine({localData:newer,serverData:older}),
+      tie:m10cxAheadLine({localData:newer,serverData:newer})};
+  });
+  test('T18 the review names the newest entry on each side and which is ahead',()=>{
+    ok(t18.summaryHasDate,'the per-side summary must carry a date');
+    ok(/server copy/i.test(t18.serverAhead)&&/more recent/i.test(t18.serverAhead),
+      'server-ahead line was: '+t18.serverAhead);
+    ok(/device/i.test(t18.deviceAhead)&&/more recent/i.test(t18.deviceAhead),
+      'device-ahead line was: '+t18.deviceAhead);
+    ok(/same day/i.test(t18.tie),'a tie must say so rather than pick one: '+t18.tie);
+  });
+
+  /* ---------- T19: a NON-HOLDER must not push -------------------------
+       The cause of the false conflicts: a device without the pen still sent a
+       commit with fence:null, and with enforcement off the server took it. Two
+       devices writing the same data at different revisions then "conflicted"
+       (Owner, 2026-08-04, twice). ------------------------------------- */
+  let commits=0;
+  const commitCounting=r=>{
+    const u=r.request().url();
+    if(/auth-with-password/.test(u))
+      return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({token:'tok',record:{id:'userA',email:'a@x.com'}})});
+    if(/cf\/writer\/lease/.test(u))
+      return r.fulfill({status:409,contentType:'application/json',body:JSON.stringify({ok:false,held:true,exists:true,active:true,
+        fence:7,holderDeviceId:'dev-other',deviceName:'iPhone',serverNow:Date.now(),ttlMs:86400000})});
+    if(/cf\/appdata\/commit/.test(u)){commits++;
+      return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,newRev:9,subsystem:'core'})});}
+    return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[],token:'tok',record:{id:'userA'}})});
+  };
+  const d10=await freshDevice(browser,commitCounting);
+  d10.page.on('pageerror',e=>errs.push(String(e)));
+  await d10.page.goto(URL,{waitUntil:'load'});
+  await d10.page.waitForFunction(()=>typeof window.m10cPush==='function',null,{timeout:20000});
+  await d10.page.waitForTimeout(3500);
+  const t19=await d10.page.evaluate(async()=>{
+    /* A non-holder cannot BECOME dirty — save() is gated too. The real case is
+       a device that WAS the writer, made changes, then lost the pen: its
+       changes are already local and must not go up unfenced. */
+    M10.holder=true;M10.uid=pbUid();M10.fence=7;M10.deadline=performance.now()+600000;
+    state.steps[todayISO()]=12345;save();
+    const dirtyAsHolder=m10cState();
+    M10.holder=false;M10.fence=0;          /* the other device took over */
+    const before=m10cState();
+    let pushed=null;
+    await new Promise(res=>{m10cPush(true,function(ok){pushed=ok;res();});});
+    return {holder:M10.holder,dirtyAsHolder,stateBefore:before,pushed,stateAfter:m10cState()};
+  });
+  test('T19 a device without the pen does not push, and keeps its changes locally',()=>{
+    notOk(t19.holder,'fixture failed: this device should not hold the pen');
+    ok(/^dirty/.test(t19.dirtyAsHolder),'fixture failed: the holder edit did not make it dirty, got '+t19.dirtyAsHolder);
+    ok(/^dirty/.test(t19.stateBefore),'fixture failed: expected dirty after losing the pen, got '+t19.stateBefore);
+    notOk(t19.pushed,'the push should refuse');
+    eq(commits,0,'a fence-less commit reached the server anyway ('+commits+')');
+    ok(/^dirty/.test(t19.stateAfter),'the changes must stay local, not be discarded');
+  });
+  await d10.ctx.close();
+
+  /* ---------- T20: the conflict export must be READABLE ------------------
+       Both exports did Object.assign({}, backupJSON(), {...}) — and backupJSON
+       returns a STRING, so the file came out as ~150k numbered character keys
+       instead of the data. It is the safety artifact taken BEFORE choosing
+       which copy to keep, so a broken one is worse than none (Owner, 2026-08-04,
+       who had to have it reconstructed character by character). ---------- */
+  const t20=await d9.page.evaluate(()=>{
+    const txt=conflictExportText('core-local');
+    let obj=null,err=null;
+    try{obj=JSON.parse(txt);}catch(e){err=String(e);}
+    const keys=obj?Object.keys(obj):[];
+    const numericKeys=keys.filter(k=>/^\d+$/.test(k)).length;
+    return {parsed:!!obj,err,marker:obj&&obj.__conflict,
+      totalKeys:keys.length,numericKeys,
+      hasRealSections:keys.some(k=>['weights','food','steps','settings','sleep'].includes(k)),
+      sample:keys.slice(0,10)};
+  });
+  test('T20 the conflict export is real JSON, not a string spread into characters',()=>{
+    ok(t20.parsed,'the export did not parse: '+t20.err);
+    eq(t20.marker,'core-local');
+    eq(t20.numericKeys,0,'character-indexed keys are back ('+t20.numericKeys+' of '+t20.totalKeys+')');
+    ok(t20.totalKeys<200,'suspiciously many keys ('+t20.totalKeys+') — looks spread again');
+    ok(t20.hasRealSections,'no recognisable data sections; keys were '+JSON.stringify(t20.sample));
+  });
+
   await d9x.ctx.close();
 
   test('T7 no uncaught page errors',()=>{eq(errs,[],'page errors');});
