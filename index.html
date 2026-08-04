@@ -944,7 +944,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-04.444-weeklywait";
+var APP_BUILD="2026-08-04.445-reportfeed";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -1253,7 +1253,7 @@ function load(){
   try{var raw=localStorage.getItem(KEY);if(raw){var d=JSON.parse(raw);
     state.settings=Object.assign({},DEFAULT_SETTINGS,d.settings||{});
     state.weights=Array.isArray(d.weights)?d.weights:[];
-    state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.bodyfat=d.bodyfat||{};state.waist=d.waist||{};state.leanmass=d.leanmass||{};state.statuses=d.statuses||[];state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;state.nightlyLog=d.nightlyLog||{};state.scriptVer=d.scriptVer||{};if(migrateCoachSeen())save();
+    state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.bodyfat=d.bodyfat||{};state.waist=d.waist||{};state.leanmass=d.leanmass||{};state.statuses=d.statuses||[];state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;state.nightlyLog=d.nightlyLog||{};state.scriptVer=d.scriptVer||{};coachRptLoad();if(migrateCoachSeen())save();
     state.presets=(Array.isArray(d.presets)&&d.presets.length)?d.presets:DEFAULT_PRESETS.slice();state.skips=d.skips||{};state.glp=d.glp||glpDefault();state.ratings=(d.ratings&&typeof d.ratings==="object")?d.ratings:{};state.checkins=(d.checkins&&typeof d.checkins==="object")?d.checkins:{};
   }}catch(e){}
   glpNormalize();
@@ -1333,7 +1333,7 @@ function applyCloud(d){if(!d)return;
   try{if(state.obDeferred)setTimeout(function(){onboardingGate(true);},0);}catch(e){}
   state.settings=Object.assign({},DEFAULT_SETTINGS,d.settings||{});
   state.weights=Array.isArray(d.weights)?d.weights:[];
-  state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.bodyfat=d.bodyfat||{};state.waist=d.waist||{};state.leanmass=d.leanmass||{};state.statuses=d.statuses||[];state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;state.nightlyLog=d.nightlyLog||{};state.scriptVer=d.scriptVer||{};if(migrateCoachSeen())save();
+  state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.bodyfat=d.bodyfat||{};state.waist=d.waist||{};state.leanmass=d.leanmass||{};state.statuses=d.statuses||[];state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;state.nightlyLog=d.nightlyLog||{};state.scriptVer=d.scriptVer||{};coachRptLoad();if(migrateCoachSeen())save();
   state.presets=(Array.isArray(d.presets)&&d.presets.length)?d.presets:DEFAULT_PRESETS.slice();state.skips=d.skips||{};state.glp=d.glp||glpDefault();state.ratings=(d.ratings&&typeof d.ratings==="object")?d.ratings:{};state.checkins=(d.checkins&&typeof d.checkins==="object")?d.checkins:{};glpNormalize();
   if(state.settings.macroAuto===undefined&&(num(state.settings.targetProtein)!=null||num(state.settings.targetCarbs)!=null||num(state.settings.targetFat)!=null))state.settings.macroAuto=false;
   if(state.settings.calTargetAuto===undefined&&num(state.settings.targetCalories)!=null)state.settings.calTargetAuto=false;
@@ -2479,7 +2479,32 @@ function ckRowSkip(label,val,sec){return '<button class="wl-ck-row" data-act="dl
 function skipBtn(sec,on,word){return '<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="skip:'+sec+'">'+(on?"Un-skip \u2014 I\u2019ll log "+word:"Not tracking "+word+" today")+'</button>'+(on?'<div class="wl-hint" style="margin-top:8px">Marked skipped \u2014 still counts as checked in. Logging when you can gives your coach a truer read over time.</div>':'');}
 /* The recap for a given day, wherever it lives: the per-day log first, then the
    "latest recap" slot. A day having a recap is what makes it Completed. */
-function dayRecap(iso){var l=(state.nightlyLog||{})[iso];if(l&&l.text)return l;var ns=state.nightlySummary;return (ns&&ns.date===iso&&ns.text)?ns:null;}
+/* ---- coach reports: a read-only service feed (Owner, 2026-08-04) ------
+   Reports live in their own server collection, keyed to the user. The app
+   only ever READS them, into state.coachRpt — which is deliberately NOT in
+   payload(), so a report can never be pushed, synced, conflicted or erased
+   by this device. Legacy in-record copies remain as a fallback for history
+   written before the split. */
+var COACHRPT_KEY="wl_coach_reports";
+function coachRptLoad(){try{state.coachRpt=JSON.parse(localStorage.getItem(COACHRPT_KEY))||{weekly:null,nightly:{}};}catch(e){state.coachRpt={weekly:null,nightly:{}};}}
+function coachRptSave(){try{localStorage.setItem(COACHRPT_KEY,JSON.stringify(state.coachRpt||{weekly:null,nightly:{}}));}catch(e){}}
+function fetchCoachReports(cb){
+  if(!syncOn()||ownershipAmbiguous()){cb&&cb(false);return;}
+  fetch(pbBase()+"/api/collections/coach_reports/records?perPage=200&sort=-period&t="+Date.now(),{headers:pbHeaders(),cache:"no-store"})
+    .then(function(r){if(!r.ok)return Promise.reject();return r.json();})
+    .then(function(p){var items=(p&&p.items)||[];var w=null,n={};
+      for(var i=0;i<items.length;i++){var it=items[i];var rep=it.report||null;if(!rep)continue;
+        if(it.kind==="weekly"){if(!w||String(it.period)>String(w.week||""))w=rep;}
+        else if(it.kind==="nightly"&&it.period)n[it.period]=rep;}
+      state.coachRpt={weekly:w,nightly:n};coachRptSave();cb&&cb(true);})
+    .catch(function(){cb&&cb(false);});}
+function coachWeekly(){var w=state.coachRpt&&state.coachRpt.weekly;if(w&&w.text)return w;return state.weeklySummary;}
+function coachNightly(iso){var n=state.coachRpt&&state.coachRpt.nightly&&state.coachRpt.nightly[iso];if(n&&n.text)return n;
+  var l=(state.nightlyLog||{})[iso];if(l&&l.text)return l;var ns=state.nightlySummary;return (ns&&ns.date===iso&&ns.text)?ns:null;}
+function coachNightlyLatest(){var n=(state.coachRpt&&state.coachRpt.nightly)||{};var ks=Object.keys(n).sort();
+  for(var i=ks.length-1;i>=0;i--){if(n[ks[i]]&&n[ks[i]].text)return n[ks[i]];}
+  return state.nightlySummary;}
+function dayRecap(iso){return coachNightly(iso);}
 /* Reopen a completed day: drop its recap from both stores so the day reverts to
    not-completed (Complete today + Health import return). Destructive by design. */
 function reopenDay(iso){var lg=state.nightlyLog||{};if(lg[iso])delete lg[iso];state.nightlyLog=lg;
@@ -2542,7 +2567,7 @@ function activitySummaryHTML(sel){
    decide whether to show the "This Week's Progress Photos" prompt, which the
    weekly check-in card replaced. Nothing reads that state now. */
 
-function maxSheetHTML(){if(!state.maxOpen)return "";var ws=state.weeklySummary;var _ciDay=(new Date().getDay()===(parseInt(state.settings.weekStart,10)||0));
+function maxSheetHTML(){if(!state.maxOpen)return "";var ws=coachWeekly();var _ciDay=(new Date().getDay()===(parseInt(state.settings.weekStart,10)||0));
   var inner;
   if(state.genBusy){inner='<div class="wl-mhead"><span class="wl-mav">M</span><span style="min-width:0"><span class="wl-mtitle">Weekly check-in</span><span class="wl-msub">from Coach Max</span></span><button class="wl-maxx" data-act="max:close">\u2715</button></div><div class="wl-hint">\u23f3 Generating your check-in\u2026 this takes about a minute. You can close this and keep using the app.</div>';}
   else if(ws&&ws.text){inner='<div class="wl-mhead"><span class="wl-mav">M</span><span style="min-width:0"><span class="wl-mtitle">Weekly check-in</span><span class="wl-msub">from Coach Max \u00b7 week of '+fmtShort(parseISO(ws.week))+'</span></span><button class="wl-maxx" data-act="max:close">\u2715</button></div>'
@@ -2624,24 +2649,25 @@ function migrateCoachSeen(){var st=state.settings;var ch=false;
   if(st.seenWeekly==null&&state.weeklySummary&&state.weeklySummary.week){st.seenWeekly=state.weeklySummary.week;ch=true;}
   if(st.seenNightly==null&&state.nightlySummary&&state.nightlySummary.date){st.seenNightly=state.nightlySummary.date;ch=true;}
   return ch;}
-function coachUnreadN(){var ns=state.nightlySummary;return !!(ns&&ns.text&&ns.date&&state.settings.seenNightly!==ns.date);}
-function coachUnreadW(){var ws=state.weeklySummary;return !!(ws&&ws.text&&ws.week&&ws.week===toISO(weekStartFor(0))&&state.settings.seenWeekly!==ws.week);}
+function coachUnreadN(){var ns=coachNightlyLatest();return !!(ns&&ns.text&&ns.date&&state.settings.seenNightly!==ns.date);}
+function coachUnreadW(){var ws=coachWeekly();return !!(ws&&ws.text&&ws.week&&ws.week===toISO(weekStartFor(0))&&state.settings.seenWeekly!==ws.week);}
 function msgPreview(t){var x=(""+(t||"")).replace(/[#*_>`\u2022-]/g,"").replace(/\s+/g," ").trim();return x.length>110?x.slice(0,110)+"\u2026":x;}
 function coachHeadHTML(title,dateStr,unread,open){var right=unread?'<span class="wl-newpill">New</span>':(open?'<span class="wl-chevron open" style="margin-left:auto">›</span>':'<span style="margin-left:auto;color:var(--accent);font-weight:600;font-size:13px;flex:none">View ›</span>');
   return '<span class="wl-mhead"><span class="wl-mav">M</span><span style="min-width:0"><span class="wl-mtitle">'+title+'</span><span class="wl-msub">from Coach Max · '+dateStr+'</span></span>'+right+'</span>';}
 function view_overview(){
   var u=state.settings.units;
   var h='<div class="wl-stack">';h+=dayBarHTML();
-  var _log=state.nightlyLog||{};var _sel=state.selDate;var _unrdN=coachUnreadN();var _nsD=(state.nightlySummary||{}).date;
-  var _rcFor=function(d){var r=_log[d];if(r&&r.text)return r;return (state.nightlySummary&&state.nightlySummary.date===d&&state.nightlySummary.text)?state.nightlySummary:null;};
+  var _log=Object.assign({},state.nightlyLog||{},(state.coachRpt&&state.coachRpt.nightly)||{});
+  var _sel=state.selDate;var _unrdN=coachUnreadN();var _lns=coachNightlyLatest();var _nsD=(_lns||{}).date;
+  var _rcFor=function(d){return coachNightly(d);};
   var _rcDates=Object.keys(_log).filter(function(d){return _log[d]&&_log[d].text;});
-  if(state.nightlySummary&&state.nightlySummary.text&&_nsD&&_rcDates.indexOf(_nsD)<0)_rcDates.push(_nsD);
+  if(_lns&&_lns.text&&_nsD&&_rcDates.indexOf(_nsD)<0)_rcDates.push(_nsD);
   _rcDates.sort();
   var _rcDate=_rcFor(_sel)?_sel:null;/* recap shows only for the viewed day; no fallback to yesterday's recap on an uncompleted day */
   var _rc=_rcDate?_rcFor(_rcDate):null;var _recapCard="";var _atTop=false;
   if(_rc){var _unrdThis=_unrdN&&_rcDate===_nsD;_atTop=_unrdThis;var _no=_unrdThis?false:(state.nightOpen!==false);
     var _nav='';/* recap arrows retired 2026-08-02: the header day nav navigates days, and the recap follows the viewed day */
-    var _canRegen=SHOW_TESTBTN&&!state.nightBusy&&state.nightlySummary&&state.nightlySummary.date===_rcDate&&state.nightlySummary.text;
+    var _canRegen=SHOW_TESTBTN&&!state.nightBusy&&_lns&&_lns.date===_rcDate&&_lns.text;
     var _regen=_canRegen?'<button class="wl-recaplink" data-act="night:gen" aria-label="Regenerate recap">↻ Regenerate</button>':'';
     _recapCard='<div class="wl-card'+(_unrdThis?' wl-recap-new':'')+'"><div class="wl-recaphead"><button class="wl-collapse-head" style="flex:1;min-width:0" data-act="night:toggle">'+coachHeadHTML("Daily recap",fmtShort(parseISO(_rcDate)),_unrdThis,_no)+'</button>'+_regen+_nav+'</div>'+(_no?'<div class="wl-ai-summary" style="margin-top:6px">'+maxMoodHTML(_rc.mood)+renderSummary(_rc.text)+'</div>':'')+'</div>';}
   var _recapUnit=_recapCard+(SHOW_TESTBTN?completeBtnHTML(_sel):"");
@@ -8106,7 +8132,7 @@ document.addEventListener("click",function(e){
     if(pbRecId)_hkLaunch();else pbGetRecord(function(){_hkLaunch();});
     return;}
   if(a==="hk:cancel"){state.hkWait=null;render();return;}
-  if(a==="max:open"){state.maxOpen=true;var _mws=state.weeklySummary;if(_mws&&_mws.week&&state.settings.seenWeekly!==_mws.week){state.settings.seenWeekly=_mws.week;save();}render();return;}
+  if(a==="max:open"){state.maxOpen=true;fetchCoachReports(function(ch){if(ch)render();});var _mws=coachWeekly();if(_mws&&_mws.week&&state.settings.seenWeekly!==_mws.week){state.settings.seenWeekly=_mws.week;save();}render();return;}
   if(a==="max:close"){state.maxOpen=false;render();return;}
   if(a==="info"){state.infoOpen=el.getAttribute("data-info");render();return;}
   if(a==="info:close"){state.infoOpen=null;render();return;}
@@ -8365,7 +8391,7 @@ var lt=getLastSync();toast((syncLabel()||"Sync")+(lt?" \u00b7 "+fmtClock(lt):"")
          record for the coach watcher. Same shape as "Complete today". The
          push MUST land first or the coach would answer a check-in the
          server has not seen yet. */
-      var _prevGen=(state.weeklySummary&&state.weeklySummary.generated)||null;
+      var _prevGen=(coachWeekly()&&coachWeekly().generated)||null;
       pushDataPromise().then(function(){
         toast(_was?"Check-in updated — asking your coach":"Check-in complete — asking your coach");
         return new Promise(function(res){
@@ -8377,25 +8403,15 @@ var lt=getLastSync();toast((syncLabel()||"Sync")+(lt?" \u00b7 "+fmtClock(lt):"")
             res(ok);});});
       }).then(function(asked){
         if(!asked)return null;
-        /* WAIT FOR THE REPLY. Without this the report lands ~40s later while
-           this device has moved on to logging; the server is then ahead, and
-           the next push 409s into the review screen — a false alarm, since
-           the coach only ever changes fields this device does not own.
-           Adopting it here, while still clean, means the race never happens.
-
-           Deliberately cloudPull() and NOT pbGetRecord()+applyCloud(): the
-           latter overwrites state without advancing the M10 base, so the
-           save() that followed would schedule a push against a stale
-           revision and cause the very 409 this is meant to prevent.
-           cloudPull routes through the journaled adopt, which moves the base
-           with the data. It refuses while dirty, which is correct — unsynced
-           edits go up first, and the report arrives on the next ordinary
-           sync instead. */
+        /* WAIT FOR THE REPLY — as a pure READ of the reports service.
+           Reports live in their own collection now; fetching them touches no
+           synced state, no revision, no journal. There is nothing to race
+           and nothing to conflict with. */
         return new Promise(function(resolve){
           var n=0,MAX=70;
           function tick(){n++;
-            cloudPull(false,function(){
-              var got=state.weeklySummary;
+            fetchCoachReports(function(){
+              var got=coachWeekly();
               if(got&&got.text&&got.week===_nw&&got.generated!==_prevGen){resolve(true);return;}
               if(n>=MAX){resolve(false);return;}
               setTimeout(tick,6000);});}
@@ -9166,7 +9182,7 @@ function applyImport(text){
   askConfirm("Replace all data on this device with this backup? Current entries will be overwritten.",function(){
   state.settings=Object.assign({},DEFAULT_SETTINGS,d.settings||{});
   state.weights=Array.isArray(d.weights)?d.weights:[];
-  state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.bodyfat=d.bodyfat||{};state.waist=d.waist||{};state.leanmass=d.leanmass||{};state.statuses=d.statuses||[];state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;state.nightlyLog=d.nightlyLog||{};state.scriptVer=d.scriptVer||{};if(migrateCoachSeen())save();
+  state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.bodyfat=d.bodyfat||{};state.waist=d.waist||{};state.leanmass=d.leanmass||{};state.statuses=d.statuses||[];state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;state.nightlyLog=d.nightlyLog||{};state.scriptVer=d.scriptVer||{};coachRptLoad();if(migrateCoachSeen())save();
   state.presets=(Array.isArray(d.presets)&&d.presets.length)?d.presets:DEFAULT_PRESETS.slice();
   state.pasteOpen=false;state.view="overview";applyTheme(state.settings.theme||"dark");save();toast("Data restored");
   },{label:"Replace",danger:false});
@@ -9305,26 +9321,28 @@ function genNightly(){
   var miss=dayMissing(sel);
   if(miss.length){toast("Log "+miss.join(", ")+" first to complete "+(sel===todayISO()?"today":"this day"));return;}
   state.nightBusy=true;render();
-  var prevGen=(state.nightlyLog&&state.nightlyLog[sel]&&state.nightlyLog[sel].generated)||null;
+  var prevGen=(coachNightly(sel)&&coachNightly(sel).generated)||null;
   pushDataPromise().then(function(){
     return new Promise(function(res,rej){
       pbSave({coachreq:{day:sel,ts:Date.now()}},function(ok){ok?res():rej(new Error("Couldn't reach your server"));});});
   }).then(function(){
-    /* poll for the recap: every 6s for up to 7 minutes (covers a 5-min coach cadence) */
+    /* poll the REPORTS SERVICE for the recap: a pure read, no synced state,
+       no revision, nothing to conflict with (Owner architecture, 2026-08-04).
+       Previously this pbGetRecord+applyCloud'd the whole record, which
+       overwrote local state without advancing the sync base — the same
+       latent hazard the weekly path hit. */
     return new Promise(function(resolve){
       var n=0,MAX=70;
       function tick(){n++;
-        pbGetRecord(function(rec){
-          var d=rec&&rec.data;
-          var got=d&&d.nightlyLog&&d.nightlyLog[sel];
-          if(got&&got.text&&got.generated!==prevGen){resolve(d);return;}
+        fetchCoachReports(function(){
+          var got=(state.coachRpt&&state.coachRpt.nightly&&state.coachRpt.nightly[sel])||null;
+          if(got&&got.text&&got.generated!==prevGen){resolve(true);return;}
           if(n>=MAX){resolve(null);return;}
           setTimeout(tick,6000);});}
       setTimeout(tick,8000);});
   }).then(function(d){
     state.nightBusy=false;
     if(d){
-      applyCloud(d);
       state.settings.seenNightly=sel;save();
       state.nightOpen=true;
       toast((sel===todayISO()?"Today":"That day")+"’s recap is ready");
@@ -11297,6 +11315,9 @@ function autoSync(){
        correctly every minute and still display the time it last signed in
        (Owner, 2026-08-03: "the last sync is still 5:56"). */
     if(st==="clean"){try{setLastSync();}catch(e){}setSync("ok");}
+    /* the coach-reports feed rides along with every sync: a pure read of the
+       reports collection, outside the synced record entirely */
+    try{fetchCoachReports(function(ch){if(ch)try{render();}catch(_e){}});}catch(e){}
     try{render();}catch(e){}});}
 /* =============== M10-WIRING-END (increment 2) =============== */
 
