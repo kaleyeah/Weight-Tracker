@@ -944,7 +944,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-04.436-reviewfix";
+var APP_BUILD="2026-08-04.438-photodiag";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -2372,7 +2372,8 @@ function view_checkin(){
     h+='<div class="wl-card"><div class="wl-card-head"><span>How you’ve felt</span><span class="wl-count">14 days</span></div>'+feelBarsHTML(todayISO(),14)+feelWatchHTML(todayISO())+'</div>';
   h+='<div class="wl-card"><div class="wl-card-head"><span>This week’s photos</span><span class="wl-count" id="wl-ciphoto-n">—</span></div>'+
      '<div id="wl-ciphotos" class="wl-citiles"></div>'+
-     '<div class="wl-hint" style="margin-top:10px">Tap a slot to add or retake. Same light, same time of day, same distance — that is what makes them comparable.</div></div>';
+     '<div class="wl-hint" style="margin-top:10px">Tap a slot to add or retake. Same light, same time of day, same distance — that is what makes them comparable.</div>'+
+     photoDiagHTML()+'</div>';
   h+='<div class="wl-card"><div class="wl-card-head"><span>Your week</span></div>';
   var adh=ciAdherence(wk);
   if(adh){
@@ -2407,6 +2408,19 @@ function view_checkin(){
   }
   h+='</div>';
   return h+'</div>';
+}
+/* On-device photo diagnostic: what the last download actually did, and a way to
+   run it again. Added because progress photos were present on the server with
+   valid localIds and still absent on a reinstalled iPad, and the code alone did
+   not say which step failed (Owner, 2026-08-04). */
+function photoDiagHTML(){
+  var r=psReport();
+  var line;
+  if(!r)line="Photo sync hasn’t run yet on this device.";
+  else if(r.ok)line="Last photo sync: "+r.down+" downloaded, "+r.up+" uploaded"+(r.rm?", "+r.rm+" removed":"")+".";
+  else line="Photo sync did not run — "+(r.why||"reason unknown")+".";
+  return '<div class="wl-hint" style="margin-top:8px">'+esc(line)+
+    ' <button class="wl-link" data-act="photo:resync">Download photos now</button></div>';
 }
 function renderCheckinPhotos(){
   var host=document.getElementById("wl-ciphotos");if(!host)return;
@@ -6716,7 +6730,7 @@ var POSES=[["front","Front"],["left","Left Side"],["right","Right Side"],["back"
 function view_photos(){
   var h='<div class="wl-stack">';
   h+='<div class="wl-card"><div class="wl-card-head"><span>This Week '+infoBtn("photos")+'</span><span class="wl-count">'+fmtShort(weekStartFor(0))+'</span></div><div id="wl-progweek" class="wl-poserow"><div class="wl-hint">Loading\u2026</div></div><div class="wl-hint" style="margin-top:10px">Tap a slot to add or retake.</div></div>';
-  h+='<div id="wl-progtimeline"></div>';
+  h+=photoDiagHTML();h+='<div id="wl-progtimeline"></div>';
   return h+'</div>';
 }
 function renderProgressPhotos(){clearPhotoURLs();var curWk=toISO(weekStartFor(0));
@@ -8312,6 +8326,14 @@ var lt=getLastSync();toast((syncLabel()||"Sync")+(lt?" \u00b7 "+fmtClock(lt):"")
   if(a==="trend:prev"){state.trendOffset=(state.trendOffset||0)+1;state.histMore=false;render();return;}
   if(a==="trend:next"){state.trendOffset=Math.max(0,(state.trendOffset||0)-1);state.histMore=false;render();return;}
   if(a==="photo:add"){state.pendingMeal=el.getAttribute("data-meal")||"";state.pendingPose=null;document.getElementById("wl-photo-input").click();return;}
+  if(a==="photo:resync"){
+    toast("Downloading photos…");
+    try{photoSync(function(r){
+      if(r&&(r.downloaded||r.uploaded))toast(r.downloaded+" downloaded, "+r.uploaded+" uploaded");
+      else{var q=psReport();toast(q&&!q.ok?("Photo sync: "+q.why):"Nothing new to download");}
+      try{if(state.view==="checkin")renderCheckinPhotos();else if(state.view==="photos")renderProgressPhotos();render();}catch(e){}
+    });}catch(e){toast("Photo sync failed to start");}
+    return;}
   if(a==="pphoto:add"){state.pendingPose=el.getAttribute("data-pose");state.pendingProgWeek=el.getAttribute("data-week")||toISO(weekStartFor(0));state.pendingMeal=null;document.getElementById("wl-photo-input").click();return;}
   /* ---- daily ratings ---- */
   if(a==="rat:set"){ratSet(el.getAttribute("data-date"),el.getAttribute("data-q"),el.getAttribute("data-v"));render();return;}
@@ -11736,13 +11758,20 @@ function m10cxViewHTML(){
   h+='<div style="font-size:13px;line-height:1.6;margin-bottom:10px">';
   h+='<b>This device:</b> '+esc(m10cxSummary(v.localData))+'<br>';
   h+='<b>Server:</b> '+esc(m10cxSummary(v.serverData))+'</div>';
-  if(!holder)h+='<div class="wl-hint" style="margin-bottom:6px">Another session is the active writer — resolving needs the pen.</div>'
+  if(!holder)h+='<div class="wl-hint" style="margin-bottom:6px">Another session is the active writer — you can still take the SERVER’s copy here; keeping this device’s copy needs the pen.</div>'
     +'<button class="wl-btn wl-btn-primary wl-full" data-act="m10cx:takeover">Take over on this device</button>';
   h+='<button class="wl-btn '+(exported?'wl-btn-ghost':'wl-btn-primary')+' wl-full" style="margin-top:12px" data-act="m10cx:export">'+(exported?'Exported ✓ — export again':'Export both copies first')+'</button>';
   if(!exported)h+='<div class="wl-hint" style="margin-top:6px">Both copies leave the device before any choice — and any new edit asks for a fresh export.</div>';
-  var unlocked=exported&&holder;
-  h+='<button class="wl-btn wl-full" style="margin-top:10px;background:var(--accent);color:#fff;border:none'+(unlocked?'':';opacity:.4')+'" '+(unlocked?'data-act="m10cx:mine"':'disabled')+'>Keep this device’s copy</button>';
-  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px'+(unlocked&&v.serverData!==null?'':';opacity:.4')+'" '+(unlocked&&v.serverData!==null?'data-act="m10cx:server"':'disabled')+'>Take the server’s copy</button>';
+  /* The UI gate was the SAME for both choices, which re-created the deadlock at
+     the button even after m10cxTakeServer stopped demanding the pen: a read-only
+     device saw both options greyed and had no way out (Owner, 2026-08-03).
+     They are different operations and need different gates.
+       keep-mine   -> WRITES TO THE SERVER: export + pen.
+       take-server -> installs the server copy LOCALLY: export only. */
+  var unlockedMine=exported&&holder;
+  var unlockedServer=exported;
+  h+='<button class="wl-btn wl-full" style="margin-top:10px;background:var(--accent);color:#fff;border:none'+(unlockedMine?'':';opacity:.4')+'" '+(unlockedMine?'data-act="m10cx:mine"':'disabled')+'>Keep this device’s copy</button>';
+  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px'+(unlockedServer&&v.serverData!==null?'':';opacity:.4')+'" '+(unlockedServer&&v.serverData!==null?'data-act="m10cx:server"':'disabled')+'>Take the server’s copy</button>';
   h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="m10cx:close">Decide later</button>';
   return h+'</div></div>';}
 
@@ -12750,11 +12779,23 @@ function pbPhotoFetchBlob(srec,token){
 
 /* ---- the sync itself ---- */
 var pbPhotoSyncing=false;
+var _psLast=null;   /* last photoSync outcome, for the on-device diagnostic */
+function psReport(){return _psLast;}
 function photoSync(done){
+  var _psDone=done;
+  done=function(r){
+    try{
+      if(r&&typeof r==="object")_psLast={ok:true,at:Date.now(),up:r.uploaded|0,down:r.downloaded|0,rm:r.removed|0};
+      else if(!_psLast||_psLast.ok!==false)_psLast={ok:false,at:Date.now(),why:"stopped before syncing"};
+    }catch(e){}
+    _psDone&&_psDone(r);
+  };
   /* Photo bytes and the photo map are local user data with no owner stamp
      either -- do not upload, download, reconcile or delete while unattributed. */
-  if(ownershipAmbiguous()){done&&done();return;}
-  if(!syncOn()||pbPhotoSyncing||typeof indexedDB==="undefined"){done&&done();return;}
+  if(ownershipAmbiguous()){_psLast={ok:false,at:Date.now(),why:"this device\u2019s data isn\u2019t matched to your account yet"};done&&done();return;}
+  if(!syncOn()||pbPhotoSyncing||typeof indexedDB==="undefined"){
+    _psLast={ok:false,at:Date.now(),why:(!syncOn()?"not signed in":(pbPhotoSyncing?"a photo sync is already running":"this browser has no photo storage"))};
+    done&&done();return;}
   pbPhotoSyncing=true;
   var uploaded=0,downloaded=0,removed=0;
   /* mapStart is the set of photos we KNEW were on the server before this run.

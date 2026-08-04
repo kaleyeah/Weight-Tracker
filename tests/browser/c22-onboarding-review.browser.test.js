@@ -490,6 +490,31 @@ async function freshDevice(browser,routeHandler){
     ok(t16.pushMineDemandsPen,'pushing THIS device up must still require the pen');
     ok(t16.takeServerWritesLocallyOnly,'taking the server copy should install it locally');
   });
+  /* ---------- T17: the BUTTON, not just the function --------------------
+       .436 removed the pen check inside m10cxTakeServer but left the UI gate
+       shared between both choices, so a read-only device still saw both greyed
+       out — the deadlock survived at the button (Owner, 2026-08-03, screenshot
+       showing both disabled). The two choices need different gates. --- */
+  const t17=await d9.page.evaluate(()=>{
+    const src=m10cxViewHTML.toString();
+    return {
+      hasSharedGate:/var unlocked\s*=\s*exported\s*&&\s*holder/.test(src),
+      mineNeedsPen:/unlockedMine\s*=\s*exported\s*&&\s*holder/.test(src),
+      serverNeedsExportOnly:/unlockedServer\s*=\s*exported\b/.test(src)&&
+                            !/unlockedServer\s*=\s*exported\s*&&\s*holder/.test(src),
+      mineButtonUsesMineGate:/unlockedMine\?'data-act="m10cx:mine"/.test(src),
+      serverButtonUsesServerGate:/unlockedServer&&v\.serverData!==null\?'data-act="m10cx:server"/.test(src),
+      penCopyStillClaimsBoth:/resolving needs the pen/.test(src)};
+  });
+  test('T17 the two review choices have DIFFERENT gates, so read-only is not stuck',()=>{
+    notOk(t17.hasSharedGate,'both choices still share one gate — the deadlock');
+    ok(t17.mineNeedsPen,'keeping THIS device\'s copy must still require the pen');
+    ok(t17.serverNeedsExportOnly,'taking the SERVER copy must need the export only');
+    ok(t17.mineButtonUsesMineGate,'the keep-mine button is not wired to its own gate');
+    ok(t17.serverButtonUsesServerGate,'the take-server button is not wired to its own gate');
+    notOk(t17.penCopyStillClaimsBoth,'the copy still tells the user BOTH choices need the pen');
+  });
+
   await d9x.ctx.close();
 
   test('T7 no uncaught page errors',()=>{eq(errs,[],'page errors');});
