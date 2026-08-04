@@ -944,7 +944,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-04.442-exportfix";
+var APP_BUILD="2026-08-04.443-weeklyask";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -8360,8 +8360,21 @@ var lt=getLastSync();toast((syncLabel()||"Sync")+(lt?" \u00b7 "+fmtClock(lt):"")
     _nr.ratings14=feelDays(14,todayISO()).map(function(d){var o={date:d};RATINGS.forEach(function(q){var v=ratFor(d)[q[0]];if(v)o[q[0]]=v;});return o;}).filter(function(o){return Object.keys(o).length>1;});
     save();
     if(syncOn()){try{photoSync();}catch(e){}
-      pushDataPromise().then(function(){toast(_was?"Check-in updated":"Weekly check-in complete");})
-        .catch(function(){toast("Saved — it will sync when you're back online");});
+      /* The weekly report is a REPLY to this submission, never a scheduled
+         artifact: push the check-in first, then leave the request on the
+         record for the coach watcher. Same shape as "Complete today". The
+         push MUST land first or the coach would answer a check-in the
+         server has not seen yet. */
+      pushDataPromise().then(function(){
+        toast(_was?"Check-in updated — asking your coach":"Check-in complete — asking your coach");
+        return new Promise(function(res){
+          pbSave({coachreq:{week:_nw,ts:Date.now()}},function(ok){
+            /* a failed request is not a failed check-in: the check-in is
+               saved and synced either way, so say so plainly rather than
+               implying the submission was lost */
+            if(!ok)toast("Check-in saved, but your coach couldn't be reached — reopen it to ask again");
+            res();});});
+      }).catch(function(){toast("Saved — it will sync when you're back online");});
     }else toast("Saved — log in to sync it");
     state.view=(state.ciFrom==="weight")?"weight":"overview";render();return;}
   if(a==="photo:view"){openLightbox(el.getAttribute("data-id"));return;}
