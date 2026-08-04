@@ -944,7 +944,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-04.445-reportfeed";
+var APP_BUILD="2026-08-04.446-fencedsubmit";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -12595,8 +12595,24 @@ function cloudTest(){
     toast("Connected to your server");render();});}
 
 function pushDataPromise(){
+  /* Was pbSave({data:payload()}) — a RAW PATCH of the whole record that
+     bypassed the fenced commit route: no revision check, no ledger row.
+     The server bumps coreRev on any raw `data` write, so every check-in
+     submit and every "Complete today" silently moved the record to a
+     revision this device's protocol never saw — whose very next fenced
+     push then 409'd into "Body data needs your review". It also carried
+     the stale coach fields wholesale, which is what kept erasing the
+     weekly report around the containment patch (observed 22:50, coreRev
+     339, no ledger row). One function, every symptom tonight.
+
+     Now it rides the fenced protocol like every other core write. save()
+     has already marked the device dirty on these paths; "clean" means
+     there is nothing to push and that is success, not failure. */
   return new Promise(function(res,rej){
-    pbSave({data:payload()},function(ok,err){ok?res():rej(new Error(err==="offline"?"No connection":"Couldn't save your data first"));});});}
+    var st=m10cState();
+    if(st==="clean"){res();return;}
+    if(st!=="dirty"&&st!=="dirty-unproven"){rej(new Error("Couldn't save your data first"));return;}
+    m10cPush(false,function(ok){ok?res():rej(new Error("Couldn't save your data first"));});});}
 
 /* ---- Apple Health bridge (from-scratch, 2026-07) ----
    A PWA cannot read HealthKit, so the iOS Shortcut is still the only reader. What
