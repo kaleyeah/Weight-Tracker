@@ -78,3 +78,36 @@ Server view (meta only), matching the readings exactly:
 
 Step 8 (a day of normal two-device use) in progress; post-canary record
 comparison closes the sequence.
+
+---
+
+# Canary findings log (evening of day 1)
+
+**Finding 1 — dead robar button (pre-existing, verified in .460 bytes):** the
+read-only bar's Take over button is dispatched by a listener whose closest()
+selector filters `m10cx:`-prefixed actions; `m10:takeover` never matched. Dead
+since written. Fix: selector widened; c25 F9 clicks the real button.
+
+**Finding 2+3 — dialogs buried under the review sheet (pre-existing):** the
+m10cx review sheet reuses `wl-confirm` (z-index 2000) in `#m10-cx`, a later
+body sibling than `#app`, so the takeover confirm AND the take-server
+"Replace EVERYTHING" confirm rendered invisibly beneath it (Owner screenshots
+IMG_2887–2889: "kept hitting the button and nothing happened… the modals were
+stacking… the screenshot was hidden behind them all"). Fix: pendingConfirm
+overlay at z-index 2500; c25 F10 asserts elementFromPoint at the confirm
+button IS the button, then proves the confirmed steal executes.
+
+Neither is a .461 regression; both shipped in .460 and earlier. Not rollback
+triggers. Both fixed in `.462-takeover` (`cd671b0`), c25 77/77, mutations
+F9-deadbutton and F10-buried both caught. Push authorization pending.
+
+**Owner product request:** last-sync timestamps on the copy-comparison
+surfaces (tracked separately).
+
+**Owner adversarial test (his own design):** with the iPad holding the pen he
+made a change there, then immediately took over on the phone — the change was
+caught, not lost. The review path surfaced the concurrent edit exactly as
+designed. Review resolved: server copy kept (after export). Lease trail
+iPhone f3 → iPad f4 → iPhone f5 all fenced; the review prompt is EXPLAINED
+(concurrent edits on two devices across a takeover, the case the design
+refuses to auto-resolve).
