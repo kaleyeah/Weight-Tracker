@@ -120,10 +120,18 @@ const notOk = (v, m) => { if (v) throw new Error(m || 'expected falsy'); };
      the loss is CONTAINED in an exportable copy while the live app stays
      degraded. Asserting both halves proves the loss happened and was survived --
      not that it was prevented. */
-  test('the boot sync DID overwrite the live copy (loss reproduced)', () => {
-    notOk(afterSync.live['2026-07-31'], 'expected the live key to lose the session here');
+  /* HISTORY (Phase 0, 2026-08-05): this case originally asserted the OPPOSITE —
+     "the boot sync DID overwrite the live copy (loss reproduced)" — because the
+     build it characterized still had the unconditional trainingPull, and the
+     snapshot's whole job was to CONTAIN a loss that could not yet be prevented.
+     The M8/M10 protocol replaced that pull with a journaled, fenced adoption,
+     so on the current client the loss does not happen at all. The failing
+     assertion was the documented defect being FIXED, not a regression. It now
+     pins the modern behaviour; the snapshot-containment half stays as-is. */
+  test('the boot sync does NOT overwrite the live copy (defect fixed by M8/M10)', () => {
+    ok(afterSync.live['2026-07-31'], 'the live session must survive the boot sync');
   });
-  test('but the snapshot still holds the unsynced 2026-07-31 session', () => {
+  test('and the snapshot still holds the unsynced 2026-07-31 session', () => {
     ok(JSON.parse(afterSync.rec.training).liftSessions['2026-07-31'], 'the pre-sync copy lost it');
   });
 

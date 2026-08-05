@@ -1,0 +1,8 @@
+tdee-core.test.mjs             36 passed, 0 failed
+tdee-integration.test.mjs      11 passed, 0 failed
+coach-sheet.test.mjs           30 passed, 0 failed
+avatar-cue.test.mjs            15 passed, 0 failed
+proposal-parity.mjs            6 passed, 0 failed
+proposal-golden.mjs            21 identical, 0 changed
+smoke.test.mjs                 no uncaught errors
+build --check:                 index.html matches src/

@@ -1,0 +1,614 @@
+✓ index.html script block parses
+OK — 12 passed  — browser-harness-self.test.js
+/home/griffin/projects/compound-app/tests/harness.js:37
+  if (missing.length) throw new Error('missing @testable block(s): ' + missing.join(', '));
+                      ^
+
+Error: missing @testable block(s): C1
+    at loadTestable (/home/griffin/projects/compound-app/tests/harness.js:37:29)
+    at Object.<anonymous> (/home/griffin/projects/compound-app/tests/c1-emergency-hotfix.test.js:4:11)
+    at Module._compile (node:internal/modules/cjs/loader:1871:14)
+    at Object..js (node:internal/modules/cjs/loader:2002:10)
+    at Module.load (node:internal/modules/cjs/loader:1594:32)
+    at Module._load (node:internal/modules/cjs/loader:1396:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47
+
+Node.js v24.18.0
+FAILED — c1-emergency-hotfix.test.js
+/home/griffin/projects/compound-app/tests/harness.js:37
+  if (missing.length) throw new Error('missing @testable block(s): ' + missing.join(', '));
+                      ^
+
+Error: missing @testable block(s): C1
+    at loadTestable (/home/griffin/projects/compound-app/tests/harness.js:37:29)
+    at Object.<anonymous> (/home/griffin/projects/compound-app/tests/c1-emergency-hotfix.test.js:4:11)
+    at Module._compile (node:internal/modules/cjs/loader:1871:14)
+    at Object..js (node:internal/modules/cjs/loader:2002:10)
+    at Module.load (node:internal/modules/cjs/loader:1594:32)
+    at Module._load (node:internal/modules/cjs/loader:1396:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47
+
+Node.js v24.18.0
+
+/home/griffin/projects/compound-app/tests/harness.js:37
+  if (missing.length) throw new Error('missing @testable block(s): ' + missing.join(', '));
+                      ^
+
+Error: missing @testable block(s): C10
+    at loadTestable (/home/griffin/projects/compound-app/tests/harness.js:37:29)
+    at Object.<anonymous> (/home/griffin/projects/compound-app/tests/c10-cas-client.test.js:7:11)
+    at Module._compile (node:internal/modules/cjs/loader:1871:14)
+    at Object..js (node:internal/modules/cjs/loader:2002:10)
+    at Module.load (node:internal/modules/cjs/loader:1594:32)
+    at Module._load (node:internal/modules/cjs/loader:1396:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47
+
+Node.js v24.18.0
+FAILED — c10-cas-client.test.js
+/home/griffin/projects/compound-app/tests/harness.js:37
+  if (missing.length) throw new Error('missing @testable block(s): ' + missing.join(', '));
+                      ^
+
+Error: missing @testable block(s): C10
+    at loadTestable (/home/griffin/projects/compound-app/tests/harness.js:37:29)
+    at Object.<anonymous> (/home/griffin/projects/compound-app/tests/c10-cas-client.test.js:7:11)
+    at Module._compile (node:internal/modules/cjs/loader:1871:14)
+    at Object..js (node:internal/modules/cjs/loader:2002:10)
+    at Module.load (node:internal/modules/cjs/loader:1594:32)
+    at Module._load (node:internal/modules/cjs/loader:1396:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47
+
+Node.js v24.18.0
+
+/home/griffin/projects/compound-app/tests/c10-conflict-view.test.js:19
+const withConflict = (sub) => (e) => e.S.cfCasSetConflictId(sub, 'casrec-' + sub + '-' + 'a'.repeat(32));
+                                         ^
+
+TypeError: e.S.cfCasSetConflictId is not a function
+    at /home/griffin/projects/compound-app/tests/c10-conflict-view.test.js:19:42
+    at /home/griffin/projects/compound-app/tests/c10-conflict-view.test.js:16:31
+    at Array.forEach (<anonymous>)
+    at env (/home/griffin/projects/compound-app/tests/c10-conflict-view.test.js:16:16)
+    at /home/griffin/projects/compound-app/tests/c10-conflict-view.test.js:34:13
+    at group (/home/griffin/projects/compound-app/tests/harness.js:74:3)
+    at Object.<anonymous> (/home/griffin/projects/compound-app/tests/c10-conflict-view.test.js:33:1)
+    at Module._compile (node:internal/modules/cjs/loader:1871:14)
+    at Object..js (node:internal/modules/cjs/loader:2002:10)
+    at Module.load (node:internal/modules/cjs/loader:1594:32)
+
+Node.js v24.18.0
+FAILED — c10-conflict-view.test.js
+
+The heading and body say what happened, in the athlete's terms
+/home/griffin/projects/compound-app/tests/c10-conflict-view.test.js:19
+const withConflict = (sub) => (e) => e.S.cfCasSetConflictId(sub, 'casrec-' + sub + '-' + 'a'.repeat(32));
+                                         ^
+
+TypeError: e.S.cfCasSetConflictId is not a function
+    at /home/griffin/projects/compound-app/tests/c10-conflict-view.test.js:19:42
+    at /home/griffin/projects/compound-app/tests/c10-conflict-view.test.js:16:31
+    at Array.forEach (<anonymous>)
+    at env (/home/griffin/projects/compound-app/tests/c10-conflict-view.test.js:16:16)
+    at /home/griffin/projects/compound-app/tests/c10-conflict-view.test.js:34:13
+    at group (/home/griffin/projects/compound-app/tests/harness.js:74:3)
+    at Object.<anonymous> (/home/griffin/projects/compound-app/tests/c10-conflict-view.test.js:33:1)
+    at Module._compile (node:internal/modules/cjs/loader:1871:14)
+    at Object..js (node:internal/modules/cjs/loader:2002:10)
+    at Module.load (node:internal/modules/cjs/loader:1594:32)
+
+Node.js v24.18.0
+
+index.html#full:10453
+  var t0=performance.now();
+         ^
+
+ReferenceError: performance is not defined
+    at m10Boot (index.html#full:10453:10)
+    at index.html#full:13411:134
+    at index.html#full:9194:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+Node.js v24.18.0
+FAILED — c10-conflict-workflow.test.js
+
+A6 — a historical correction meets a newer weigh-in
+index.html#full:10453
+  var t0=performance.now();
+         ^
+
+ReferenceError: performance is not defined
+    at m10Boot (index.html#full:10453:10)
+    at index.html#full:13411:134
+    at index.html#full:9194:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+Node.js v24.18.0
+
+OK — 50 passed  — c10-independent-manifest.test.js
+FAILED — c10-recovery-writer.test.js
+
+Point 1 — a fresh artifact id is chosen
+  ✗ deferred scenario threw: env.S.cfCasRecNewId is not a function
+
+----------------------------------------------------
+FAILED — 0 passed, 1 failed
+
+index.html#full:10453
+  var t0=performance.now();
+         ^
+
+ReferenceError: performance is not defined
+    at m10Boot (index.html#full:10453:10)
+    at index.html#full:13411:134
+    at index.html#full:9194:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+Node.js v24.18.0
+FAILED — c10-scheduler.test.js
+
+CAS-01/02 — an ordinary edit produces ZERO raw snapshot writes
+index.html#full:10453
+  var t0=performance.now();
+         ^
+
+ReferenceError: performance is not defined
+    at m10Boot (index.html#full:10453:10)
+    at index.html#full:13411:134
+    at index.html#full:9194:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+Node.js v24.18.0
+
+  run: CF_SRC=/home/griffin/projects/compound-app/index.html node tests/c11-training-durability.test.js  — c11-training-durability.test.js
+  run: CF_SRC=/home/griffin/projects/compound-app/index.html node tests/c12-backup-training.test.js  — c12-backup-training.test.js
+  run: CF_SRC=/home/griffin/projects/compound-app/index.html node tests/c13-recovery-snapshot.test.js  — c13-recovery-snapshot.test.js
+/home/griffin/projects/compound-app/tests/harness.js:37
+  if (missing.length) throw new Error('missing @testable block(s): ' + missing.join(', '));
+                      ^
+
+Error: missing @testable block(s): C1, C1B
+    at loadTestable (/home/griffin/projects/compound-app/tests/harness.js:37:29)
+    at Object.<anonymous> (/home/griffin/projects/compound-app/tests/c1b-write-freeze.test.js:6:11)
+    at Module._compile (node:internal/modules/cjs/loader:1871:14)
+    at Object..js (node:internal/modules/cjs/loader:2002:10)
+    at Module.load (node:internal/modules/cjs/loader:1594:32)
+    at Module._load (node:internal/modules/cjs/loader:1396:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47
+
+Node.js v24.18.0
+FAILED — c1b-write-freeze.test.js
+/home/griffin/projects/compound-app/tests/harness.js:37
+  if (missing.length) throw new Error('missing @testable block(s): ' + missing.join(', '));
+                      ^
+
+Error: missing @testable block(s): C1, C1B
+    at loadTestable (/home/griffin/projects/compound-app/tests/harness.js:37:29)
+    at Object.<anonymous> (/home/griffin/projects/compound-app/tests/c1b-write-freeze.test.js:6:11)
+    at Module._compile (node:internal/modules/cjs/loader:1871:14)
+    at Object..js (node:internal/modules/cjs/loader:2002:10)
+    at Module.load (node:internal/modules/cjs/loader:1594:32)
+    at Module._load (node:internal/modules/cjs/loader:1396:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47
+
+Node.js v24.18.0
+
+/home/griffin/projects/compound-app/tests/c1c-integration.test.js:14
+  const before = env.S.revLocal('core');
+                       ^
+
+TypeError: env.S.revLocal is not a function
+    at /home/griffin/projects/compound-app/tests/c1c-integration.test.js:14:24
+    at group (/home/griffin/projects/compound-app/tests/harness.js:74:3)
+    at Object.<anonymous> (/home/griffin/projects/compound-app/tests/c1c-integration.test.js:12:1)
+    at Module._compile (node:internal/modules/cjs/loader:1871:14)
+    at Object..js (node:internal/modules/cjs/loader:2002:10)
+    at Module.load (node:internal/modules/cjs/loader:1594:32)
+    at Module._load (node:internal/modules/cjs/loader:1396:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47
+
+Node.js v24.18.0
+FAILED — c1c-integration.test.js
+
+I1 — ordinary save(): revision advances, zero appdata writes
+/home/griffin/projects/compound-app/tests/c1c-integration.test.js:14
+  const before = env.S.revLocal('core');
+                       ^
+
+TypeError: env.S.revLocal is not a function
+    at /home/griffin/projects/compound-app/tests/c1c-integration.test.js:14:24
+    at group (/home/griffin/projects/compound-app/tests/harness.js:74:3)
+    at Object.<anonymous> (/home/griffin/projects/compound-app/tests/c1c-integration.test.js:12:1)
+    at Module._compile (node:internal/modules/cjs/loader:1871:14)
+    at Object..js (node:internal/modules/cjs/loader:2002:10)
+    at Module.load (node:internal/modules/cjs/loader:1594:32)
+    at Module._load (node:internal/modules/cjs/loader:1396:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47
+
+Node.js v24.18.0
+
+/home/griffin/projects/compound-app/tests/harness.js:37
+  if (missing.length) throw new Error('missing @testable block(s): ' + missing.join(', '));
+                      ^
+
+Error: missing @testable block(s): C1, C1D
+    at loadTestable (/home/griffin/projects/compound-app/tests/harness.js:37:29)
+    at Object.<anonymous> (/home/griffin/projects/compound-app/tests/c1d-coach-equality.test.js:8:11)
+    at Module._compile (node:internal/modules/cjs/loader:1871:14)
+    at Object..js (node:internal/modules/cjs/loader:2002:10)
+    at Module.load (node:internal/modules/cjs/loader:1594:32)
+    at Module._load (node:internal/modules/cjs/loader:1396:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47
+
+Node.js v24.18.0
+FAILED — c1d-coach-equality.test.js
+/home/griffin/projects/compound-app/tests/harness.js:37
+  if (missing.length) throw new Error('missing @testable block(s): ' + missing.join(', '));
+                      ^
+
+Error: missing @testable block(s): C1, C1D
+    at loadTestable (/home/griffin/projects/compound-app/tests/harness.js:37:29)
+    at Object.<anonymous> (/home/griffin/projects/compound-app/tests/c1d-coach-equality.test.js:8:11)
+    at Module._compile (node:internal/modules/cjs/loader:1871:14)
+    at Object..js (node:internal/modules/cjs/loader:2002:10)
+    at Module.load (node:internal/modules/cjs/loader:1594:32)
+    at Module._load (node:internal/modules/cjs/loader:1396:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47
+
+Node.js v24.18.0
+
+/home/griffin/projects/compound-app/tests/harness.js:37
+  if (missing.length) throw new Error('missing @testable block(s): ' + missing.join(', '));
+                      ^
+
+Error: missing @testable block(s): C1E
+    at loadTestable (/home/griffin/projects/compound-app/tests/harness.js:37:29)
+    at Object.<anonymous> (/home/griffin/projects/compound-app/tests/c1e-adoption-race.test.js:6:11)
+    at Module._compile (node:internal/modules/cjs/loader:1871:14)
+    at Object..js (node:internal/modules/cjs/loader:2002:10)
+    at Module.load (node:internal/modules/cjs/loader:1594:32)
+    at Module._load (node:internal/modules/cjs/loader:1396:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47
+
+Node.js v24.18.0
+FAILED — c1e-adoption-race.test.js
+/home/griffin/projects/compound-app/tests/harness.js:37
+  if (missing.length) throw new Error('missing @testable block(s): ' + missing.join(', '));
+                      ^
+
+Error: missing @testable block(s): C1E
+    at loadTestable (/home/griffin/projects/compound-app/tests/harness.js:37:29)
+    at Object.<anonymous> (/home/griffin/projects/compound-app/tests/c1e-adoption-race.test.js:6:11)
+    at Module._compile (node:internal/modules/cjs/loader:1871:14)
+    at Object..js (node:internal/modules/cjs/loader:2002:10)
+    at Module.load (node:internal/modules/cjs/loader:1594:32)
+    at Module._load (node:internal/modules/cjs/loader:1396:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47
+
+Node.js v24.18.0
+
+/home/griffin/projects/compound-app/tests/harness.js:37
+  if (missing.length) throw new Error('missing @testable block(s): ' + missing.join(', '));
+                      ^
+
+Error: missing @testable block(s): C1F, C1G
+    at loadTestable (/home/griffin/projects/compound-app/tests/harness.js:37:29)
+    at Object.<anonymous> (/home/griffin/projects/compound-app/tests/c1f-destructive-guard.test.js:7:11)
+    at Module._compile (node:internal/modules/cjs/loader:1871:14)
+    at Object..js (node:internal/modules/cjs/loader:2002:10)
+    at Module.load (node:internal/modules/cjs/loader:1594:32)
+    at Module._load (node:internal/modules/cjs/loader:1396:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47
+
+Node.js v24.18.0
+FAILED — c1f-destructive-guard.test.js
+/home/griffin/projects/compound-app/tests/harness.js:37
+  if (missing.length) throw new Error('missing @testable block(s): ' + missing.join(', '));
+                      ^
+
+Error: missing @testable block(s): C1F, C1G
+    at loadTestable (/home/griffin/projects/compound-app/tests/harness.js:37:29)
+    at Object.<anonymous> (/home/griffin/projects/compound-app/tests/c1f-destructive-guard.test.js:7:11)
+    at Module._compile (node:internal/modules/cjs/loader:1871:14)
+    at Object..js (node:internal/modules/cjs/loader:2002:10)
+    at Module.load (node:internal/modules/cjs/loader:1594:32)
+    at Module._load (node:internal/modules/cjs/loader:1396:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47
+
+Node.js v24.18.0
+
+/home/griffin/projects/compound-app/tests/harness.js:37
+  if (missing.length) throw new Error('missing @testable block(s): ' + missing.join(', '));
+                      ^
+
+Error: missing @testable block(s): C1G
+    at loadTestable (/home/griffin/projects/compound-app/tests/harness.js:37:29)
+    at Object.<anonymous> (/home/griffin/projects/compound-app/tests/c1g-identity-manifest.test.js:6:11)
+    at Module._compile (node:internal/modules/cjs/loader:1871:14)
+    at Object..js (node:internal/modules/cjs/loader:2002:10)
+    at Module.load (node:internal/modules/cjs/loader:1594:32)
+    at Module._load (node:internal/modules/cjs/loader:1396:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47
+
+Node.js v24.18.0
+FAILED — c1g-identity-manifest.test.js
+/home/griffin/projects/compound-app/tests/harness.js:37
+  if (missing.length) throw new Error('missing @testable block(s): ' + missing.join(', '));
+                      ^
+
+Error: missing @testable block(s): C1G
+    at loadTestable (/home/griffin/projects/compound-app/tests/harness.js:37:29)
+    at Object.<anonymous> (/home/griffin/projects/compound-app/tests/c1g-identity-manifest.test.js:6:11)
+    at Module._compile (node:internal/modules/cjs/loader:1871:14)
+    at Object..js (node:internal/modules/cjs/loader:2002:10)
+    at Module.load (node:internal/modules/cjs/loader:1594:32)
+    at Module._load (node:internal/modules/cjs/loader:1396:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47
+
+Node.js v24.18.0
+
+/home/griffin/projects/compound-app/tests/harness.js:37
+  if (missing.length) throw new Error('missing @testable block(s): ' + missing.join(', '));
+                      ^
+
+Error: missing @testable block(s): C1H
+    at loadTestable (/home/griffin/projects/compound-app/tests/harness.js:37:29)
+    at /home/griffin/projects/compound-app/tests/c1h-reopen-recap.test.js:13:13
+    at group (/home/griffin/projects/compound-app/tests/harness.js:74:3)
+    at Object.<anonymous> (/home/griffin/projects/compound-app/tests/c1h-reopen-recap.test.js:12:1)
+    at Module._compile (node:internal/modules/cjs/loader:1871:14)
+    at Object..js (node:internal/modules/cjs/loader:2002:10)
+    at Module.load (node:internal/modules/cjs/loader:1594:32)
+    at Module._load (node:internal/modules/cjs/loader:1396:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+
+Node.js v24.18.0
+FAILED — c1h-reopen-recap.test.js
+
+H0 — unit: per-day recap generation
+/home/griffin/projects/compound-app/tests/harness.js:37
+  if (missing.length) throw new Error('missing @testable block(s): ' + missing.join(', '));
+                      ^
+
+Error: missing @testable block(s): C1H
+    at loadTestable (/home/griffin/projects/compound-app/tests/harness.js:37:29)
+    at /home/griffin/projects/compound-app/tests/c1h-reopen-recap.test.js:13:13
+    at group (/home/griffin/projects/compound-app/tests/harness.js:74:3)
+    at Object.<anonymous> (/home/griffin/projects/compound-app/tests/c1h-reopen-recap.test.js:12:1)
+    at Module._compile (node:internal/modules/cjs/loader:1871:14)
+    at Object..js (node:internal/modules/cjs/loader:2002:10)
+    at Module.load (node:internal/modules/cjs/loader:1594:32)
+    at Module._load (node:internal/modules/cjs/loader:1396:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+
+Node.js v24.18.0
+
+(node:3160816) [DEP0187] DeprecationWarning: Passing invalid argument types to fs.existsSync is deprecated
+(Use `node --trace-deprecation ...` to show where the warning was created)
+OK — 0 passed  — deploy-rc.test.js
+OK — 10 passed  — harness-self.test.js
+/home/griffin/projects/compound-app/tests/harness.js:37
+  if (missing.length) throw new Error('missing @testable block(s): ' + missing.join(', '));
+                      ^
+
+Error: missing @testable block(s): M1
+    at loadTestable (/home/griffin/projects/compound-app/tests/harness.js:37:29)
+    at Object.<anonymous> (/home/griffin/projects/compound-app/tests/m1-photo-ownership.test.js:6:11)
+    at Module._compile (node:internal/modules/cjs/loader:1871:14)
+    at Object..js (node:internal/modules/cjs/loader:2002:10)
+    at Module.load (node:internal/modules/cjs/loader:1594:32)
+    at Module._load (node:internal/modules/cjs/loader:1396:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47
+
+Node.js v24.18.0
+FAILED — m1-photo-ownership.test.js
+/home/griffin/projects/compound-app/tests/harness.js:37
+  if (missing.length) throw new Error('missing @testable block(s): ' + missing.join(', '));
+                      ^
+
+Error: missing @testable block(s): M1
+    at loadTestable (/home/griffin/projects/compound-app/tests/harness.js:37:29)
+    at Object.<anonymous> (/home/griffin/projects/compound-app/tests/m1-photo-ownership.test.js:6:11)
+    at Module._compile (node:internal/modules/cjs/loader:1871:14)
+    at Object..js (node:internal/modules/cjs/loader:2002:10)
+    at Module.load (node:internal/modules/cjs/loader:1594:32)
+    at Module._load (node:internal/modules/cjs/loader:1396:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47
+
+Node.js v24.18.0
+
+/home/griffin/projects/compound-app/tests/harness.js:37
+  if (missing.length) throw new Error('missing @testable block(s): ' + missing.join(', '));
+                      ^
+
+Error: missing @testable block(s): M2
+    at loadTestable (/home/griffin/projects/compound-app/tests/harness.js:37:29)
+    at Object.<anonymous> (/home/griffin/projects/compound-app/tests/m2-photo-pagination.test.js:6:11)
+    at Module._compile (node:internal/modules/cjs/loader:1871:14)
+    at Object..js (node:internal/modules/cjs/loader:2002:10)
+    at Module.load (node:internal/modules/cjs/loader:1594:32)
+    at Module._load (node:internal/modules/cjs/loader:1396:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47
+
+Node.js v24.18.0
+FAILED — m2-photo-pagination.test.js
+/home/griffin/projects/compound-app/tests/harness.js:37
+  if (missing.length) throw new Error('missing @testable block(s): ' + missing.join(', '));
+                      ^
+
+Error: missing @testable block(s): M2
+    at loadTestable (/home/griffin/projects/compound-app/tests/harness.js:37:29)
+    at Object.<anonymous> (/home/griffin/projects/compound-app/tests/m2-photo-pagination.test.js:6:11)
+    at Module._compile (node:internal/modules/cjs/loader:1871:14)
+    at Object..js (node:internal/modules/cjs/loader:2002:10)
+    at Module.load (node:internal/modules/cjs/loader:1594:32)
+    at Module._load (node:internal/modules/cjs/loader:1396:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47
+
+Node.js v24.18.0
+
+/home/griffin/projects/compound-app/tests/harness.js:37
+  if (missing.length) throw new Error('missing @testable block(s): ' + missing.join(', '));
+                      ^
+
+Error: missing @testable block(s): M3
+    at loadTestable (/home/griffin/projects/compound-app/tests/harness.js:37:29)
+    at Object.<anonymous> (/home/griffin/projects/compound-app/tests/m3-revisions.test.js:6:11)
+    at Module._compile (node:internal/modules/cjs/loader:1871:14)
+    at Object..js (node:internal/modules/cjs/loader:2002:10)
+    at Module.load (node:internal/modules/cjs/loader:1594:32)
+    at Module._load (node:internal/modules/cjs/loader:1396:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47
+
+Node.js v24.18.0
+FAILED — m3-revisions.test.js
+/home/griffin/projects/compound-app/tests/harness.js:37
+  if (missing.length) throw new Error('missing @testable block(s): ' + missing.join(', '));
+                      ^
+
+Error: missing @testable block(s): M3
+    at loadTestable (/home/griffin/projects/compound-app/tests/harness.js:37:29)
+    at Object.<anonymous> (/home/griffin/projects/compound-app/tests/m3-revisions.test.js:6:11)
+    at Module._compile (node:internal/modules/cjs/loader:1871:14)
+    at Object..js (node:internal/modules/cjs/loader:2002:10)
+    at Module.load (node:internal/modules/cjs/loader:1594:32)
+    at Module._load (node:internal/modules/cjs/loader:1396:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47
+
+Node.js v24.18.0
+
+/home/griffin/projects/compound-app/tests/harness.js:37
+  if (missing.length) throw new Error('missing @testable block(s): ' + missing.join(', '));
+                      ^
+
+Error: missing @testable block(s): M4
+    at loadTestable (/home/griffin/projects/compound-app/tests/harness.js:37:29)
+    at Object.<anonymous> (/home/griffin/projects/compound-app/tests/m4-reconciliation.test.js:7:11)
+    at Module._compile (node:internal/modules/cjs/loader:1871:14)
+    at Object..js (node:internal/modules/cjs/loader:2002:10)
+    at Module.load (node:internal/modules/cjs/loader:1594:32)
+    at Module._load (node:internal/modules/cjs/loader:1396:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47
+
+Node.js v24.18.0
+FAILED — m4-reconciliation.test.js
+/home/griffin/projects/compound-app/tests/harness.js:37
+  if (missing.length) throw new Error('missing @testable block(s): ' + missing.join(', '));
+                      ^
+
+Error: missing @testable block(s): M4
+    at loadTestable (/home/griffin/projects/compound-app/tests/harness.js:37:29)
+    at Object.<anonymous> (/home/griffin/projects/compound-app/tests/m4-reconciliation.test.js:7:11)
+    at Module._compile (node:internal/modules/cjs/loader:1871:14)
+    at Object..js (node:internal/modules/cjs/loader:2002:10)
+    at Module.load (node:internal/modules/cjs/loader:1594:32)
+    at Module._load (node:internal/modules/cjs/loader:1396:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47
+
+Node.js v24.18.0
+
+FAILED — status-producers.test.js
+
+STATUS-V4-AUDIT — the inventory is complete and classified
+  computed persistent producers found: 7
+    line 1358: err==="offline"?"offline":"error"
+    line 1392: e2==="offline"?"offline":"error"
+    line 1393: err==="offline"?"offline":"error"
+  ✓ STATUS-V4-AUDIT-01 ternary / computed producers are found, not just literals
+  terminal ok producers: 14 | transient: 12 | persistent: 33
+  ✓ STATUS-V4-AUDIT-02 terminal ok producers are inventoried
+  setSync definitions at lines: 1303  -> ACTIVE: 1303
+  ✗ STATUS-V4-AUDIT-03 the ACTIVE definition is identified and is registry-authoritative
+      the ACTIVE setSync must consult the registry, or any terminal write can hide a live cause
+    UNROUTED line 10487: function m8Block(reason){m8HardBlocked=true;m8StorageBlockReason=reason;try{setSync("error","training sync pau
+    UNROUTED line 10488: function m8SoftBlockUnproven(reason){m8UnprovenBlocked=true;m8StorageBlockReason=reason;try{setSync("error","t
+    UNROUTED line 10673: try{setSync("error","training conflict — review needed");}catch(e){}
+    UNROUTED line 10895: try{setSync("error","session expired — log in again");}catch(e){}return;}
+    UNROUTED line 10897: try{setSync("offline","unsynced training will retry");}catch(e){}}
+    UNROUTED line 10946: if(res.st==="auth"){try{setSync("error","session expired — log in again");}catch(e){}finish();return;}
+    UNROUTED line 10948: try{setSync("offline","unsynced training will retry");}catch(e){}finish();});
+    UNROUTED line 11067: if(recoveryBlocked){setSync("error",recoveryBlockReason);return;}
+    UNROUTED line 11070: if(recoveryBlocked){setSync("error",recoveryBlockReason);cb&&cb();return;}
+    UNROUTED line 11583: try{setSync("error","sync paused \u2014 "+reason);}catch(e){}}
+    UNROUTED line 11585: try{setSync("error","sync paused \u2014 "+reason);}catch(e){}}
+    UNROUTED line 11842: if(!natRes(r.body.fence)){setSync("error","core sync received a malformed response");cb&&cb(false);return;}
+    UNROUTED line 11844: setSync("error","another device is the active writer");cb&&cb(false);return;}
+    UNROUTED line 11846: if(!natRes(r.body.serverRev)){setSync("error","core sync received a malformed response");cb&&cb(false);return;
+    UNROUTED line 11848: setSync("error","core needs review");try{render();}catch(_e){}cb&&cb(false);return;}
+    UNROUTED line 11853: setSync("error","session expired \u2014 log in again");cb&&cb(false);return;}
+    UNROUTED line 11855: setSync("offline");cb&&cb(false);
+    UNROUTED line 11856: }).catch(function(){setSync("offline");cb&&cb(false);});}
+    UNROUTED line 11914: setSync("error","core needs review");try{render();}catch(_e){}cb&&cb(false);return;}
+    UNROUTED line 11933: setSync("error","core needs review");try{render();}catch(_e){}cb&&cb(false);});}
+    UNROUTED line 12209: try{setSync("error","core needs review");try{render();}catch(_e){}}catch(ex){}
+    UNROUTED line 12396: if(scOk===null){setSync("error","core sync received a malformed response");cb&&cb(false);return;}
+    UNROUTED line 12409: if(!natRes(r.body.fence)){setSync("error","core sync received a malformed response");cb&&cb(false);return;}
+    UNROUTED line 13334: if(err){setSync(err==="offline"?"offline":"error",err==="auth"?"session expired":"");
+    UNROUTED line 13534: setSync("error",recoveryBlockReason);
+  ✗ STATUS-V4-AUDIT-04 every active persistent producer names an owner or an approved reason
+      route these through an owned source or add them with a reason: expected 0, got 25
+  ✗ STATUS-V4-AUDIT-05 terminal successes are structurally unable to hide a live source
+      the projection re-entrancy guard must exist
+  ✗ STATUS-V4-AUDIT-06 a planted TERNARY producer fails the audit
+      precondition: the real source is clean, so the plant is the only difference: expected 0, got 25
+  ✗ STATUS-V4-AUDIT-07 removing the registry guard from setSync fails the audit
+      precondition: the guard was actually removed in this variant
+  ✗ STATUS-V4-AUDIT-08 removing an active source integration fails the audit
+      precondition: the integration was actually removed
+  ✗ STATUS-V4-AUDIT the owned sources are exactly the approved five, and all are produced
+      shipping priority order, saw: : expected "auth,cas-network,legacy-manual,cas-pending,photo-reconcile", got ""
+
+----------------------------------------------------
+FAILED — 2 passed, 7 failed
+
+
+18 suite(s) failed

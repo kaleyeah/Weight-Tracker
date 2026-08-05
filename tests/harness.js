@@ -1,13 +1,13 @@
 /* Compound Fitness — dev-only test harness.
    NOT shipped. Production remains a single framework-free index.html.
 
-   Tests run against the REAL shipping source: each @testable-start/@testable-end
-   block is sliced out of index.html and evaluated here, so the tests cannot
-   silently drift from a copy of the logic. */
+   Historically, tests sliced @testable blocks out of index.html; that
+   mechanism was retired 2026-08-05 (see docs/RETIRED-TESTS.md) — the markers
+   died with the cf* layer. The remaining suites here are self-contained; the
+   real coverage lives in tests/browser/. */
 
 const fs = require('fs');
 const path = require('path');
-const vm = require('vm');
 
 /* Resolve the shipping source so the suite runs from a repo checkout AND from an
    extracted review archive (where index.html may sit beside tests/ or in full-source/). */
@@ -20,26 +20,11 @@ const CANDIDATES = [
 const SRC = CANDIDATES.find(p => { try { return fs.statSync(p).isFile(); } catch (e) { return false; } });
 if (!SRC) { console.error('Cannot find index.html. Tried:\n  ' + CANDIDATES.join('\n  ') + '\nSet CF_SRC=/path/to/index.html'); process.exit(2); }
 
-/** Extract every /* @testable-start NAME ... @testable-end NAME *\/ block. */
-function testableBlocks(src) {
-  const text = fs.readFileSync(src, 'utf8');
-  const out = {};
-  const re = /\/\*\s*@testable-start\s+(\S+)[^]*?\*\/([^]*?)\/\*\s*@testable-end\s+\1\s*\*\//g;
-  let m;
-  while ((m = re.exec(text)) !== null) out[m[1]] = (out[m[1]] || '') + m[2];
-  return out;
-}
-
-/** Evaluate the named blocks in one sandbox and return the declared globals. */
-function loadTestable(names) {
-  const blocks = testableBlocks(SRC);
-  const missing = names.filter((n) => !blocks[n]);
-  if (missing.length) throw new Error('missing @testable block(s): ' + missing.join(', '));
-  const sandbox = { console };
-  vm.createContext(sandbox);
-  for (const n of names) vm.runInContext(blocks[n], sandbox, { filename: `index.html#${n}` });
-  return sandbox;
-}
+/* loadTestable / @testable extraction RETIRED 2026-08-05 (Architect ruling —
+   see docs/RETIRED-TESTS.md). The markers it read were deleted from index.html
+   with the cf* layer at commit a599efa; the suites that used it are deleted,
+   their unique coverage ported to tests/browser/c23-characterization. Do not
+   reintroduce marker comments to satisfy tests. */
 
 /* ---- tiny assert layer (no dependencies) ---- */
 let passed = 0;
@@ -99,4 +84,4 @@ function _finalReport() {
   }
 }
 
-module.exports = { SRC, defer, loadTestable, test, group, eq, ok, notOk, report };
+module.exports = { SRC, defer, test, group, eq, ok, notOk, report };
