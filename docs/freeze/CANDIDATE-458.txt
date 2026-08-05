@@ -1,0 +1,30 @@
+# Candidate release record — 2026-08-05.458-modular
+candidate head: 44b999bbf953375ed8a76c182306e7729d0aaa20
+date: 2026-08-05T16:34:31Z
+artifact sha256: 1dce7a2d930c9ab53fb80226cba57f11faea60917b27b58fe11605856a4dfebf
+artifact: 1,264,686 utf8-bytes
+
+## gates (all at this head)
+=== CANDIDATE GATES at 44b999b / APP_BUILD="2026-08-05.458-modular" ===
+index.html matches src/
+template: 87373 utf8-bytes | generated: 1177313 utf8-bytes | artifact: 1264686 utf8-bytes
+tdee-core.test.mjs         36 passed, 0 failed
+tdee-integration.test.mjs  11 passed, 0 failed
+proposal-golden.mjs        21 identical, 0 changed
+proposal-parity.mjs        6 passed, 0 failed
+boundaries.test.mjs        37 passed, 0 failed
+smoke                      no uncaught errors
+string-tier                All suites passed
+
+A11Y baseline
+ALL BROWSER SUITES PASSED — 25 suites
+browser runner exit 0 (25 suites: 24 prior + rollback-rehearsal; cache-sw skips as recorded)
+
+## remaining before push (Owner-side)
+1. physical-device behaviour checklist (docs/PHASE0-BASELINE.md section)
+2. Owner's explicit word to push
+
+## rollback, rehearsed
+candidate->rollback->candidate proven in a disposable environment with
+fresh build ids and data intact (rollback-rehearsal.browser.test.js 6/6).
+Live procedure: git revert + NEW build id + push; devices self-update.
