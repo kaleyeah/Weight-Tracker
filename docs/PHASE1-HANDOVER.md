@@ -64,9 +64,13 @@ exceeding its set fails the tier.
 - this evidence-correction commit sits on top; `git log origin/main..main`
   remains authoritative and no prose count elsewhere restates it.
 
-## Commits (generated from git)
+## Commits (regenerated at the acceptance head; authoritative command:
+`git log --oneline origin/main..66d0f85`)
 
 ```
+66d0f85 Evidence-only correction (round-5): honest bytes, honest counts, honest skip
+e347989 Freeze record: bound gates at 59a1457 (documentation-only commit)
+59a1457 Round-4 corrections: handover regenerated from the tree; boundary gate covers all 23; a11y contract honest
 bec477f Round-3 response: a11y baseline RUN and pinned, environments sequencing, disposition superseded
 29d2c84 P1 complete extraction: the ENTIRE script is now 23 position-preserving modules
 9031f85 Freeze hygiene: commit the evidence that was accidentally outside the freeze

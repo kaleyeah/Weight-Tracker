@@ -73,3 +73,10 @@ BROWSER TIER: 24 suites discovered, 23 passed, 1 skipped (cache-sw — needs
 the historical .347 artifact; characterizes pre-SW cache behaviour for
 Phase 2 and does not gate this refactor). Runner exit 0.
 exit=0
+
+## Addendum (66d0f85, per acceptance ruling 9): corrected --prove-source output
+The transcript above is the historical behaviour-head run and is preserved
+verbatim; its proof line predates the byte-terminology fix. The corrected
+tool at the accepted evidence head reports:
+template: 87373 utf8-bytes | generated: 1177314 utf8-bytes | artifact: 1264687 utf8-bytes
+exit=0 | independently reproduced by the Architect at 66d0f85
