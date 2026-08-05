@@ -1,6 +1,32 @@
 # Compound Fitness — project handover
 
-> ## STATUS 2026-08-02 (newest first — the 07-30 note below is history)
+> ## STATUS 2026-08-05 (newest first — everything below is older)
+>
+> - **Live build: `2026-08-05.460-cleanup`**, byte-verified against the live
+>   URL. `.458-modular` shipped the Phase 0+1 modular architecture: the whole
+>   script is now 23 position-preserving modules in `src/`, built into ONE
+>   atomic `index.html` by `build.mjs`. **Bump `APP_BUILD` in
+>   `src/app-core.js`, never in `index.html`, then run `node build.mjs`.**
+>   `.459` fixed the photo diagnostic; `.460` retired the dead GitHub-era
+>   surfaces (device sheet, invite flow, connections) after proving them
+>   unreachable, and took the a11y unlabelled-input count to zero.
+> - **Candidate `2026-08-05.461-fence-stage1` (`ada831d`) — built, tested, NOT
+>   deployed.** D1 fence enforcement Stage 1, the CLIENT half: the training
+>   commit now carries fence+deviceId, a 409 `fenceStale` is displacement
+>   rather than a hard block, a pen-less device refuses to push, the core
+>   strict gate fails closed on an unsettled lease, `m10Boot()` runs from the
+>   login continuation, `m10cDispatch` re-proves the enqueue-time fence, and an
+>   expired pen offers takeover. Evidence: `docs/D1-ENFORCE-EVIDENCE.md`.
+>   **Stage 2 — the server flip — is NOT done:** `FENCING_ENFORCED_DEFAULT`
+>   stays `false`, `enforce-suite.json` predates `0a1016d` and must be re-run,
+>   G13 device evidence is unrecorded, ROLLBACK 1–3 unrehearsed.
+> - **A staging origin now exists** (2026-08-05):
+>   `https://kaleyeah.github.io/Weight-Tracker-staging/` against a staging
+>   PocketBase on the NAS at `:8091` — the production binary, production-shaped
+>   schema, synthetic data only. Phase 2 (service worker) was blocked on this.
+> - NAS `pb_data` permissions remediated the same day (0777 → 750/700).
+>
+> ## STATUS 2026-08-02 (history)
 >
 > - Live build: `2026-08-02.416-fx` (compound-app main). The July-31
 >   training-loss arc is CLOSED: `.415-m8` shipped the M8 sync rework

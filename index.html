@@ -10401,23 +10401,40 @@ function m8NewRequestId(){
    there is no proof to send, and an unfenced training write is exactly what
    enforcement rejects as stale. Refusing here keeps the change local and dirty
    instead of manufacturing a hard block on the athlete's own device. */
+/* The authority to START a push. Fail-closed lives HERE, on new work only —
+   see m8CommitFence for why it must not live at dispatch.
+
+   This deliberately does NOT re-check m10DeviceId(). An unverifiable
+   installation identity already marks the installation corrupt — malformed
+   stored bytes set M10.corrupt directly (m10-lease-core.js:32) and m10Boot
+   sets it for any null id (:135) — and m10AuthNow() refuses on corrupt before
+   it ever reaches the holder test. An extra check here looked like
+   defence-in-depth but could not fire: reinstating its absence as a mutation
+   left all 47 assertions green, which is exactly how dead code masquerades as
+   coverage. */
 function m8HasPen(){
   if(typeof m10AuthNow!=="function")return true;   /* gate absent: unchanged */
   var a=m10AuthNow();
   return !!a.ok;}                                  /* {ok:true,local:true} when signed out */
+/* Attach the proof when this device has one. Deliberately BEST-EFFORT, never
+   refusing: m8CasCommit serves new pushes AND journal replay, and a replay is
+   not new work — it re-sends a request this device already made, to learn
+   whether the server applied it. Refusing to replay without the pen strands
+   that journal unresolved, which is a data-loss risk of its own; the server
+   answers replays from the ledger and, under enforcement, rejects a stale one
+   before any mutation (the F2 arm handles that outcome). New pushes cannot
+   reach here unfenced because m8HasPen() gates them. */
 function m8CommitFence(body){
-  if(typeof m10AuthNow!=="function")return true;   /* gate absent: unchanged */
+  if(typeof m10AuthNow!=="function")return;
   var a=m10AuthNow();
-  if(a.local)return true;                          /* no account: no lease concept */
-  if(!a.ok)return false;
+  if(!a.ok||a.local)return;
   var dev=(typeof m10DeviceId==="function")?m10DeviceId():null;
-  if(!dev)return false;
-  body.fence=a.fence;body.deviceId=dev;
-  return true;}
+  if(!dev)return;
+  body.fence=a.fence;body.deviceId=dev;}
 function m8CasCommit(expectedRev,trainingObj,requestId,cb){
   var base;try{base=pbBase();}catch(e){cb({st:"transport"});return;}
   var body={subsystem:"training",expectedRev:expectedRev,idempotencyKey:requestId,payload:trainingObj};
-  if(!m8CommitFence(body)){cb({st:"fenceStale",fence:null});return;}
+  m8CommitFence(body);
   fetch(base+"/api/cf/appdata/commit",{method:"POST",headers:pbHeaders(true),
     body:JSON.stringify(body)})
   .then(function(r){

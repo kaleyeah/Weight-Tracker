@@ -153,14 +153,88 @@ async function bootSeed(browser,srv,st,seed,extraInit){
       const dev=(typeof m10DeviceId==='function')?m10DeviceId():'fn-missing';
       m8Push();
       await new Promise(r=>setTimeout(r,600));
-      return {dev:dev,corrupt:M10.corrupt,dirty:localStorage.getItem('wl_training_dirty__userA'),
+      return {dev:dev,corrupt:M10.corrupt,why:m10AuthNow().why,
+        dirty:localStorage.getItem('wl_training_dirty__userA'),
         hard:!!window.m8HardBlocked};});
     test('F1 a malformed stored device id is refused, not replaced',()=>eq(s.dev,null,'m10DeviceId()'));
+    /* what ACTUALLY refuses the push here: an unverifiable installation
+       identity marks the installation corrupt, and the pen gate refuses on
+       corrupt before it ever reaches the holder test. Named explicitly because
+       a mutation proved the deviceId re-check in m8HasPen() could never fire. */
+    test('F1 an unverifiable identity marks the installation corrupt',()=>
+      eq(s.corrupt,true,'M10.corrupt'));
+    test('F1 the pen gate refuses for THAT reason',()=>eq(s.why,'corrupt','m10AuthNow().why'));
     test('F1 fail-closed: zero training commits without a device identity',()=>
       eq((st.training||[]).length,0,'training commits: '+JSON.stringify(st.training||[])));
     test('F1 fail-closed leaves the work local and dirty',()=>ok(s.dirty,'dirty marker was cleared'));
     test('F1 fail-closed does not hard-block the device',()=>eq(s.hard,false,'m8HardBlocked'));
     test('F1 fail-closed: no page errors',()=>eq(errs.length,0,errs.join(';')));
+    await ctx.close();
+  }
+
+  /* ---- F3b: a surviving JOURNAL still replays without the pen ----
+     The first cut of F1 fail-closed at dispatch, which also blocked journal
+     replay — caught by c11m8-replay, 5 arms red. A replay is not new work: it
+     re-sends a request this device already made, to learn whether the server
+     applied it. Refusing it strands the journal unresolved, which is its own
+     data-loss risk. Fail-closed belongs on STARTING work (m8HasPen), not on
+     dispatch. */
+  {
+    const st={leaseHeld:true};
+    const {ctx,page,errs}=await bootSeed(browser,server,st,dirtySeed());
+    const s=await page.evaluate(async()=>{
+      /* an in-flight request this device made while it DID hold the pen */
+      m8Write('base',{canon:M8_CANON_VER,rev:4,body:'{}'});
+      m8Write('journal',{op:'ack',phase:'intent',startedAt:Date.now(),
+        expect:{oldBaseCanon:'{}',expectedRev:4,pushedCanon:'{"a":1}',gen:9,requestId:'replay-c25'}});
+      m8Push();
+      await new Promise(r=>setTimeout(r,700));
+      return {holder:M10.holder};});
+    const replay=(st.training||[]).filter(b=>b.idempotencyKey==='replay-c25');
+    test('F3b the replaying device does NOT hold the pen',()=>eq(s.holder,false,'M10.holder'));
+    test('F3b the captured request is still replayed',()=>
+      eq(replay.length,1,'replays sent: '+replay.length));
+    test('F3b the replay re-sends its OWN captured identity',()=>
+      eq(replay[0]&&replay[0].expectedRev,4,'expectedRev'));
+    test('F3b a pen-less replay carries no fence to claim',()=>
+      eq(replay[0]&&replay[0].fence,undefined,'fence: '+JSON.stringify(replay[0]&&replay[0].fence)));
+    test('F3b no page errors',()=>eq(errs.length,0,errs.join(';')));
+    await ctx.close();
+  }
+
+  /* ---- F1c: the pen is held, but the device id cannot be READ ----
+     m10DeviceId()'s catch arm returns null WITHOUT marking the installation
+     corrupt (m10-lease-core.js:46), so this is the one path where a holder
+     genuinely has no identity to bind a fence to. Everywhere else a null id
+     implies corrupt, which the pen gate already refuses — the first two
+     attempts at this arm mutated code that could never execute. A fence
+     claimed against no device is a claim the server cannot verify. */
+  {
+    const st={};
+    const {ctx,page,errs}=await bootSeed(browser,server,st,dirtySeed());
+    await makeTrainingDirty(page);
+    const s=await page.evaluate(async()=>{
+      const held=M10.holder;
+      const oGet=Storage.prototype.getItem;
+      Storage.prototype.getItem=function(k){
+        if(k==='wl_m10_deviceid')throw new DOMException('denied','SecurityError');
+        return oGet.call(this,k);};
+      const dev=m10DeviceId(),why=m10AuthNow().why,corrupt=M10.corrupt;
+      m8Push();
+      await new Promise(r=>setTimeout(r,600));
+      Storage.prototype.getItem=oGet;
+      return {held:held,dev:dev,why:why,corrupt:corrupt};});
+    const sent=(st.training||[])[0];
+    test('F1c the device holds the pen',()=>eq(s.held,true,'M10.holder'));
+    test('F1c a throwing read yields no id WITHOUT marking corrupt',()=>{
+      eq(s.dev,null,'m10DeviceId()');
+      eq(s.corrupt,false,'M10.corrupt — this is what makes the guard reachable');
+      eq(s.why,undefined,'m10AuthNow still authorizes');});
+    test('F1c no fence is claimed with no identity to bind it to',()=>
+      eq(sent&&sent.fence,undefined,'fence: '+JSON.stringify(sent&&sent.fence)));
+    test('F1c and no null deviceId goes on the wire',()=>
+      ok(!sent||sent.deviceId===undefined,'deviceId: '+JSON.stringify(sent&&sent.deviceId)));
+    test('F1c no page errors',()=>eq(errs.length,0,errs.join(';')));
     await ctx.close();
   }
 

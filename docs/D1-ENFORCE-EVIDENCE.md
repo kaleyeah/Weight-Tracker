@@ -27,9 +27,34 @@ one evening on 2026-08-04.
 
 ## Evidence 1 — client behaviour (`tests/browser/c25-fence-stage1.browser.test.js`)
 
-**42 assertions, 42 passed**, real Chromium against the built artifact, with the
+**54 assertions, 54 passed**, real Chromium against the built artifact, with the
 server mocked at the route layer so each arm can assert what the client actually
 put on the wire.
+
+## Evidence 1b — the full tier, and the regression it caught
+
+`node tests/browser/run-all.js` — **26 suites, all passed** (1 of them,
+`cache-sw`, SKIPPED for a missing `.347` artifact; a skip is not a pass, and 8
+suites exit 0 without printing a parseable summary line).
+
+The first run of the tier was **red**: `c11m8-replay` 5 passed / 5 failed. The
+cause was a real defect in the first cut of this work, not a test problem.
+
+`m8CasCommit` serves two callers: a NEW push, and **journal replay** — re-sending
+a request this device already made, to learn whether the server applied it.
+Fail-closed had been placed at dispatch, so it blocked both. A device that no
+longer holds the pen could no longer resolve its own in-flight journal, which
+strands unsynced work indefinitely — a data-loss risk introduced by a change
+whose entire purpose was protecting data.
+
+Fail-closed now sits on **starting** work (`m8HasPen()` gating `m8Push`), and
+the fence attachment at dispatch is best-effort. New pushes cannot reach the
+route unfenced because the gate stops them first; replays always proceed.
+`F3b` pins this, and mutation `F3b-replayblocked` reinstates the exact defect.
+
+The suite that caught it was written months earlier, for a different purpose,
+by someone not thinking about fences. The 42 assertions written specifically
+for this change all passed against the broken build.
 
 ## Evidence 2 — the tests were verified by reinstating the bugs
 
@@ -46,6 +71,8 @@ suite re-run:
 | `F4-noboot` — remove `m10Boot()` from the login continuation | **2 failed** | login settles the lease; device holds a real fence |
 | `F5-noreval` — use the captured fence unchecked | **1 failed** | never reached the commit route |
 | `F6-toast` — restore the expired message | **2 failed** | no dead-end toast; offers takeover |
+| `F1b-nodevguard` — drop the device-id guard on fence attachment | **2 failed** | no fence claimed without an identity; no null deviceId on the wire |
+| `F3b-replayblocked` — reinstate fail-closed at dispatch | **2 failed** | the captured request is still replayed |
 
 Two mutations initially **survived** — `F3-ungated` and `F4-failopen` — because
 those arms asserted the wrong thing. `F3` measured commit count, which
@@ -55,6 +82,26 @@ observes the journal **write** through a `Storage.prototype.setItem` spy.
 asserts the distinguishing outcome — an unfenced body on the commit route.
 Both were strengthened until the mutation failed. This is the whole reason the
 step exists.
+
+### Two guards that looked identical and were not
+
+A later mutation exposed something the assertions could not. The first cut had
+**two** device-identity checks, written as defence-in-depth:
+
+1. one in `m8HasPen()` — **unreachable**. A malformed stored id sets
+   `M10.corrupt` directly (`m10-lease-core.js:32`) and `m10Boot` sets it for any
+   null id (`:135`), so `m10AuthNow()` already refuses on corrupt before the
+   holder test. Reverting it left every assertion green. **Deleted** — dead
+   defensive code reads exactly like protection and survives review unchallenged.
+2. one in `m8CommitFence()` — **reachable**, and nearly deleted for looking the
+   same. `m10DeviceId()`'s `catch` arm returns null *without* marking corrupt
+   (`:46`), so a throwing storage read leaves a genuine holder with no identity
+   to bind a fence to. Without the guard it would claim a fence while
+   identifying no device. **Kept**, and `F1c` now builds that exact condition —
+   a `Storage.prototype.getItem` that throws for the device-id key only.
+
+Reading the code gave the same answer for both, and that answer was wrong once.
+Only deliberately reaching each guard distinguished them.
 
 ## Evidence 3 — the real server (enforce mode)
 
