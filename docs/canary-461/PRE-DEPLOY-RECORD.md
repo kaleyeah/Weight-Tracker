@@ -55,3 +55,26 @@ disappears without a definite outcome; the secondary device mutating without
 the pen; unexpected revision/content change; an update/reload loop. On any of
 these: preserve evidence first when safe, then client-only rollback to the
 recorded `.460`.
+
+---
+
+# Canary walk — Owner device evidence (steps 5–7), 2026-08-05 ~22:58Z
+
+Owner readings: iPhone updated to .461, normal, no false review (step 5);
+entry logged and retained across force-close (step 6); iPad updated, showed
+read-only, Owner chose takeover, recorded an entry, and it appeared on the
+phone (step 7 — exercised the FULL displacement path, beyond the minimum).
+
+Server view (meta only), matching the readings exactly:
+- 22:56Z: core commits, writerFence 3, clientBuild .461 (iPhone as holder)
+- 22:58Z: fence 4 held by iPad (hash 97b6a34f7f5e); five core commits at
+  writerFence 4, clientBuild .461 (the takeover + iPad entry)
+- coreRev 373 → 380, every commit attributable; trainingRev 32 unchanged,
+  hash identical (no workout logged — correct)
+- the immediately preceding ledger row (20:37Z) is the LAST unfenced,
+  build-less commit — the .460 client, pre-canary. Every .461 row carries
+  fence + build.
+- zero 409s, zero unfenced .461 requests, no review prompts, no blocks.
+
+Step 8 (a day of normal two-device use) in progress; post-canary record
+comparison closes the sequence.
