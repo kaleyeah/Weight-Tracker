@@ -78,10 +78,13 @@ ok((hot.anim || "").indexOf("wlMaxBeat") >= 0, "the periodic beat animation is a
 ok((hot.ping || "").indexOf("wlMaxPing") >= 0, "the ping ring is applied to ::after — got: " + hot.ping);
 
 /* ---- it genuinely moves: sample the transform across the beat ---- */
+/* Sample fast relative to the beat. The scale peak occupies only ~0.4s of
+   the 3.2s cycle, so a coarse interval can stride straight past it and fail
+   intermittently — a flaky test here would be worse than none. */
 const samples = [];
-for (let i = 0; i < 14; i++) {
+for (let i = 0; i < 45; i++) {
   samples.push(await page.evaluate(() => getComputedStyle(window.__cue).transform));
-  await page.waitForTimeout(400);
+  await page.waitForTimeout(110);
 }
 const distinct = new Set(samples);
 ok(distinct.size > 1, "the avatar transform actually changes over time (" + distinct.size + " distinct values sampled)");
@@ -89,7 +92,7 @@ const scales = samples.map(s => { const m = /matrix\(([\d.]+)/.exec(s); return m
 ok(Math.max(...scales) > 1.02, "the beat reaches a visible scale peak — max " + Math.max(...scales).toFixed(3));
 ok(Math.min(...scales) <= 1.001, "and returns to rest between beats — min " + Math.min(...scales).toFixed(3));
 
-/* ---- filmstrip across one full 5.5s cycle ---- */
+/* ---- filmstrip across one full cycle ---- */
 fs.mkdirSync(OUT, { recursive: true });
 const btn = await page.evaluateHandle(() => window.__cue).then(h => h.asElement());
 const frames = [];
@@ -97,7 +100,7 @@ for (let i = 0; i < 6; i++) {
   const f = path.join(OUT, "maxcue-" + i + ".png");
   await btn.screenshot({ path: f, omitBackground: false });
   frames.push(f);
-  await page.waitForTimeout(320);
+  await page.waitForTimeout(190);
 }
 ok(frames.every(f => fs.existsSync(f) && fs.statSync(f).size > 0), "filmstrip frames captured");
 /* Frames must not all be identical — that would mean we photographed a still. */
