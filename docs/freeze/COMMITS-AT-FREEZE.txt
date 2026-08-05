@@ -1,0 +1,16 @@
+59a1457 Round-4 corrections: handover regenerated from the tree; boundary gate covers all 23; a11y contract honest
+bec477f Round-3 response: a11y baseline RUN and pinned, environments sequencing, disposition superseded
+29d2c84 P1 complete extraction: the ENTIRE script is now 23 position-preserving modules
+9031f85 Freeze hygiene: commit the evidence that was accidentally outside the freeze
+9df8d0b c12: the shared-file type assertion follows FIX-002 (charset included)
+0a8282f Handover: final-head accounting; the commit table + git log are authoritative
+3fe7521 Review round 2 response: exact ledger, three coverage suites in one, FIX-002 restored
+ab82029 Environment-separation design (addendum gap 3) — staging on the NAS, gated before Phase 3
+eed9fec Review response: assertion-level retirement ledger; commit accounting corrected
+9af2527 P1: handover package — proofs, map, disposition, deployment note
+f287549 P1: dead GitHub-era sync layer deleted (~370 lines, 36 functions)
+8524b39 P1: SVG icon table extracted to src/icons.js
+5ae96b1 P1: report generators extracted (report-progress.js, report-srview.js)
+398fb83 P1: Muscle Preservation engine extracted to src/mp-calc.js
+b653540 P1: Coach Max avatars extracted to real asset files
+3044bf8 Phase 0: baseline, guardrails, and the honest test ledger
