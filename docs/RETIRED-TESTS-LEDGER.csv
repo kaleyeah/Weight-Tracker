@@ -1,0 +1,329 @@
+suite,case,disposition,evidence
+c1-emergency-hotfix,key order does not matter,PORTED,c23 'canon: key order does not matter'
+c1-emergency-hotfix,nested key order does not matter,PORTED,c23 'canon: key order does not matter'
+c1-emergency-hotfix,array order DOES matter,PORTED,c23 'canon: array order DOES matter'
+c1-emergency-hotfix,different content differs,COVERED,c16 T14/T16 lossy-category matrix
+c1-emergency-hotfix,null/undefined are safe,COVERED,c16 T14/T16 lossy-category matrix
+c1-emergency-hotfix,empty is empty,OBS-CODE,coreHasMeaningfulState: 0 occurrences; store-level covered c16 T1b
+c1-emergency-hotfix,null is empty,OBS-CODE,coreHasMeaningfulState: 0 occurrences; store-level covered c16 T1b
+c1-emergency-hotfix,"dirty + GLP-only + server moved => conflict, not adopt",COVERED,c16 T1a/T1c/T5/T7/T13; c11m8-matrix R4-2/3/4
+c1-emergency-hotfix,dirty + no meaningful local => still never adopt,COVERED,c16 T1e deletion-evidence bootstrap-conflict
+c1-emergency-hotfix,dirty + no trusted baseline + different content => conflict,COVERED,c16 T14/T16 lossy-category matrix
+c1-emergency-hotfix,dirty + no baseline + IDENTICAL content => agree (no prompt),COVERED,c16 T1a/T1c/T5/T7/T13; c11m8-matrix R4-2/3/4
+c1-emergency-hotfix,"dirty + cannot compare => conflict, never adopt",COVERED,c16 T1a/T1c/T5/T7/T13; c11m8-matrix R4-2/3/4
+c1-emergency-hotfix,delete-all while dirty is not treated as 'no data to lose',COVERED,c16 T1e deletion-evidence bootstrap-conflict
+c1-emergency-hotfix,"dirty + server unchanged => hold-push, never push",OBS-BEHAV,CF_WRITE_GATE freeze superseded by M8 acceptance (PROJECT_LOG M8 arc; pushes now expected — c16 T2)
+c1-emergency-hotfix,"server row missing + local data => hold-seed, never an auto-POST",OBS-BEHAV,CF_WRITE_GATE freeze superseded by M8 acceptance (PROJECT_LOG M8 arc; pushes now expected — c16 T2)
+c1-emergency-hotfix,no decision value is ever 'push' or 'seed',OBS-BEHAV,CF_WRITE_GATE freeze superseded by M8 acceptance (PROJECT_LOG M8 arc; pushes now expected — c16 T2)
+c1-emergency-hotfix,"server empty + meaningful local (clean) => hold-seed, not adopt",OBS-BEHAV,CF_WRITE_GATE freeze superseded by M8 acceptance (PROJECT_LOG M8 arc; pushes now expected — c16 T2)
+c1-emergency-hotfix,server empty + genuinely empty local => idle,COVERED,c16 T1d rev-0 bootstrap (no spurious action on double-empty)
+c1-emergency-hotfix,an absent flag does NOT migrate as clean,OBS-CODE,boolean-dirty migration path: 0 occurrences; m10cRead(dirty) is generation-based
+c1-emergency-hotfix,a '0' flag does not migrate as clean either (may be bug-cleared),OBS-CODE,boolean-dirty migration path: 0 occurrences; m10cRead(dirty) is generation-based
+c1-emergency-hotfix,'1' still migrates as dirty,OBS-CODE,boolean-dirty migration path: 0 occurrences; m10cRead(dirty) is generation-based
+c1-emergency-hotfix,same account is ok,COVERED,c16 T8 + c19 T15a
+c1-emergency-hotfix,different account is a mismatch,COVERED,c16 T8 + c19 T15a
+c1-emergency-hotfix,mismatch blocks every sync decision,COVERED,c16 T8 + c19 T15a
+c1-emergency-hotfix,"no recorded owner is 'unknown', claimable by a verified login",COVERED,c16 T8 + c19 T15a
+c1-emergency-hotfix,unauthenticated is never 'ok',COVERED,c16 T8 + c19 T15a
+c1b-write-freeze,default-filled local equals sparse server,OBS-CODE,cfNormalizeWith/cfIsMeaningfulNormalized: 0 occurrences; M10 canon is byte-canonical
+c1b-write-freeze,a real settings change survives normalization,OBS-CODE,cfNormalizeWith/cfIsMeaningfulNormalized: 0 occurrences; M10 canon is byte-canonical
+c1b-write-freeze,default presets carry no meaning; custom presets do,OBS-CODE,cfNormalizeWith/cfIsMeaningfulNormalized: 0 occurrences; M10 canon is byte-canonical
+c1b-write-freeze,scriptVer differences never create divergence,OBS-CODE,cfNormalizeWith/cfIsMeaningfulNormalized: 0 occurrences; M10 canon is byte-canonical
+c1b-write-freeze,a GLP dose is meaning; an empty glp shell is not,OBS-CODE,cfNormalizeWith/cfIsMeaningfulNormalized: 0 occurrences; M10 canon is byte-canonical
+c1b-write-freeze,fresh default install is NOT meaningful,OBS-CODE,cfNormalizeWith/cfIsMeaningfulNormalized: 0 occurrences; M10 canon is byte-canonical
+c1b-write-freeze,core clone failure fails the snapshot even if training cloned,COVERED,c11m8-faults F/F2/G/J; c16 T9
+c1b-write-freeze,training clone failure fails the snapshot even if core cloned,COVERED,c11m8-faults F/F2/G/J; c16 T9
+c1b-write-freeze,nothing supplied fails,COVERED,c11m8-faults F/F2/G/J; c16 T9
+c1b-write-freeze,missing accountId fails,COVERED,c11m8-faults F/F2/G/J; c16 T9
+c1b-write-freeze,valid core-only snapshot passes,COVERED,c11m8-faults F/F2/G/J; c16 T9
+c1b-write-freeze,cfCloneField reports failure on uncloneable input,COVERED,c11m8-faults F/F2/G/J; c16 T9
+c1b-write-freeze,cfCloneField distinguishes absent from failed,OBS-CODE,COMMIT-1b source block: 0 occurrences (source-text regex tests)
+c1b-write-freeze,closed gate blocks even a matching account,OBS-BEHAV,CF_WRITE_GATE freeze superseded by M8 acceptance
+c1b-write-freeze,open gate still blocks a mismatched account,OBS-BEHAV,CF_WRITE_GATE freeze superseded by M8 acceptance
+c1b-write-freeze,open gate blocks unknown ownership,OBS-BEHAV,CF_WRITE_GATE freeze superseded by M8 acceptance
+c1b-write-freeze,only gate===true AND verdict===ok writes,OBS-BEHAV,CF_WRITE_GATE freeze superseded by M8 acceptance
+c1b-write-freeze,truthy-but-not-true gate tokens are rejected,OBS-BEHAV,CF_WRITE_GATE freeze superseded by M8 acceptance
+c1b-write-freeze,pbSave is wrapped by the write gate in the final block,OBS-BEHAV,CF_WRITE_GATE freeze superseded by M8 acceptance
+c1b-write-freeze,scheduleCloudPush override contains no timer and no network call,OBS-CODE,COMMIT-1b source block: 0 occurrences (source-text regex tests)
+c1b-write-freeze,scheduleTrainingPush override contains no timer and no network call,OBS-CODE,COMMIT-1b source block: 0 occurrences (source-text regex tests)
+c1b-write-freeze,pre-existing push timers are cleared when the block installs,OBS-CODE,COMMIT-1b source block: 0 occurrences (source-text regex tests)
+c1b-write-freeze,CF_WRITE_GATE is declared false and never set true anywhere,OBS-CODE,COMMIT-1b source block: 0 occurrences (source-text regex tests)
+c1b-write-freeze,the legacy sync:push handler is intercepted before cloudPush,OBS-CODE,COMMIT-1b source block: 0 occurrences (source-text regex tests)
+c1b-write-freeze,trainingPull refuses while training is dirty,OBS-CODE,COMMIT-1b source block: 0 occurrences (source-text regex tests)
+c1b-write-freeze,render is gated on account ownership,OBS-BEHAV,CF_WRITE_GATE freeze superseded by M8 acceptance
+c1b-write-freeze,pbForceLogout clears the owner marker,OBS-CODE,COMMIT-1b source block: 0 occurrences (source-text regex tests)
+c1b-write-freeze,applyImport snapshots before importing,COVERED,c11m8-faults F/F2/G/J; c16 T9
+c1d-coach-equality,macroAuto true vs false is NOT equal,OBS-CODE,startDateSet: 0 occurrences; whole-store byte comparison
+c1d-coach-equality,calTargetAuto true vs false is NOT equal,OBS-CODE,startDateSet: 0 occurrences; whole-store byte comparison
+c1d-coach-equality,startDate differs + user-set flag => NOT equal,OBS-CODE,startDateSet: 0 occurrences; whole-store byte comparison
+c1d-coach-equality,"generated startDate on different days, fresh installs => equal (no false conflict)",OBS-CODE,startDateSet: 0 occurrences; whole-store byte comparison
+c1d-coach-equality,legacy rule: weights present makes an unflagged startDate REAL intent,OBS-CODE,startDateSet: 0 occurrences; whole-store byte comparison
+c1d-coach-equality,onboarded is device state — excluded by documented policy,OBS-CODE,startDateSet: 0 occurrences; whole-store byte comparison
+c1d-coach-equality,recap entry extracted,OBS-BEHAV,recap merge retired by 9c41515 '.445-reportfeed' (Owner ruling 2026-08-04: reports are a service)
+c1d-coach-equality,summaries extracted,OBS-BEHAV,recap merge retired by 9c41515 '.445-reportfeed' (Owner ruling 2026-08-04: reports are a service)
+c1d-coach-equality,athlete data fields are NOT extracted,OBS-BEHAV,recap merge retired by 9c41515 '.445-reportfeed' (Owner ruling 2026-08-04: reports are a service)
+c1d-coach-equality,local edit made during polling SURVIVES,COVERED,c16 T13 edit-during-pull + c11m8-faults O (race half); merge half retired by 9c41515
+c1d-coach-equality,core stays dirty — recap did not mark clean,COVERED,c16 T13 edit-during-pull + c11m8-faults O (race half); merge half retired by 9c41515
+c1d-coach-equality,recap itself was merged (server-owned field),OBS-BEHAV,"recap merge retired by 9c41515 '.445-reportfeed' (Owner ruling 2026-08-04); the RACE half of the parent scenario is covered by c16 T13, the merge assertion itself has no live subject"
+c1d-coach-equality,server-only athlete data was NOT adopted,COVERED,c16 T13 edit-during-pull + c11m8-faults O (race half); merge half retired by 9c41515
+c1d-coach-equality,no appdata snapshot write occurred,COVERED,c16 T13 edit-during-pull + c11m8-faults O (race half); merge half retired by 9c41515
+c1d-coach-equality,workout draft alone counts as meaningful (gate),COVERED,c11m8-faults F/F2/S/T; c19 T15b verified restore
+c1d-coach-equality,quarantine happened,COVERED,c11m8-faults F/F2/S/T; c19 T15b verified restore
+c1d-coach-equality,workout draft preserved byte-for-byte,COVERED,c11m8-faults F/F2/S/T; c19 T15b verified restore
+c1d-coach-equality,manifest written with sizes,COVERED,c11m8-faults F/F2/S/T; c19 T15b verified restore
+c1d-coach-equality,sources removed only after verification,COVERED,c11m8-faults F/F2/S/T; c19 T15b verified restore
+c1d-coach-equality,no source key was deleted,COVERED,c11m8-faults F
+c1d-coach-equality,no manifest exists (partial copies cleaned),COVERED,c11m8-faults F
+c1d-coach-equality,login (signed-out) screen lists the set-aside data,OBS-BEHAV,signed-out set-aside surface removed at a599efa (cf* layer replaced by live production client)
+c1d-coach-equality,offers export + delete per set,OBS-BEHAV,signed-out set-aside surface removed at a599efa (cf* layer replaced by live production client)
+c1e-adoption-race,adoption stale on revision drift,COVERED,c16 T11/T12b; c19 T6
+c1e-adoption-race,adoption stale on session generation drift,COVERED,c16 T11/T12b; c19 T6
+c1e-adoption-race,coach ctx invalid on token drift even with same uid (A→B→A),COVERED,c16 T11/T12b; c19 T6
+c1e-adoption-race,startDate: flag true always compares,OBS-CODE,cfStartDateIncluded: 0 occurrences
+c1e-adoption-race,startDate: unflagged + engaged (non-weights meaning) compares,OBS-CODE,cfStartDateIncluded: 0 occurrences
+c1e-adoption-race,startDate: unflagged + otherwise empty is generated noise,OBS-CODE,cfStartDateIncluded: 0 occurrences
+c1e-adoption-race,adoption was ABORTED — the racing edit survives,COVERED,c16 T13; c11m8-faults O
+c1e-adoption-race,local copy not replaced by server version,COVERED,c16 T13; c11m8-faults O
+c1e-adoption-race,device stays dirty — never marked clean over a newer edit,COVERED,c16 T13; c11m8-faults O
+c1e-adoption-race,"re-reconcile routed to a safe outcome (conflict/pending), not adopt-completed",COVERED,c16 T13; c11m8-faults O
+c1e-adoption-race,NO coachreq write after failed preflight adoption,OBS-BEHAV,"coach preflight/poll retired by 9c41515; generic A→B→A covered c16 T12b, c18 T11"
+c1e-adoption-race,busy state cleared,OBS-BEHAV,"coach preflight/poll retired by 9c41515; generic A→B→A covered c16 T12b, c18 T11"
+c1e-adoption-race,B-owned recap was NOT merged into A state,OBS-BEHAV,"coach preflight/poll retired by 9c41515; generic A→B→A covered c16 T12b, c18 T11"
+c1e-adoption-race,busy state cleared after silent abort,OBS-BEHAV,"coach preflight/poll retired by 9c41515; generic A→B→A covered c16 T12b, c18 T11"
+c1e-adoption-race,quarantine committed,COVERED,c11m8-faults F2/H/R
+c1e-adoption-race,recovery copy of core still exists despite the exception,COVERED,c11m8-faults F2/H/R
+c1e-adoption-race,manifest still exists,COVERED,c11m8-faults F2/H/R
+c1e-adoption-race,failed removal recorded as cleanupPending,COVERED,c11m8-faults F2/H/R
+c1e-adoption-race,boot repair completes the cleanup idempotently,COVERED,c11m8-faults F2/H/R
+c1e-adoption-race,"goal-setting user, differing unflagged dates => NOT equal",OBS-CODE,startDateSet equality: 0 occurrences
+c1e-adoption-race,"GLP-configured user, differing unflagged dates => NOT equal",OBS-CODE,startDateSet equality: 0 occurrences
+c1e-adoption-race,"both otherwise empty, differing unflagged dates => equal (fresh installs)",OBS-CODE,startDateSet equality: 0 occurrences
+c1e-adoption-race,incomplete manifest cannot be exported,OBS-CODE,cfQuarExport/cfQuarComplete: 0 occurrences; live export gates c19 T18/T19
+c1e-adoption-race,no confirmation dialog was even shown for the incomplete set,OBS-CODE,cfQuarExport/cfQuarComplete: 0 occurrences; live export gates c19 T18/T19
+c1f-destructive-guard,drift on core revision,COVERED,c16 T6/T11 revision drift kills in-flight ops
+c1f-destructive-guard,drift on training revision,COVERED,c11m8-faults K (newer generation reschedules)
+c1f-destructive-guard,drift on workout fingerprint,COVERED,fence model: c15 lease + c19 T5/T6/T13
+c1f-destructive-guard,drift on session generation,COVERED,c16 T12 generation drift
+c1f-destructive-guard,no drift when identical,COVERED,c16 T2 clean push lands (no false drift)
+c1f-destructive-guard,manifest valid when components match recorded lengths,OBS-CODE,cfManifestValid: 0 occurrences
+c1f-destructive-guard,manifest invalid on length mismatch,OBS-CODE,cfManifestValid: 0 occurrences
+c1f-destructive-guard,manifest invalid on missing component,OBS-CODE,cfManifestValid: 0 occurrences
+c1f-destructive-guard,manifest invalid on stamp mismatch,OBS-CODE,cfManifestValid: 0 occurrences
+c1f-destructive-guard,restore was aborted,OBS-CODE,recRestore/recList: 0 occurrences; guard is the fence (c19 T4)
+c1f-destructive-guard,racing edit survives,COVERED,fence dimension c19 T6/T11; edit-drift comparator: 0 occurrences
+c1f-destructive-guard,restored content was NOT applied,OBS-CODE,recRestore/recList: 0 occurrences; guard is the fence (c19 T4)
+c1f-destructive-guard,import aborted after confirm-time drift,COVERED,fence dimension c19 T6/T11; edit-drift comparator: 0 occurrences
+c1f-destructive-guard,racing edit survives,COVERED,fence dimension c19 T6/T11; edit-drift comparator: 0 occurrences
+c1f-destructive-guard,device was NOT wiped,COVERED,c19 T7/T12 + c23 pbLogout pin
+c1f-destructive-guard,no reload happened — still signed in,COVERED,c19 T7/T12 + c23 pbLogout pin
+c1f-destructive-guard,racing edit survives,COVERED,fence dimension c19 T6/T11; edit-drift comparator: 0 occurrences
+c1f-destructive-guard,stamp 200 (stale) did NOT delete the newer value…,COVERED,c11m8-faults H/R
+c1f-destructive-guard,"stamp 200 recorded as superseded, not silently dropped",COVERED,c11m8-faults H/R
+c1f-destructive-guard,stamp 200 recovery components untouched,COVERED,c11m8-faults H/R
+c1f-destructive-guard,newer wl_v1 survives the stale cleanup job,COVERED,c11m8-faults H/R
+c1f-destructive-guard,job marked superseded,COVERED,c11m8-faults H/R
+c1f-destructive-guard,"pending record cleared (job resolved, not looping)",COVERED,c11m8-faults H/R
+c1f-destructive-guard,recovery component intact,COVERED,c11m8-faults H/R
+c1f-destructive-guard,same-account token rotation does NOT abort adoption (owner/gen/rev unchanged),OBS-CODE,generation model no longer keys on token
+c1f-destructive-guard,token rotation DOES invalidate an in-flight coach context (fingerprint),COVERED,fence model: c15 lease + c19 T5/T6/T13
+c1g-identity-manifest,"accepts exactly {core,training,workout} in order",OBS-CODE,cfManifestValid: 0 occurrences
+c1g-identity-manifest,accepts the same set in a DIFFERENT order,OBS-CODE,cfManifestValid: 0 occurrences
+c1g-identity-manifest,rejects subset ['core'],OBS-CODE,cfManifestValid: 0 occurrences
+c1g-identity-manifest,"rejects subset ['core','training']",OBS-CODE,cfManifestValid: 0 occurrences
+c1g-identity-manifest,"rejects duplicate ['core','training','training']",OBS-CODE,cfManifestValid: 0 occurrences
+c1g-identity-manifest,"rejects unknown ['core','training','photo']",OBS-CODE,cfManifestValid: 0 occurrences
+c1g-identity-manifest,rejects missing sizes.workout,OBS-CODE,cfManifestValid: 0 occurrences
+c1g-identity-manifest,rejects an extra size key,OBS-CODE,cfManifestValid: 0 occurrences
+c1g-identity-manifest,rejects negative size,OBS-CODE,cfManifestValid: 0 occurrences
+c1g-identity-manifest,rejects non-integer size,OBS-CODE,cfManifestValid: 0 occurrences
+c1g-identity-manifest,rejects a missing component even when sizes claim 0,OBS-CODE,cfManifestValid: 0 occurrences
+c1g-identity-manifest,rejects length mismatch,OBS-CODE,cfManifestValid: 0 occurrences
+c1g-identity-manifest,absent source ⇒ clean,COVERED,c11m8-faults H/R
+c1g-identity-manifest,exact match ⇒ delete authorized,COVERED,c11m8-faults H/R
+c1g-identity-manifest,"newer value ⇒ superseded, never delete",COVERED,c11m8-faults H/R
+c1g-identity-manifest,missing quarantined component ⇒ superseded (no comparison source),COVERED,c11m8-faults H/R
+c1g-identity-manifest,restore aborted on a same-length workout change,OBS-CODE,recRestore: 0 occurrences; fence covers (c19 T4)
+c1g-identity-manifest,newer workout draft intact,COVERED,"c19 T4 gate fails closed, no mutation"
+c1g-identity-manifest,nothing restored,OBS-CODE,recRestore: 0 occurrences; fence covers (c19 T4)
+c1g-identity-manifest,logout aborted when a workout appeared during the wait,COVERED,c19 T7/T11 (wo:* gated)
+c1g-identity-manifest,import aborted when the workout was deleted during the confirm wait,COVERED,c19 T7/T11 (wo:* gated)
+c1g-identity-manifest,subset manifest is NOT complete at runtime,OBS-CODE,cfManifestValid: 0 occurrences
+c1g-identity-manifest,export refused for the subset set,OBS-CODE,cfManifestValid: 0 occurrences
+c1g-identity-manifest,manifest validator rejects a missing comps object,OBS-CODE,cfManifestValid: 0 occurrences
+c1g-identity-manifest,a storage read failure fails the destructive guard CLOSED,COVERED,c11m8-faults G; c19 T15d/T12
+c1g-identity-manifest,normal path unaffected: identical context is not stale,COVERED,c11m8-faults G; c19 T15d/T12
+c1h-reopen-recap,generation starts at 0 for any day,OBS-CODE,cfRecapGen/cfRecapInvalidate: 0 occurrences
+c1h-reopen-recap,invalidate bumps only that day,OBS-CODE,cfRecapGen/cfRecapInvalidate: 0 occurrences
+c1h-reopen-recap,ctx with stale generation is invalid; matching generation is valid,OBS-CODE,cfRecapGen/cfRecapInvalidate: 0 occurrences
+c1h-reopen-recap,generation of a DIFFERENT day does not invalidate the ctx,OBS-CODE,cfRecapGen/cfRecapInvalidate: 0 occurrences
+c1h-reopen-recap,recap remains ABSENT — late result did not restore it,OBS-BEHAV,recap poll-merge retired by 9c41515
+c1h-reopen-recap,day remains reopened (no completed state),OBS-BEHAV,recap poll-merge retired by 9c41515
+c1h-reopen-recap,core remains dirty/pending after the reopen edit,PORTED,c23 reopenDay H2 pins
+c1h-reopen-recap,seenNightly was not restored for the day,OBS-BEHAV,recap poll-merge retired by 9c41515
+c1h-reopen-recap,no appdata snapshot write occurred,PORTED,c23 H2 'zero data/training writes' dimension (asserted as no push scheduled while offline-local)
+c1h-reopen-recap,recap cleared,PORTED,c23 reopenDay H2 pins
+c1h-reopen-recap,other dirty edits survive,PORTED,c23 reopenDay H2 pins
+c1h-reopen-recap,core remains dirty,PORTED,c23 reopenDay H2 pins
+c1h-reopen-recap,zero data/training POST/PATCH from the reopen,PORTED,c23 reopenDay H2 pins
+c1h-reopen-recap,older day recap cleared,PORTED,c23 reopenDay H2 pins
+c1h-reopen-recap,latest day recap in nightlyLog intact,PORTED,c23 reopenDay H3 pins
+c1h-reopen-recap,latest recap slot (nightlySummary) untouched,PORTED,c23 reopenDay H3 pins
+c1h-reopen-recap,reopening the LATEST day clears its summary slot too,PORTED,c23 reopenDay H3 pins
+c1h-reopen-recap,recap merged despite ordinary dirty edit,OBS-BEHAV,"recap merge retired by 9c41515 '.445-reportfeed' (Owner ruling 2026-08-04); the RACE half of the parent scenario is covered by c16 T13, the merge assertion itself has no live subject"
+c1h-reopen-recap,the ordinary edit survives,OBS-BEHAV,no merge path remains to guard (9c41515)
+c1h-reopen-recap,core stays dirty,PORTED,c23 H2 'never touches other dirty edits' (dirty preserved)
+c10-cas-client,"identity is subsystem, expected revision and canonical payload",COVERED,c16 T3; c11m8-replay F7-5
+c10-cas-client,identical canonical payloads produce an identical key,COVERED,c16 T3; c11m8-replay F7-5
+c10-cas-client,a payload byte change produces a different key,COVERED,byteLength survives; c11m8-quota
+c10-cas-client,a subsystem change produces a different key,COVERED,c11m8-replay F7-1..F7-7 retry ladder
+c10-cas-client,an expectedRev change produces a different key,COVERED,c11m8-replay F7-1..F7-7 retry ladder
+c10-cas-client,"key is a full 64-char digest, not truncated",OBS-CODE,"m8/m10 keys are storage builders, not digests"
+c10-cas-client,key fits the server 96-char limit,OBS-CODE,"m8/m10 keys are storage builders, not digests"
+c10-cas-client,an over-length digest is REFUSED rather than truncated,OBS-CODE,"m8/m10 keys are storage builders, not digests"
+c10-cas-client,no raw payload content appears in the key,COVERED,c11m8-replay F7-1..F7-7 retry ladder
+c10-cas-client,CAS-05 no edit in flight: the subsystem goes clean,COVERED,c11m8-replay F7-1..F7-7 retry ladder
+c10-cas-client,CAS-06 edit during flight: newer revision stays PENDING,COVERED,c16 T6/T11/T12; c17
+c10-cas-client,an older response can never lower the high-water mark,COVERED,c11m8-replay F7-1..F7-7 retry ladder
+c10-cas-client,serverRev is retained when a response carries none,COVERED,c11m8-replay F7-1..F7-7 retry ladder
+c10-cas-client,pending and unblocked may commit,COVERED,c16 T2/T11/T19a; c11m8-faults K
+c10-cas-client,clean does not commit,COVERED,c16 T2/T11/T19a; c11m8-faults K
+c10-cas-client,unresolved conflict blocks the subsystem,COVERED,c16 T2/T11/T19a; c11m8-faults K
+c10-cas-client,blocked=${b} prevents automatic commit,COVERED,c16 T2/T11/T19a; c11m8-faults K
+c10-cas-client,"server already holds what we sent → agree, no prompt",COVERED,c16 T15; c11m8-replay F7-3/F7-4; c11m8-matrix R4-*
+c10-cas-client,server still equals our last agreed baseline → retry once,COVERED,c16 T15; c11m8-replay F7-3/F7-4; c11m8-matrix R4-*
+c10-cas-client,the retry may happen only once,COVERED,c16 T15; c11m8-replay F7-3/F7-4; c11m8-matrix R4-*
+c10-cas-client,genuinely divergent content is ALWAYS a conflict,COVERED,c16 T15; c11m8-replay F7-3/F7-4; c11m8-matrix R4-*
+c10-cas-client,"no baseline known → conflict, never a guess",COVERED,c16 T15; c11m8-replay F7-3/F7-4; c11m8-matrix R4-*
+c10-cas-client,C10-PLAN-06 an edit to the AFFECTED subsystem aborts adoption,COVERED,c11m8-replay F7-1..F7-7 retry ladder
+c10-cas-client,C10-PLAN-05 an edit to the OTHER subsystem does not abort it,COVERED,c11m8-replay F7-1..F7-7 retry ladder
+c10-cas-client,a different account aborts,OBS-CODE,asserted properties of the cf* cas-conflict artifact/account-scope contract: 0 occurrences; NOT claimed as covered by the m8 retry ladder
+c10-cas-client,a new session generation aborts,COVERED,c16 T6/T11/T12; c17
+c10-cas-client,a replaced conflict record aborts,COVERED,c16 T2/T11/T19a; c11m8-faults K
+c10-cas-client,a moved server revision aborts,COVERED,c16 T6/T11/T12; c17
+c10-cas-client,a different recovery artifact aborts,OBS-CODE,cas-conflict artifact format: 0 occurrences
+c10-cas-client,a missing context is treated as drifted,COVERED,c16 T6/T11/T12; c17
+c10-cas-client,${name}: counts ${expected} UTF-8 bytes,COVERED,byteLength survives; c11m8-quota
+c10-cas-client,${name}: agrees with Buffer.byteLength,COVERED,byteLength survives; c11m8-quota
+c10-cas-client,a multibyte payload measures LONGER than String.length,COVERED,byteLength survives; c11m8-quota
+c10-cas-client,null and undefined measure 0 rather than throwing,COVERED,byteLength survives; c11m8-quota
+c10-cas-client,accepts a 64-char lowercase hex digest,OBS-CODE,"digest grammar belonged to the cf* request-key format; m8/m10 keys are storage-name builders (m8Key/m10cKey), no hex digest exists"
+c10-cas-client,rejects a truncated digest,OBS-CODE,"m8/m10 keys are storage builders, not digests"
+c10-cas-client,rejects uppercase hex,OBS-CODE,"digest grammar belonged to the cf* request-key format; m8/m10 keys are storage-name builders (m8Key/m10cKey), no hex digest exists"
+c10-cas-client,rejects non-hex characters,OBS-CODE,"digest grammar belonged to the cf* request-key format; m8/m10 keys are storage-name builders (m8Key/m10cKey), no hex digest exists"
+c10-cas-client,rejects an empty or absent digest,OBS-CODE,"m8/m10 keys are storage builders, not digests"
+c10-cas-client,a well-formed single-subsystem artifact validates,OBS-CODE,cas-conflict artifact format: 0 occurrences
+c10-cas-client,rejects the whole-snapshot component set (no hybrids),COVERED,c11m8-replay F7-1..F7-7 retry ladder
+c10-cas-client,rejects an extra component,COVERED,c11m8-replay F7-1..F7-7 retry ladder
+c10-cas-client,rejects a size that disagrees with the stored bytes,COVERED,byteLength survives; c11m8-quota
+c10-cas-client,rejects a mismatched id — no pointing at another artifact,OBS-CODE,cas-conflict artifact format: 0 occurrences
+c10-cas-client,rejects a missing account scope,OBS-CODE,asserted properties of the cf* cas-conflict artifact/account-scope contract: 0 occurrences; NOT claimed as covered by the m8 retry ladder
+c10-cas-client,rejects an unknown subsystem,COVERED,c11m8-replay F7-1..F7-7 retry ladder
+c10-cas-client,rejects a non-integer server revision,COVERED,c16 T6/T11/T12; c17
+c10-cas-client,rejects the wrong artifact kind,OBS-CODE,cas-conflict artifact format: 0 occurrences
+c10-cas-client,rejects a missing content hash,COVERED,c11m8-replay F7-1..F7-7 retry ladder
+c10-cas-client,an artifact is immutable once written,OBS-CODE,cas-conflict artifact format: 0 occurrences
+c10-cas-client,"a multibyte payload validates on BYTES, not code units",COVERED,byteLength survives; c11m8-quota
+c10-cas-client,the OLD code-unit length is now REJECTED for a multibyte payload,COVERED,byteLength survives; c11m8-quota
+c10-cas-client,a non-digest hash is rejected by shape validation,OBS-CODE,"m8/m10 keys are storage builders, not digests"
+c10-cas-client,a fully consistent artifact verifies,OBS-CODE,cas-conflict artifact format: 0 occurrences
+c10-cas-client,"changed payload, unchanged manifest hash → REJECTED",OBS-CODE,cas-conflict artifact format: 0 occurrences
+c10-cas-client,"changed hash, unchanged payload → REJECTED",COVERED,c11m8-replay F7-1..F7-7 retry ladder
+c10-cas-client,malformed/short hash → REJECTED,OBS-CODE,asserted properties of the cf* cas-conflict artifact/account-scope contract: 0 occurrences; NOT claimed as covered by the m8 retry ladder
+c10-cas-client,a computed digest that is not a digest → REJECTED,OBS-CODE,"m8/m10 keys are storage builders, not digests"
+c10-cas-client,artifact from ANOTHER ACCOUNT → REJECTED,OBS-CODE,cas-conflict artifact format: 0 occurrences
+c10-cas-client,artifact for the other subsystem → REJECTED,OBS-CODE,cas-conflict artifact format: 0 occurrences
+c10-cas-client,artifact captured at a different server revision → REJECTED,COVERED,c16 T6/T11/T12; c17
+c10-cas-client,conflict pointing at a different artifact id → REJECTED,OBS-CODE,cas-conflict artifact format: 0 occurrences
+c10-cas-client,"no expectation supplied → REJECTED, never assumed",COVERED,c11m8-replay F7-1..F7-7 retry ladder
+c10-cas-client,a multibyte payload verifies end to end,COVERED,byteLength survives; c11m8-quota
+c10-cas-client,shape-valid but unverified is NOT actionable,OBS-CODE,cas-conflict artifact format: 0 occurrences
+c10-cas-client,C10-PLAN-07 all four conditions proven → creation allowed,COVERED,c16 T1d/T8
+c10-cas-client,absent metadata alone is not proof,COVERED,c11m8-replay F7-1..F7-7 retry ladder
+c10-cas-client,unauthenticated is refused,COVERED,c11m8-replay F7-1..F7-7 retry ladder
+c10-cas-client,C10-PLAN-08 a device that once knew a row never auto-creates,COVERED,c16 T1d/T8
+c10-cas-client,unresolved ownership is refused,COVERED,c11m8-replay F7-1..F7-7 retry ladder
+c10-cas-client,local data belonging to another account is refused,OBS-CODE,asserted properties of the cf* cas-conflict artifact/account-scope contract: 0 occurrences; NOT claimed as covered by the m8 retry ladder
+c10-cas-client,a row the server reports as present is refused,COVERED,c16 T1d/T8
+c10-cas-client,update required outranks everything,COVERED,c11m8-replay F7-1..F7-7 retry ladder
+c10-cas-client,conflict outranks auth,COVERED,c16 T2/T11/T19a; c11m8-faults K
+c10-cas-client,auth outranks a failure,COVERED,c11m8-replay F7-1..F7-7 retry ladder
+c10-cas-client,failure outranks pending,COVERED,c11m8-replay F7-1..F7-7 retry ladder
+c10-cas-client,"STATUS-01 a local edit shows pending, not synced",OBS-CODE,cfCasStatus: 0 occurrences; live surface setSync (new c24 coverage)
+c10-cas-client,STATUS-02 syncing only when a request is really active,OBS-CODE,cfCasStatus: 0 occurrences; live surface setSync (new c24 coverage)
+c10-cas-client,STATUS-03 synced only when both subsystems are settled,OBS-CODE,cfCasStatus: 0 occurrences; live surface setSync (new c24 coverage)
+c10-cas-client,network failure retries at 5s then 30s then stops,COVERED,c11m8-replay F7-1..F7-7 retry ladder
+c10-cas-client,500 uses the same bounded ladder,COVERED,c11m8-replay F7-1..F7-7 retry ladder
+c10-cas-client,${s} never enters the retry loop,COVERED,c16 T15; c11m8-replay F7-3/F7-4; c11m8-matrix R4-*
+c10-cas-client,a 200 carrying the success contract is ok,COVERED,c11m8-replay F7-1..F7-7 retry ladder
+c10-cas-client,a bare 200 is NOT success — status alone is never proof,OBS-CODE,cfCasStatus: 0 occurrences; live surface setSync (new c24 coverage)
+c10-cas-client,a 200 without newRev is not success,COVERED,c11m8-replay F7-1..F7-7 retry ladder
+c10-cas-client,a 200 with ok:false is not success,COVERED,c11m8-replay F7-1..F7-7 retry ladder
+c10-cas-client,a 200 with no body at all is not success,COVERED,c11m8-replay F7-1..F7-7 retry ladder
+c10-cas-client,C10-P8-11 a 200 without subsystem is rejected,COVERED,c11m8-replay F7-1..F7-7 retry ladder
+c10-cas-client,a 200 about the OTHER subsystem is rejected,COVERED,c11m8-replay F7-1..F7-7 retry ladder
+c10-cas-client,C10-P8-12 a fractional newRev is rejected,COVERED,c11m8-replay F7-1..F7-7 retry ladder
+c10-cas-client,C10-P8-12 a negative newRev is rejected,COVERED,c11m8-replay F7-1..F7-7 retry ladder
+c10-cas-client,C10-P8-12 a non-numeric newRev is rejected,COVERED,c11m8-replay F7-1..F7-7 retry ladder
+c10-cas-client,"C10-P8-13 a 409 with no serverRev is a contract failure, not a conflict",COVERED,c16 T2/T11/T19a; c11m8-faults K
+c10-cas-client,C10-P8-13 a 409 with a non-object payload is a contract failure,COVERED,c16 T2/T11/T19a; c11m8-faults K
+c10-cas-client,C10-P8-13 a 409 with an array payload is a contract failure,COVERED,c16 T2/T11/T19a; c11m8-faults K
+c10-cas-client,the documented no-row 409 IS a valid conflict,COVERED,c16 T1d/T8
+c10-cas-client,a no-row 409 with a payload is malformed,COVERED,c16 T1d/T8
+c10-cas-client,409 with conflict:true is a conflict,COVERED,c16 T2/T11/T19a; c11m8-faults K
+c10-cas-client,"409 reused-key is an INVARIANT, never a conflict card",COVERED,c16 T3; c11m8-replay F7-5
+c10-cas-client,413 is oversize,OBS-CODE,disposition unimplemented in m8/m10 route
+c10-cas-client,426 is update-required,OBS-CODE,disposition unimplemented in m8/m10 route; returns with MIN_CLIENT_BUILD at enforcement
+c10-cas-client,401 is auth,COVERED,c11m8-replay F7-1..F7-7 retry ladder
+c10-cas-client,"400 is a contract failure, not a retry",COVERED,c16 T15; c11m8-replay F7-3/F7-4; c11m8-matrix R4-*
+c10-cas-client,an unexpected status fails closed as a contract failure,OBS-CODE,cfCasStatus: 0 occurrences; live surface setSync (new c24 coverage)
+m1-photo-ownership,a photo belongs to its owner,OBS-CODE,phIsMine/phIsOrphan/phFilterMine: 0 occurrences; isolation covered by server filter + c18 T11/T16 + c19 T12
+m1-photo-ownership,User A's photo does NOT belong to User B,OBS-CODE,phIsMine/phIsOrphan/phFilterMine: 0 occurrences; isolation covered by server filter + c18 T11/T16 + c19 T12
+m1-photo-ownership,signed out (no uid) owns nothing,OBS-CODE,phIsMine/phIsOrphan/phFilterMine: 0 occurrences; isolation covered by server filter + c18 T11/T16 + c19 T12
+m1-photo-ownership,a legacy ownerless photo belongs to nobody,OBS-CODE,phIsMine/phIsOrphan/phFilterMine: 0 occurrences; isolation covered by server filter + c18 T11/T16 + c19 T12
+m1-photo-ownership,null/undefined records are not owned,OBS-CODE,phIsMine/phIsOrphan/phFilterMine: 0 occurrences; isolation covered by server filter + c18 T11/T16 + c19 T12
+m1-photo-ownership,ownerless record is an orphan,OBS-CODE,phIsMine/phIsOrphan/phFilterMine: 0 occurrences; isolation covered by server filter + c18 T11/T16 + c19 T12
+m1-photo-ownership,owned record is not an orphan,OBS-CODE,phIsMine/phIsOrphan/phFilterMine: 0 occurrences; isolation covered by server filter + c18 T11/T16 + c19 T12
+m1-photo-ownership,User A sees only their own photo,OBS-CODE,phIsMine/phIsOrphan/phFilterMine: 0 occurrences; isolation covered by server filter + c18 T11/T16 + c19 T12
+m1-photo-ownership,User B sees only their own photo,OBS-CODE,phIsMine/phIsOrphan/phFilterMine: 0 occurrences; isolation covered by server filter + c18 T11/T16 + c19 T12
+m1-photo-ownership,User B never sees User A's photo,OBS-CODE,phIsMine/phIsOrphan/phFilterMine: 0 occurrences; isolation covered by server filter + c18 T11/T16 + c19 T12
+m1-photo-ownership,legacy photo is shown to nobody (quarantined),OBS-CODE,phIsMine/phIsOrphan/phFilterMine: 0 occurrences; isolation covered by server filter + c18 T11/T16 + c19 T12
+m1-photo-ownership,signed out shows nothing,OBS-CODE,phIsMine/phIsOrphan/phFilterMine: 0 occurrences; isolation covered by server filter + c18 T11/T16 + c19 T12
+m1-photo-ownership,empty/absent input is safe,OBS-CODE,phIsMine/phIsOrphan/phFilterMine: 0 occurrences; isolation covered by server filter + c18 T11/T16 + c19 T12
+m1-photo-ownership,logging in as B uploads none of A's or the legacy photos,OBS-CODE,phIsMine/phIsOrphan/phFilterMine: 0 occurrences; isolation covered by server filter + c18 T11/T16 + c19 T12
+m2-photo-pagination,all pages fetched and counts agree => complete,OBS-CODE,phPagesComplete/phMayInferDeletion: 0 occurrences; deletion inference removed with M8-era photoSync (live photoSync only adopts); boundary pinned by new c24 500-photo case
+m2-photo-pagination,missing a page => incomplete,OBS-CODE,phPagesComplete/phMayInferDeletion: 0 occurrences; deletion inference removed with M8-era photoSync (live photoSync only adopts); boundary pinned by new c24 500-photo case
+m2-photo-pagination,all pages but server reported more items => incomplete,OBS-CODE,phPagesComplete/phMayInferDeletion: 0 occurrences; deletion inference removed with M8-era photoSync (live photoSync only adopts); boundary pinned by new c24 500-photo case
+m2-photo-pagination,no page info at all => incomplete,OBS-CODE,phPagesComplete/phMayInferDeletion: 0 occurrences; deletion inference removed with M8-era photoSync (live photoSync only adopts); boundary pinned by new c24 500-photo case
+m2-photo-pagination,unknown totalItems still complete if every page arrived,OBS-CODE,phPagesComplete/phMayInferDeletion: 0 occurrences; deletion inference removed with M8-era photoSync (live photoSync only adopts); boundary pinned by new c24 500-photo case
+m2-photo-pagination,complete enumeration + previously synced + now absent => delete,OBS-CODE,phPagesComplete/phMayInferDeletion: 0 occurrences; deletion inference removed with M8-era photoSync (live photoSync only adopts); boundary pinned by new c24 500-photo case
+m2-photo-pagination,INCOMPLETE enumeration never deletes (the 501-photo bug),OBS-CODE,phPagesComplete/phMayInferDeletion: 0 occurrences; deletion inference removed with M8-era photoSync (live photoSync only adopts); boundary pinned by new c24 500-photo case
+m2-photo-pagination,still present on server => no delete,OBS-CODE,phPagesComplete/phMayInferDeletion: 0 occurrences; deletion inference removed with M8-era photoSync (live photoSync only adopts); boundary pinned by new c24 500-photo case
+m2-photo-pagination,"never synced (not in map) => no delete, it is a pending upload",OBS-CODE,phPagesComplete/phMayInferDeletion: 0 occurrences; deletion inference removed with M8-era photoSync (live photoSync only adopts); boundary pinned by new c24 500-photo case
+m2-photo-pagination,a photo uploaded moments ago is not deleted by a stale listing,OBS-CODE,phPagesComplete/phMayInferDeletion: 0 occurrences; deletion inference removed with M8-era photoSync (live photoSync only adopts); boundary pinned by new c24 500-photo case
+m2-photo-pagination,missing/!id record is never deleted,OBS-CODE,phPagesComplete/phMayInferDeletion: 0 occurrences; deletion inference removed with M8-era photoSync (live photoSync only adopts); boundary pinned by new c24 500-photo case
+m2-photo-pagination,no local photo is deleted when enumeration is partial,OBS-CODE,phPagesComplete/phMayInferDeletion: 0 occurrences; deletion inference removed with M8-era photoSync (live photoSync only adopts); boundary pinned by new c24 500-photo case
+m2-photo-pagination,"with a COMPLETE enumeration of all 501, nothing is spuriously deleted",OBS-CODE,phPagesComplete/phMayInferDeletion: 0 occurrences; deletion inference removed with M8-era photoSync (live photoSync only adopts); boundary pinned by new c24 500-photo case
+m2-photo-pagination,a genuinely deleted photo IS removed once enumeration is complete,OBS-CODE,phPagesComplete/phMayInferDeletion: 0 occurrences; deletion inference removed with M8-era photoSync (live photoSync only adopts); boundary pinned by new c24 500-photo case
+m3-revisions,request carrying the current revision may clean,COVERED,generation semantics: c16 T11; c11m8-faults K; c11m8-replay F7-1/F7-2b
+m3-revisions,older request may NOT clean newer state,COVERED,generation semantics: c16 T11; c11m8-faults K; c11m8-replay F7-1/F7-2b
+m3-revisions,revision 0 (never edited) is consistent,COVERED,generation semantics: c16 T11; c11m8-faults K; c11m8-replay F7-1/F7-2b
+m3-revisions,local ahead of success => dirty,COVERED,generation semantics: c16 T11; c11m8-faults K; c11m8-replay F7-1/F7-2b
+m3-revisions,local equals success => clean,COVERED,generation semantics: c16 T11; c11m8-faults K; c11m8-replay F7-1/F7-2b
+m3-revisions,fresh install is clean,COVERED,generation semantics: c16 T11; c11m8-faults K; c11m8-replay F7-1/F7-2b
+m3-revisions,newer success advances the mark,COVERED,generation semantics: c16 T11; c11m8-faults K; c11m8-replay F7-1/F7-2b
+m3-revisions,an out-of-order older response cannot lower it,COVERED,generation semantics: c16 T11; c11m8-faults K; c11m8-replay F7-1/F7-2b
+m3-revisions,equal is idempotent,COVERED,generation semantics: c16 T11; c11m8-faults K; c11m8-replay F7-1/F7-2b
+m3-revisions,"edit A, push A begins",COVERED,generation semantics: c16 T11; c11m8-faults K; c11m8-replay F7-1/F7-2b
+m3-revisions,edit B lands while the request is in flight,COVERED,generation semantics: c16 T11; c11m8-faults K; c11m8-replay F7-1/F7-2b
+m3-revisions,push A succeeds but must NOT mark clean,COVERED,generation semantics: c16 T11; c11m8-faults K; c11m8-replay F7-1/F7-2b
+m3-revisions,"a second push is required, and only it may clean",COVERED,generation semantics: c16 T11; c11m8-faults K; c11m8-replay F7-1/F7-2b
+m3-revisions,no success recorded => still dirty,COVERED,generation semantics: c16 T11; c11m8-faults K; c11m8-replay F7-1/F7-2b
+m3-revisions,slow rev-1 response landing after fast rev-2 cannot un-clean or clean wrongly,COVERED,generation semantics: c16 T11; c11m8-faults K; c11m8-replay F7-1/F7-2b
+m4-reconciliation,same content => same fingerprint,OBS-CODE,syncFingerprint: 0 occurrences; full canonical comparison covered by c11m8-matrix R4-*; second group self-declared superseded in-file
+m4-reconciliation,different content => different fingerprint,OBS-CODE,syncFingerprint: 0 occurrences; full canonical comparison covered by c11m8-matrix R4-*; second group self-declared superseded in-file
+m4-reconciliation,a GLP-1 dose added is visible to the fingerprint,OBS-CODE,syncFingerprint: 0 occurrences; full canonical comparison covered by c11m8-matrix R4-*; second group self-declared superseded in-file
+m4-reconciliation,empty/missing input is safe,OBS-CODE,syncFingerprint: 0 occurrences; full canonical comparison covered by c11m8-matrix R4-*; second group self-declared superseded in-file
+m4-reconciliation,dirty + no meaningful local data can NEVER adopt,OBS-CODE,syncFingerprint: 0 occurrences; full canonical comparison covered by c11m8-matrix R4-*; second group self-declared superseded in-file
+m4-reconciliation,"dirty + server unchanged holds, it does not auto-push",OBS-CODE,syncFingerprint: 0 occurrences; full canonical comparison covered by c11m8-matrix R4-*; second group self-declared superseded in-file
+m4-reconciliation,dirty + server moved => conflict,OBS-CODE,syncFingerprint: 0 occurrences; full canonical comparison covered by c11m8-matrix R4-*; second group self-declared superseded in-file
+m4-reconciliation,clean local + differing server => adopt is still allowed,OBS-CODE,syncFingerprint: 0 occurrences; full canonical comparison covered by c11m8-matrix R4-*; second group self-declared superseded in-file

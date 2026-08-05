@@ -42,3 +42,6 @@ Thumbs.db
 # The `Authorization: "Bearer " + c.token` in it is app code using a
 # user-supplied token at runtime — not an embedded secret.
 .build/
+
+# review-evidence exception: the retirement ledger is an acceptance artifact
+!docs/RETIRED-TESTS-LEDGER.csv
