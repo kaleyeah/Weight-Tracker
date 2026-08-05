@@ -5318,6 +5318,7 @@ function srExport(){
    app's — the tested code and the shipped code are then the same
    characters, not a copy that can drift.
    ============================================================ */
+/* ==BUILD:mp-calc.js== */
 /* MP-CALC-START */
 var MPCFG={
   version:"glp1-report-v3",
@@ -7318,6 +7319,7 @@ function mpReport(input){
     who:input.who||"Athlete",today:input.today,plan:input.plan||"Fat Loss",
     units:m.units,config:MPCFG};}
 /* MP-CALC-END */
+/* ==BUILD-END:mp-calc.js== */
 
 /* The MP document view (MPCSS … mpReportHTML) was retired 2026-07 in favour of
    the simple coach report; git history holds it. The MP-CALC engine above stays. */

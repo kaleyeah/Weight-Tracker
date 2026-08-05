@@ -61,6 +61,7 @@ const MODULES = [
   { name: "tdee-core.js" },
   { name: "tdee-proposal.js" },
   { name: "max-avatars.js", generate: generateMaxAvatars },
+  { name: "mp-calc.js" },
 ];
 
 const begin = (n) => `/* ==BUILD:${n}== */`;
