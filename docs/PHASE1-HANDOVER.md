@@ -7,8 +7,9 @@ Two product decisions are *surfaced* (below) but nothing awaits them.
 
 Architect assignment: Phase 0 (baseline and guardrails) and Phase 1 (modular
 source, same behaviour), then stop. Both are complete. **Nothing is deployed**
-— all SEVEN commits (the six work commits plus this handover commit,
-`9af2527`) sit unpushed on local `main`; see Deployment note.
+— see the commit table below for the full unpushed set (the count is stated
+there and re-verified at the final freeze, not repeated in prose that can go
+stale); see Deployment note.
 
 ## Commits (in order)
 
@@ -21,6 +22,10 @@ source, same behaviour), then stop. Both are complete. **Nothing is deployed**
 | `8524b39` | SVG icon table → `src/icons.js` (33) |
 | `f287549` | Dead GitHub-era sync layer deleted (~370 lines, 36 functions) + boundary tests |
 | `9af2527` | This handover package + the 7 offline/online/retention proofs |
+| `eed9fec` | Review response: assertion-level ledger; accounting corrected |
+| `ab82029` | Environment-separation design |
+| `3fe7521` | Round-2 response: exact 328-row ledger, c24 suite, FIX-002 restored, --prove-source, module-map disposition, environments revision, platform contract |
+| *(final freeze)* | Accounting + gate rerun at the review head — `git log origin/main..main` is authoritative for the count |
 
 ## Source-to-module map (after Phase 1)
 
@@ -53,12 +58,18 @@ semantics in this codebase (`docs/DUPLICATE-DECLARATIONS.md`).
 Per-file checksums: `git show --stat` on each commit; the artifact is fully
 reproducible from source via `node build.mjs`.
 
-## Test results (complete, at `f287549`)
+## Test results
+
+Functional gates were green at `f287549` and RE-RUN at the final review head
+(results identical; the intervening commits are documentation, the c24 suite,
+and the FIX-002 charset restoration — the latter two being the only code
+changes, both covered below):
 
 | Suite | Result |
 |---|---|
 | Browser tier (21 suites incl. c23) | **all passed** (post-deletion full run) |
 | `p1-handover-proofs` | 7/7 — online boot, offline logging, offline relaunch retention, data-loads-unchanged |
+| `c24-status-export-photos` | 9/9 — UTF-8 export (ported), status display + blocked-recovery durability, the 500-photo boundary pin |
 | `src` tier: tdee-core / integration / golden / parity / boundaries | 36/11/21-identical/6/16 — green |
 | smoke / coach-sheet / avatar-cue | clean / 30 / 15 |
 | String tier | 5/5 suites (post-retirement) |
@@ -102,7 +113,7 @@ loser, the M8-era `pbPhoto*` transport wrappers and `pbPhotoUpload`/
 
 ## Deployment note — read before pushing
 
-`git push origin main` **is** the deploy. Seven commits are unpushed. Before any
+`git push origin main` **is** the deploy. Everything since `a9ee0e1` is unpushed — `git log --oneline origin/main..main` is the authoritative list. Before any
 push: bump `APP_BUILD` to a new value (never `.348`–`.353`), `node build.mjs`,
 run the browser tier, then push — otherwise deployed devices will not
 self-update onto the new artifact (same build string) and the served file
