@@ -65,6 +65,23 @@ const MODULES = [
   { name: "report-progress.js" },
   { name: "report-srview.js" },
   { name: "icons.js" },
+  { name: "app-core.js" },
+  { name: "state-glp-calc.js" },
+  { name: "ratings-checkin-coach.js" },
+  { name: "views-weight-summary.js" },
+  { name: "lifting-model.js" },
+  { name: "sr-photos.js" },
+  { name: "photos-workout.js" },
+  { name: "render-events.js" },
+  { name: "recovery-update.js" },
+  { name: "pb-adapter.js" },
+  { name: "m8-sync.js" },
+  { name: "m10-lease-core.js" },
+  { name: "m10-displaced.js" },
+  { name: "m10-photoq.js" },
+  { name: "pb-health-login.js" },
+  { name: "m10-gate-wiring.js" },
+  { name: "lightbox-boot.js" },
 ];
 
 const begin = (n) => `/* ==BUILD:${n}== */`;
