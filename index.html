@@ -1223,7 +1223,6 @@ function saveTrainingLocal(){if(localWritesFrozen())return false;
   try{localStorage.setItem(TKEY,ser);}catch(e){return false;}
   var back;try{back=localStorage.getItem(TKEY);}catch(e){return false;}
   return back===ser;}
-function saveTraining(){saveTrainingLocal();scheduleTrainingPush();}
 function loadTraining(){try{var t=JSON.parse(localStorage.getItem(TKEY));if(t&&typeof t==="object"){state.training={cardioTypes:(Array.isArray(t.cardioTypes)&&t.cardioTypes.length)?t.cardioTypes:DEFAULT_CARDIO_TYPES.slice(),sessions:t.sessions||{},exercises:t.exercises||[],routines:t.routines||[],liftSessions:t.liftSessions||{}};}}catch(e){}}
 function syncCardioTags(date){var kept=normActs(date).filter(function(a){return !(a.cat==="cardio"&&a.auto);});
   var types={};((state.training.sessions||{})[date]||[]).forEach(function(s){if(s.kind==="cardio"&&s.type)types[s.type]=1;});
@@ -1284,16 +1283,12 @@ function load(){
 }
 function payload(){return {settings:state.settings,weights:state.weights,food:state.food,workouts:state.workouts,steps:state.steps,notes:state.notes,ratings:state.ratings,checkins:state.checkins,sleep:state.sleep,bodyfat:state.bodyfat,waist:state.waist,leanmass:state.leanmass,statuses:state.statuses,weeklySummary:state.weeklySummary,nightlySummary:state.nightlySummary,nightlyLog:state.nightlyLog,presets:state.presets,skips:state.skips,glp:state.glp,scriptVer:state.scriptVer};}
 function saveLocal(){if(localWritesFrozen())return;try{localStorage.setItem(KEY,JSON.stringify(payload()));}catch(e){toast("Couldn't save — storage full or blocked");}}
-function save(){saveLocal();scheduleCloudPush();}
 
 /* ---------------- cloud sync (private GitHub repo via Contents API) ---------------- */
 var SYNC_KEY="wl_sync",DIRTY_KEY="wl_dirty",LAST_KEY="wl_lastsync",GH_PATH="data.json",DEFAULT_REPO="kaleyeah/weight-data",DEFAULT_BRANCH="main";
 var syncState={s:"idle",msg:""},pushTimer=null,pushing=false,ghSha=null;
 var connData={};
-function syncCfg(){try{return JSON.parse(localStorage.getItem(SYNC_KEY))||{};}catch(e){return {};}}
-function setSyncCfg(c){try{localStorage.setItem(SYNC_KEY,JSON.stringify(c));}catch(e){}}
 function normRepo(s){return (s||"").trim().replace(/^https?:\/\/github\.com\//i,"").replace(/\.git$/i,"").replace(/^\/+|\/+$/g,"");}
-function syncOn(){return !!syncCfg().token;}
 function markDirty(v){try{localStorage.setItem(DIRTY_KEY,v?"1":"0");}catch(e){}}
 function isDirty(){return localStorage.getItem(DIRTY_KEY)==="1";}
 function setLastSync(){try{localStorage.setItem(LAST_KEY,String(Date.now()));}catch(e){}}
@@ -1317,34 +1312,13 @@ function syncStatusHTML(){if(!syncOn())return '<span style="color:var(--faint)">
   return '<span style="color:'+m+'">'+(syncLabel()||"Connected")+'</span>'+(syncState.msg?' <span style="color:var(--faint)">· '+esc(syncState.msg)+'</span>':'')+(getLastSync()?' <span style="color:var(--faint)">· '+lastSyncText()+'</span>':'');}
 function b64enc(str){return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g,function(_,h){return String.fromCharCode(parseInt(h,16));}));}
 function b64dec(b64){b64=(b64||"").replace(/\s/g,"");if(!b64)return "";return decodeURIComponent(Array.prototype.map.call(atob(b64),function(c){return "%"+("00"+c.charCodeAt(0).toString(16)).slice(-2);}).join(""));}
-function ghHeaders(c){return {Authorization:"Bearer "+c.token,Accept:"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"};}
-function fileForUid(uid){return (!uid||uid==="owner")?"data.json":(uid==="partner"?"data-partner.json":"u-"+uid+".json");}
-function myUid(){return syncCfg().uid||"owner";}
-function isOwner(){return myUid()==="owner";}
-function myFile(){return fileForUid(syncCfg().uid);}
+/* randUid: kept — the invite:create handler (a live product surface) calls
+   it. The GitHub-era sync that consumed these uids is gone; retiring the
+   invite UI itself is a product decision, not a refactor step. */
 function randUid(){return Math.random().toString(36).slice(2,8)+Math.random().toString(36).slice(2,6);}
-function ensureIdentity(){var c=syncCfg();var ch=false;
-  if(!c.uid){c.uid=(c.profile==="b")?"partner":"owner";ch=true;} /* migrate old profile toggle */
-  if(ch)setSyncCfg(c);}
-function connectionList(){var cs=state.settings.connections;return Array.isArray(cs)?cs.filter(function(u){return u&&u!==myUid();}):[];}
+function fileForUid(uid){return (!uid||uid==="owner")?"data.json":(uid==="partner"?"data-partner.json":"u-"+uid+".json");}
 function encodeInvite(o){return b64enc(JSON.stringify(o));}
 function decodeInvite(code){try{return JSON.parse(b64dec((code||"").trim()));}catch(e){return null;}}
-function ghUrl(c,path){return "https://api.github.com/repos/"+normRepo(c.repo||DEFAULT_REPO)+"/contents/"+(path||myFile());}
-function pullConnections(){var c=syncCfg();if(!syncOn())return;var list=connectionList();if(!list.length)return;
-  list.forEach(function(uid){
-    fetch(ghUrl(c,fileForUid(uid))+"?ref="+encodeURIComponent(c.branch||DEFAULT_BRANCH)+"&t="+Date.now(),{headers:ghHeaders(c),cache:"no-store"})
-      .then(function(r){if(!r.ok)return null;return r.json();})
-      .then(function(j){if(!j)return;try{var txt=b64dec(j.content||"");var d=txt?JSON.parse(txt):null;if(d&&(d.weights||d.settings)){connData[uid]=d;render();}}catch(e){}})
-      .catch(function(){});});}
-function cloudGet(cb){var c=syncCfg();if(!syncOn()){cb&&cb(null,"not configured");return;}
-  fetch(ghUrl(c)+"?ref="+encodeURIComponent(c.branch||DEFAULT_BRANCH)+"&t="+Date.now(),{headers:ghHeaders(c),cache:"no-store"})
-    .then(function(r){
-      if(r.status===404){ghSha=null;cb&&cb({},null);return null;}
-      if(r.status===401||r.status===403){cb&&cb(null,"auth");return null;}
-      if(!r.ok){cb&&cb(null,"error");return null;}
-      return r.json();})
-    .then(function(j){if(!j)return;try{ghSha=j.sha||null;var txt=b64dec(j.content||"");cb&&cb(txt?JSON.parse(txt):{},null);}catch(e){cb&&cb(null,"error");}})
-    .catch(function(e){cb&&cb(null,"offline");});}
 function applyCloud(d){if(!d)return;
   /* server data landing settles any deferred first-run question immediately */
   try{if(state.obDeferred)setTimeout(function(){onboardingGate(true);},0);}catch(e){}
@@ -1356,109 +1330,11 @@ function applyCloud(d){if(!d)return;
   if(state.settings.calTargetAuto===undefined&&num(state.settings.targetCalories)!=null)state.settings.calTargetAuto=false;
   applyAutoMacros();
   saveLocal();markDirty(false);applyTheme(state.settings.theme||"dark");}
-function cloudPull(manual,done){setSync("syncing");cloudGet(function(d,err){
-  if(err){setSync(err==="offline"?"offline":"error",err==="auth"?"bad token or repo access":"");if(manual)toast(err==="offline"?"No connection":err==="auth"?"Check token & repo":"Couldn't pull");done&&done();return;}
-  applyCloud(d);setLastSync();setSync("ok");render();pullConnections();if(manual)toast("Pulled from GitHub");done&&done();});}
 function scheduleCloudPush(){if(!syncOn())return;markDirty(true);setSync("saving");clearTimeout(pushTimer);pushTimer=setTimeout(function(){cloudPush();},1400);}
 var trainingSha=null,trainingPushTimer=null;
 function trainingFile(){var uid=syncCfg().uid;return uid?("t-"+uid+".json"):"training.json";}
-function scheduleTrainingPush(){if(recoveryBlocked)return;if(!syncOn())return;clearTimeout(trainingPushTimer);trainingPushTimer=setTimeout(trainingPush,1600);}
-function trainingPush(retry){var c=syncCfg();if(!syncOn())return;var url=ghUrl(c,trainingFile());var br=c.branch||DEFAULT_BRANCH;
-  var body={message:"Update training data",content:b64enc(JSON.stringify(state.training)),branch:br};if(trainingSha)body.sha=trainingSha;
-  fetch(url,{method:"PUT",headers:Object.assign({"Content-Type":"application/json"},ghHeaders(c)),body:JSON.stringify(body)})
-    .then(function(r){if(r.ok)return r.json();
-      if((r.status===409||r.status===422)&&!retry){fetch(url+"?ref="+encodeURIComponent(br)+"&t="+Date.now(),{headers:ghHeaders(c),cache:"no-store"}).then(function(r2){return r2.ok?r2.json():null;}).then(function(j2){trainingSha=(j2&&j2.sha)||null;trainingPush(true);}).catch(function(){});}
-      return null;})
-    .then(function(j){if(j&&j.content&&j.content.sha)trainingSha=j.content.sha;}).catch(function(){});}
-function trainingPull(cb){var c=syncCfg();if(!syncOn()){cb&&cb();return;}var br=c.branch||DEFAULT_BRANCH;
-  fetch(ghUrl(c,trainingFile())+"?ref="+encodeURIComponent(br)+"&t="+Date.now(),{headers:ghHeaders(c),cache:"no-store"})
-    .then(function(r){if(r.status===404){trainingSha=null;return null;}return r.ok?r.json():null;})
-    .then(function(j){if(j){trainingSha=j.sha||null;var d=null;try{d=JSON.parse(b64dec(j.content));}catch(e){}if(d&&typeof d==="object"){state.training={cardioTypes:(Array.isArray(d.cardioTypes)&&d.cardioTypes.length)?d.cardioTypes:state.training.cardioTypes,sessions:d.sessions||{},exercises:d.exercises||[],routines:d.routines||[],liftSessions:d.liftSessions||{}};saveTrainingLocal();}}cb&&cb();})
-    .catch(function(){cb&&cb();});}
-function ghPut(c,sha,cb){
-  var body={message:"Update weight data "+new Date().toISOString(),content:b64enc(JSON.stringify(payload())),branch:c.branch||DEFAULT_BRANCH};
-  if(sha)body.sha=sha;
-  fetch(ghUrl(c),{method:"PUT",headers:Object.assign({"Content-Type":"application/json"},ghHeaders(c)),body:JSON.stringify(body)})
-    .then(function(r){
-      if(r.status===409||r.status===422){cb&&cb(null,"conflict");return null;}
-      if(r.status===401||r.status===403){cb&&cb(null,"auth");return null;}
-      if(!r.ok){cb&&cb(null,"error");return null;}
-      return r.json();})
-    .then(function(j){if(!j)return;ghSha=(j.content&&j.content.sha)||null;cb&&cb(true,null);})
-    .catch(function(e){cb&&cb(null,"offline");});}
-function cloudPush(manual){var c=syncCfg();if(!syncOn()){if(manual)toast("Set up sync first");return;}
-  if(pushing){clearTimeout(pushTimer);pushTimer=setTimeout(function(){cloudPush(manual);},900);return;}
-  pushing=true;setSync("saving");resyncAllActivityTags();
-  function put(sha,retry){ghPut(c,sha,function(ok,err){
-    if(ok){pushing=false;markDirty(false);setLastSync();setSync("ok");if(manual)toast("Pushed to GitHub");return;}
-    if(err==="conflict"&&!retry){cloudGet(function(d,e2){if(e2){pushing=false;setSync(e2==="offline"?"offline":"error",e2==="auth"?"bad token or repo access":"");if(manual)toast("Push failed");return;}put(ghSha,true);});return;}
-    pushing=false;setSync(err==="offline"?"offline":"error",err==="auth"?"bad token or repo access":"");if(manual)toast(err==="offline"?"No connection":"Push failed");});}
-  put(ghSha,false);}
 function localHasData(){return state.weights.length>0||Object.keys(state.food).length>0||Object.keys(state.workouts).length>0||num(state.settings.startingWeight)!=null;}
 function cloudEmpty(d){return !d||((d.weights||[]).length===0&&Object.keys(d.food||{}).length===0&&Object.keys(d.workouts||{}).length===0&&(!d.settings||Object.keys(d.settings).length===0));}
-function autoSync(){
-  /* Gated BEFORE any subsystem starts. Guarding only trainingPull() would leave
-     the core recency branch free to call cloudPush() with another user's entire
-     payload() and write it into the signed-in account's server record. */
-  if(ownershipAmbiguous())return;
-  if(!syncOn())return;
-  pullConnections();trainingPull(function(){if(state.view==="train")render();});
-  /* Boot-path recency guard (mirrors the pbDoLogin guard): fetch the server FIRST,
-     then decide. A dirty local copy may overwrite the server ONLY when the server is
-     empty or this device holds the newest entry. Without this, a stale-but-dirty
-     device (a long-dormant tab, an old cache) blind-pushed on boot and clobbered
-     newer data logged on another device. When the server is strictly newer, we adopt
-     it instead of pushing. */
-  setSync("syncing");cloudGet(function(d,err){
-    if(err){setSync(err==="offline"?"offline":"error",err==="auth"?"bad token or repo access":"");return;}
-    function newestStamp(o){var m="";((o&&o.weights)||[]).forEach(function(x){if(x&&x.date>m)m=x.date;});
-      ["food","steps","sleep","bodyfat","waist","leanmass","notes"].forEach(function(k){var mp=o&&o[k];if(mp)for(var day in mp){if(day>m)m=day;}});return m;}
-    if(isDirty()&&localHasData()&&(cloudEmpty(d)||newestStamp(state)>=newestStamp(d))){cloudPush();return;}
-    if(cloudEmpty(d)&&localHasData()){cloudPush();return;} /* first sync: seed the repo, keep local */
-    applyCloud(d);setLastSync();setSync("ok");render();});}
-function cloudTest(){setSync("syncing");cloudGet(function(d,err){
-  if(err){setSync(err==="offline"?"offline":"error",err==="auth"?"bad token or repo access":"");toast(err==="offline"?"No connection":err==="auth"?"Check token & repo access":"Failed");return;}
-  var n=(d.weights||[]).length,fd=Object.keys(d.food||{}).length;setLastSync();setSync("ok","repo has "+n+" weigh-ins, "+fd+" food days");pullConnections();toast("Connected to GitHub");render();});}
-function pushDataPromise(){var c=syncCfg();var url=ghUrl(c);var H=ghHeaders(c);var br=c.branch||DEFAULT_BRANCH;
-  return fetch(url+"?ref="+encodeURIComponent(br)+"&t="+Date.now(),{headers:H,cache:"no-store"})
-    .then(function(r){return r.status===404?null:(r.ok?r.json():Promise.reject(new Error("Couldn't reach GitHub")));})
-    .then(function(j){var sha=j&&j.sha||null;var body={message:"Update weight data",content:b64enc(JSON.stringify(payload())),branch:br};if(sha)body.sha=sha;
-      return fetch(url,{method:"PUT",headers:Object.assign({"Content-Type":"application/json"},H),body:JSON.stringify(body)});})
-    .then(function(r){if(!(r.status===200||r.status===201))throw new Error("Couldn't save your data first");ghSha=null;});}
-function pollSummary(prevGen,tries){var c=syncCfg();var url=ghUrl(c);var H=ghHeaders(c);var br=c.branch||DEFAULT_BRANCH;
-  return new Promise(function(resolve){var n=0;
-    function tick(){n++;
-      fetch(url+"?ref="+encodeURIComponent(br)+"&t="+Date.now(),{headers:H,cache:"no-store"})
-        .then(function(r){return r.ok?r.json():null;})
-        .then(function(j){var d=null;try{d=j&&j.content?JSON.parse(b64dec(j.content)):null;}catch(e){}
-          var s=d&&d.weeklySummary;
-          if(s&&s.text&&s.generated!==prevGen){resolve(s);return;}
-          if(n>=tries){resolve(null);return;}setTimeout(tick,6000);})
-        .catch(function(){if(n>=tries)resolve(null);else setTimeout(tick,6000);});}
-    setTimeout(tick,8000);});}
-function genSummary(){var c=syncCfg();
-  if(!syncOn()){toast("Set up cloud sync first (Settings)");return;}
-  if(state.genBusy)return;
-  state.genBusy=true;render();
-  var prevGen=(state.weeklySummary&&state.weeklySummary.generated)||null;
-  var repo=normRepo(c.repo||DEFAULT_REPO),br=c.branch||DEFAULT_BRANCH,wf="weekly-checkin.yml";
-  var wk=toISO(weekStartFor(0));
-  pushDataPromise().then(function(){
-    return fetch("https://api.github.com/repos/"+repo+"/actions/workflows/"+wf+"/dispatches",{
-      method:"POST",headers:Object.assign({"Content-Type":"application/json","Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"},ghHeaders(c)),
-      body:JSON.stringify({ref:br,inputs:{force:"true",week:wk}})});
-  }).then(function(r){
-    if(r.status===204)return;
-    if(r.status===401||r.status===403)throw new Error("Your GitHub token needs Actions: write permission");
-    if(r.status===404)throw new Error("Add weekly-checkin.yml to the repo first");
-    if(r.status===422)throw new Error("Couldn't start — check branch/workflow name");
-    throw new Error("Couldn't start the check-in ("+r.status+")");
-  }).then(function(){return pollSummary(prevGen,30);})
-  .then(function(sum){state.genBusy=false;
-    if(sum){state.weeklySummary=sum;state.sumOpen=true;if(sum.week)state.settings.seenWeekly=sum.week;saveLocal();toast("Your check-in is ready");}
-    else toast("Still working — it will appear here shortly");
-    render();})
-  .catch(function(e){state.genBusy=false;render();toast(e.message||"Couldn't generate");});}
 function isSkip(date,field){return !!(state.skips&&state.skips[date]&&state.skips[date][field]);}
 function setSkip(date,field,on){state.skips=state.skips||{};if(on){state.skips[date]=state.skips[date]||{};state.skips[date][field]=1;}else if(state.skips[date]){delete state.skips[date][field];if(!Object.keys(state.skips[date]).length)delete state.skips[date];}}
 function dayStatus(iso){var arr=state.statuses||[];var t=todayISO();for(var i=0;i<arr.length;i++){var s=arr[i];if(!s||!s.start)continue;var end=s.end||t;if(iso>=s.start&&iso<=end)return s.type;}return null;}
@@ -1592,43 +1468,6 @@ function dayMissing(sel){sel=sel||state.selDate;if(dayStatus(sel))return [];var 
   if(num(state.sleep[sel])==null&&!isSkip(sel,"sleep"))miss.push("sleep");
   var f=state.food[sel]||{};if(num(f.calories)==null&&num(f.protein)==null&&num(f.carbs)==null&&num(f.fat)==null&&!isSkip(sel,"calories"))miss.push("calories");
   return miss;}
-function pollNightly(prevGen,tries){var c=syncCfg();var url=ghUrl(c);var H=ghHeaders(c);var br=c.branch||DEFAULT_BRANCH;
-  return new Promise(function(resolve){var n=0;
-    function tick(){n++;
-      fetch(url+"?ref="+encodeURIComponent(br)+"&t="+Date.now(),{headers:H,cache:"no-store"})
-        .then(function(r){return r.ok?r.json():null;})
-        .then(function(j){var d=null;try{d=j&&j.content?JSON.parse(b64dec(j.content)):null;}catch(e){}
-          var s=d&&d.nightlySummary;
-          if(s&&s.text&&s.generated!==prevGen){resolve(s);return;}
-          if(n>=tries){resolve(null);return;}setTimeout(tick,6000);})
-        .catch(function(){if(n>=tries)resolve(null);else setTimeout(tick,6000);});}
-    setTimeout(tick,8000);});}
-function genNightly(){var c=syncCfg();
-  if(!syncOn()){toast("Set up cloud sync first (Settings)");return;}
-  if(state.nightBusy||state.genBusy)return;
-  var sel=state.selDate;
-  var miss=dayMissing(sel);
-  if(miss.length){toast("Log "+miss.join(", ")+" first to complete "+(sel===todayISO()?"today":"this day"));return;}
-  state.nightBusy=true;render();
-  var prevGen=(state.nightlySummary&&state.nightlySummary.generated)||null;
-  var repo=normRepo(c.repo||DEFAULT_REPO),br=c.branch||DEFAULT_BRANCH,wf="nightly-checkin.yml";
-  var day=sel;
-  pushDataPromise().then(function(){
-    return fetch("https://api.github.com/repos/"+repo+"/actions/workflows/"+wf+"/dispatches",{
-      method:"POST",headers:Object.assign({"Content-Type":"application/json","Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"},ghHeaders(c)),
-      body:JSON.stringify({ref:br,inputs:{force:"true",day:day}})});
-  }).then(function(r){
-    if(r.status===204)return;
-    if(r.status===401||r.status===403)throw new Error("Your GitHub token needs Actions: write permission");
-    if(r.status===404)throw new Error("Add nightly-checkin.yml to the repo first");
-    if(r.status===422)throw new Error("Couldn't start — check branch/workflow name");
-    throw new Error("Couldn't start the recap ("+r.status+")");
-  }).then(function(){return pollNightly(prevGen,30);})
-  .then(function(sum){state.nightBusy=false;
-    if(sum){state.nightlySummary=sum;state.nightOpen=true;if(sum.date)state.settings.seenNightly=sum.date;saveLocal();toast("Today\u2019s recap is ready");}
-    else toast("Still working — it will appear here shortly");
-    render();})
-  .catch(function(e){state.nightBusy=false;render();toast(e.message||"Couldn't generate");});}
 
 /* ---------------- computations ---------------- */
 function sortedWeights(){return state.weights.slice().sort(function(a,b){return a.date.localeCompare(b.date);});}
@@ -7573,32 +7412,6 @@ function renderDiary(){var host=document.getElementById("wl-diary");if(!host)ret
     if(weeks.length>show)html+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:4px" data-act="diary:older">↓ Load older week</button>';
     host2.innerHTML=html;
   }).catch(function(){var host2=document.getElementById("wl-diary");if(host2)host2.innerHTML='<div class="wl-empty" style="padding:20px 0">Photos aren\u2019t available on this device.</div>';});}
-function openLightbox(id){
-  var ids=[].slice.call(document.querySelectorAll('[data-act="photo:view"]')).map(function(b){return b.getAttribute("data-id");});
-  if(ids.indexOf(id)<0)ids=[id];
-  var ov=document.createElement("div");ov.className="wl-lightbox";
-  ov.innerHTML='<div class="wl-lb-count"></div><button class="wl-lb-nav prev" data-lb="prev">‹</button><img class="wl-lb-img" alt=""><button class="wl-lb-nav next" data-lb="next">›</button><div class="wl-lb-bar"><button class="wl-btn wl-btn-ghost" data-lb="close">Close</button><button class="wl-btn wl-btn-danger" data-lb="del">Delete</button></div>';
-  var img=ov.querySelector(".wl-lb-img"),countEl=ov.querySelector(".wl-lb-count"),prevB=ov.querySelector(".wl-lb-nav.prev"),nextB=ov.querySelector(".wl-lb-nav.next");
-  var urls={},idx=Math.max(0,ids.indexOf(id)),dirty=false;
-  function show(){img.src=urls[ids[idx]]||"";countEl.textContent=ids.length>1?(idx+1)+" / "+ids.length:"";prevB.style.visibility=idx>0?"visible":"hidden";nextB.style.visibility=idx<ids.length-1?"visible":"hidden";}
-  function go(d){var ni=idx+d;if(ni<0||ni>=ids.length)return;idx=ni;show();}
-  function close(){document.removeEventListener("keydown",key);Object.keys(urls).forEach(function(k){try{URL.revokeObjectURL(urls[k]);}catch(e){}});if(ov.parentNode)document.body.removeChild(ov);if(dirty){if(state.view==="diary")renderDiary();
-  if(state.view==="photos")renderProgressPhotos();else renderPhotosStrip(state.selDate);}}
-  function key(e){if(e.key==="ArrowLeft")go(-1);else if(e.key==="ArrowRight")go(1);else if(e.key==="Escape")close();}
-  document.addEventListener("keydown",key);
-  ov.addEventListener("click",function(e){var b=e.target.closest("[data-lb]");
-    if(!b){if(e.target===ov)close();return;}
-    var act=b.getAttribute("data-lb");
-    if(act==="close")close();
-    else if(act==="prev")go(-1);
-    else if(act==="next")go(1);
-    else if(act==="del"){var pid=ids[idx];askConfirm("Delete this photo?",function(){idbDelete(pid).then(function(){dirty=true;try{URL.revokeObjectURL(urls[pid]);}catch(e){}delete urls[pid];ids.splice(idx,1);if(!ids.length){close();return;}if(idx>=ids.length)idx=ids.length-1;show();});});}});
-  var sx=0,sy=0;
-  ov.addEventListener("touchstart",function(e){if(!e.touches.length)return;sx=e.touches[0].clientX;sy=e.touches[0].clientY;},{passive:true});
-  ov.addEventListener("touchend",function(e){if(!e.changedTouches||!e.changedTouches.length)return;var dx=e.changedTouches[0].clientX-sx,dy=e.changedTouches[0].clientY-sy;if(Math.abs(dx)>45&&Math.abs(dx)>Math.abs(dy)+10){if(dx<0)go(1);else go(-1);}},{passive:true});
-  document.body.appendChild(ov);
-  idbAll().then(function(all){var map={};all.forEach(function(p){map[p.id]=p.blob;});ids=ids.filter(function(i){return map[i];});idx=Math.max(0,ids.indexOf(id));ids.forEach(function(i){urls[i]=URL.createObjectURL(map[i]);});if(!ids.length){close();return;}show();}).catch(function(){});
-}
 function themeGrid(){var cur=state.settings.theme||"dark";
   return Object.keys(THEMES).map(function(id){var t=THEMES[id];var on=id===cur;
     return '<button class="wl-theme'+(on?" on":"")+'" data-act="set:theme" data-theme="'+id+'"><span class="wl-theme-sw"><i style="background:'+t.v.bg+'"></i><i style="background:'+t.v.card+'"></i><i style="background:'+t.v.accent+'"></i><i style="background:'+t.v.good+'"></i></span><span class="wl-theme-name">'+t.label+" mode"+'</span>'+(on?'<span class="wl-theme-check">'+I.check.replace("<svg","<svg width=14 height=14")+'</span>':'')+'</button>';}).join("");
@@ -10431,16 +10244,6 @@ function cloudGet(cb){
     if(err){cb&&cb(null,err);return;}
     cb&&cb((rec&&rec.data)||{},null);});}
 
-function cloudPush(manual){
-  if(ownershipAmbiguous()){if(manual)toast("Paused — this device holds data from another account");return;}
-  if(!syncOn()){if(manual)toast("Log in first");return;}
-  if(pushing){clearTimeout(pushTimer);pushTimer=setTimeout(function(){cloudPush(manual);},900);return;}
-  pushing=true;setSync("saving");resyncAllActivityTags();
-  pbSave({data:payload()},function(ok,err){
-    pushing=false;
-    if(ok){markDirty(false);setLastSync();setSync("ok");if(manual)toast("Saved to your server");return;}
-    setSync(err==="offline"?"offline":"error",err==="auth"?"session expired — log in again":"");
-    if(manual)toast(err==="offline"?"No connection":err==="auth"?"Please log in again":"Save failed");});}
 
 /* ================= M8 TRAINING SYNC — core (design v7 contract) =================
    Contract: Weight-Tracker/M8-sync-rework/DESIGN.md, commit 9e849f4, approved
@@ -11023,28 +10826,7 @@ function m8Boot(cb){
 
 /* =============== end M8 core block =============== */
 
-function trainingPush(){
-  /* Blocked in BOTH directions. Pulling can destroy the local copy; pushing an
-     unverified local copy can destroy newer training on the server. With the
-     pre-sync bytes unprotected, neither direction is known safe. Local saves
-     still happen -- they just stay local. */
-  if(recoveryBlocked){setSync("error",recoveryBlockReason);return;}
-  if(!syncOn())return;
-  pbSave({training:state.training},function(){});}
 
-function trainingPull(cb){
-  /* Fail closed, in BOTH directions -- trainingPush() carries the same guard.
-     A pull can destroy the local copy; a push of an unverified local copy can
-     destroy newer training on the server. Neither is known safe. */
-  if(recoveryBlocked){setSync("error",recoveryBlockReason);cb&&cb();return;}
-  if(!syncOn()){cb&&cb();return;}
-  pbGetRecord(function(rec){
-    var d=rec&&rec.training;
-    if(d&&typeof d==="object"&&(d.exercises||d.routines||d.sessions||d.liftSessions)){
-      state.training={cardioTypes:(Array.isArray(d.cardioTypes)&&d.cardioTypes.length)?d.cardioTypes:state.training.cardioTypes,
-        sessions:d.sessions||{},exercises:d.exercises||[],routines:d.routines||[],liftSessions:d.liftSessions||{}};
-      saveTrainingLocal();}
-    cb&&cb();});}
 
 
 /* =============== end M8 wiring =============== */
@@ -13638,31 +13420,7 @@ function pbPhotoList(){
     .then(function(r){return r.ok?r.json():Promise.reject(r.status);})
     .then(function(p){return p.items||[];});}
 
-function pbPhotoUpload(rec){
-  /* idbAdd() reaches this directly, as do the lightbox edit and idbClearAll --
-     guarding photoSync() alone would not establish photo quarantine. */
-  if(ownershipAmbiguous())return Promise.reject("ambiguous");
-  var fd=new FormData();
-  var type=(rec.blob&&rec.blob.type)||"image/jpeg";
-  var ext=({"image/png":"png","image/webp":"webp","image/heic":"heic"})[type]||"jpg";
-  fd.append("user",pbUid());
-  fd.append("kind",rec.kind==="progress"?"progress":"food");
-  fd.append("date",String(rec.date||"").slice(0,10));
-  if(rec.week)fd.append("week",String(rec.week).slice(0,10));
-  if(rec.pose)fd.append("pose",String(rec.pose).slice(0,20));
-  /* food photos carry their meal label — dropping it strips the diary's grouping */
-  if(rec.meal)fd.append("meal",String(rec.meal).slice(0,20));
-  fd.append("localId",String(rec.id));
-  fd.append("ts",String(rec.ts||Date.now()));
-  fd.append("file",rec.blob,(rec.pose||rec.kind||"photo")+"."+ext);
-  var h={};var t=pbTok();if(t)h.Authorization=t; /* no Content-Type — the browser sets the multipart boundary */
-  return fetch(pbBase()+"/api/collections/photos/records",{method:"POST",headers:h,body:fd})
-    .then(function(r){return r.ok?r.json():Promise.reject(r.status);});}
 
-function pbPhotoDelete(serverId){
-  if(ownershipAmbiguous())return Promise.reject("ambiguous");
-  return fetch(pbBase()+"/api/collections/photos/records/"+serverId,{method:"DELETE",headers:pbHeaders()})
-    .then(function(r){return (r.ok||r.status===404)?true:Promise.reject(r.status);});}
 
 function pbPhotoFetchBlob(srec,token){
   if(ownershipAmbiguous())return Promise.reject("ambiguous");
@@ -13673,95 +13431,7 @@ function pbPhotoFetchBlob(srec,token){
 var pbPhotoSyncing=false;
 var _psLast=null,_psSeen=null;   /* last photoSync outcome, for the on-device diagnostic */
 function psReport(){return _psLast;}
-function photoSync(done){
-  var _psDone=done;
-  done=function(r){
-    try{
-      if(r&&typeof r==="object")_psLast={ok:true,at:Date.now(),up:r.uploaded|0,down:r.downloaded|0,rm:r.removed|0,seen:_psSeen};
-      else if(!_psLast||_psLast.ok!==false)_psLast={ok:false,at:Date.now(),why:"stopped before syncing"};
-    }catch(e){}
-    _psDone&&_psDone(r);
-  };
-  /* Photo bytes and the photo map are local user data with no owner stamp
-     either -- do not upload, download, reconcile or delete while unattributed. */
-  if(ownershipAmbiguous()){_psLast={ok:false,at:Date.now(),why:"this device\u2019s data isn\u2019t matched to your account yet"};done&&done();return;}
-  if(!syncOn()||pbPhotoSyncing||typeof indexedDB==="undefined"){
-    _psLast={ok:false,at:Date.now(),why:(!syncOn()?"not signed in":(pbPhotoSyncing?"a photo sync is already running":"this browser has no photo storage"))};
-    done&&done();return;}
-  pbPhotoSyncing=true;
-  var uploaded=0,downloaded=0,removed=0;
-  /* mapStart is the set of photos we KNEW were on the server before this run.
-     Deletion-propagation must test against this snapshot, not the live map —
-     otherwise a photo uploaded moments ago (absent from the server listing we
-     already fetched) would look like a remote deletion and be wiped locally. */
-  var mapStart=pbPhotoMap(),map=pbPhotoMap();
-
-  function finish(){
-    setPbPhotoMap(map);pbPhotoSyncing=false;
-    if(uploaded||downloaded||removed){
-      if(state.view==="photos"||state.view==="diary")render();}
-    done&&done({uploaded:uploaded,downloaded:downloaded,removed:removed});}
-
-  Promise.all([idbAll(),pbPhotoList().catch(function(e){
-    _psLast={ok:false,at:Date.now(),why:"the server photo list failed ("+(e&&e.message?e.message:e)+")"};
-    throw e;})]).then(function(res){
-    var local=res[0]||[],server=res[1]||[];
-    /* counts for the on-device diagnostic: "nothing new to download" is
-       ambiguous between an empty server list and everything already local */
-    _psSeen={server:server.length,local:local.length,
-      serverProgress:server.filter(function(x){return x.kind==="progress";}).length,
-      localProgress:local.filter(function(x){return x.kind==="progress";}).length};
-    var byLocalId={};server.forEach(function(s){if(s.localId)byLocalId[s.localId]=s;});
-    var localIds={};local.forEach(function(l){localIds[l.id]=l;});
-
-    /* 1. push anything this device has that the server doesn't.
-          The UNIQUE (user, localId) index makes a re-run harmless. */
-    var ups=local.filter(function(l){return l.blob&&!byLocalId[l.id];}).map(function(l){
-      return pbPhotoUpload(l).then(function(s){map[l.id]=s.id;uploaded++;})
-        .catch(function(){/* one bad photo must not abort the whole sweep */});});
-
-    return Promise.all(ups)
-      .then(function(){
-        /* 2. pull anything the server has that this device doesn't */
-        var missing=server.filter(function(s){return s.localId&&!localIds[s.localId];});
-        if(!missing.length)return null;
-        return pbFileToken().then(function(tok){
-          return Promise.all(missing.map(function(s){
-            return pbPhotoFetchBlob(s,tok).then(function(b){
-              map[s.localId]=s.id;downloaded++;
-              /* idbAddLocal, not idbAdd — this came FROM the server, re-uploading it
-                 would just bounce off the unique index and waste a round trip */
-              var nrec={id:s.localId,date:s.date,week:s.week||s.date,pose:s.pose||"",
-                kind:s.kind||"progress",blob:b,ts:s.ts||Date.now()};
-              if(s.meal)nrec.meal=s.meal;
-              return idbAddLocal(nrec);
-            }).catch(function(){});}));});})
-      .then(function(){
-        /* 2b. metadata repair — for photos BOTH sides have, reconcile the meal label.
-           Server label wins when it has one (a device that downloaded before the
-           label existed gets repaired); a device holding a label the server lacks
-           pushes it up. Blobs are never re-transferred for this. */
-        var fixes=[];
-        local.forEach(function(l){
-          var s=byLocalId[l.id];if(!s)return;
-          if(s.meal&&(l.meal||"")!==s.meal){
-            var patched=Object.assign({},l,{meal:s.meal});
-            fixes.push(idbAddLocal(patched).then(function(){downloaded++;}).catch(function(){}));
-          }else if(l.meal&&!s.meal){
-            fixes.push(fetch(pbBase()+"/api/collections/photos/records/"+s.id,{method:"PATCH",
-              headers:pbHeaders(true),body:JSON.stringify({meal:l.meal})}).catch(function(){}));
-          }});
-        return Promise.all(fixes);})
-      .then(function(){
-        /* 3. propagate deletions: a photo we previously synced, now absent from the
-              server, was deleted on another device — mirror that deletion here. */
-        var gone=local.filter(function(l){return mapStart[l.id]&&!byLocalId[l.id];});
-        return Promise.all(gone.map(function(l){
-          delete map[l.id];removed++;
-          return idbDeleteLocal(l.id).catch(function(){});}));})
-      .then(finish);
-  }).catch(function(){pbPhotoSyncing=false;done&&done();});
-}
+var photoSync;
 
 /* Keep the original local-only ops, then make the public ones sync through.
    ⚠️ These MUST be assignments, NOT function-declaration overrides. Declarations
@@ -13770,31 +13440,9 @@ function photoSync(done){
    wrap-don't-redeclare pattern as the render() gate above. */
 var idbAddLocal=idbAdd,idbDeleteLocal=idbDelete,idbClearAllLocal=idbClearAll;
 
-idbAdd=function(rec){
-  /* Refused BEFORE the local write. Guarding only the upload left unattributed
-     photo data being added, deleted and relabelled on disk while the app told the
-     athlete nothing was being touched. */
-  if(ownershipAmbiguous())return Promise.reject("ambiguous");
-  return idbAddLocal(rec).then(function(r){
-    if(syncOn()&&rec.blob){
-      pbPhotoUpload(rec).then(function(s){var m=pbPhotoMap();m[rec.id]=s.id;setPbPhotoMap(m);})
-        .catch(function(){/* stays local; the next photoSync() retries it */});}
-    return r;});};
-
-idbDelete=function(id){
-  if(ownershipAmbiguous())return Promise.reject("ambiguous");
-  var m=pbPhotoMap(),sid=m[id];
-  if(syncOn()&&sid){pbPhotoDelete(sid).then(function(){var mm=pbPhotoMap();delete mm[id];setPbPhotoMap(mm);}).catch(function(){});}
-  return idbDeleteLocal(id);};
-
-idbClearAll=function(){
-  if(ownershipAmbiguous())return Promise.reject("ambiguous");
-  if(syncOn()){
-    pbPhotoList().then(function(list){
-      return Promise.all(list.map(function(s){return pbPhotoDelete(s.id).catch(function(){});}));
-    }).then(function(){setPbPhotoMap({});}).catch(function(){});}
-  return idbClearAllLocal();};
-
+/* M8-era pbPhoto* transport wrappers removed 2026-08-05 — provably dead:
+   the capture above bound the RAW layer, so nothing referenced these
+   closures once BLOCK-4 re-wrapped the names below. */
 /* =============== M10-BLOCK-4-WIRING: the queue OWNS every content photo mutation.
    idbAdd/idbDelete/idbClearAll are re-wrapped over the increment-0 locals
    (idbAddLocal etc. — the M8-era pbPhoto* transport is no longer called from
@@ -14363,7 +14011,7 @@ if(!logoutRecoveryPending())runRecoveryCapture();
 if(bootGated()){
   renderGate();
 }else{
-load();loadTraining();migrateProgressionTypes();loadWorkout();rptRetargetAll();ensureIdentity();if(resyncAllActivityTags())save();
+load();loadTraining();migrateProgressionTypes();loadWorkout();rptRetargetAll();if(resyncAllActivityTags())save();
 /* Anchor the weekly check-in at the week it first ran, so an existing account
    never opens with months of retroactively "late" check-ins. */
 ciAnchorSince();var _hasSetup=/[#&]setup=/.test(location.hash||"");if(_hasSetup){state.settings.onboarded=true;}else{if(state.settings.onboarded==null)state.settings.onboarded=(state.weights.length>0||num(state.settings.goalWeight)!=null||num(state.settings.startingWeight)!=null||!!(state.settings.name&&(""+state.settings.name).trim()));if(!state.settings.onboarded){

@@ -49,7 +49,7 @@ DECLARED order and treats order as semantics.
 | `askConfirm` | 8731 → 13580 → 14165 (pen revalidation) |
 | `m10cBoot` | 12016 → 12650 → 13910 |
 | `m10cPull`/`m10cPush` | 11982→12658 / 11775→12665 |
-| `m10cState` | 11711 → **12145 full replacement** (11711 dead) |
+| `m10cState` | 11711 → 12145 **wrapper** — captures `origState` and delegates; BOTH layers live. (Recorded as a full replacement until 2026-08-05, when deleting 11711 broke the chain and the c23 pins caught it — the analysis was wrong, the tests were not.) |
 | `photoSync` | 13666 → **13872 full replacement** (13666 dead — incl. the old deletion-inference; see docs/RETIRED-TESTS.md) |
 | `idbAdd`/`idbDelete`/`idbClearAll` | decl 7412/7415/7416 (**live** under `idbAddLocal` aliases via the 13761 capture) → M8 wrappers 13763+ (**dead**) → **M10 queue 13795+ wins** |
 
