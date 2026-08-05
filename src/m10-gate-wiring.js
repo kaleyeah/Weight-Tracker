@@ -83,14 +83,21 @@
      IndexedDB write. It never deletes, never relabels: a server-side
      disappearance is a difference, not an authority to destroy local bytes. */
   photoSync=function(done){
+    /* DIAGNOSTIC (_psLast): the on-device photo report the Owner asked for on
+       2026-08-04 was originally instrumented inside the RETIRED M8-era
+       photoSync, so it never ran and the UI permanently claimed "photo sync
+       hasn't run yet" (Owner caught it on .458 day one). The live sweep now
+       reports every early-return by name and the real adoption counts. */
     var uid=m8Uid();
-    if(ownershipAmbiguous()||!uid||!syncOn()||typeof indexedDB==="undefined"){done&&done();return;}
-    if(window.m8StorageBlocked){done&&done();return;}
+    if(ownershipAmbiguous()){_psLast={ok:false,at:Date.now(),why:"this device's data isn't matched to your account"};done&&done();return;}
+    if(!uid||!syncOn()){_psLast={ok:false,at:Date.now(),why:"not signed in"};done&&done();return;}
+    if(typeof indexedDB==="undefined"){_psLast={ok:false,at:Date.now(),why:"photo storage unavailable"};done&&done();return;}
+    if(window.m8StorageBlocked){_psLast={ok:false,at:Date.now(),why:"storage is blocked on this device"};done&&done();return;}
     var ctx=m10cCtx();
-    if(!m10pPen()){done&&done();return;}            /* non-holders: read-only */
+    if(!m10pPen()){_psLast={ok:false,at:Date.now(),why:"another device is the active writer — photos download on the writing device; take over to sync them here"};done&&done();return;}
     var sweepFence=m10pPen().fence;              /* ruling 5: bind the sweep */
     m10pDispatch(function(){
-      if(m10pOps(uid).length){done&&done();return;} /* pending/displaced: no adoption */
+      if(m10pOps(uid).length){_psLast={ok:false,at:Date.now(),why:"pending photo operations must finish first"};done&&done();return;}
       Promise.all([idbAll(),pbPhotoList()]).then(function(res){
         if(!m10cCtxOk(ctx)){done&&done();return;}
         var p2=m10pPen();
@@ -98,7 +105,11 @@
         var local=res[0]||[],server=res[1]||[];
         var localIds={};local.forEach(function(l){localIds[l.id]=1;});
         var missing=server.filter(function(s2){return s2.localId&&s2.file&&!localIds[s2.localId];});
-        if(!missing.length){done&&done();return;}
+        if(!missing.length){
+          _psLast={ok:true,at:Date.now(),up:0,down:0,rm:0,
+            seen:{server:server.length,serverProgress:server.filter(function(x){return x.kind==="progress";}).length,
+                  local:local.length,localProgress:local.filter(function(x){return x.kind==="progress";}).length}};
+          done&&done();return;}
         /* ruling 6: adoption is JOURNALED — identity captured in a verified
            queue entry, then blob durable, then map durable+verified */
         var okq=m10pMutate(uid,function(ops){
@@ -115,6 +126,9 @@
           /* merge 2026-08-03: wkPhotoKey/refreshWeekPhotos were retired on main
              (the weekly check-in card replaced the prompt they fed). Nothing to
              invalidate here any more. */
+          _psLast={ok:true,at:Date.now(),up:0,down:missing.length,rm:0,
+            seen:{server:server.length,serverProgress:server.filter(function(x){return x.kind==="progress";}).length,
+                  local:local.length,localProgress:local.filter(function(x){return x.kind==="progress";}).length}};
           try{if(state.view==="photos"||state.view==="diary")render();}catch(e){}
           done&&done();});
       }).catch(function(){done&&done();});});};

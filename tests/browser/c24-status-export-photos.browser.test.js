@@ -117,6 +117,25 @@ const ok=(v,m)=>{if(!v)throw new Error(m||'expected truthy');};
     ok(photo.keepSurvives,'a local-only photo was removed');
     ok(photo.localAfter>=photo.localBefore,'local store shrank');});
 
+  /* ============ 7b. the photo diagnostic tells the truth ============ */
+  const diag=await page.evaluate(async()=>{
+    const out={};
+    out.afterSweep=window.psReport();            /* the boundary sweep above ran as holder */
+    const hold=M10.holder;M10.holder=false;
+    await new Promise(res=>window.photoSync(res));
+    out.nonHolder=window.psReport();
+    M10.holder=hold;
+    return out;});
+  test('DIAG: the report EXISTS after a sweep (the born-dead banner said null forever)',()=>{
+    ok(diag.afterSweep!==null&&diag.afterSweep!==undefined,'psReport() still null — the banner would claim sync never ran');
+    /* either truthful outcome is valid in this fixture: ok with counts, or the
+       honest pending-ops refusal while the 500 stub adoptions sit queued */
+    ok(diag.afterSweep.ok===true||/pending photo operations/.test(diag.afterSweep.why),
+       'unexpected report: '+JSON.stringify(diag.afterSweep));});
+  test('DIAG: a non-holder sweep names the real reason',()=>{
+    ok(diag.nonHolder&&diag.nonHolder.ok===false,'expected a refusal report');
+    ok(/active writer/.test(diag.nonHolder.why),'why was: '+diag.nonHolder.why);});
+
   await browser.close();server.close();
   test('no page errors across the run',()=>eq([...new Set(errs)],[]));
 
