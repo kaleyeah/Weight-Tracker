@@ -3908,6 +3908,7 @@ function csvFor(days,sumLabel){var rows=[["Day","Date","Weight","Steps","Sleep",
   days.forEach(function(r){rows.push([r.dow,mdyy(r.date),r.weight!=null?r1(r.weight):"",r.steps!=null?Math.round(r.steps):"",r.sleep!=null?minToHM(r.sleep):"",r.calories!=null?Math.round(r.calories):"",r.fiber!=null?r.fiber:"",r.protein!=null?r.protein:"",r.fat!=null?r.fat:"",r.carbs!=null?r.carbs:"",r.note||"",csvCardioCell(r),csvLiftCell(r),csvActNotesCell(r)]);});
   if(sumLabel)csvSummaryBlock(days,sumLabel).forEach(function(r){rows.push(r);});
   return rows.map(function(row){return row.map(csvCell).join(",");}).join("\r\n");}
+/* ==BUILD:report-progress.js== */
 /* ============================================================
    HTML PROGRESS REPORT  --  design: "The Progress Card"
    A STANDALONE document: its own doctype/head/style, every byte inline, and
@@ -4390,6 +4391,7 @@ function repDownloadFile(f){
   var a=document.createElement("a");a.href=url;a.download=f.name;document.body.appendChild(a);a.click();document.body.removeChild(a);
   setTimeout(function(){URL.revokeObjectURL(url);},1000);}
 function shareOrDownload(name,mime,text){shareOrDownloadMulti([{name:name,mime:mime,text:text}]);}
+/* ==BUILD-END:report-progress.js== */
 /* ============================================================
    LIFTING DATA MODEL FOR THE COACH REPORT
    lrModel() digests state.training.liftSessions + state.weights
@@ -4734,6 +4736,7 @@ function lrBwGood(M){
    Photos arrive pre-shrunk from the srPhotoPrefetch cache — the
    renderer never touches IndexedDB.
    ============================================================ */
+/* ==BUILD:report-srview.js== */
 /* SR-VIEW-START */
 var SRDASH="—";
 function srEsc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");}
@@ -5073,6 +5076,7 @@ function srReportHTML(inp){
     '<p style="margin-top:6px">COMPOUND · exported '+srEsc(inp.today||"")+' · '+srEsc(who)+' · weights in '+srEsc(inp.units||"lbs")+'</p></div>\n';
   return h+'</div>\n</body>\n</html>\n';}
 /* SR-VIEW-END */
+/* ==BUILD-END:report-srview.js== */
 
 /* the ONLY impure part: snapshot state into the renderer's input. The summary
    numbers are computed with the SAME helpers and the SAME rules view_summary
