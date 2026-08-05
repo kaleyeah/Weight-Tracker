@@ -144,7 +144,7 @@ t("B4", "non-integer slope keeps raw precision, rounds only for display", () => 
 
 /* ---------------- C. Weight-trend behaviour ---------------- */
 
-t("C1", "regression ignores an endpoint water spike; ≠ first-minus-last", () => {
+t("C1", "regression ≠ first-minus-last; the spike is flagged and left out", () => {
   /* clean −0.1 lb/day trend, but the OLDEST reading is +4 lb of water */
   const w = mkWeights(TODAY, 21, 190, 0.1);
   w[0].weight += 4;                                    // oldest reading spiked
@@ -152,14 +152,153 @@ t("C1", "regression ignores an endpoint water spike; ≠ first-minus-last", () =
     calorieDays: mkCalories(TODAY, 21, 2000), weights: w });
   const endpoint = ((w[w.length - 1].weight - w[0].weight) / 20) * 7;   // naive method
   ok(Math.abs(r.weeklyWeightChangeLb - endpoint) > 0.3, "differs from endpoint method");
-  /* OLS is not outlier-IMMUNE — an endpoint reading carries high leverage, so a
-     +4 lb spike on the oldest day pulls the slope. That is expected: spec §5
-     says a suspected outlier must be flagged and audited, NOT silently dropped.
-     What must hold is that regression uses every point and beats the naive
-     endpoint method, which here reads far flatter. */
-  ok(r.weeklyWeightChangeLb < 0, "still reads as loss despite the spike");
-  ok(Math.abs(r.weeklyWeightChangeLb) < Math.abs(-0.7) + 0.4, "not wildly overstated");
-  eq(r.weightPointsUsed, 21, "every accepted reading participated");
+  /* OLS is not outlier-immune and an endpoint reading carries high leverage:
+     unfiltered, this fixture reports −1.064 (NOT −0.34 — that figure comes from
+     spiking the NEWEST day; the docs had it backwards until 2026-08-05).
+     Owner ruling 2026-08-05 is flag AND exclude, so the trend recovers exactly
+     while the reading itself survives in the audit. */
+  near(r.weeklyWeightChangeLb, -0.7, 1e-9, "excluding the spike restores the true trend");
+  eq(r.weightOutlierDates.length, 1, "the spike is flagged");
+  eq(r.weightOutlierDates[0], w[0].date, "and it is the right day");
+  eq(r.weightOutliers[0].excluded, true, "it was left out of the fit");
+  ok(r.confidenceFlags.includes("weight_outliers_detected"), "flagged in confidenceFlags");
+  ok(r.confidenceFlags.includes("weight_outliers_excluded"), "and the exclusion is declared");
+  /* THE INVARIANT: coverage is unchanged, only fit participation drops. The
+     reading was never deleted — it still counts as a day they weighed in. */
+  eq(r.acceptedWeightDays, 21, "coverage is unchanged — the reading still exists");
+  eq(r.weightPointsUsed, 20, "but it did not participate in the fit");
+});
+
+t("C1b", "flag-only mode leaves the number alone", () => {
+  const w = mkWeights(TODAY, 21, 190, 0.1);
+  w[0].weight += 4;
+  const r = TDEE.calculate({ todayLocalDate: TODAY, units: "lb", excludeOutliers: false,
+    calorieDays: mkCalories(TODAY, 21, 2000), weights: w });
+  near(r.weeklyWeightChangeLb, -1.064, 0.01, "the spike still drags the reported trend");
+  eq(r.weightPointsUsed, 21, "every reading participated");
+  eq(r.weightOutliers[0].excluded, false, "flagged but not excluded");
+  ok(!r.confidenceFlags.includes("weight_outliers_excluded"), "no exclusion claimed");
+  ok(r.confidenceFlags.includes("weight_outliers_detected"), "still reported");
+  near(r.weeklyWeightChangeRobust, -0.7, 1e-9, "the robust trend is offered for comparison");
+});
+
+t("C5", "a 2 lb refeed is NOT an outlier", () => {
+  /* The absolute floor exists for exactly this: on clean data MAD is ~0, so a
+     pure MAD rule would flag every ordinary water swing. */
+  const w = mkWeights(TODAY, 21, 190, 0.1);
+  w[10].weight += 2.0;
+  const r = TDEE.calculate({ todayLocalDate: TODAY, units: "lb",
+    calorieDays: mkCalories(TODAY, 21, 2000), weights: w });
+  eq(r.weightOutlierDates.length, 0, "ordinary fluctuation is left alone");
+  eq(r.weightPointsUsed, 21, "nothing excluded");
+});
+
+t("C8", "two adjacent spikes at the newest edge", () => {
+  const w = mkWeights(TODAY, 21, 190, 0.1);
+  w[20].weight += 4; w[19].weight += 3.5;              // newest two days
+  const r = TDEE.calculate({ todayLocalDate: TODAY, units: "lb",
+    calorieDays: mkCalories(TODAY, 21, 2000), weights: w });
+  eq(r.weightOutlierDates.length, 2, "both flagged");
+  near(r.weeklyWeightChangeLb, -0.7, 1e-9, "trend restored despite two adjacent spikes");
+  eq(r.weightPointsUsed, 19, "both left out of the fit");
+});
+
+/* Build a diet-start ramp: `perDay` lb/day for `rampDays`, then a settled
+   -0.15 lb/day. Real physiology (week-1 water loss), and the most dangerous
+   false positive this feature has. */
+function mkRamp(perDay, rampDays, n = 21, startW = 200) {
+  const w = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const age = n - 1 - i;                              // 0 = oldest
+    const weight = age < rampDays
+      ? startW - perDay * age
+      : startW - perDay * (rampDays - 1) - 0.15 * (age - (rampDays - 1));
+    w.push({ date: back(TODAY, i), weight });
+  }
+  return w;
+}
+
+t("C9", "a week-1 diet ramp is a regime shift, NOT outliers", () => {
+  const r = TDEE.calculate({ todayLocalDate: TODAY, units: "lb",
+    calorieDays: mkCalories(TODAY, 21, 2000), weights: mkRamp(2.0, 5) });
+  ok(r.weightOutlierDates.length >= 3, "the ramp days deviate far enough to be noticed");
+  ok(r.confidenceFlags.includes("weight_trend_regime_shift"), "reported as a regime shift");
+  eq(r.outlierDetection.excludedCount, 0, "nothing excluded from a genuine trend change");
+  eq(r.weightPointsUsed, 21, "every reading participated");
+  r.weightOutliers.forEach((o) => eq(o.reason, "same_sign_run", "each says why it was kept"));
+});
+
+t("C9b", "KNOWN LIMIT: a 2-day ramp edge is indistinguishable from 2 water spikes", () => {
+  /* Honest boundary, asserted so it cannot change silently. The run rule only
+     protects runs LONGER than two, because two adjacent water-heavy mornings
+     are entirely ordinary and excluding them is what rescues C8. A gentle ramp
+     whose deviation clears the floor on exactly two days therefore loses those
+     two from the fit. The error direction is the safe one — dropping early
+     rapid-loss days FLATTENS the trend and LOWERS the TDEE estimate, and an
+     inflated estimate is the failure mode that actually hurts. */
+  const r = TDEE.calculate({ todayLocalDate: TODAY, units: "lb",
+    calorieDays: mkCalories(TODAY, 21, 2000), weights: mkRamp(1.2, 5) });
+  const flagOnly = TDEE.calculate({ todayLocalDate: TODAY, units: "lb", excludeOutliers: false,
+    calorieDays: mkCalories(TODAY, 21, 2000), weights: mkRamp(1.2, 5) });
+  eq(r.outlierDetection.longestRun, 2, "only two days clear the floor here");
+  eq(r.outlierDetection.excludedCount, 2, "and a run of two is excludable by design");
+  /* The claim is a COMPARISON, not a magic number: excluding early rapid-loss
+     days must move the trend flatter than leaving them in (-1.385 vs -1.909
+     on this fixture), which lowers the TDEE estimate rather than inflating it. */
+  ok(r.weeklyWeightChangeLb > flagOnly.weeklyWeightChangeLb,
+     "flatter than leaving them in: " + r.weeklyWeightChangeLb.toFixed(3) +
+     " vs " + flagOnly.weeklyWeightChangeLb.toFixed(3));
+});
+
+t("C10", "kg: the floor scales with units", () => {
+  const mk = (spikeKg) => {
+    const w = [];
+    for (let i = 20; i >= 0; i--) w.push({ date: back(TODAY, i), weight: 86 - 0.045 * (20 - i) });
+    w[20].weight += spikeKg;                            // newest day
+    return w;
+  };
+  const big = TDEE.calculate({ todayLocalDate: TODAY, units: "kg",
+    calorieDays: mkCalories(TODAY, 21, 2000), weights: mk(1.8) });
+  eq(big.weightOutlierDates.length, 1, "+1.8 kg (≈4 lb) is flagged");
+  const small = TDEE.calculate({ todayLocalDate: TODAY, units: "kg",
+    calorieDays: mkCalories(TODAY, 21, 2000), weights: mk(0.9) });
+  eq(small.weightOutlierDates.length, 0, "+0.9 kg (≈2 lb) is not");
+});
+
+t("C11", "perfectly collinear data: MAD 0, nothing flagged", () => {
+  const r = TDEE.calculate({ todayLocalDate: TODAY, units: "lb",
+    calorieDays: mkCalories(TODAY, 21, 2000), weights: mkWeights(TODAY, 21, 190, 0.1) });
+  eq(r.outlierDetection.mad, 0, "MAD is exactly zero");
+  eq(r.weightOutlierDates.length, 0, "and the floor stops that flagging everything");
+  near(r.weeklyWeightChangeLb, -0.7, 1e-9, "the number is untouched");
+});
+
+t("C12", "exclusion is withheld when it would breach the tier minimum", () => {
+  /* high_confidence needs 20 weigh-ins. Give exactly 20 across 28 days with one
+     spike: removing it would leave 19, so the tier's own premise would be
+     violated by its own output. Withhold, keep the tier, say so. */
+  const w = [];
+  for (let i = 27; i >= 8; i--) w.push({ date: back(TODAY, i), weight: 190 - 0.1 * (27 - i) });
+  w[0].weight += 5;
+  const r = TDEE.calculate({ todayLocalDate: TODAY, units: "lb",
+    calorieDays: mkCalories(TODAY, 28, 2000), weights: w });
+  eq(r.status, "high_confidence", "still the 28-day tier");
+  eq(r.acceptedWeightDays, 20, "coverage unchanged");
+  ok(r.weightOutlierDates.length >= 1, "the spike is still flagged");
+  eq(r.outlierDetection.excludedCount, 0, "but not excluded");
+  eq(r.outlierDetection.withheld, "below_tier_minimum", "and the reason is recorded");
+  ok(r.confidenceFlags.includes("outlier_exclusion_withheld"), "surfaced as a flag");
+});
+
+t("C13", "residual median is 0 by construction, so MAD = median(|residual|)", () => {
+  const w = mkWeights(TODAY, 21, 190, 0.1);
+  w[5].weight += 4;
+  const r = TDEE.calculate({ todayLocalDate: TODAY, units: "lb",
+    calorieDays: mkCalories(TODAY, 21, 2000), weights: w });
+  const d = r.outlierDetection;
+  ok(d.mad >= 0 && isFinite(d.mad), "MAD is a real number");
+  near(d.sigmaHat, 1.4826 * d.mad, 1e-12, "sigmaHat is the scaled MAD");
+  near(d.threshold, Math.max(d.k * d.sigmaHat, d.thresholdFloor), 1e-12, "threshold rule holds");
 });
 
 t("C2", "gaps use real date indices, not observation numbers", () => {
@@ -276,7 +415,10 @@ t("E4", "auditable: window, counts, inputs, flags, exclusions, timestamp, raw+di
   ["status", "windowStartLocalDate", "windowEndLocalDate", "windowDays",
    "completeCalorieDays", "requiredCalorieDays", "acceptedWeightDays", "requiredWeightDays",
    "averageDailyCalories", "weeklyWeightChangeLb", "measuredTdeeRaw", "measuredTdeeDisplay",
-   "formulaTdee", "confidenceFlags", "excludedOrIncompleteDays", "calculatedAt"]
+   "formulaTdee", "confidenceFlags", "excludedOrIncompleteDays", "calculatedAt",
+   /* spec §8 says "at minimum"; the outlier audit is additive and must be
+      present on every eligible result, empty or not */
+   "weightOutliers", "weightOutlierDates", "weeklyWeightChangeRobust", "outlierDetection"]
     .forEach(k => ok(r[k] !== undefined, "missing required field: " + k));
   eq(r.calculatedAt, "2026-08-04T12:00:00.000Z", "timestamp is injectable = deterministic");
   ok(r.excludedOrIncompleteDays.length >= 1, "exclusions listed");

@@ -64,15 +64,52 @@ Using real date offsets matters: if you weigh Mon, Tue, then skip to the
 following Monday, that gap is 6 days, not 1. Treating them as consecutive
 observations would read the trend as far steeper than it is.
 
-### One honest limitation
+### Outliers — detected, flagged, and left out of the line
 
-Least squares is **not** outlier-proof. A reading at the *edge* of the window
-carries high leverage — a +4 lb water spike on the oldest day pulled a
-−0.70 lb/wk trend to about −0.34 in testing.
+Least squares is **not** outlier-proof, and a reading at the *edge* of the
+window carries high leverage. On a 21-day window with a true −0.70 lb/wk
+trend, a +4 lb water spike reports **−1.06** if it lands on the oldest day, or
+**−0.34** on the newest. Either is roughly a 180 cal/day error.
 
-The spec's answer is to **flag and audit**, never to silently delete a real
-reading. Outlier *detection* is specified but **not yet implemented** — a
-known gap, not a solved problem.
+*(An earlier version of this document attributed the −0.34 figure to the
+oldest day. That was wrong — oldest gives −1.06. Corrected 2026-08-05.)*
+
+**Owner ruling, 2026-08-05: flag and exclude.** A suspect reading is never
+deleted. It stays in your log, it is named on the Metabolism card, it appears
+in the audit record, and Coach Max mentions it. It simply stops dragging the
+trend line.
+
+How a reading gets flagged:
+
+1. Fit a **repeated-median** line — a robust fit no single reading can move.
+   Residuals are measured against *that*, not against least squares, because
+   an outlier drags the least-squares line toward itself and hides its own
+   deviation.
+2. A reading is flagged when it is more than **3.5×** the robust spread away
+   **and** at least **2.5 lb (1.15 kg)** off the line. The absolute floor is
+   what keeps ordinary life — a refeed, a salty meal, one badly hydrated
+   morning — from being called an outlier. Daily bodyweight noise is 0.5–2 lb.
+3. The reported trend is then re-fitted with **ordinary least squares** over
+   the readings that remain. The spec requires OLS as the reported estimator,
+   so the robust line is only ever used to decide *what looks wrong*.
+
+Exclusion is withheld — flagged but kept — whenever removing readings would
+be the greater risk:
+
+- **More than 4 flagged, or over 20% of the window.** That is a model problem,
+  not a data problem, and trimming "the worst four" is how an algorithm
+  manufactures a trend.
+- **A same-sign run longer than two days.** This is a *regime shift*, not bad
+  readings — the classic case is week-one diet water loss, which is real
+  physiology and must never be deleted.
+- **Removal would drop below the tier's own weigh-in minimum**, which would
+  let the answer violate the premise of the window it came from.
+
+One known limit, stated plainly: a gentle ramp that clears the floor on
+exactly **two** days is indistinguishable from two adjacent water spikes, and
+those two days will be excluded. The error runs in the safe direction —
+dropping early rapid-loss days flattens the trend and *lowers* the estimate,
+and an inflated estimate is the failure mode that actually costs you.
 
 ## 4. The calorie average
 
