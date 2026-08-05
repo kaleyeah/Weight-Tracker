@@ -2,7 +2,10 @@
 head: 59a145795461003848e338f3d237f62469757cdc
 date: 2026-08-05T16:01:39Z
 
-## git status (clean except the seven pre-existing Owner screenshots)
+## git status AT THE GATE RUN (executable files clean; docs/freeze/ was the
+## record-in-construction, untracked at that moment and committed by the
+## wrapper commit e347989; the seven screenshot files are excluded
+## pre-existing Owner files — the only untracked entries after e347989)
 ?? docs/freeze/
 ?? features-shots/maxcue-0.png
 ?? features-shots/maxcue-1.png
@@ -66,5 +69,7 @@ ok    exit=0  c23-characterization.browser.test.js  OK — 17 passed
 ok    exit=0  c24-status-export-photos.browser.test.js  OK — 9 passed
 ok    exit=0  cache-sw.browser.test.js  SKIPPED — no live .347 artifact at /tmp/claude-1002/-home-griffin-projects-Weight-Tracker/587d837d-7fe0-4a76-910c-0f558e5ebb78/scratchpad/live347.html (set CF_LIVE347)
 ok    exit=0  p1-handover-proofs.browser.test.js  OK — 7 passed
-ALL BROWSER SUITES PASSED — 24 suites
+BROWSER TIER: 24 suites discovered, 23 passed, 1 skipped (cache-sw — needs
+the historical .347 artifact; characterizes pre-SW cache behaviour for
+Phase 2 and does not gate this refactor). Runner exit 0.
 exit=0

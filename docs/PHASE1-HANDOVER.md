@@ -13,11 +13,11 @@ construction (in-place inlining).
 
 ## Artifact accounting (ruling 5's split — artifact size is NOT modularity)
 
-| Measure | Bytes | Lines |
+| Measure | UTF-8 bytes (`wc -c`-equivalent) | Lines |
 |---|---|---|
-| Template (HTML shell + CSS + markup + markers) | 87,334 | 1,022 (approx: artifact minus module lines) |
-| Generated from `src/` + `assets/` | 1,175,212 (93.1%) | 13,087 |
-| Final atomic artifact | 1,262,546 | 14,109 |
+| Template (HTML shell + CSS + markup + markers) | 87,373 | 1,022 (approx: artifact minus module lines) |
+| Generated from `src/` + `assets/` | 1,177,314 (93.1%) | 13,087 |
+| Final atomic artifact | 1,264,687 | 14,109 |
 
 The artifact remains ~14k lines BECAUSE it contains the inlined modules; the
 source of truth for every one of those lines is a `src/` file. CSS remains
@@ -55,7 +55,16 @@ module carries a pinned permission set (dom/net/storage), the manifest must
 equal both the directory listing and `build.mjs` MODULES, and any module
 exceeding its set fails the tier.
 
-## Commits at this freeze (15, unpushed; list generated from git)
+## Commit accounting (explicit, per round-5 ruling 6)
+
+- behaviour head `59a1457`: 16 commits ahead of `origin/main` — the head every
+  functional gate ran against; `docs/freeze/COMMITS-AT-FREEZE.txt` lists them;
+- record head `e347989`: 17 ahead — the documentation-only wrapper commit
+  (`git diff --stat 59a1457..e347989` = 3 files under docs/freeze/);
+- this evidence-correction commit sits on top; `git log origin/main..main`
+  remains authoritative and no prose count elsewhere restates it.
+
+## Commits (generated from git)
 
 ```
 bec477f Round-3 response: a11y baseline RUN and pinned, environments sequencing, disposition superseded
@@ -79,8 +88,12 @@ b653540 P1: Coach Max avatars extracted to real asset files
 
 The complete bound gate record (hash, clean-status output, commands, exit
 codes, totals) lives in `docs/freeze/FREEZE-GATES.txt`, regenerated at every
-freeze. Suites: full browser tier (25 incl. c23 characterization, c24
-status/export/photos, p1-handover-proofs, a11y top-level baseline), src tier
+freeze. Suites: browser tier — **24 discovered, 23 passed, 1 skipped**
+(`cache-sw` needs the historical `.347` live artifact as input; it
+characterizes the PRE-service-worker cache behaviour for Phase-2 design work
+and does not gate a Phase-1 refactor whose artifact shape is unchanged) —
+incl. c23 characterization, c24 status/export/photos, p1-handover-proofs,
+the a11y top-level baseline, src tier
 (tdee-core 36, integration 11, golden 21-identical, parity 6, boundaries 37),
 smoke, string tier 5/5, `build.mjs --check`, `build.mjs --prove-source`
 (narrowed claim: marker bodies regenerate byte-identically; template bytes
