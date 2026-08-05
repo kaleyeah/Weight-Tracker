@@ -7,7 +7,8 @@ Two product decisions are *surfaced* (below) but nothing awaits them.
 
 Architect assignment: Phase 0 (baseline and guardrails) and Phase 1 (modular
 source, same behaviour), then stop. Both are complete. **Nothing is deployed**
-— all six commits sit unpushed on local `main`; see Deployment note.
+— all SEVEN commits (the six work commits plus this handover commit,
+`9af2527`) sit unpushed on local `main`; see Deployment note.
 
 ## Commits (in order)
 
@@ -19,6 +20,7 @@ source, same behaviour), then stop. Both are complete. **Nothing is deployed**
 | `5ae96b1` | Report generators → `src/report-progress.js` (482), `src/report-srview.js` (339) |
 | `8524b39` | SVG icon table → `src/icons.js` (33) |
 | `f287549` | Dead GitHub-era sync layer deleted (~370 lines, 36 functions) + boundary tests |
+| `9af2527` | This handover package + the 7 offline/online/retention proofs |
 
 ## Source-to-module map (after Phase 1)
 
@@ -100,7 +102,7 @@ loser, the M8-era `pbPhoto*` transport wrappers and `pbPhotoUpload`/
 
 ## Deployment note — read before pushing
 
-`git push origin main` **is** the deploy. Six commits are unpushed. Before any
+`git push origin main` **is** the deploy. Seven commits are unpushed. Before any
 push: bump `APP_BUILD` to a new value (never `.348`–`.353`), `node build.mjs`,
 run the browser tier, then push — otherwise deployed devices will not
 self-update onto the new artifact (same build string) and the served file
