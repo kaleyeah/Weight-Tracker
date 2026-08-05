@@ -14,9 +14,9 @@ over cannot clear.
 
 | | Defect | Fix |
 |---|---|---|
-| **F1** | `m8CasCommit` — the TRAINING commit — sent no `fence` and no `deviceId`, so enforcement would reject every workout sync | the commit carries the fence and this installation's device id, proven at **dispatch** (the `m10pDispatch` rule), and fails closed when no verified device identity exists |
+| **F1** | `m8CasCommit` — the TRAINING commit — sent no `fence` and no `deviceId`, so enforcement would reject every workout sync | the commit carries the fence and this installation's device id, proven at **dispatch** (the `m10pDispatch` rule). Attachment is best-effort by design — see Evidence 1b — and never claims a fence without an identity to bind it to |
 | **F2** | any 409 was classified `keyReused` → hard block | `fenceStale` is classified first and treated as displacement: journal ends, work stays local and dirty, **never** `m8Block()` |
-| **F3** | a device without the pen still pushed training | refused before a request identity is minted or a journal written |
+| **F3** | a device without the pen still pushed training | refused before a request identity is minted or a journal written. Fail-closed sits on **starting** work only; journal replay is never blocked |
 | **F4** | `M10.booted` was an AND-term of the core strict gate, so a session where the lease never settled skipped the gate and pushed `fence:null` — and `m10Boot()` ran only at page load, so signing in mid-session left it unsettled all session | the gate fails **closed** on `!M10.booted`, and the login continuation settles the lease before the first write-capable moment |
 | **F5** | `m10cDispatch` used the fence captured at **enqueue** and never re-proved it | a captured fence that no longer matches terminalizes to the existing `fence-displaced` review instead of going on the wire |
 | **F6** | `why==="expired"` toasted "no longer the active writer" while the read-only bar stayed hidden — read-only with no way to act, until reload | expired routes to the takeover sheet, like `not-holder`. Genuinely unrecoverable reasons (corrupt identity, paused storage) still toast |
