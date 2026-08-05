@@ -1,14 +1,17 @@
-/* Accessibility baseline — a reproducible automated inspection (round-3
-   ruling 14). axe-core is not vendored in this offline environment, so this
-   is the "equivalent reproducible inspection" the ruling allows: deterministic
-   checks against the rendered app, findings inventoried, non-blocking rules
-   reported as WARN with counts so the inventory cannot silently grow.
+/* Accessibility TOP-LEVEL-VIEW baseline — a reproducible automated
+   inspection (round-4 rulings 9/10). Scope stated honestly: this walks boot
+   plus the five top-level view renders. It does NOT open sheets,
+   confirmations, the lightbox, check-in flows, or error states — those are
+   physical-device territory (deployment gates), not covered here.
 
-   Blocking (fail): icon-only buttons without an accessible name on the
-   primary navigation surface; images without alt; inputs without any label
-   mechanism; a missing lang attribute; a missing viewport meta.
-   Inventoried (warn, counted, pinned): everything else found today. Physical
-   VoiceOver/scaling/orientation/oldest-device checks are DEPLOYMENT gates.
+   CONTRACT (one honest rule, ruling 9): this is a NON-BLOCKING BASELINE
+   INVENTORY for a no-behaviour-change refactor. Structural document checks
+   (lang, viewport, alt, tabindex, reduced-motion) fail hard because they
+   were clean at baseline. Labelling findings are INVENTORIED with their
+   exact baseline counts pinned — growth fails the tier, the existing count
+   does not. `placeholder` is NOT an accessible name; it is counted
+   separately as a visible hint. Remediation milestone: aria-labels in the
+   next authorized behaviour-change release (PLATFORM-SUPPORT.md).
 
        node tests/browser/a11y-baseline.browser.test.js */
 const path=require('path'),http=require('http'),fs=require('fs');
@@ -46,8 +49,9 @@ const eq=(a,b,m)=>{if(JSON.stringify(a)!==JSON.stringify(b))throw new Error((m||
       if(!name)out.unnamedButtons.push((b.className||'?').slice(0,30));});
     document.querySelectorAll('img').forEach(i=>{if(!i.hasAttribute('alt'))out.noAltImgs++;});
     document.querySelectorAll('input:not([type=hidden]),select,textarea').forEach(i=>{
-      const labelled=i.getAttribute('aria-label')||i.getAttribute('placeholder')||i.id&&document.querySelector('label[for="'+i.id+'"]')||i.closest('label');
-      if(!labelled)out.unlabelledInputs++;});
+      /* accessible name mechanisms ONLY — placeholder is a hint, not a name */
+      const named=i.getAttribute('aria-label')||(i.id&&document.querySelector('label[for="'+i.id+'"]'))||i.closest('label');
+      if(!named){out.unlabelledInputs++;if(i.getAttribute('placeholder'))out.placeholderOnly=(out.placeholderOnly||0)+1;}});
     document.querySelectorAll('[tabindex]').forEach(e=>{if(+e.getAttribute('tabindex')>0)out.positiveTabindex++;});
     return out;},view);
 
@@ -59,7 +63,10 @@ const eq=(a,b,m)=>{if(JSON.stringify(a)!==JSON.stringify(b))throw new Error((m||
   test('viewport meta present',()=>ok(doc.viewport));
   test('prefers-reduced-motion is honoured somewhere in the stylesheet',()=>ok(doc.reducedMotion));
 
-  const views=[null,'overview','train','weight','summary','settings'];
+  /* pinned at the recorded top-level-view baseline; update ONLY with a
+   documented re-baseline, never to absorb a regression */
+const UNNAMED_INPUT_BASELINE=18;
+const views=[null,'overview','train','weight','summary','settings'];
   const findings=[];
   for(const v of views)findings.push(await scan(v));
   const totalUnnamed=findings.reduce((a,f)=>a+f.unnamedButtons.length,0);
@@ -75,9 +82,10 @@ const eq=(a,b,m)=>{if(JSON.stringify(a)!==JSON.stringify(b))throw new Error((m||
   test('icon-only buttons without an accessible name: inventoried and pinned',()=>{
     console.log('      inventory: '+totalUnnamed+' unnamed buttons — '+JSON.stringify(findings.map(f=>({v:f.view,n:f.unnamedButtons.length}))));
     eq(totalUnnamed,0,'unnamed buttons appeared — every button had a name at baseline');});
-  test('unlabelled inputs: inventoried and pinned',()=>{
-    console.log('      inventory: '+totalUnlabelled+' unlabelled inputs');
-    ok(totalUnlabelled<=18,'inventory grew past the recorded baseline (18): '+totalUnlabelled);});
+  const totalPlaceholderOnly=findings.reduce((a,f)=>a+(f.placeholderOnly||0),0);
+  test('inputs without an accessible NAME: non-blocking inventory, growth-pinned',()=>{
+    console.log('      inventory: '+totalUnlabelled+' unnamed inputs ('+totalPlaceholderOnly+' of them carry a visible placeholder hint, which is not a name)');
+    ok(totalUnlabelled<=UNNAMED_INPUT_BASELINE,'inventory grew past the recorded baseline ('+UNNAMED_INPUT_BASELINE+'): '+totalUnlabelled);});
 
   await browser.close();server.close();
   console.log('\n----------------------------------------------------');
