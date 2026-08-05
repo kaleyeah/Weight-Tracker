@@ -9,8 +9,11 @@
 > - Current milestone: **M10 strict single-writer** (Owner ruling:
 >   offline non-holders read-only). Design v9.1 approved; the LOCAL
 >   server package (writer_lease + fenced commits + transactional photo
->   routes + platform route; `M10-single-writer/server/`) passed the
->   Architect gate at round 12. Client work is in progress in THIS
+>   routes; `M10-single-writer/server/`) passed the
+>   Architect gate at round 12. The superuser **platform route was retired
+>   and deleted 2026-08-05** — once reports moved to `coach_reports` it had
+>   no caller, so there is no longer any superuser content-write path for
+>   `appdata`. Do not restore it. Client work is in progress in THIS
 >   checkout on `engineering/m8` — `index.html` here is now the synced
 >   `.416` client + M10 client increments (increment 1 = the lease
 >   client, C15 suite). NOT published; NAS deploy/coach
