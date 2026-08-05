@@ -145,7 +145,10 @@ const notOk = (v, m) => { if (v) throw new Error(m || 'expected falsy'); };
   });
   test('the shared file is named and typed correctly', () => {
     ok(/^weight-tracker-backup-\d{4}-\d{2}-\d{2}\.json$/.test(shared.name), 'got ' + shared.name);
-    eq(shared.type, 'application/json');
+    /* FIX-002 (Owner, 2026-07-28; restored 2026-08-05 after the a599efa
+       lineage sync dropped it): exports declare charset so non-ASCII text
+       survives share targets. 'Typed correctly' includes the charset. */
+    eq(shared.type, 'application/json;charset=utf-8');
   });
 
   test('no page errors across the whole run', () => eq(pageErrors, []));
