@@ -35,6 +35,16 @@ const eq=(a,b,m)=>{if(JSON.stringify(a)!==JSON.stringify(b))throw new Error((m||
     let srvT=opts.serverTraining,srvR=opts.serverRev;/* stateful: a successful
       commit updates what the record route serves, like the real server */
     await ctx.route('**/api/**',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[],token:'tok',record:{id:'userA'}})}));
+    /* D1 wire invariant (Architect round-1 ruling): a replay may only be
+       dispatched WITH writer proof, so this suite's device must hold the pen —
+       the recovery guarantees under test are unchanged, the old unfenced
+       network behavior is not binding. Grant the lease to whichever deviceId
+       the app presents. */
+    await ctx.route('**/api/cf/writer/lease**',r=>{
+      const b=JSON.parse(r.request().postData()||'{}');
+      r.fulfill({status:200,contentType:'application/json',body:JSON.stringify(
+        {ok:true,exists:true,granted:true,fence:5,holderDeviceId:b.deviceId,
+         deviceName:b.deviceName||'x',active:true,serverNow:Date.now(),ttlMs:86400000})});});
     await ctx.route('**/api/collections/appdata/records**',r=>{recordCalls++;
       r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[{id:'rec1',user:'userA',training:srvT,trainingRev:srvR}]})});});
     await ctx.route('**/api/cf/appdata/commit',r=>{commitCalls++;

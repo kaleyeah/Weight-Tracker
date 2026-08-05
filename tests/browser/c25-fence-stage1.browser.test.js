@@ -54,7 +54,12 @@ function mock(st){
       st.bodies=st.bodies||[];st.bodies.push(body);
       if(body.subsystem==='training'){
         st.training=st.training||[];st.training.push(body);
-        if(st.trainingFenceStale)return reply(409,{ok:false,fenceStale:true,fence:st.trainingFenceStale});}
+        if(st.trainingFenceStale)return reply(409,{ok:false,fenceStale:true,fence:st.trainingFenceStale});
+        if(st.conflictOnce){st.conflictOnce=false;
+          /* a conflict whose payload EQUALS the client's base: the one shape
+             that authorizes the single in-journal retry (m8AckOutcome) */
+          return reply(409,{ok:false,conflict:true,subsystem:'training',
+            serverRev:(body.expectedRev||0)+1,payload:JSON.parse(TRAIN_BASE)});}}
       st.rev=(st.rev||4)+1;
       return reply(200,{ok:true,newRev:st.rev});}
     if(/collections\/photos\/records/.test(url))return reply(200,{items:[]});
@@ -172,69 +177,73 @@ async function bootSeed(browser,srv,st,seed,extraInit){
     await ctx.close();
   }
 
-  /* ---- F3b: a surviving JOURNAL still replays without the pen ----
-     The first cut of F1 fail-closed at dispatch, which also blocked journal
-     replay — caught by c11m8-replay, 5 arms red. A replay is not new work: it
-     re-sends a request this device already made, to learn whether the server
-     applied it. Refusing it strands the journal unresolved, which is its own
-     data-loss risk. Fail-closed belongs on STARTING work (m8HasPen), not on
-     dispatch. */
+  /* ---- F3b (ruling, blocking finding 2): pen-less journal recovery under
+     enforcement OFF — ZERO requests, journal BYTE-IDENTICAL, takeover
+     surfaced. The round-1 design dispatched the replay unfenced and reasoned
+     from the enforcement-ON server; the ruling is that while production
+     enforcement is OFF such a replay is ACCEPTED and mutates data. ---- */
   {
     const st={leaseHeld:true};
     const {ctx,page,errs}=await bootSeed(browser,server,st,dirtySeed());
     const s=await page.evaluate(async()=>{
-      /* an in-flight request this device made while it DID hold the pen */
       m8Write('base',{canon:M8_CANON_VER,rev:4,body:'{}'});
       m8Write('journal',{op:'ack',phase:'intent',startedAt:Date.now(),
         expect:{oldBaseCanon:'{}',expectedRev:4,pushedCanon:'{"a":1}',gen:9,requestId:'replay-c25'}});
+      const jBefore=localStorage.getItem('wl_training_journal__userA');
+      const syncSeen=[];const oSet2=window.setSync;
+      window.setSync=function(st2,msg){syncSeen.push(st2+':'+(msg||''));return oSet2&&oSet2.apply(this,arguments);};
       m8Push();
       await new Promise(r=>setTimeout(r,700));
-      return {holder:M10.holder};});
-    const replay=(st.training||[]).filter(b=>b.idempotencyKey==='replay-c25');
-    test('F3b the replaying device does NOT hold the pen',()=>eq(s.holder,false,'M10.holder'));
-    test('F3b the captured request is still replayed',()=>
-      eq(replay.length,1,'replays sent: '+replay.length));
-    test('F3b the replay re-sends its OWN captured identity',()=>
-      eq(replay[0]&&replay[0].expectedRev,4,'expectedRev'));
-    test('F3b a pen-less replay carries no fence to claim',()=>
-      eq(replay[0]&&replay[0].fence,undefined,'fence: '+JSON.stringify(replay[0]&&replay[0].fence)));
+      window.setSync=oSet2;
+      return {holder:M10.holder,
+        jBefore:jBefore,jAfter:localStorage.getItem('wl_training_journal__userA'),
+        syncSeen:syncSeen,hard:!!window.m8HardBlocked};});
+    test('F3b the recovering device does NOT hold the pen',()=>eq(s.holder,false,'M10.holder'));
+    test('F3b ZERO requests leave the client',()=>
+      eq((st.training||[]).length,0,'training commits: '+JSON.stringify(st.training||[])));
+    test('F3b the journal is preserved BYTE-IDENTICAL',()=>{
+      ok(s.jAfter,'journal deleted');eq(s.jAfter,s.jBefore,'journal bytes');});
+    test('F3b the takeover path is surfaced, not a dead end',()=>
+      ok(s.syncSeen.some(x=>/take over/i.test(x)),'setSync saw: '+s.syncSeen.join(' | ')));
+    test('F3b refusing recovery is not a block',()=>eq(s.hard,false,'m8HardBlocked'));
     test('F3b no page errors',()=>eq(errs.length,0,errs.join(';')));
     await ctx.close();
   }
 
-  /* ---- F1c: the pen is held, but the device id cannot be READ ----
-     m10DeviceId()'s catch arm returns null WITHOUT marking the installation
-     corrupt (m10-lease-core.js:46), so this is the one path where a holder
-     genuinely has no identity to bind a fence to. Everywhere else a null id
-     implies corrupt, which the pen gate already refuses — the first two
-     attempts at this arm mutated code that could never execute. A fence
-     claimed against no device is a claim the server cannot verify. */
+  /* ---- F3c (required evidence 3): after this installation reacquires the
+     pen, EXACTLY ONE fenced replay resolves the journal. Both terminal
+     histories (server-applied and server-not-applied) are pinned by
+     c11m8-replay F7-1..F7-5, which now runs with a granted pen. ---- */
   {
-    const st={};
+    const st={leaseHeld:true};
     const {ctx,page,errs}=await bootSeed(browser,server,st,dirtySeed());
-    await makeTrainingDirty(page);
     const s=await page.evaluate(async()=>{
-      const held=M10.holder;
-      const oGet=Storage.prototype.getItem;
-      Storage.prototype.getItem=function(k){
-        if(k==='wl_m10_deviceid')throw new DOMException('denied','SecurityError');
-        return oGet.call(this,k);};
-      const dev=m10DeviceId(),why=m10AuthNow().why,corrupt=M10.corrupt;
+      m8Write('base',{canon:M8_CANON_VER,rev:4,body:'{}'});
+      m8Write('journal',{op:'ack',phase:'intent',startedAt:Date.now(),
+        expect:{oldBaseCanon:'{}',expectedRev:4,pushedCanon:'{"a":1}',gen:9,requestId:'replay-c25c'}});
       m8Push();
-      await new Promise(r=>setTimeout(r,600));
-      Storage.prototype.getItem=oGet;
-      return {held:held,dev:dev,why:why,corrupt:corrupt};});
-    const sent=(st.training||[])[0];
-    test('F1c the device holds the pen',()=>eq(s.held,true,'M10.holder'));
-    test('F1c a throwing read yields no id WITHOUT marking corrupt',()=>{
-      eq(s.dev,null,'m10DeviceId()');
-      eq(s.corrupt,false,'M10.corrupt — this is what makes the guard reachable');
-      eq(s.why,undefined,'m10AuthNow still authorizes');});
-    test('F1c no fence is claimed with no identity to bind it to',()=>
-      eq(sent&&sent.fence,undefined,'fence: '+JSON.stringify(sent&&sent.fence)));
-    test('F1c and no null deviceId goes on the wire',()=>
-      ok(!sent||sent.deviceId===undefined,'deviceId: '+JSON.stringify(sent&&sent.deviceId)));
-    test('F1c no page errors',()=>eq(errs.length,0,errs.join(';')));
+      await new Promise(r=>setTimeout(r,500));
+      return {refusedStill:!!localStorage.getItem('wl_training_journal__userA')};});
+    const before=(st.training||[]).length;
+    st.leaseHeld=false;                    /* the other session releases */
+    const s2=await page.evaluate(async()=>{
+      /* the other session releases; this device takes the pen through the
+         product's own boot path */
+      await m10Boot();
+      m8Push();
+      await new Promise(r=>setTimeout(r,700));
+      return {holder:M10.holder,fence:M10.fence,
+        journal:localStorage.getItem('wl_training_journal__userA'),
+        dev:localStorage.getItem('wl_m10_deviceid')};});
+    const replays=(st.training||[]).slice(before).filter(b=>b.idempotencyKey==='replay-c25c');
+    test('F3c the journal survived the refused window',()=>eq(s.refusedStill,true,'journal'));
+    test('F3c the device then holds the pen',()=>{eq(s2.holder,true,'M10.holder');ok(s2.fence>=1,'fence');});
+    test('F3c EXACTLY ONE replay was dispatched',()=>eq(replays.length,1,'replays: '+replays.length));
+    test('F3c it carries fence AND this deviceId',()=>{
+      eq(replays[0]&&replays[0].fence,s2.fence,'fence');
+      eq(replays[0]&&replays[0].deviceId,s2.dev,'deviceId');});
+    test('F3c the journal resolved',()=>eq(s2.journal,null,'journal: '+s2.journal));
+    test('F3c no page errors',()=>eq(errs.length,0,errs.join(';')));
     await ctx.close();
   }
 
@@ -296,6 +305,93 @@ async function bootSeed(browser,srv,st,seed,extraInit){
     test('F3 the edit stays local and dirty',()=>ok(s.dirty,'dirty marker was cleared'));
     test('F3 refusing to push is not a block',()=>eq(s.hard,false,'m8HardBlocked'));
     test('F3 no page errors',()=>eq(errs.length,0,errs.join(';')));
+    await ctx.close();
+  }
+
+  /* ---- F7 (ruling, blocking finding 3 + required evidence 4): DIRECT
+     m8CxChooseLocal() without authority — zero request id, zero new journal,
+     zero network mutation, conflict data preserved. The click-layer M10_GATED
+     entry is UX; this proves the COMMAND boundary refuses a programmatic
+     caller. ---- */
+  {
+    const st={leaseHeld:true};
+    const {ctx,page,errs}=await bootSeed(browser,server,st,dirtySeed());
+    const s=await page.evaluate(async()=>{
+      /* a real conflict record with fresh export evidence, via the product's
+         own write primitive */
+      m8Write('conflict',{canon:M8_CANON_VER,enteredAt:1754400000000,reason:'t',
+        serverRev:4,serverAtEntry:'{}',localAtEntry:'{}',
+        exports:{serverDone:true,localDone:true,localGen:m8Gen}});
+      const cxBefore=localStorage.getItem('wl_training_conflict__userA');
+      const writes=[];const asks=[];
+      const oSet=Storage.prototype.setItem;
+      Storage.prototype.setItem=function(k,v){writes.push(String(k));return oSet.call(this,k,v);};
+      const oAsk=window.askConfirm;window.askConfirm=function(m){asks.push(String(m));};
+      m8CxChooseLocal();
+      await new Promise(r=>setTimeout(r,500));
+      Storage.prototype.setItem=oSet;window.askConfirm=oAsk;
+      return {holder:M10.holder,
+        journalWrites:writes.filter(k=>/wl_training_journal__/.test(k)).length,
+        cxAfter:localStorage.getItem('wl_training_conflict__userA'),cxBefore:cxBefore,
+        asks:asks};});
+    test('F7 the direct caller does NOT hold the pen',()=>eq(s.holder,false,'M10.holder'));
+    test('F7 zero request identity minted, zero journal written',()=>
+      eq(s.journalWrites,0,'journal writes: '+s.journalWrites));
+    test('F7 zero network mutation',()=>
+      eq((st.training||[]).length,0,'training commits: '+JSON.stringify(st.training||[])));
+    test('F7 the conflict record is preserved byte-identical',()=>
+      eq(s.cxAfter,s.cxBefore,'conflict bytes'));
+    test('F7 takeover is offered at the command boundary',()=>{
+      eq(s.asks.length,1,'askConfirm calls: '+s.asks.length);
+      ok(/take over/i.test(s.asks[0]||''),'prompt: '+s.asks[0]);});
+    test('F7 no page errors',()=>eq(errs.length,0,errs.join(';')));
+    await ctx.close();
+  }
+
+  /* ---- F7b (required evidence 5): m8CxChooseLocal WITH authority — the
+     dispatch carries fence and this installation's deviceId ---- */
+  {
+    const st={};
+    const {ctx,page,errs}=await bootSeed(browser,server,st,dirtySeed());
+    const s=await page.evaluate(async()=>{
+      m8Write('base',{canon:M8_CANON_VER,rev:4,body:'{}'});
+      m8Write('conflict',{canon:M8_CANON_VER,enteredAt:1754400000000,reason:'t',
+        serverRev:4,serverAtEntry:'{}',localAtEntry:'{}',
+        exports:{serverDone:true,localDone:true,localGen:m8Gen}});
+      m8CxChooseLocal();
+      await new Promise(r=>setTimeout(r,600));
+      return {holder:M10.holder,fence:M10.fence,dev:localStorage.getItem('wl_m10_deviceid')};});
+    const sent=(st.training||[])[0];
+    test('F7b the holder\'s choose-local commit went out',()=>ok(sent,'no commit sent'));
+    test('F7b it carries the held fence and this deviceId',()=>{
+      eq(sent&&sent.fence,s.fence,'fence');
+      eq(sent&&sent.deviceId,s.dev,'deviceId');});
+    test('F7b no page errors',()=>eq(errs.length,0,errs.join(';')));
+    await ctx.close();
+  }
+
+  /* ---- F8 (required evidence 6, retry path): a push that conflicts against a
+     server copy matching base retries ONCE with a fresh requestId — and BOTH
+     attempts carry the wire proof ---- */
+  {
+    const st={};
+    const {ctx,page,errs}=await bootSeed(browser,server,st,dirtySeed());
+    const st0=await makeTrainingDirty(page);
+    st.conflictOnce=true;                 /* mock: first training commit 409-conflicts
+                                             with payload === current base ('{}'... ) */
+    const s=await page.evaluate(async()=>{
+      m8Push();
+      await new Promise(r=>setTimeout(r,800));
+      return {dev:localStorage.getItem('wl_m10_deviceid'),fence:M10.fence,
+        state:m8State()};});
+    const tr=(st.training||[]);
+    test('F8 the conflict retry dispatched a second attempt',()=>
+      eq(tr.length,2,'training commits: '+tr.length));
+    test('F8 both attempts are fenced with this deviceId',()=>{
+      tr.forEach((b,i)=>{eq(b.fence,s.fence,'fence #'+i);eq(b.deviceId,s.dev,'deviceId #'+i);});});
+    test('F8 fresh request identity on the retry',()=>
+      ok(tr.length===2&&tr[0].idempotencyKey!==tr[1].idempotencyKey,'requestIds: '+tr.map(b=>b.idempotencyKey).join(',')));
+    test('F8 no page errors',()=>eq(errs.length,0,errs.join(';')));
     await ctx.close();
   }
 

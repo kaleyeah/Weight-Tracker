@@ -10386,7 +10386,19 @@ function m8NewRequestId(){
   catch(e){return null;/* fail closed: no key -> no journal -> no dispatch */}
   return ("m8-"+m8Uid()+"-"+Date.now()+"-"+rnd).slice(0,96);}
 
-/* ---- CAS commit route client (§3; route: server/pb_hooks/cf_cas.pb.js) ---- */
+/* ---- CAS commit route client (§3; route: server/pb_hooks/cf_cas.pb.js) ----
+
+   FOUR call paths, each classified (Architect ruling, D1 round 1, finding 3 —
+   no implicit behavior based on which UI invoked it):
+     1. m8Push (:~445)            NEW WORK — start-authority m8HasPen(), then the
+                                  wire invariant at dispatch
+     2. conflict retry (:~510)    CONTINUATION of an authorized push (same
+                                  journal, fresh requestId) — wire invariant
+     3. journal replay (:~585)    RECOVERY of an existing journal — wire
+                                  invariant; on refusal the journal is
+                                  PRESERVED byte-for-byte, never sent unfenced
+     4. m8CxChooseLocal (:~800)   NEW WORK — start-authority at its own command
+                                  boundary, then the wire invariant */
 /* cb(res): res={st:"ok",newRev} | {st:"replay",newRev,applied} |
    {st:"conflict",serverRev,payload} | {st:"fenceStale",fence} |
    {st:"keyReused"} | {st:"transport"} | {st:"auth"}. A transport result is
@@ -10401,8 +10413,10 @@ function m8NewRequestId(){
    there is no proof to send, and an unfenced training write is exactly what
    enforcement rejects as stale. Refusing here keeps the change local and dirty
    instead of manufacturing a hard block on the athlete's own device. */
-/* The authority to START a push. Fail-closed lives HERE, on new work only —
-   see m8CommitFence for why it must not live at dispatch.
+/* The authority to START new work. The wire invariant in m8CommitFence is the
+   second, unconditional layer: this gate refuses cleanly before a request
+   identity is minted, and the dispatch invariant refuses anything that would
+   leave unfenced regardless of which path produced it.
 
    This deliberately does NOT re-check m10DeviceId(). An unverifiable
    installation identity already marks the installation corrupt — malformed
@@ -10416,25 +10430,31 @@ function m8HasPen(){
   if(typeof m10AuthNow!=="function")return true;   /* gate absent: unchanged */
   var a=m10AuthNow();
   return !!a.ok;}                                  /* {ok:true,local:true} when signed out */
-/* Attach the proof when this device has one. Deliberately BEST-EFFORT, never
-   refusing: m8CasCommit serves new pushes AND journal replay, and a replay is
-   not new work — it re-sends a request this device already made, to learn
-   whether the server applied it. Refusing to replay without the pen strands
-   that journal unresolved, which is a data-loss risk of its own; the server
-   answers replays from the ledger and, under enforcement, rejects a stale one
-   before any mutation (the F2 arm handles that outcome). New pushes cannot
-   reach here unfenced because m8HasPen() gates them. */
+/* THE WIRE INVARIANT (Architect ruling, D1 round 1, findings 1+2): when sync
+   is configured and the M10 client is present, NO training commit leaves this
+   client without BOTH a fence and a matching non-null deviceId — new push and
+   journal replay alike. The first cut attached proof best-effort, reasoning
+   that an enforcement-ON server rejects an unfenced request anyway; the ruling
+   is that Stage 1 runs while production enforcement is OFF, where an unfenced
+   request is ACCEPTED and mutates data — the client must be honest on its own.
+   Returns false when the proof cannot be attached; the caller refuses locally
+   with {st:"fenceStale"} and each caller's arm disposes correctly: a new push
+   ends its journal (definite non-execution) and keeps the work dirty; a replay
+   PRESERVES its journal byte-for-byte for a later fenced attempt (finding 2:
+   never dispatch it unfenced, never delete it, surface takeover). */
 function m8CommitFence(body){
-  if(typeof m10AuthNow!=="function")return;
+  if(typeof m10AuthNow!=="function")return true;   /* gate absent: unchanged */
   var a=m10AuthNow();
-  if(!a.ok||a.local)return;
+  if(a.local)return true;                          /* no account: no lease concept */
+  if(!a.ok)return false;
   var dev=(typeof m10DeviceId==="function")?m10DeviceId():null;
-  if(!dev)return;
-  body.fence=a.fence;body.deviceId=dev;}
+  if(!dev)return false;                            /* holder with an unreadable id: refuse (F1c) */
+  body.fence=a.fence;body.deviceId=dev;
+  return true;}
 function m8CasCommit(expectedRev,trainingObj,requestId,cb){
   var base;try{base=pbBase();}catch(e){cb({st:"transport"});return;}
   var body={subsystem:"training",expectedRev:expectedRev,idempotencyKey:requestId,payload:trainingObj};
-  m8CommitFence(body);
+  if(!m8CommitFence(body)){cb({st:"fenceStale",fence:null});return;}
   fetch(base+"/api/cf/appdata/commit",{method:"POST",headers:pbHeaders(true),
     body:JSON.stringify(body)})
   .then(function(r){
@@ -10963,6 +10983,16 @@ function m8CxExport(cb){
   try{files.forEach(function(f,i){setTimeout(function(){repDownloadFile(f);},i*400);});}catch(e){toast("Export failed");cb&&cb(false);return;}
   askConfirm("Two files were downloaded: the device copy and the server copy. Confirm BOTH are saved somewhere safe \u2014 the choice buttons unlock only after that.",markDelivered,{label:"Both files are saved",danger:false});}
 function m8CxChooseLocal(){
+  /* Command-boundary authority (Architect ruling, D1 round 1, finding 3):
+     "keep this device's copy" mints NEW mutation intent and reaches
+     m8CasCommit without passing through m8Push, so the click-layer M10_GATED
+     entry is UX, not the write-authority boundary — a programmatic caller or
+     refactor bypasses it. Checked here, before any request identity is minted
+     or journal written; refusal preserves the conflict record untouched and
+     offers the same takeover path as every other refused action. */
+  if(!m8HasPen()){
+    if(typeof m10TakeoverSheet==="function")m10TakeoverSheet();
+    return;}
   var r=m8Read("conflict");if(r.st!=="ok")return;
   var cx=r.val;
   /* export freshness enforced INSIDE the action, not only in the DOM */
