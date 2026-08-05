@@ -959,7 +959,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-05.455-proposalshare";
+var APP_BUILD="2026-08-05.456-msgtime";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -2598,10 +2598,12 @@ function maxSheetHTML(){if(!state.maxOpen)return "";var ws=coachWeekly();var _ci
        the period is only a fallback for anything written before it did. */
     var _msgs=[];
     var _when=function(g,d){return g||((d||"")+"T00:00:00.000Z");};
-    if(ws&&ws.text)_msgs.push({when:_when(ws.generated,ws.week),title:"Weekly check-in",
-      sub:"week of "+fmtShort(parseISO(ws.week)),mood:ws.mood,text:ws.text,unread:coachUnreadW()});
+    if(ws&&ws.text){var _wst=coachStamp(ws.generated,null);
+      _msgs.push({when:_when(ws.generated,ws.week),title:"Weekly check-in",
+        sub:"week of "+fmtShort(parseISO(ws.week))+(_wst?" \u00b7 "+_wst:""),
+        mood:ws.mood,text:ws.text,unread:coachUnreadW()});}
     if(_td)_msgs.push({when:_when(_td.generated,_td.period),title:"Your measured metabolism",
-      sub:(_td.tdee?_td.tdee+" cal/day \u00b7 ":"")+(_td.period?fmtShort(parseISO(_td.period)):""),
+      sub:(_td.tdee?_td.tdee+" cal/day \u00b7 ":"")+coachStamp(_td.generated,_td.period),
       mood:_td.mood,text:_td.text,unread:coachUnreadT()});
     _msgs.sort(function(a,b){return String(b.when).localeCompare(String(a.when));});
     inner='<div class="wl-mhead" style="margin-bottom:2px"><span style="flex:1"></span><button class="wl-maxx" data-act="max:close">\u2715</button></div>'
@@ -2688,6 +2690,13 @@ function migrateCoachSeen(){var st=state.settings;var ch=false;
   if(st.seenNightly==null&&state.nightlySummary&&state.nightlySummary.date){st.seenNightly=state.nightlySummary.date;ch=true;}
   return ch;}
 function coachTdee(){var t=state.coachRpt&&state.coachRpt.tdee;return (t&&t.text)?t:null;}
+/* "Aug 4, 9:23 PM" — when the message was WRITTEN, rendered in the reader's
+   local zone (generated is stored UTC). Falls back to the report's own date
+   with no time for anything written before `generated` existed, rather than
+   inventing a midnight that never happened. */
+function coachStamp(gen,fallbackDate){
+  if(gen){var d=new Date(gen);if(!isNaN(d.getTime()))return fmtShort(d)+", "+fmtClock(d);}
+  return fallbackDate?fmtShort(parseISO(fallbackDate)):"";}
 /* No week-currency check like coachUnreadW: a metabolism reading is not tied
    to a week, and the coach only writes one when the number is actually news,
    so an unread one stays unread until it is read. */

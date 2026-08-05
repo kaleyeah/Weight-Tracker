@@ -82,6 +82,44 @@ ok(html.indexOf(TDEE_TEXT) >= 0, "the TDEE message body is rendered");
 ok(html.indexOf(WEEKLY_TEXT) >= 0, "the weekly check-in is still rendered alongside it");
 ok(html.indexOf("measured metabolism") >= 0, "the TDEE section has its own heading");
 ok(html.indexOf("3120 cal/day") >= 0, "the headline number appears in the subheading");
+
+/* Time of day, not just the date. Owner asked for it explicitly: a message
+   stamped only "Aug 5" is ambiguous when several land the same day. */
+const stamped = await page.evaluate(() => {
+  const el = document.createElement("div"); el.innerHTML = maxSheetHTML();
+  return Array.from(el.querySelectorAll(".wl-msub")).map(n => n.textContent);
+});
+const tdeeSub = stamped.find(t => t.indexOf("3120 cal/day") >= 0) || "";
+const wkSub = stamped.find(t => t.indexOf("week of") >= 0) || "";
+ok(/\d{1,2}:\d{2}\s?(AM|PM|am|pm)?/.test(tdeeSub), "the TDEE stamp carries a clock time — got: " + tdeeSub);
+ok(/\d{1,2}:\d{2}\s?(AM|PM|am|pm)?/.test(wkSub), "the weekly stamp carries a clock time — got: " + wkSub);
+ok(wkSub.indexOf("week of") >= 0, "the weekly still says which week it covers");
+
+/* A report written before `generated` existed must show the date alone, not
+   a midnight that never happened. */
+const legacy = await page.evaluate(() => {
+  localStorage.setItem("wl_coach_reports", JSON.stringify({
+    weekly: null, nightly: {},
+    tdee: { period: "2026-08-05", text: "Legacy report.", mood: "calm", tdee: 3120 },
+  }));
+  coachRptLoad(); state.maxOpen = true;
+  const el = document.createElement("div"); el.innerHTML = maxSheetHTML();
+  return (el.querySelector(".wl-msub") || {}).textContent || "";
+});
+ok(legacy.indexOf("3120 cal/day") >= 0, "a report with no generated timestamp still renders");
+ok(!/\d{1,2}:\d{2}/.test(legacy), "and shows no invented time — got: " + legacy);
+
+/* Restore the seeded cache — the legacy case above overwrote it, and the
+   sections below assert against the original two-message setup. */
+await page.evaluate(([tdeeText, weeklyText]) => {
+  localStorage.setItem("wl_coach_reports", JSON.stringify({
+    weekly: { week: "2026-08-03", text: weeklyText, mood: "thumbsup", generated: "2026-08-03T09:00:00.000Z" },
+    nightly: {},
+    tdee: { period: "2026-08-05", text: tdeeText, mood: "clapping", tdee: 3120,
+            status: "provisional", windowDays: 14, reason: "first", generated: "2026-08-05T21:23:11.000Z" },
+  }));
+  coachRptLoad();
+}, [TDEE_TEXT, WEEKLY_TEXT]);
 ok(html.indexOf("wl-newpill") >= 0, "an unread TDEE report shows a New pill");
 ok(html.indexOf(TDEE_TEXT) < html.indexOf(WEEKLY_TEXT), "the newer message (TDEE, Aug 5) leads the older weekly (Aug 3)");
 /* Two max:close targets is correct: the backdrop (tap outside to dismiss)
