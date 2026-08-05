@@ -64,6 +64,7 @@ const MODULES = [
   { name: "mp-calc.js" },
   { name: "report-progress.js" },
   { name: "report-srview.js" },
+  { name: "icons.js" },
 ];
 
 const begin = (n) => `/* ==BUILD:${n}== */`;
