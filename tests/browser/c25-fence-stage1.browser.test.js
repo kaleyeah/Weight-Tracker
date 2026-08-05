@@ -498,6 +498,34 @@ async function bootSeed(browser,srv,st,seed,extraInit){
     await ctx.close();
   }
 
+  /* ---- F9 (canary finding, 2026-08-05): the read-only bar's Take over
+     button must actually open the takeover sheet. It was wired to a listener
+     whose closest() selector filtered for the m10cx: prefix, so the
+     data-act="m10:takeover" branch inside it was unreachable — a dead button
+     offered as the displaced device's only visible recovery path. This arm
+     CLICKS the real button in the real bar. ---- */
+  {
+    const st={leaseHeld:true};
+    const {ctx,page,errs}=await bootSeed(browser,server,st,dirtySeed());
+    const s=await page.evaluate(async()=>{
+      const asks=[];const oAsk=window.askConfirm;
+      window.askConfirm=function(m){asks.push(String(m));};
+      const bar=document.querySelector('[data-act="m10:takeover"]');
+      const visible=!!(bar&&bar.offsetParent!==null);
+      if(bar)bar.click();
+      await new Promise(r=>setTimeout(r,200));
+      window.askConfirm=oAsk;
+      return {present:!!bar,visible:visible,asks:asks,holder:M10.holder};});
+    test('F9 the displaced device renders the read-only bar',()=>{
+      eq(s.holder,false,'M10.holder');ok(s.present,'no [data-act=m10:takeover] in the DOM');
+      ok(s.visible,'the bar is rendered but not visible');});
+    test('F9 CLICKING the bar opens the takeover sheet',()=>{
+      eq(s.asks.length,1,'askConfirm calls: '+s.asks.length);
+      ok(/take over/i.test(s.asks[0]||''),'prompt: '+s.asks[0]);});
+    test('F9 no page errors',()=>eq(errs.length,0,errs.join(';')));
+    await ctx.close();
+  }
+
   await browser.close();server.close();
   console.log(`\nC25 fence Stage 1: ${passed} passed, ${failures.length} failed`);
   process.exit(failures.length?1:0);

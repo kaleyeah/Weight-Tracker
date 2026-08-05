@@ -627,7 +627,15 @@ function m10cxViewHTML(){
     origLogout();};
 })();
 document.addEventListener("click",function(e){
-  var el=e.target.closest&&e.target.closest("[data-act^=\"m10cx:\"]");
+  /* The selector must match EVERY action this handler owns. It filtered for
+     the m10cx: prefix only, while the read-only bar's button is
+     data-act="m10:takeover" — so that branch below was unreachable and the
+     bar's Take over button did nothing, on every build since it was written.
+     Found live by the Owner during the .461 canary (2026-08-05): with the
+     phone displaced, its only visible path to reclaiming the pen was a dead
+     button. (The gate path — tapping any gated action — still offered the
+     sheet, which is why earlier takeovers worked.) */
+  var el=e.target.closest&&e.target.closest("[data-act^=\"m10cx:\"],[data-act=\"m10:takeover\"]");
   if(!el)return;
   var a=el.getAttribute("data-act");
   if(a==="m10cx:open"){m10cxOpen=true;try{render();}catch(ex){}return;}
