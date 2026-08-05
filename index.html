@@ -944,7 +944,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-05.449-tdeewindow";
+var APP_BUILD="2026-08-05.450-tdeecore";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -2819,6 +2819,224 @@ function buildBars(bk,goal,higherBetter){
     }});
   s+='</svg>';return s;
 }
+/* ==BUILD:tdee-core.js== */
+/* Compound Fitness — measured TDEE, deterministic core.
+ *
+ * Implements TDEE-MEASUREMENT-SPEC.md. Per spec §11 this module must not:
+ * read or write UI, call AI models, alter coaching targets, mutate raw logs,
+ * or assume a persistence provider. It is a pure function: normalized daily
+ * data in, structured result out. Same file runs in the browser and in Node
+ * so the phone and the coach can never disagree about the number.
+ *
+ * TIMEZONE (spec §3): this module takes dates that are ALREADY the athlete's
+ * local calendar dates ("YYYY-MM-DD"). Assigning events to local dates is the
+ * caller's job — doing it here would require assuming a persistence shape.
+ */
+(function (root, factory) {
+  var api = factory();
+  if (typeof module === "object" && module.exports) module.exports = api;
+  else root.TDEECore = api;
+})(typeof globalThis !== "undefined" ? globalThis : this, function () {
+  "use strict";
+
+  /* Spec §4. Longest window first; if a tier is ineligible we fall to the
+     next shorter one rather than manufacturing data (§4 last bullet, A6). */
+  var TIERS = [
+    { status: "high_confidence", windowDays: 28, requiredCalorieDays: 24, requiredWeightDays: 20 },
+    { status: "reliable",        windowDays: 21, requiredCalorieDays: 18, requiredWeightDays: 15 },
+    { status: "provisional",     windowDays: 14, requiredCalorieDays: 12, requiredWeightDays: 10 },
+  ];
+  var MAX_CONSECUTIVE_MISSING = 2;          // spec §4: "more than two" is ineligible
+  var CAL_PER_UNIT = { lb: 3500, kg: 7700 };
+
+  var DAY_MS = 86400000;
+  function parseDate(iso) {
+    var p = String(iso).split("-");
+    return Date.UTC(+p[0], +p[1] - 1, +p[2]);   // UTC purely as a stable day counter
+  }
+  function isoOf(ms) {
+    var d = new Date(ms), p = function (n) { return String(n).padStart(2, "0"); };
+    return d.getUTCFullYear() + "-" + p(d.getUTCMonth() + 1) + "-" + p(d.getUTCDate());
+  }
+  function median(a) {
+    var s = a.slice().sort(function (x, y) { return x - y; }), n = s.length;
+    return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
+  }
+
+  /* Spec §5: ordinary least squares over (dayIndex, weight). Explicitly NOT
+     last-minus-first (C1), and indices are real local-date offsets so gaps
+     are respected rather than treated as consecutive observations (C2). */
+  function regressionSlope(points) {
+    var n = points.length;
+    if (n < 2) return null;
+    var sx = 0, sy = 0;
+    for (var i = 0; i < n; i++) { sx += points[i].x; sy += points[i].y; }
+    var mx = sx / n, my = sy / n, num = 0, den = 0;
+    for (var j = 0; j < n; j++) {
+      var dx = points[j].x - mx;
+      num += dx * (points[j].y - my);
+      den += dx * dx;
+    }
+    if (den === 0) return null;                 // every reading on one date
+    return num / den;                           // units per day
+  }
+
+  /* One accepted weight per local date (spec §4). An authoritative value wins;
+     otherwise the median of that date's valid readings (C3). */
+  function dailyWeights(weights) {
+    var byDate = {};
+    (weights || []).forEach(function (w) {
+      if (!w || !w.date) return;
+      var v = Number(w.weight);
+      if (!isFinite(v)) return;
+      var slot = byDate[w.date] || (byDate[w.date] = { authoritative: null, values: [] });
+      if (w.authoritative) slot.authoritative = v;
+      slot.values.push(v);
+    });
+    var out = {};
+    Object.keys(byDate).forEach(function (d) {
+      var s = byDate[d];
+      out[d] = s.authoritative != null ? s.authoritative : median(s.values);
+    });
+    return out;
+  }
+
+  /**
+   * @param {object} input
+   *   todayLocalDate  "YYYY-MM-DD" — the athlete's local date
+   *   weights         [{date, weight, authoritative?}]
+   *   calorieDays     { "YYYY-MM-DD": { calories:Number, complete:Boolean } }
+   *   units           "lb" | "kg"
+   *   formulaTdee     Number|null — Mifflin-St Jeor x activity, for comparison
+   *   offPlanDates    ["YYYY-MM-DD"] — vacation/sick etc. Flag only; see below.
+   */
+  function calculate(input) {
+    input = input || {};
+    var units = input.units === "kg" ? "kg" : "lb";
+    var calPerUnit = CAL_PER_UNIT[units];
+    var today = input.todayLocalDate;
+    var wByDate = dailyWeights(input.weights);
+    var cal = input.calorieDays || {};
+    var offPlan = {};
+    (input.offPlanDates || []).forEach(function (d) { offPlan[d] = true; });
+
+    var base = {
+      status: "insufficient",
+      windowStartLocalDate: null, windowEndLocalDate: null, windowDays: null,
+      completeCalorieDays: 0, requiredCalorieDays: null,
+      acceptedWeightDays: 0, requiredWeightDays: null,
+      averageDailyCalories: null, weeklyWeightChangeLb: null,
+      measuredTdeeRaw: null, measuredTdeeDisplay: null,
+      formulaTdee: input.formulaTdee == null ? null : input.formulaTdee,
+      confidenceFlags: [], excludedOrIncompleteDays: [],
+      calculatedAt: input.now || new Date().toISOString(),
+      units: units,
+    };
+    if (!today) { base.confidenceFlags.push("no_local_date"); return base; }
+
+    var endMs = parseDate(today);
+    var attempts = [];
+
+    /* Spec §4, first table row: "Insufficient | Fewer than 14 days". A tier
+       requires the athlete to actually HAVE that much history — otherwise 13
+       perfect days satisfy the 14-day tier's 12/10 thresholds and report as
+       provisional, which the spec rejects outright (A1). History span is the
+       earliest logged date of either kind through today. */
+    var earliestMs = null;
+    Object.keys(cal).forEach(function (d) {
+      var ms = parseDate(d);
+      if (ms <= endMs && (earliestMs === null || ms < earliestMs)) earliestMs = ms;
+    });
+    Object.keys(wByDate).forEach(function (d) {
+      var ms = parseDate(d);
+      if (ms <= endMs && (earliestMs === null || ms < earliestMs)) earliestMs = ms;
+    });
+    var historyDays = earliestMs === null ? 0 : Math.round((endMs - earliestMs) / DAY_MS) + 1;
+    base.historyDays = historyDays;
+
+    for (var t = 0; t < TIERS.length; t++) {
+      var tier = TIERS[t];
+      if (historyDays < tier.windowDays) {
+        attempts.push({ status: tier.status, windowDays: tier.windowDays, eligible: false,
+                        reason: "insufficient_history", historyDays: historyDays });
+        continue;
+      }
+      var startMs = endMs - (tier.windowDays - 1) * DAY_MS;
+      var dates = [];
+      for (var i = 0; i < tier.windowDays; i++) dates.push(isoOf(startMs + i * DAY_MS));
+
+      var complete = [], incomplete = [], run = 0, longestRun = 0;
+      dates.forEach(function (d) {
+        var c = cal[d];
+        /* Spec §4/D1/D2: a day counts only if EXPLICITLY complete. Missing and
+           partial days are excluded and never imputed as zero or as target. */
+        var isComplete = !!(c && c.complete === true && isFinite(Number(c.calories)));
+        if (isComplete) { complete.push({ date: d, calories: Number(c.calories) }); run = 0; }
+        else {
+          incomplete.push({ date: d, reason: !c ? "missing" : (c.complete === false ? "incomplete" : "no_calories") });
+          run++; if (run > longestRun) longestRun = run;
+        }
+      });
+
+      var wDates = dates.filter(function (d) { return wByDate[d] != null; });
+      var gapOk = longestRun <= MAX_CONSECUTIVE_MISSING;
+      var calOk = complete.length >= tier.requiredCalorieDays;
+      var wOk = wDates.length >= tier.requiredWeightDays;
+
+      attempts.push({
+        status: tier.status, windowDays: tier.windowDays,
+        completeCalorieDays: complete.length, requiredCalorieDays: tier.requiredCalorieDays,
+        acceptedWeightDays: wDates.length, requiredWeightDays: tier.requiredWeightDays,
+        longestMissingRun: longestRun, eligible: calOk && wOk && gapOk,
+      });
+      if (!(calOk && wOk && gapOk)) continue;
+
+      var points = wDates.map(function (d) {
+        return { x: Math.round((parseDate(d) - startMs) / DAY_MS), y: wByDate[d] };
+      });
+      var slope = regressionSlope(points);                 // units/day
+      if (slope == null) continue;                          // cannot fit a trend
+      var weeklyChange = slope * 7;
+      var avgCal = complete.reduce(function (s, x) { return s + x.calories; }, 0) / complete.length;
+      var raw = avgCal - (weeklyChange * calPerUnit / 7);   // §7
+
+      var flags = [];
+      if (tier.status === "provisional") flags.push("low_confidence_short_window");
+      if (longestRun > 0) flags.push("calorie_gaps_present");
+      var offPlanInWindow = dates.filter(function (d) { return offPlan[d]; });
+      /* Spec §10: an off-plan stretch is visible CONTEXT that lowers confidence
+         and routes for review — never a hidden correction to the maths. */
+      if (offPlanInWindow.length) flags.push("off_plan_days_in_window");
+      if (wDates.length < tier.windowDays * 0.8) flags.push("sparse_weigh_ins");
+
+      var res = Object.assign({}, base, {
+        status: tier.status,
+        windowStartLocalDate: dates[0], windowEndLocalDate: dates[dates.length - 1],
+        windowDays: tier.windowDays,
+        completeCalorieDays: complete.length, requiredCalorieDays: tier.requiredCalorieDays,
+        acceptedWeightDays: wDates.length, requiredWeightDays: tier.requiredWeightDays,
+        averageDailyCalories: avgCal,
+        weeklyWeightChangeLb: weeklyChange,
+        measuredTdeeRaw: raw,                                // §7: unrounded
+        measuredTdeeDisplay: Math.round(raw),                // §7: rounded only here
+        confidenceFlags: flags,
+        excludedOrIncompleteDays: incomplete,
+        offPlanDaysInWindow: offPlanInWindow,
+        tierAttempts: attempts,
+        regressionSlopePerDay: slope,
+        weightPointsUsed: points.length,
+      });
+      return res;
+    }
+
+    base.confidenceFlags.push("insufficient_data");
+    base.tierAttempts = attempts;
+    return base;
+  }
+
+  return { calculate: calculate, TIERS: TIERS, MAX_CONSECUTIVE_MISSING: MAX_CONSECUTIVE_MISSING };
+});
+/* ==BUILD-END:tdee-core.js== */
 function tdeeCalPerUnit(){return state.settings.units==="kg"?7700:3500;}
 /* Measured TDEE window (rewritten 2026-08-05).
    WHAT WAS WRONG. The old version framed a fixed 21-day calendar window and
@@ -2843,30 +3061,39 @@ function tdeeCalPerUnit(){return state.settings.units==="kg"?7700:3500;}
    that was doing real work.
    Robustness check on real data — 2v2 gave 2.47 lb/wk, 3v3 2.46, 5v5 2.47.
    The estimate is insensitive to cluster size; only the 7-day band broke it. */
-function tdeeWindow(){var MAXW=35,CL=3;
-  var today=todayISO(),t=parseISO(today);
-  var wAll=[];state.weights.forEach(function(x){var wv=num(x.weight);if(wv==null)return;
-    var age=Math.round((t.getTime()-parseISO(x.date).getTime())/DAY);
-    if(age<0||age>MAXW)return;wAll.push({d:x.date,w:wv,ts:parseISO(x.date).getTime()});});
-  wAll.sort(function(a,b){return a.ts-b.ts;});
-  /* the analysis stretch is the data's own span, not a fixed calendar frame */
-  var startTs=wAll.length?wAll[0].ts:t.getTime();
-  var spanDays=Math.round((t.getTime()-startTs)/DAY);
-  var foodVals=[];
-  for(var i=0;i<=spanDays;i++){var iso=toISO(new Date(startTs+i*DAY));
-    if(dayStatus(iso))continue;                    /* vacation/sick days never count */
-    var e=state.food[iso];var c=e?num(e.calories):null;if(c!=null)foodVals.push(c);}
-  var head=wAll.slice(0,CL),tail=wAll.slice(-CL);
-  function avgW(a){if(!a.length)return null;var s=0;a.forEach(function(x){s+=x.w;});return s/a.length;}
-  function avgI(a){if(!a.length)return null;var s=0;a.forEach(function(x){s+=(x.ts-startTs)/DAY;});return s/a.length;}
-  var headW=avgW(head),tailW=avgW(tail),headI=avgI(head),tailI=avgI(tail);
-  /* with fewer than 2*CL weigh-ins the clusters would overlap and share
-     readings, which would flatter the gap; require them to be disjoint */
-  var disjoint=wAll.length>=CL*2;
-  var effDays=(headI!=null&&tailI!=null&&disjoint)?(tailI-headI):null;
-  var foodAvg=foodVals.length?foodVals.reduce(function(a,b){return a+b;},0)/foodVals.length:null;
-  var ok=foodVals.length>=14&&head.length>=2&&tail.length>=2&&wAll.length>=6&&effDays!=null&&effDays>=10;
-  return {foodN:foodVals.length,foodAvg:foodAvg,headW:headW,tailW:tailW,headN:head.length,tailN:tail.length,totalW:wAll.length,effDays:effDays,ok:ok};}
+/* Measured TDEE window — now a THIN ADAPTER over TDEECore (src/tdee-core.js).
+   The maths, tiers and audit output live in that module, which is spec-built
+   and covered by 27 acceptance tests; this function only translates app state
+   into the module's input shape and its result into the fields this card
+   already consumes.
+
+   Owner rulings encoded here, 2026-08-05:
+   - a LOGGED calorie day counts as complete ("only as honest as the input");
+     an explicitly skipped day and an absent day are both NOT complete;
+   - vacation/sick days stay VISIBLE as gaps and are flagged as context —
+     they are no longer silently dropped from the average, which is what used
+     to hide a coverage problem rather than report it. */
+function tdeeWindow(){
+  var calorieDays={},d;
+  for(d in state.food){if(!Object.prototype.hasOwnProperty.call(state.food,d))continue;
+    var c=num((state.food[d]||{}).calories);
+    if(c!=null&&!isSkip(d,"calories"))calorieDays[d]={calories:c,complete:true};}
+  var offPlan=[];
+  (state.statuses||[]).forEach(function(st){if(!st||!st.start)return;
+    var cur=st.start,end=st.end||st.start,guard=0;
+    while(cur<=end&&guard++<400){offPlan.push(cur);cur=toISO(addDays(parseISO(cur),1));}});
+  var res=TDEECore.calculate({
+    todayLocalDate:todayISO(),
+    units:state.settings.units==="kg"?"kg":"lb",
+    weights:(state.weights||[]).map(function(x){return {date:x.date,weight:num(x.weight)};}),
+    calorieDays:calorieDays, offPlanDates:offPlan,
+    formulaTdee:maintenanceCals()
+  });
+  /* shape the existing card already reads, plus the full result for the
+     coverage lines and status chip */
+  return {foodN:res.completeCalorieDays,foodAvg:res.averageDailyCalories,
+          totalW:res.acceptedWeightDays,ok:res.status!=="insufficient",
+          effDays:null,headN:null,tailN:null,core:res};}
 function tdeeTargetRate(){var s=state.settings;if(strategyMode()==="maintain")return 0;var tv=num(s.targetValue);if(tv==null||tv<=0)return null;
   if(s.targetType==="percent_bw_per_week"){var cw=currentWeightAvg();if(cw==null)return null;return tv/100*cw;}
   return tv;}
@@ -2877,8 +3104,12 @@ function tdeeBuildProp(newCal,stepAdd,cardAdd){var s=state.settings;var floor=s.
   return {cal:newCal,oldCal:num(s.targetCalories),protein:p,fat:fat,carbs:carb,oldCarbs:num(s.targetCarbs),oldFat:num(s.targetFat),
     steps:(stepAdd&&stepsG!=null)?stepsG+stepAdd:null,oldSteps:stepsG,cardio:(cardAdd&&cardG!=null)?cardG+cardAdd:null,oldCardio:cardG};}
 function tdeeAnalysis(){var w=tdeeWindow();var res={win:w,state:"gathering"};if(!w.ok)return res;
-  var cpu=tdeeCalPerUnit();var rate=(w.tailW-w.headW)/w.effDays*7;
-  res.rate=rate;res.tdee=Math.round(w.foodAvg-rate*cpu/7);res.intake=Math.round(w.foodAvg);
+  /* rate and tdee come from TDEECore: OLS regression across every accepted
+     weigh-in, not a two-point comparison. Raw precision is preserved in the
+     module; only the display value is rounded (spec §7). */
+  var rate=w.core.weeklyWeightChangeLb;
+  res.rate=rate;res.tdee=w.core.measuredTdeeDisplay;res.intake=Math.round(w.foodAvg);
+  res.status=w.core.status;res.flags=w.core.confidenceFlags;
   var s=state.settings;var mode=strategyMode();var tgtCal=num(s.targetCalories);var tR=tdeeTargetRate();res.targetRate=tR;
   if(tgtCal==null||tR==null){res.state="ok";return res;}
   var today=todayISO();
@@ -2905,18 +3136,29 @@ function tdeeAnalysis(){var w=tdeeWindow();var res={win:w,state:"gathering"};if(
   res.prop=tdeeBuildProp(tgtCal+(mode==="gain"?trim:-trim),stepAdd,cardAdd);return res;}
 function metabolismCardHTML(){var s=state.settings;if(num(s.targetCalories)==null&&maintenanceCals()==null)return "";
   var an=tdeeAnalysis();var w=an.win;var form=maintenanceCals();var u=s.units;
-  var h='<div class="wl-card"><div class="wl-card-head"><span>Metabolism '+infoBtn("metabolism")+'</span><span class="wl-count">'+(an.state==="gathering"?"measuring":"21-day")+'</span></div>';
+  var _st=(w.core&&w.core.status)||"insufficient";
+  var _chip={insufficient:"measuring",provisional:"provisional",reliable:"reliable",high_confidence:"high confidence"}[_st]||"measuring";
+  var h='<div class="wl-card"><div class="wl-card-head"><span>Metabolism '+infoBtn("metabolism")+'</span><span class="wl-count">'+_chip+'</span></div>';
   h+='<div class="wl-forecast-grid"><div class="wl-fc"><div class="wl-fc-label">Formula estimate</div><div class="wl-fc-sub">Mifflin\u2013St Jeor \u00d7 activity</div><div class="wl-fc-weeks" style="color:var(--text)">'+(form!=null?form.toLocaleString():"\u2014")+'<span> cal</span></div></div>';
   h+='<div class="wl-fc wl-mz-meas"><div class="wl-fc-label">Measured TDEE</div><div class="wl-fc-sub">from your logs</div>'+(an.tdee!=null?'<div class="wl-fc-weeks">'+an.tdee.toLocaleString()+'<span> cal</span></div>':'<div class="wl-fc-weeks"><span class="wl-mzsoon">measuring\u2026</span></div>')+'</div></div>';
   if(an.state==="gathering"){
     /* one row per requirement so it is obvious WHICH one is holding the measurement back */
-    var _reqs=[["Days of food logged",w.foodN,14],["Weigh-ins",Math.min(w.totalW,6),6]];
+    /* show the requirements of the NEXT tier that history can actually reach,
+       so the bars track the real target rather than a fixed 14/6 */
+    var _next=null,_ta=(w.core&&w.core.tierAttempts)||[];
+    for(var _i=_ta.length-1;_i>=0;_i--){if(_ta[_i].reason!=="insufficient_history"){_next=_ta[_i];break;}}
+    var _reqs=_next?[["Days of food logged",_next.completeCalorieDays,_next.requiredCalorieDays],
+                     ["Weigh-ins",_next.acceptedWeightDays,_next.requiredWeightDays]]
+                  :[["Days of history",(w.core&&w.core.historyDays)||0,14]];
     h+='<div class="wl-mzreq">'+_reqs.map(function(r){var _dn=r[1]>=r[2];var _p=Math.round(Math.min(1,r[1]/r[2])*100);
       return '<div><div class="wl-mzr-top"><span class="wl-mzr-t">'+(_dn?I.check:'')+r[0]+'</span><span class="wl-mzr-n'+(_dn?' done':'')+'">'+r[1]+' / '+r[2]+'</span></div><div class="wl-mzr-bar"><i class="'+(_dn?'done':'')+'" style="width:'+_p+'%"></i></div></div>';}).join("")+'</div>';
-    h+='<div class="wl-mzline">'+((w.headN<2||w.tailN<2)
-      ?'Spread your weigh-ins across the window \u2014 some early, some this week. The burn rate is measured between those two points, so a cluster on one end can\u2019t be read.'
-      :'Keep logging. Your real burn rate appears here the moment there\u2019s enough clean data to trust it.')+'</div>';
+    /* name the ACTUAL blocker rather than guessing at one */
+    var _why='Keep logging. Your real burn rate appears here the moment there\u2019s enough clean data to trust it.';
+    if(_next&&_next.longestMissingRun>2)_why='A '+_next.longestMissingRun+'-day run of unlogged days sits inside the window \u2014 more than two in a row can\u2019t be measured through. It clears as those days age out.';
+    else if(!_next)_why='Not enough history yet \u2014 the shortest measurement needs 14 days of logging behind it.';
+    h+='<div class="wl-mzline">'+_why+'</div>';
   }else{
+    h+='<div class="wl-mzline" style="color:var(--faint)">Based on your last '+w.core.windowDays+' days \u00b7 '+w.core.completeCalorieDays+' of '+w.core.windowDays+' days logged \u00b7 '+w.core.acceptedWeightDays+' weigh-ins'+(an.status==="provisional"?' \u00b7 low confidence, short window':'')+((w.core.confidenceFlags||[]).indexOf("off_plan_days_in_window")>=0?' \u00b7 includes off-plan days':'')+'</div>';
     h+='<div class="wl-mzline">Intake averaged <b>'+an.intake.toLocaleString()+'</b> \u00b7 trend '+(an.rate<=0?"fell ":"rose ")+'<b>'+r1(Math.abs(an.rate))+' '+u+'/wk</b> \u2192 your body burns ~<b>'+an.tdee.toLocaleString()+'/day</b>.</div>';
     if(an.state==="ok"){h+='<div class="wl-mz-ok"><b>No changes needed.</b> '+(an.targetRate?('Moving at '+r1(Math.abs(an.rate))+' '+u+'/wk against a '+r1(an.targetRate)+' target \u2014 inside the band. Targets hold.'):'Trend and targets agree \u2014 keep going.')+'</div>';}
     else if(an.state==="comply"){h+='<div class="wl-mz-warn"><b>Hit the current plan first.</b> Intake averaged '+an.over+' cal over your '+num(s.targetCalories).toLocaleString()+' target \u2014 numbers don\u2019t change until the plan\u2019s been run. No cuts proposed.</div>';}
