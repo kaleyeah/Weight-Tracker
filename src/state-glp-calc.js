@@ -263,7 +263,6 @@ function saveLocal(){if(localWritesFrozen())return;try{localStorage.setItem(KEY,
 /* ---------------- cloud sync (private GitHub repo via Contents API) ---------------- */
 var SYNC_KEY="wl_sync",DIRTY_KEY="wl_dirty",LAST_KEY="wl_lastsync",GH_PATH="data.json",DEFAULT_REPO="kaleyeah/weight-data",DEFAULT_BRANCH="main";
 var syncState={s:"idle",msg:""},pushTimer=null,pushing=false,ghSha=null;
-var connData={};
 function normRepo(s){return (s||"").trim().replace(/^https?:\/\/github\.com\//i,"").replace(/\.git$/i,"").replace(/^\/+|\/+$/g,"");}
 function markDirty(v){try{localStorage.setItem(DIRTY_KEY,v?"1":"0");}catch(e){}}
 function isDirty(){return localStorage.getItem(DIRTY_KEY)==="1";}
@@ -283,18 +282,12 @@ function setSync(s,msg){
   var sd=document.getElementById("wl-sdot");if(sd)sd.className="wl-sdot "+syncDotClass();
   var tt=document.getElementById("wl-synctime");if(tt)tt.textContent=lastSyncText();
   var st=document.getElementById("wl-sync-status");if(st)st.innerHTML=syncStatusHTML();}
-function syncStatusHTML(){if(!syncOn())return '<span style="color:var(--faint)">Not connected. Add your repo and token, then Test.</span>';
+function syncStatusHTML(){if(!syncOn())return '<span style="color:var(--faint)">Not signed in on this device.</span>';
   var m={ok:"var(--good)",saving:"var(--accent)",syncing:"var(--accent)",offline:"var(--bad)",error:"var(--bad)",idle:"var(--muted)"}[syncState.s]||"var(--muted)";
   return '<span style="color:'+m+'">'+(syncLabel()||"Connected")+'</span>'+(syncState.msg?' <span style="color:var(--faint)">· '+esc(syncState.msg)+'</span>':'')+(getLastSync()?' <span style="color:var(--faint)">· '+lastSyncText()+'</span>':'');}
 function b64enc(str){return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g,function(_,h){return String.fromCharCode(parseInt(h,16));}));}
 function b64dec(b64){b64=(b64||"").replace(/\s/g,"");if(!b64)return "";return decodeURIComponent(Array.prototype.map.call(atob(b64),function(c){return "%"+("00"+c.charCodeAt(0).toString(16)).slice(-2);}).join(""));}
-/* randUid: kept — the invite:create handler (a live product surface) calls
-   it. The GitHub-era sync that consumed these uids is gone; retiring the
-   invite UI itself is a product decision, not a refactor step. */
-function randUid(){return Math.random().toString(36).slice(2,8)+Math.random().toString(36).slice(2,6);}
 function fileForUid(uid){return (!uid||uid==="owner")?"data.json":(uid==="partner"?"data-partner.json":"u-"+uid+".json");}
-function encodeInvite(o){return b64enc(JSON.stringify(o));}
-function decodeInvite(code){try{return JSON.parse(b64dec((code||"").trim()));}catch(e){return null;}}
 function applyCloud(d){if(!d)return;
   /* server data landing settles any deferred first-run question immediately */
   try{if(state.obDeferred)setTimeout(function(){onboardingGate(true);},0);}catch(e){}
@@ -323,8 +316,6 @@ function statusBannerHTML(sel){var sf=statusFor(sel);
 function obStepMsg(st){var f=state.settings;if(st===1){if(!(f.name&&(""+f.name).trim()))return "Add your name";return "";}if(st===2){if(!f.sex)return "Select male or female";if(num(f.age)==null)return "Add your age";if(num(f.heightFt)==null)return "Add your height";return "";}if(st===3){if(num(f.startingWeight)==null)return "Add your current weight";if(num(f.goalWeight)==null)return "Add your target weight";return "";}if(st===5){if(!f.activityLevel)return "Pick your activity level";return "";}return "";}
 function _b64url(str){return b64enc(str).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");}
 function _b64urldec(str){str=(str||"").replace(/-/g,"+").replace(/_/g,"/");while(str.length%4)str+="=";return b64dec(str);}
-function deviceSetupLink(){var c=syncCfg();var p={t:c.token};var r=c.repo||DEFAULT_REPO;if(r!==DEFAULT_REPO)p.r=r;var b=c.branch||DEFAULT_BRANCH;if(b&&b!==DEFAULT_BRANCH)p.b=b;var u=myUid();if(u&&u!=="owner")p.u=u;return location.origin+location.pathname+"#setup="+_b64url(JSON.stringify(p));}
-function deviceSheetHTML(){if(!state.deviceOpen)return "";var link=deviceSetupLink();var h='<div class="wl-confirm"><div class="wl-confirm-card">';h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><div style="font-weight:800;font-size:17px">Set up another device</div><button class="wl-icon-btn" data-act="device:close">\u2715</button></div>';h+='<div class="wl-hint" style="margin-bottom:12px">Tap <b>Copy setup link</b>, send it to your other device (AirDrop / Messages), and open it there \u2014 it\u2019ll import your data. Both devices share the same data.</div>';h+='<div style="background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:11px;font-family:var(--mono);font-size:11px;color:var(--muted);word-break:break-all;max-height:84px;overflow:auto">'+esc(link)+'</div>';h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="device:copylink">Copy setup link</button>';h+='<div class="wl-hint" style="margin-top:10px;color:var(--bad)">This link has full read/write access to your data \u2014 only share it with your own devices.</div>';return h+'</div></div>';}
 /* Called once the first pull has had a chance to land. If the account really
    has no data, first-time setup opens as before; if data arrived, the account
    is marked onboarded and setup is never shown. Either way the DECISION is made
@@ -348,7 +339,6 @@ function onboardingGate(serverAnswered){
   state.obDeferred=false;
   state.onboarding=true;state.obStep=0;render();
 }
-function checkSetupLink(){var hh=location.hash||"";var mm=hh.match(/[#&]setup=([^&]+)/);if(!mm)return;var pl=null;try{pl=JSON.parse(_b64urldec(mm[1]));}catch(e){try{pl=JSON.parse(b64dec(decodeURIComponent(mm[1])));}catch(e2){pl=null;}}try{history.replaceState(null,"",location.pathname+location.search);}catch(e){}if(!pl||!pl.t)return;askConfirm("Set up this device with your synced data? It connects to your account and pulls your existing weigh-ins, activities, and settings.",function(){setSyncCfg({token:pl.t,repo:pl.r||DEFAULT_REPO,branch:pl.b||DEFAULT_BRANCH,uid:pl.u||"owner"});ghSha=null;connData={};state.settings.onboarded=true;state.onboarding=false;markDirty(false);save();cloudPull(true);toast("Connecting \u2014 pulling your data");},{label:"Import",danger:false});}
 function obnav(last){return '<div class="wl-ob-nav"><button class="wl-btn wl-btn-ghost" style="flex:1" data-act="ob:back">Back</button><button class="wl-btn wl-btn-primary" style="flex:2" data-act="ob:next">'+(last?"Finish":"Continue")+'</button></div>';}
 function obDots(active){var d='';for(var i=1;i<=7;i++)d+='<span class="wl-obdot'+(i===active?" on":(i<active?" done":""))+'"></span>';return '<div class="wl-ob-brandbar">'+BRANDMARK.replace('width="18" height="18"','width="30" height="30"')+'<span class="wl-ob-bw">COMPOUND</span></div><div class="wl-obdots">'+d+'</div>';}
 function obOverlayHTML(){

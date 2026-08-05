@@ -776,7 +776,7 @@ function autoSync(){
      §2 bootstrap): core boot flows through the journaled protocol only */
   if(ownershipAmbiguous())return;
   if(!syncOn())return;
-  pullConnections();trainingPull(function(){if(state.view==="train")render();});
+  trainingPull(function(){if(state.view==="train")render();});
   setSync("syncing");
   m10cPull(false,function(){
     var st=m10cState();

@@ -141,7 +141,7 @@ if(bootGated()){
 load();loadTraining();migrateProgressionTypes();loadWorkout();rptRetargetAll();if(resyncAllActivityTags())save();
 /* Anchor the weekly check-in at the week it first ran, so an existing account
    never opens with months of retroactively "late" check-ins. */
-ciAnchorSince();var _hasSetup=/[#&]setup=/.test(location.hash||"");if(_hasSetup){state.settings.onboarded=true;}else{if(state.settings.onboarded==null)state.settings.onboarded=(state.weights.length>0||num(state.settings.goalWeight)!=null||num(state.settings.startingWeight)!=null||!!(state.settings.name&&(""+state.settings.name).trim()));if(!state.settings.onboarded){
+ciAnchorSince();{/* GitHub-era #setup= links retired (.460); onboarding decides normally */if(state.settings.onboarded==null)state.settings.onboarded=(state.weights.length>0||num(state.settings.goalWeight)!=null||num(state.settings.startingWeight)!=null||!!(state.settings.name&&(""+state.settings.name).trim()));if(!state.settings.onboarded){
   /* A signed-in account may simply not have pulled yet. Offering first-time
      setup here — and letting a skip stamp `onboarded` plus default settings —
      is what put an empty core on a second device and collided it with the
@@ -150,7 +150,7 @@ ciAnchorSince();var _hasSetup=/[#&]setup=/.test(location.hash||"");if(_hasSetup)
      really is new. */
   if(syncOn()&&!state.weights.length){state.obDeferred=true;}
   else{state.onboarding=true;state.obStep=0;}
-}}applyTheme(state.settings.theme||"dark");makeIcon();if(state.workout)state.view="train";render();if(syncOn()){pbRefresh(function(){m10Boot().then(function(){try{migrateProgressionTypes();}catch(e){}m10cBoot(function(){autoSync();photoSync();});});});}/* M10 wiring (K3+incr2): lease settles, core journal recovers, then adoption. Z1: the boot migration is re-run once the lease has settled — it is refused durably while this device is not the writer, and it is idempotent, so this is where it actually persists on the device that holds the pen. */if(state.workout)startWoTick();if(_hasSetup)checkSetupLink();
+}}applyTheme(state.settings.theme||"dark");makeIcon();if(state.workout)state.view="train";render();if(syncOn()){pbRefresh(function(){m10Boot().then(function(){try{migrateProgressionTypes();}catch(e){}m10cBoot(function(){autoSync();photoSync();});});});}/* M10 wiring (K3+incr2): lease settles, core journal recovers, then adoption. Z1: the boot migration is re-run once the lease has settled — it is refused durably while this device is not the writer, and it is idempotent, so this is where it actually persists on the device that holds the pen. */if(state.workout)startWoTick();/* setup-link importer retired with the GitHub-era link format (.460) */
 endRecoveryFreeze();
 /* Everything below belongs ONLY to the clean path. A gated page is terminal:
    no persistence request, no announcement write, no update check, no visibility

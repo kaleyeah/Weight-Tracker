@@ -81,8 +81,7 @@ function genNightly(){
 /* every account owns its own data, so the old multi-profile uid tagging is moot */
 function myUid(){return "owner";}
 function isOwner(){return true;}
-function connectionList(){return [];}
-function pullConnections(){}
+/* connections/invite feature fully retired (.460) — stubs AND callers removed together */
 
 /* ---- auth ---- */
 function pbLogin(email,password,cb,remember){

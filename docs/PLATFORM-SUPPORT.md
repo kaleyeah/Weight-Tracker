@@ -35,12 +35,11 @@ Results at baseline, walked across boot + five views:
 | Images without alt | 0 | pass |
 | Positive tabindex | 0 | pass |
 | Icon-only buttons without accessible name | **0** — pinned exactly | pass |
-| Unlabelled inputs | **18** — inventoried, ceiling pinned | finding |
+| Unlabelled inputs | **0** (was 18 = 3 hidden file inputs × 6 views; labelled in .460) | pass |
 
-Triage of the 18: they are quick-entry numeric fields whose meaning is
-carried visually by adjacent text. Recommended disposition: add
-`aria-label`s in the next authorized behaviour-change release; **not** a
-deployment blocker for Phase 1 (no regression — the count is pinned and any
-growth fails the tier). Physical checks (VoiceOver walkthrough, text
+Triage RESOLVED (.460): the 18 findings were the THREE hidden file-picker
+inputs in the static markup, counted once per walked view. All three now
+carry `aria-label`s; the pinned baseline is **0** and any unnamed input
+fails the tier. Physical checks (VoiceOver walkthrough, text
 scaling, orientation, safe areas, oldest device) are DEPLOYMENT gates per
 ruling 12, run with the Owner's devices.

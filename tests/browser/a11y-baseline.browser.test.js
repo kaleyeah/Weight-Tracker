@@ -65,7 +65,9 @@ const eq=(a,b,m)=>{if(JSON.stringify(a)!==JSON.stringify(b))throw new Error((m||
 
   /* pinned at the recorded top-level-view baseline; update ONLY with a
    documented re-baseline, never to absorb a regression */
-const UNNAMED_INPUT_BASELINE=18;
+/* re-baselined at .460: the 18 were the three hidden file inputs counted
+   across six views; they now carry aria-labels. Zero is the new pin. */
+const UNNAMED_INPUT_BASELINE=0;
 const views=[null,'overview','train','weight','summary','settings'];
   const findings=[];
   for(const v of views)findings.push(await scan(v));

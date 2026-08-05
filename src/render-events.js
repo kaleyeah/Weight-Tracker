@@ -13,7 +13,7 @@ function render(){
   var maxBtn=isOwner()?'<button class="wl-maxb'+((coachUnreadW()||coachUnreadT())?" hot":"")+'" data-act="max:open" aria-label="Messages from Coach Max">M</button>':'';
   var backBtn=state.view==="checkin"?'<button class="wl-hdr-back" data-act="ci:close" aria-label="Back">‹</button>':(state.view==="photos"||state.view==="glptimeline")?'<button class="wl-hdr-back" data-act="go" data-view="weight" aria-label="Back">‹</button>':state.view==="diary"?'<button class="wl-hdr-back" data-act="go" data-view="overview" aria-label="Back">‹</button>':'';
   var _navH=headerNav();var _brand='<span class="wl-mark">'+BRANDMARK+'</span>';var _md=statusFor(todayISO());var _mbanner=_md?('<button class="wl-modebanner" data-act="go" data-view="settings"><span class="wl-mb-em">'+(_md.status.type==="vacation"?"\ud83c\udfd6\ufe0f":"\ud83e\udd12")+'</span><span>'+(_md.status.type==="vacation"?"Vacation Mode":"Recovery Mode")+'</span><span class="wl-mb-go">Settings \u203a</span></button>'):'';
-  document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header'+(_md?" hasbanner":"")+'">'+_mbanner+'<div class="wl-hdr-brand"><div class="wl-brandrow">'+_brand+'<span class="wl-eyebrow">Compound</span></div>'+hdrRight+'</div><div class="wl-hdr-main">'+backBtn+'<div class="wl-title-slot">'+(title?('<h1 class="wl-title">'+title+'</h1>'):'')+(hsub?'<div class="wl-hsub">'+esc(hsub)+'</div>':'')+'</div><div class="wl-hdr-actions">'+maxBtn+avatar+'</div></div>'+(_navH?'<div class="wl-hdr-datebar">'+_navH+'</div>':'')+'</header>'+m10RoBarHTML()+'<main class="wl-main">'+m10cxShellBannerHTML()+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML()+statusSheetHTML()+obOverlayHTML()+deviceSheetHTML()+maxSheetHTML()+infoSheetHTML()+glpSheetHTML();
+  document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header'+(_md?" hasbanner":"")+'">'+_mbanner+'<div class="wl-hdr-brand"><div class="wl-brandrow">'+_brand+'<span class="wl-eyebrow">Compound</span></div>'+hdrRight+'</div><div class="wl-hdr-main">'+backBtn+'<div class="wl-title-slot">'+(title?('<h1 class="wl-title">'+title+'</h1>'):'')+(hsub?'<div class="wl-hsub">'+esc(hsub)+'</div>':'')+'</div><div class="wl-hdr-actions">'+maxBtn+avatar+'</div></div>'+(_navH?'<div class="wl-hdr-datebar">'+_navH+'</div>':'')+'</header>'+m10RoBarHTML()+'<main class="wl-main">'+m10cxShellBannerHTML()+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML()+statusSheetHTML()+obOverlayHTML()+maxSheetHTML()+infoSheetHTML()+glpSheetHTML();
   var hdr=document.querySelector(".wl-header");if(hdr)document.documentElement.style.setProperty("--headh",hdr.offsetHeight+"px");
   if(document.getElementById("wl-photostrip"))renderPhotosStrip(state.selDate);
   if(state.view==="diary")renderDiary();
@@ -480,18 +480,6 @@ var lt=getLastSync();toast((syncLabel()||"Sync")+(lt?" \u00b7 "+fmtClock(lt):"")
   if(a==="cal:usecalc"){state.settings.calTargetAuto=true;var okc=applyAutoCalTarget();applyAutoMacros();save();render();toast(okc?"Calorie target set to "+state.settings.targetCalories:"Add your Profile details first");return;}
   if(a==="set:theme"){state.settings.theme=el.getAttribute("data-theme");save();applyTheme(state.settings.theme);render();return;}
   if(a==="card:toggle"){state.open=state.open||{};var cd=el.getAttribute("data-card");state.open[cd]=!state.open[cd];render();return;}
-  if(a==="invite:create"){var c0=syncCfg();if(!syncOn()){toast("Set up Cloud sync first");return;}var nu=randUid();var cs=Array.isArray(state.settings.connections)?state.settings.connections.slice():[];if(cs.indexOf(nu)<0)cs.push(nu);state.settings.connections=cs;save();state.inviteCode=encodeInvite({t:c0.token,r:c0.repo||DEFAULT_REPO,b:c0.branch||DEFAULT_BRANCH,u:nu,from:myUid(),fromName:state.settings.name||""});state.joinOpen=false;render();return;}
-  if(a==="invite:copy"){if(state.inviteCode)copyText(state.inviteCode,"Invite code copied");return;}
-  if(a==="invite:open"){state.joinOpen=true;state.inviteCode=null;render();return;}
-  if(a==="invite:joincancel"){state.joinOpen=false;render();return;}
-  if(a==="invite:join"){var ta=document.getElementById("wl-joincode");var inv=decodeInvite(ta&&ta.value);if(!inv||!inv.t||!inv.u){toast("That code isn\u2019t valid");return;}
-    askConfirm("Join as a new person on this device? This device gets its own private space — it starts empty (no weigh-ins or activities of its own).",function(){
-    setSyncCfg({token:inv.t,repo:inv.r||DEFAULT_REPO,branch:inv.b||DEFAULT_BRANCH,uid:inv.u});
-    state.weights=[];state.food={};state.workouts={};state.steps={};state.notes={};state.sleep={};state.bodyfat={};state.waist={};state.leanmass={};state.weeklySummary=null;state.nightlySummary=null;state.nightlyLog={};state.presets=[];
-    state.settings=Object.assign({},DEFAULT_SETTINGS,{connections:inv.from?[inv.from]:[]});
-    ghSha=null;connData={};state.joinOpen=false;state.inviteCode=null;markDirty(true);save();applyTheme(state.settings.theme||"dark");autoSync();toast("Joined"+(inv.fromName?" · connected to "+inv.fromName:""));
-    },{label:"Join",danger:false});return;}
-  if(a==="conn:remove"){var ru=el.getAttribute("data-uid");askConfirm("Stop sharing with this person on your Home tab?",function(){state.settings.connections=(state.settings.connections||[]).filter(function(x){return x!==ru;});delete connData[ru];save();},{label:"Stop sharing"});return;}
   if(a==="reminder:add"){var ti=document.getElementById("wl-remind-time");var tv=(ti&&ti.value)||"19:00";state.settings.reminderTime=tv;save();shareOrDownload("activity-reminder.ics","text/calendar",reminderICS(tv));return;}
   if(a==="set:ttype"){state.settings.targetType=el.getAttribute("data-type");save();render();return;}
   if(a==="lrec:restore"){logoutRecoveryRestore();return;}
@@ -508,17 +496,10 @@ var lt=getLastSync();toast((syncLabel()||"Sync")+(lt?" \u00b7 "+fmtClock(lt):"")
   if(a==="paste:cancel"){state.pasteOpen=false;render();return;}
   if(a==="paste:do"){var ta=document.getElementById("wl-paste");applyImport(ta?ta.value:"");return;}
   if(a==="sync:test"){cloudTest();return;}
-  if(a==="sync:pull"){askConfirm("Pull from GitHub and replace all data on this device?",function(){cloudPull(true);},{label:"Pull",danger:false});return;}
+  if(a==="sync:pull"){askConfirm("Download your data from the server and replace this device\u2019s copy?",function(){cloudPull(true);},{label:"Pull",danger:false});return;}
   if(a==="sync:push"){cloudPush(true);return;}
-  if(a==="sync:copy"){var scg=syncCfg();copyText(JSON.stringify({token:scg.token||"",repo:scg.repo||DEFAULT_REPO,branch:scg.branch||DEFAULT_BRANCH,uid:myUid()}),"Setup copied");return;}
-  if(a==="device:open"){if(!syncOn()){toast("Set up Cloud sync first");return;}state.deviceOpen=true;render();return;}
-  if(a==="device:close"){state.deviceOpen=false;render();return;}
-  if(a==="device:copylink"){copyText(deviceSetupLink(),"Setup link copied");return;}
   if(a==="sync:paste"){state.syncPasteOpen=!state.syncPasteOpen;render();return;}
   if(a==="sync:pastecancel"){state.syncPasteOpen=false;render();return;}
-  if(a==="sync:pasteapply"){var sta=document.getElementById("wl-syncpaste");try{var cfg=JSON.parse((sta&&sta.value)||"{}");if(!cfg.token){toast("No token found in that setup");return;}
-    setSyncCfg({token:cfg.token,repo:cfg.repo||DEFAULT_REPO,branch:cfg.branch||DEFAULT_BRANCH,uid:cfg.uid||"owner"});
-    ghSha=null;connData={};state.syncPasteOpen=false;render();toast("Setup applied");autoSync();}catch(e){toast("Couldn't read that setup");}return;}
   if(a==="app:update"){updateApp();return;}
   if(a==="sum:tocur"){state.weekOffset=0;render();return;}
   if(a==="sum:prev"){state.weekOffset--;render();return;}

@@ -802,37 +802,7 @@ function view_overview(){
   h+='<div id="wl-photostrip"></div>';
   h+='<div class="wl-mealadd">'+[["breakfast","Breakfast"],["lunch","Lunch"],["snack","Snack"],["dinner","Dinner"]].map(function(m){return '<button class="wl-btn wl-btn-ghost" data-act="photo:add" data-meal="'+m[0]+'">'+I.plus.replace("<svg","<svg width=14 height=14")+m[1]+'</button>';}).join("")+'</div>';
     h+='</div>';
-  h+=connectionCards();
   h+='</div>';return h;
-}
-function connectionCards(){
-  var list=connectionList();var out="";
-  list.forEach(function(uid){var d=connData[uid];if(!d)return;out+=oneConnCard(d);});
-  return out;
-}
-function oneConnCard(d){
-  var ps=d.settings||{};var pw=Array.isArray(d.weights)?d.weights:[];
-  if(!pw.length&&num(ps.startingWeight)==null)return "";
-  var u=ps.units||"lbs";
-  var sw=pw.slice().sort(function(a,b){return a.date.localeCompare(b.date);});
-  var start=num(ps.startingWeight),goal=num(ps.goalWeight);
-  var current=sw.length?sw[sw.length-1].weight:start;
-  var lost=(start!=null&&current!=null)?start-current:null;
-  var toGo=(current!=null&&goal!=null)?current-goal:null;
-  var progress=null;if(start!=null&&goal!=null&&current!=null&&start!==goal){progress=(start-current)/(start-goal);progress=Math.max(0,Math.min(1,progress));}
-  var name=esc(ps.name||"Someone");
-  var h='<div class="wl-card"><div class="wl-card-head"><span>'+name+'\u2019s progress</span><span class="wl-count">shared</span></div>';
-  h+='<div class="wl-hero-top" style="margin-bottom:12px"><div><div class="wl-mini-label">Current</div><div class="wl-bignum" style="font-size:30px">'+(current!=null?r1(current):"—")+'<span class="wl-unit">'+u+'</span></div></div>'+(lost!=null?'<div class="wl-change '+(lost>=0?"good":"bad")+'">'+(lost>=0?I.down:I.up)+(lost>=0?"Lost ":"Gained ")+Math.abs(r1(lost))+' '+u+'</div>':'')+'</div>';
-  if(progress!=null)h+='<div class="wl-progress-track"><div class="wl-progress-fill" style="width:'+(progress*100)+'%"></div><div class="wl-progress-marker" style="left:'+(progress*100)+'%"></div></div><div class="wl-progress-ends"><span><b>'+r1(start)+'</b> start</span><span class="wl-togo">'+(toGo!=null&&toGo>0?r1(toGo)+" "+u+" to go":"Goal reached")+'</span><span><b>'+r1(goal)+'</b> goal</span></div>';
-  var pc=prepChart(pw);if(pc.data.length)h+=buildChart(pc,goal,u,true);
-  return h+'</div>';
-}
-function connectionsHTML(){var list=connectionList();
-  if(!list.length)return '<div class="wl-hint" style="margin-top:8px">No one connected yet. Create an invite code to add someone.</div>';
-  var h='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:12px 0 6px">Connected</div>';
-  list.forEach(function(uid){var nm=(connData[uid]&&connData[uid].settings&&connData[uid].settings.name)||"Pending…";
-    h+='<div class="wl-preset-manage-row">'+I.check.replace("<svg","<svg width=14 height=14")+'<span>'+esc(nm)+'</span><button class="wl-icon-btn" data-act="conn:remove" data-uid="'+uid+'">✕</button></div>';});
-  return h;
 }
 function fcCell(label,sub,fc,stalledMsg){
   var h='<div class="wl-fc"><div class="wl-fc-label">'+label+'</div><div class="wl-fc-sub">'+sub+'</div>';
