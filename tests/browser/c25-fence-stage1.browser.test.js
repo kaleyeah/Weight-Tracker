@@ -526,6 +526,51 @@ async function bootSeed(browser,srv,st,seed,extraInit){
     await ctx.close();
   }
 
+  /* ---- F10 (canary finding 2, Owner screenshot 2026-08-05): a confirm
+     dialog opened FROM the m10cx review sheet must render ON TOP of it. Both
+     share the wl-confirm class at z-index 2000, and the sheet lives in
+     #m10-cx, a later body sibling than #app — so the takeover confirm (and
+     the take-server confirm) opened INVISIBLY beneath the sheet. The Owner
+     tapped "Take over on this device" repeatedly with no visible effect; the
+     dialog was found stacked behind after "Decide later". ---- */
+  {
+    const st={leaseHeld:true};
+    const {ctx,page,errs}=await bootSeed(browser,server,st,dirtySeed());
+    const s=await page.evaluate(async()=>{
+      /* a real displaced envelope via the product's own writer */
+      m10cWrite('displaced',{reason:'fence-displaced',coreRevSeen:5,enteredAt:Date.now(),
+        serverData:'{"weights":[]}',localData:'{"weights":[],"notes":{}}'});
+      render();
+      const banner=document.querySelector('[data-act="m10cx:open"]');
+      if(banner)banner.click();
+      await new Promise(r=>setTimeout(r,150));
+      const sheetOpen=!!document.getElementById('m10-cx');
+      const tk=document.querySelector('#m10-cx [data-act="m10cx:takeover"]');
+      if(tk)tk.click();
+      await new Promise(r=>setTimeout(r,150));
+      /* the assertion that matches the Owner's thumb: at the confirm button's
+         own coordinates, the TOP element must be that button */
+      const yes=document.querySelector('[data-act="confirm:yes"]');
+      let clickable=false,topTag='';
+      if(yes){const r2=yes.getBoundingClientRect();
+        const top=document.elementFromPoint(r2.left+r2.width/2,r2.top+r2.height/2);
+        clickable=(top===yes)||yes.contains(top)||(top&&top.contains(yes));
+        topTag=top?(top.tagName+'.'+(top.className||'').toString().slice(0,40)):'none';}
+      if(clickable&&yes)yes.click();
+      await new Promise(r=>setTimeout(r,400));
+      return {sheetOpen:sheetOpen,hadTakeover:!!tk,hadConfirm:!!yes,
+        clickable:clickable,topTag:topTag,holder:M10.holder,fence:M10.fence};});
+    test('F10 the displaced review sheet opens with its takeover button',()=>{
+      ok(s.sheetOpen,'#m10-cx not present');ok(s.hadTakeover,'no takeover button in the sheet');});
+    test('F10 tapping takeover opens a confirm dialog',()=>ok(s.hadConfirm,'no confirm rendered'));
+    test('F10 the confirm is ON TOP of the sheet — the Owner\'s tap lands',()=>
+      ok(s.clickable,'element on top at the confirm button was: '+s.topTag));
+    test('F10 confirming actually steals the pen',()=>{
+      eq(s.holder,true,'M10.holder after confirm');ok(s.fence>=1,'fence: '+s.fence);});
+    test('F10 no page errors',()=>eq(errs.length,0,errs.join(';')));
+    await ctx.close();
+  }
+
   await browser.close();server.close();
   console.log(`\nC25 fence Stage 1: ${passed} passed, ${failures.length} failed`);
   process.exit(failures.length?1:0);

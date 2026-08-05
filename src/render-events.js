@@ -2,7 +2,14 @@
 var NAV=[["overview","Home"],["train","Activity"],["weight","Progress"],["summary","Summary"]];
 function askConfirm(message,fn,opts){opts=opts||{};state.pendingConfirm={message:message,fn:fn,danger:opts.danger!==false,label:opts.label||"Delete"};render();}
 function confirmOverlayHTML(){var c=state.pendingConfirm;if(!c)return "";
-  return '<div class="wl-confirm"><div class="wl-confirm-card"><div class="wl-confirm-msg">'+esc(c.message)+'</div><div class="wl-confirm-btns"><button class="wl-btn wl-btn-ghost wl-full" data-act="confirm:no">Cancel</button><button class="wl-btn wl-full" style="background:'+(c.danger?"var(--bad)":"var(--accent)")+';color:#fff;border:none" data-act="confirm:yes">'+esc(c.label)+'</button></div></div></div>';}
+  /* z-index above .wl-confirm's own 2000: the m10cx review sheet REUSES the
+     wl-confirm class and lives in #m10-cx, a LATER body sibling than #app --
+     equal z-index means the sheet always painted over this dialog. The Owner
+     hit that live (.461 canary): tapping "Take over on this device" inside
+     the review opened this confirm INVISIBLY underneath it; only closing the
+     review revealed the stack. A confirmation dialog is the innermost modal
+     by definition -- it outranks every sheet. */
+  return '<div class="wl-confirm" style="z-index:2500"><div class="wl-confirm-card"><div class="wl-confirm-msg">'+esc(c.message)+'</div><div class="wl-confirm-btns"><button class="wl-btn wl-btn-ghost wl-full" data-act="confirm:no">Cancel</button><button class="wl-btn wl-full" style="background:'+(c.danger?"var(--bad)":"var(--accent)")+';color:#fff;border:none" data-act="confirm:yes">'+esc(c.label)+'</button></div></div></div>';}
 function render(){
   clearPhotoURLs();
   var title=state.view==="settings"?"Settings":state.view==="diary"?"Food Diary":state.view==="exlib"?"":state.view==="routine"?"":state.view==="rlaunch"?"Workout":state.view==="quicklog"?"Quick log":state.view==="workout"?"Workout":state.view==="liftview"?"Workout":state.view==="wtadd"?"Weight Training":state.view==="cardioadd"?((state.cardioForm&&state.cardioForm.id)?"Edit Cardio":"Add Cardio"):state.view==="actadd"?(state.actPick==="rest"?"Add Recovery":state.actPick==="supp"?"Add Supplement":"Add"):state.view==="photos"?"Progress Photos":state.view==="checkin"?"Weekly check-in":state.view==="glptimeline"?"Weight & dose":(NAV.filter(function(n){return n[0]===state.view;})[0]||["","" ])[1];var hsub=state.view==="workout"?((state.workout&&state.workout.name)||""):state.view==="liftview"?(((getLiftSession()||{}).name)||""):state.view==="quicklog"?(((state.liftForm&&getRoutine(state.liftForm.routineId))||{}).name||""):state.view==="rlaunch"?(((getRoutine(state.routineId))||{}).name||""):"";
