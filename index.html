@@ -944,7 +944,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-05.451-progressfix";
+var APP_BUILD="2026-08-05.452-tdeemsg";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -2486,17 +2486,21 @@ function skipBtn(sec,on,word){return '<button class="wl-btn wl-btn-ghost wl-full
    by this device. Legacy in-record copies remain as a fallback for history
    written before the split. */
 var COACHRPT_KEY="wl_coach_reports";
-function coachRptLoad(){try{state.coachRpt=JSON.parse(localStorage.getItem(COACHRPT_KEY))||{weekly:null,nightly:{}};}catch(e){state.coachRpt={weekly:null,nightly:{}};}}
-function coachRptSave(){try{localStorage.setItem(COACHRPT_KEY,JSON.stringify(state.coachRpt||{weekly:null,nightly:{}}));}catch(e){}}
+function coachRptLoad(){try{state.coachRpt=JSON.parse(localStorage.getItem(COACHRPT_KEY))||{weekly:null,nightly:{},tdee:null};}catch(e){state.coachRpt={weekly:null,nightly:{},tdee:null};}
+  if(state.coachRpt&&!("tdee" in state.coachRpt))state.coachRpt.tdee=null;/* cache written before tdee existed */}
+function coachRptSave(){try{localStorage.setItem(COACHRPT_KEY,JSON.stringify(state.coachRpt||{weekly:null,nightly:{},tdee:null}));}catch(e){}}
 function fetchCoachReports(cb){
   if(!syncOn()||ownershipAmbiguous()){cb&&cb(false);return;}
   fetch(pbBase()+"/api/collections/coach_reports/records?perPage=200&sort=-period&t="+Date.now(),{headers:pbHeaders(),cache:"no-store"})
     .then(function(r){if(!r.ok)return Promise.reject();return r.json();})
-    .then(function(p){var items=(p&&p.items)||[];var w=null,n={};
+    .then(function(p){var items=(p&&p.items)||[];var w=null,n={},t=null;
       for(var i=0;i<items.length;i++){var it=items[i];var rep=it.report||null;if(!rep)continue;
         if(it.kind==="weekly"){if(!w||String(it.period)>String(w.week||""))w=rep;}
-        else if(it.kind==="nightly"&&it.period)n[it.period]=rep;}
-      state.coachRpt={weekly:w,nightly:n};coachRptSave();cb&&cb(true);})
+        else if(it.kind==="nightly"&&it.period)n[it.period]=rep;
+        /* TDEE: keep the latest window-end. Compare on period rather than
+           trusting sort order, since one bad row must not hide a newer one. */
+        else if(it.kind==="tdee"&&it.period){if(!t||String(it.period)>String(t.period||""))t=rep;}}
+      state.coachRpt={weekly:w,nightly:n,tdee:t};coachRptSave();cb&&cb(true);})
     .catch(function(){cb&&cb(false);});}
 function coachWeekly(){var w=state.coachRpt&&state.coachRpt.weekly;if(w&&w.text)return w;return state.weeklySummary;}
 function coachNightly(iso){var n=state.coachRpt&&state.coachRpt.nightly&&state.coachRpt.nightly[iso];if(n&&n.text)return n;
@@ -2570,12 +2574,23 @@ function activitySummaryHTML(sel){
 function maxSheetHTML(){if(!state.maxOpen)return "";var ws=coachWeekly();var _ciDay=(new Date().getDay()===(parseInt(state.settings.weekStart,10)||0));
   var inner;
   if(state.genBusy){inner='<div class="wl-mhead"><span class="wl-mav">M</span><span style="min-width:0"><span class="wl-mtitle">Weekly check-in</span><span class="wl-msub">from Coach Max</span></span><button class="wl-maxx" data-act="max:close">\u2715</button></div><div class="wl-hint">\u23f3 Generating your check-in\u2026 this takes about a minute. You can close this and keep using the app.</div>';}
-  else if(ws&&ws.text){inner='<div class="wl-mhead"><span class="wl-mav">M</span><span style="min-width:0"><span class="wl-mtitle">Weekly check-in</span><span class="wl-msub">from Coach Max \u00b7 week of '+fmtShort(parseISO(ws.week))+'</span></span><button class="wl-maxx" data-act="max:close">\u2715</button></div>'
-    +'<div class="wl-ai-summary" style="margin-top:6px">'+maxMoodHTML(ws.mood)+renderSummary(ws.text)+'</div>'
-    ;}
+  else if((ws&&ws.text)||coachTdee()){
+    var _td=coachTdee();
+    /* The metabolism message leads when it is unread \u2014 that IS the push the
+       member is being notified about. Once read it drops below the weekly,
+       which is the recurring headline. */
+    var _tdFirst=!!(_td&&coachUnreadT());
+    var _tdHTML=_td?('<div class="wl-mhead" style="margin-top:'+(_tdFirst?'0':'14px')+'"><span class="wl-mav">M</span><span style="min-width:0"><span class="wl-mtitle">Your measured metabolism'+(coachUnreadT()?' <span class="wl-newpill">New</span>':'')+'</span><span class="wl-msub">from Coach Max \u00b7 '+(_td.tdee?_td.tdee+' cal/day \u00b7 ':'')+(_td.period?fmtShort(parseISO(_td.period)):'')+'</span></span></div>'
+      +'<div class="wl-ai-summary" style="margin-top:6px">'+maxMoodHTML(_td.mood)+renderSummary(_td.text)+'</div>'):'';
+    var _wkHTML=(ws&&ws.text)?('<div class="wl-mhead" style="margin-top:'+(_tdFirst?'14px':'0')+'"><span class="wl-mav">M</span><span style="min-width:0"><span class="wl-mtitle">Weekly check-in</span><span class="wl-msub">from Coach Max \u00b7 week of '+fmtShort(parseISO(ws.week))+'</span></span></div>'
+      +'<div class="wl-ai-summary" style="margin-top:6px">'+maxMoodHTML(ws.mood)+renderSummary(ws.text)+'</div>'):'';
+    inner='<div class="wl-mhead" style="margin-bottom:2px"><span style="flex:1"></span><button class="wl-maxx" data-act="max:close">\u2715</button></div>'
+      +(_tdFirst?(_tdHTML+_wkHTML):(_wkHTML+_tdHTML));}
   else{var dn=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][(parseInt(state.settings.weekStart,10)||0)];
     inner='<div class="wl-mhead"><span style="flex:1"></span><button class="wl-maxx" data-act="max:close">\u2715</button></div><div class="wl-maxempty"><div class="bigav">M</div><div class="t">No messages yet</div><div class="s">This is where Coach Max delivers your weekly check-in.<br>Your next one lands <b style="color:var(--text)">'+dn+' morning</b>.</div></div>';}
-  return '<div class="wl-maxbg top" data-act="max:close"><div class="wl-maxsheet'+((ws&&ws.text)||state.genBusy?'':' plain')+'" data-act="noop">'+inner+'</div></div>';}
+  /* `plain` is the no-messages styling. A TDEE-only sheet (no weekly yet) is
+     still a real message and must keep the accent border. */
+  return '<div class="wl-maxbg top" data-act="max:close"><div class="wl-maxsheet'+((ws&&ws.text)||coachTdee()||state.genBusy?'':' plain')+'" data-act="noop">'+inner+'</div></div>';}
 /* ---- Coach Max info sheets (tap an ⓘ to learn a concept) ---- */
 var INFO={
   progression:{title:"Double vs Reverse Pyramid",body:[
@@ -2649,6 +2664,11 @@ function migrateCoachSeen(){var st=state.settings;var ch=false;
   if(st.seenWeekly==null&&state.weeklySummary&&state.weeklySummary.week){st.seenWeekly=state.weeklySummary.week;ch=true;}
   if(st.seenNightly==null&&state.nightlySummary&&state.nightlySummary.date){st.seenNightly=state.nightlySummary.date;ch=true;}
   return ch;}
+function coachTdee(){var t=state.coachRpt&&state.coachRpt.tdee;return (t&&t.text)?t:null;}
+/* No week-currency check like coachUnreadW: a metabolism reading is not tied
+   to a week, and the coach only writes one when the number is actually news,
+   so an unread one stays unread until it is read. */
+function coachUnreadT(){var t=coachTdee();return !!(t&&t.period&&state.settings.seenTdee!==t.period);}
 function coachUnreadN(){var ns=coachNightlyLatest();return !!(ns&&ns.text&&ns.date&&state.settings.seenNightly!==ns.date);}
 function coachUnreadW(){var ws=coachWeekly();return !!(ws&&ws.text&&ws.week&&ws.week===toISO(weekStartFor(0))&&state.settings.seenWeekly!==ws.week);}
 function msgPreview(t){var x=(""+(t||"")).replace(/[#*_>`\u2022-]/g,"").replace(/\s+/g," ").trim();return x.length>110?x.slice(0,110)+"\u2026":x;}
@@ -8294,7 +8314,7 @@ function render(){
   var nav='<nav class="wl-nav">'+NAV.map(function(n){return '<button class="wl-navbtn '+(state.view===n[0]||(n[0]==="overview"&&(state.view==="food"||state.view==="diary"))||(n[0]==="weight"&&(state.view==="photos"||state.view==="glptimeline"))?"on":"")+'" data-act="go" data-view="'+n[0]+'">'+I[n[0]]+'<span>'+n[1]+'</span></button>';/* unread-recap nudge now lives on the M avatar, not the Home tab */}).join("")+'</nav>';
   var avatar='<button class="wl-avatar'+(state.view==="settings"?" on":"")+'" data-act="go" data-view="settings" aria-label="Settings"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>';
   var hdrRight=syncOn()?'<button class="wl-syncdot" data-act="syncdot" aria-label="Sync status"><span class="wl-sdot '+syncDotClass()+'" id="wl-sdot"></span></button>':'';
-  var maxBtn=isOwner()?'<button class="wl-maxb'+(coachUnreadW()?" hot":"")+'" data-act="max:open" aria-label="Messages from Coach Max">M</button>':'';
+  var maxBtn=isOwner()?'<button class="wl-maxb'+((coachUnreadW()||coachUnreadT())?" hot":"")+'" data-act="max:open" aria-label="Messages from Coach Max">M</button>':'';
   var backBtn=state.view==="checkin"?'<button class="wl-hdr-back" data-act="ci:close" aria-label="Back">‹</button>':(state.view==="photos"||state.view==="glptimeline")?'<button class="wl-hdr-back" data-act="go" data-view="weight" aria-label="Back">‹</button>':state.view==="diary"?'<button class="wl-hdr-back" data-act="go" data-view="overview" aria-label="Back">‹</button>':'';
   var _navH=headerNav();var _brand='<span class="wl-mark">'+BRANDMARK+'</span>';var _md=statusFor(todayISO());var _mbanner=_md?('<button class="wl-modebanner" data-act="go" data-view="settings"><span class="wl-mb-em">'+(_md.status.type==="vacation"?"\ud83c\udfd6\ufe0f":"\ud83e\udd12")+'</span><span>'+(_md.status.type==="vacation"?"Vacation Mode":"Recovery Mode")+'</span><span class="wl-mb-go">Settings \u203a</span></button>'):'';
   document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header'+(_md?" hasbanner":"")+'">'+_mbanner+'<div class="wl-hdr-brand"><div class="wl-brandrow">'+_brand+'<span class="wl-eyebrow">Compound</span></div>'+hdrRight+'</div><div class="wl-hdr-main">'+backBtn+'<div class="wl-title-slot">'+(title?('<h1 class="wl-title">'+title+'</h1>'):'')+(hsub?'<div class="wl-hsub">'+esc(hsub)+'</div>':'')+'</div><div class="wl-hdr-actions">'+maxBtn+avatar+'</div></div>'+(_navH?'<div class="wl-hdr-datebar">'+_navH+'</div>':'')+'</header>'+m10RoBarHTML()+'<main class="wl-main">'+m10cxShellBannerHTML()+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML()+statusSheetHTML()+obOverlayHTML()+deviceSheetHTML()+maxSheetHTML()+infoSheetHTML()+glpSheetHTML();
@@ -8414,7 +8434,15 @@ document.addEventListener("click",function(e){
     if(pbRecId)_hkLaunch();else pbGetRecord(function(){_hkLaunch();});
     return;}
   if(a==="hk:cancel"){state.hkWait=null;render();return;}
-  if(a==="max:open"){state.maxOpen=true;fetchCoachReports(function(ch){if(ch)render();});var _mws=coachWeekly();if(_mws&&_mws.week&&state.settings.seenWeekly!==_mws.week){state.settings.seenWeekly=_mws.week;save();}render();return;}
+  if(a==="max:open"){state.maxOpen=true;fetchCoachReports(function(ch){if(ch){
+    /* Mark seen AFTER the fetch too: opening the sheet is what clears the
+       badge, and a report that arrived in this very fetch must not stay
+       flagged unread behind an already-open sheet. */
+    var _t2=coachTdee();if(_t2&&_t2.period&&state.settings.seenTdee!==_t2.period){state.settings.seenTdee=_t2.period;save();}
+    render();}});
+    var _mws=coachWeekly();if(_mws&&_mws.week&&state.settings.seenWeekly!==_mws.week){state.settings.seenWeekly=_mws.week;save();}
+    var _mtd=coachTdee();if(_mtd&&_mtd.period&&state.settings.seenTdee!==_mtd.period){state.settings.seenTdee=_mtd.period;save();}
+    render();return;}
   if(a==="max:close"){state.maxOpen=false;render();return;}
   if(a==="info"){state.infoOpen=el.getAttribute("data-info");render();return;}
   if(a==="info:close"){state.infoOpen=null;render();return;}
