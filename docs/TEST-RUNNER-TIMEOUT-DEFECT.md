@@ -56,7 +56,7 @@ child. Two things then keep it blocked:
 This is a hypothesis consistent with everything observed, not something proven
 by instrumentation — it should be confirmed before the fix is called verified.
 
-## Suggested fix (not yet applied)
+## Fix APPLIED 2026-08-05 (see the runner-fix commit; self-test below)
 
 - pass `killSignal: 'SIGKILL'` so the child cannot trap the signal, and
 - spawn `detached: true` and kill the whole **process group** on timeout, so
@@ -67,3 +67,19 @@ by instrumentation — it should be confirmed before the fix is called verified.
 The self-test matters most. The timeout has been in the runner, believed
 working, through every release this project has gated — including the six-round
 Phase 0+1 review. It was never once exercised.
+
+## Resolution
+
+The hypothesis was confirmed by construction: `tests/browser/hang.fixture.js`
+traps SIGTERM and spawns a grandchild holding inherited stdio, and under the
+old runner that combination hangs forever. The runner now spawns each suite
+`detached` (its own process group) and SIGKILLs the **group** on timeout —
+untrappable, and it takes the grandchildren's pipe ends with it.
+
+`tests/runner-timeout-self.test.js` exercises the mechanism on every run:
+nonzero exit, loud report, bounded return, grandchild verified dead. 4/4.
+
+The runner also stopped conflating skips with passes: suites listed in
+`OPTIONAL_SUITES` (with a stated reason) report as `SKIP` and are excluded from
+the passed count; any OTHER suite that prints SKIPPED fails the run. The final
+line now reads `REQUIRED BROWSER SUITES PASSED — N of N; OPTIONAL SKIPPED — M`.
