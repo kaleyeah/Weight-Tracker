@@ -9757,12 +9757,12 @@ function exportData(){
   if(ownershipAmbiguous()){toast("Export paused — this device holds data from another account");return;}
   var json=backupJSON();var name="weight-tracker-backup-"+todayISO()+".json";
   try{
-    var file=new File([json],name,{type:"application/json"});
+    var file=new File([json],name,{type:"application/json;charset=utf-8"});
     if(navigator.canShare&&navigator.canShare({files:[file]})){
       navigator.share({files:[file],title:"Weight Tracker backup"}).catch(function(){});return;
     }
   }catch(e){}
-  var blob=new Blob([json],{type:"application/json"});var url=URL.createObjectURL(blob);
+  var blob=new Blob([json],{type:"application/json;charset=utf-8"});var url=URL.createObjectURL(blob);
   var a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();document.body.removeChild(a);
   setTimeout(function(){URL.revokeObjectURL(url);},1000);toast("Backup exported");
 }

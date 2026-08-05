@@ -21,15 +21,17 @@ mitigation, not a substitute for separation.
 |---|---|---|---|
 | dev | disposable local PB (exists) | local HTTP serve of the worktree | synthetic fixtures only |
 | test | disposable local PB, enforce + off modes (exists) | Playwright tiers | synthetic; created and deleted per run |
-| **staging** | **second PocketBase instance on the NAS** (own port, own `pb_data`, own hooks copy, own superuser) | **Pages preview: serve a `staging/` subdirectory or a second Pages repo** — the app's `pbBase()` is already overridable in the advanced login form | a restored copy of a production backup (which doubles as the restore-test the addendum requires) |
+| **staging** | **second PocketBase instance on the NAS** (own port, own `pb_data`, own hooks copy, own superuser, own `pb.env`) | **a SEPARATE GitHub Pages repository — a distinct origin.** (Revised per review: a same-origin `staging/` path would share localStorage, credentials and cache reach with production; path scope is not isolation.) `pbBase()` is already overridable to point at the staging server | **synthetic data by default.** Production-backup restoration happens only in a tightly-controlled DISPOSABLE restore environment (which is the restore-test), never as a standing staging dataset — restoring the athlete's health history into a second long-lived copy needs the Owner's explicit approval plus encryption/retention/deletion rules first |
 | prod | the existing NAS instance | Pages root | the athlete's real data |
 
 Non-shared by construction: ports, `pb_data` directories, credentials
 (separate `pb.env` per instance), file storage, and — once Phase 2 exists —
 service-worker cache scopes (distinct origins/paths give this for free).
 
-Staging serves two addendum requirements at once: environment separation and
-**restore-tested backups** (the staging refresh IS the restore rehearsal).
+The disposable restore environment serves the addendum's restore-tested-backup
+requirement; staging itself stays synthetic. Rollback REHEARSAL (candidate →
+rollback release movement, fresh build id, update detection) runs against the
+staging origin — never production.
 
 ## Sequencing
 
