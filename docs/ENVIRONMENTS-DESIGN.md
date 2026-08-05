@@ -25,8 +25,9 @@ mitigation, not a substitute for separation.
 | prod | the existing NAS instance | Pages root | the athlete's real data |
 
 Non-shared by construction: ports, `pb_data` directories, credentials
-(separate `pb.env` per instance), file storage, and — once Phase 2 exists —
-service-worker cache scopes (distinct origins/paths give this for free).
+(separate `pb.env` per instance), file storage, web storage and — once
+Phase 2 exists — service-worker cache scopes. All of these follow from
+**distinct origins**; paths on a shared origin isolate none of them.
 
 The disposable restore environment serves the addendum's restore-tested-backup
 requirement; staging itself stays synthetic. Rollback REHEARSAL (candidate →
@@ -35,9 +36,11 @@ staging origin — never production.
 
 ## Sequencing
 
-Standing up staging is NAS work (new container/port, Owner-authorized) and
-belongs before Phase 3 (the local-database migration), which is the first
-phase whose failure mode is data-shape corruption. Phases 1–2 change no data
-shapes, so the exposure until then is unchanged from today. Proposed gate:
-**staging exists and has passed one backup-restore cycle before any Phase 3
+Sequencing (per review ruling 13): the **distinct staging client origin
+(separate Pages repository) must exist before Phase 2's service-worker
+environment testing**; the **isolated PocketBase staging instance plus a
+successful disposable restore rehearsal must exist before Phase 3 or any
+data migration**. Standing either up is Owner-authorized work. Proposed hard
+gate: **staging exists and has passed one backup-restore cycle before any
+Phase 3
 work begins.**

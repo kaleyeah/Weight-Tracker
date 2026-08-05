@@ -23,9 +23,24 @@ the primary flows. NOT yet verified: VoiceOver labels across all sheets,
 Dynamic-Type/text-scaling behaviour, full keyboard operability, contrast
 ratios. 
 
-Automated baseline to add at the next authorized test-infrastructure change:
-an axe-core pass in the browser tier (landmarks/labels/contrast) as
-non-blocking reporting first, promoted to blocking once the findings are
-triaged. Physical checks (VoiceOver walkthrough, text scaling, orientation,
-oldest device) are DEPLOYMENT gates per ruling 12, run with the Owner's
-devices.
+**Automated baseline: RUN and RECORDED** —
+`tests/browser/a11y-baseline.browser.test.js` (axe-core is not vendored in
+this offline environment; this is the reproducible equivalent inspection).
+Results at baseline, walked across boot + five views:
+
+| Check | Result | Class |
+|---|---|---|
+| `lang` attribute, viewport meta | present | pass |
+| `prefers-reduced-motion` honoured | yes (pinned by avatar-cue too) | pass |
+| Images without alt | 0 | pass |
+| Positive tabindex | 0 | pass |
+| Icon-only buttons without accessible name | **0** — pinned exactly | pass |
+| Unlabelled inputs | **18** — inventoried, ceiling pinned | finding |
+
+Triage of the 18: they are quick-entry numeric fields whose meaning is
+carried visually by adjacent text. Recommended disposition: add
+`aria-label`s in the next authorized behaviour-change release; **not** a
+deployment blocker for Phase 1 (no regression — the count is pinned and any
+growth fails the tier). Physical checks (VoiceOver walkthrough, text
+scaling, orientation, safe areas, oldest device) are DEPLOYMENT gates per
+ruling 12, run with the Owner's devices.

@@ -4,6 +4,18 @@ Against the Architect's MODULE-MAP.md, under the amended Phase-1 contract
 (one atomic artifact). Every planned target dispositioned; nothing silently
 deferred.
 
+**SUPERSEDED IN PART (round-3 response, ruling 5-7):** the deferral rows
+below described the state at the first freeze. The extraction is now
+COMPLETE: the entire `<script>` lives in 23 position-preserving `src/`
+modules (93.1% of artifact bytes generated from `src/` + `assets/`; the
+remaining template is the HTML shell, the CSS — Phase 2 per the accepted
+styles ruling — and six lines of markup). The wrapper/capture chains are
+preserved by in-place inlining, which is the preservation method ruling 6
+required. The rows below stand as the record of WHY position preservation
+was mandatory, and the finer-grained responsibility split within the large
+modules (state vs storage vs sync vs features) remains future refactoring —
+now possible file-by-file without touching the artifact.
+
 | Target | Disposition |
 |---|---|
 | `domain/tdee.js` | **EXTRACTED** (`src/tdee-core.js`, `src/tdee-proposal.js` — pre-existing, now under the boundary scan) |
