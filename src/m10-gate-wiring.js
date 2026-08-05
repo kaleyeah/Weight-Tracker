@@ -178,7 +178,12 @@ function m10AuthNow(){
 function m10GateReason(why){
   if(why==="corrupt")return "Sync identity problem \u2014 this device is read-only";
   if(why==="blocked")return "Sync is paused \u2014 see the banner";
-  if(why==="expired")return "This device is no longer the active writer";
+  /* D1/F6: "expired" used to return a message, and a message means toast-and-
+     stop — the athlete was told the device is read-only with no way to act on
+     it, and the read-only bar stays hidden until a reload. It is the same
+     recoverable situation as "not-holder", so it takes the same route: the
+     takeover sheet. Only genuinely unrecoverable reasons (corrupt identity,
+     paused storage) still toast. */
   return null;}
 
 /* the entry gate: TRUE to proceed */

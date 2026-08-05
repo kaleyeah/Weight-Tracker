@@ -521,8 +521,13 @@ function m10cPush(manual,done){
      local and dirty until this device takes the pen, which the read-only bar
      offers. This is the client half of STRICT; FENCING_ENFORCED is the server
      half and is still off pending the coach migration. */
-  if(typeof M10!=="undefined"&&M10.booted&&syncOn()&&
-     !(M10.holder&&M10.uid===uid&&performance.now()<M10.deadline)){
+  /* D1/F4: `M10.booted` was an AND-term of the refusal, so a session where the
+     lease never settled — signing in mid-session, before m10Boot() was wired
+     into the login continuation — skipped this gate entirely and pushed with
+     fence:null. The gate now fails CLOSED: not booted means no proven pen, and
+     an unproven pen is not authority. */
+  if(typeof M10!=="undefined"&&syncOn()&&
+     !(M10.booted&&M10.holder&&M10.uid===uid&&performance.now()<M10.deadline)){
     if(manual)toast("Another device is the active writer — take over to upload these changes");
     fin(false);return;}
   var d=m10cRead("dirty");if(d.st!=="ok"){fin(false);return;}
@@ -546,7 +551,35 @@ function m10cDispatch(j,payloadObj,cb,ctx){
   var e=j.expect;
   var body={subsystem:"core",expectedRev:e.expectedRev,idempotencyKey:e.requestId,
     payload:payloadObj,clientBuild:(typeof APP_BUILD==="string"?APP_BUILD:"")};
-  if(e.fence!==null){body.fence=e.fence;body.deviceId=m10DeviceId();}
+  /* D1/F5: the journal captures the fence at ENQUEUE and this dispatcher used
+     it verbatim, so a request written before a takeover went out claiming a
+     fence this device no longer holds. m10pDispatch (m10-photoq.js:180) has
+     always re-proven the pen at every mutation point against the SAME entry
+     fence; the core commit now does the same. A displaced fence is refused
+     locally rather than sent — the journal survives at intent and replays
+     unchanged once this device holds the pen again.
+
+     Fail closed on a missing deviceId: no verified installation identity means
+     no provable authority (D10). */
+  if(e.fence!==null){
+    var pen=(typeof m10pPen==="function")?m10pPen():null;
+    if(pen&&pen.fence!==e.fence){
+      /* A DIFFERENT held fence is proof this device was displaced and later
+         re-acquired: the captured request can never be authorized as written,
+         and sending it would only earn the 409 the server arm below handles.
+         Terminalize to the SAME resolvable review state, without the round
+         trip and without a journal that can never dispatch. */
+      m10cTerminalize(j,"fence-displaced",{staleFence:pen.fence},ctx.uid);
+      setSync("error","another device is the active writer");cb&&cb(false);return;}
+    /* Holding NO pen is deliberately NOT refused here. The local deadline is
+       conservative (it subtracts the whole round trip), so a lapsed local
+       deadline does not prove the server lease is gone — and the server
+       validates the fence before any mutation anyway (cf_cas.pb.js:85). New
+       pushes are already refused upstream by the strict gate; this path is
+       journal replay, where the server is the right authority. */
+    var dev=m10DeviceId();
+    if(!dev){setSync("error","this device's sync identity could not be verified");cb&&cb(false);return;}
+    body.fence=e.fence;body.deviceId=dev;}
   m10cRoute(body).then(function(r){
     /* N3/N4: a response from a superseded session touches NOTHING — the
        captured journal stays byte-identical for replay under its own

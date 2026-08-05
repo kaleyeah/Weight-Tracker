@@ -960,7 +960,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-05.460-cleanup";
+var APP_BUILD="2026-08-05.461-fence-stage1";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -10388,19 +10388,48 @@ function m8NewRequestId(){
 
 /* ---- CAS commit route client (§3; route: server/pb_hooks/cf_cas.pb.js) ---- */
 /* cb(res): res={st:"ok",newRev} | {st:"replay",newRev,applied} |
-   {st:"conflict",serverRev,payload} | {st:"keyReused"} | {st:"transport"} |
-   {st:"auth"}. A transport result is AMBIGUOUS (E2) — the server may have
-   committed; callers must never treat it as proof of failure. */
+   {st:"conflict",serverRev,payload} | {st:"fenceStale",fence} |
+   {st:"keyReused"} | {st:"transport"} | {st:"auth"}. A transport result is
+   AMBIGUOUS (E2) — the server may have committed; callers must never treat it
+   as proof of failure. */
+/* D1/F1: the TRAINING commit carries the same single-writer proof the core and
+   photo routes already carry. It is proven at DISPATCH, not at enqueue — a
+   fence captured when the push was queued may already have been displaced by
+   the time the request goes out (the m10pDispatch rule, :164).
+
+   Fail closed on a missing deviceId: without a verified installation identity
+   there is no proof to send, and an unfenced training write is exactly what
+   enforcement rejects as stale. Refusing here keeps the change local and dirty
+   instead of manufacturing a hard block on the athlete's own device. */
+function m8HasPen(){
+  if(typeof m10AuthNow!=="function")return true;   /* gate absent: unchanged */
+  var a=m10AuthNow();
+  return !!a.ok;}                                  /* {ok:true,local:true} when signed out */
+function m8CommitFence(body){
+  if(typeof m10AuthNow!=="function")return true;   /* gate absent: unchanged */
+  var a=m10AuthNow();
+  if(a.local)return true;                          /* no account: no lease concept */
+  if(!a.ok)return false;
+  var dev=(typeof m10DeviceId==="function")?m10DeviceId():null;
+  if(!dev)return false;
+  body.fence=a.fence;body.deviceId=dev;
+  return true;}
 function m8CasCommit(expectedRev,trainingObj,requestId,cb){
   var base;try{base=pbBase();}catch(e){cb({st:"transport"});return;}
+  var body={subsystem:"training",expectedRev:expectedRev,idempotencyKey:requestId,payload:trainingObj};
+  if(!m8CommitFence(body)){cb({st:"fenceStale",fence:null});return;}
   fetch(base+"/api/cf/appdata/commit",{method:"POST",headers:pbHeaders(true),
-    body:JSON.stringify({subsystem:"training",expectedRev:expectedRev,idempotencyKey:requestId,payload:trainingObj})})
+    body:JSON.stringify(body)})
   .then(function(r){
     if(r.status===401||r.status===403){cb({st:"auth"});return null;}
     return r.json().then(function(b){
       if(r.status===200&&b&&b.ok&&!b.replay){cb({st:"ok",newRev:b.newRev});return;}
       if(b&&b.replay){cb({st:"replay",newRev:b.newRev,applied:!!b.ok});return;}
       if(r.status===409&&b&&b.conflict){cb({st:"conflict",serverRev:b.serverRev,payload:b.payload});return;}
+      /* F2: classified BEFORE the bare-409 fallback. A displaced writer is not
+         an integrity fault, and mapping it to keyReused hard-blocks training
+         sync on a device that has done nothing wrong. */
+      if(r.status===409&&b&&b.fenceStale===true){cb({st:"fenceStale",fence:b.fence});return;}
       if(r.status===409){cb({st:"keyReused"});return;}
       cb({st:"transport"});});})
   .catch(function(){cb({st:"transport"});});}
@@ -10565,6 +10594,13 @@ function m8Push(){
     if(jr2.st==="absent"&&m8State()==="dirty")m8Push();});return;}
   if(st==="bootstrap"||st==="fresh"){m8Bootstrap(function(){var s3=m8State();if(s3==="dirty")m8Push();});return;}
   if(st!=="dirty")return;
+  /* D1/F3: the training half of the client STRICT gate, mirroring the core's
+     (m10-lease-core.js:524). Refusing HERE — before a request identity is
+     minted and a journal written — means a read-only device leaves no
+     half-finished transition behind; the edit simply stays local and dirty
+     until this device takes the pen. m8CasCommit fails closed independently
+     (F1), so the bootstrap path is covered even though it does not pass here. */
+  if(!m8HasPen())return;
   var b=m8Read("base");if(b.st!=="ok")return;
   var gen=m8Gen;
   var copy;try{copy=JSON.parse(JSON.stringify(state.training));}catch(e){m8Block("could not snapshot training");return;}
@@ -10652,6 +10688,20 @@ function m8AckOutcome(j,copy,pushedCanon,gen,res,retried,opts){
         m8Block("could not record the outcome");return;/* prior journal preserved; no removal */}
       if(!m8JournalEnd()){/* boot: cleanup-only */}}
     return;}
+  if(res.st==="fenceStale"){
+    /* D1/F2: another device holds the pen. The server rejects the commit
+       BEFORE any mutation (cf_cas.pb.js:85), so this is a DEFINITE
+       non-execution, not the ambiguous transport case — the journal ends and
+       nothing is left to recover. The dirty marker deliberately stays: the
+       work is safe on this device and uploads once it takes the pen, which
+       the read-only bar offers. Never m8Block() — a displaced writer has done
+       nothing wrong, and blocking here would freeze training sync on the
+       athlete's own device with no way to clear it. */
+    if(!m8JournalAdvance(j,"done",{outcome:"fenceStale"})){
+      m8Block("could not record the outcome");return;}
+    if(!m8JournalEnd()){/* boot: cleanup-only */}
+    try{setSync("error","another device is the active writer — take over to upload these changes");}catch(e){}
+    return;}
   if(res.st==="keyReused"){
     /* F4 hard stop: same key, different identity. Journal preserved. */
     m8Block("sync integrity error — request key reused");return;}
@@ -10710,6 +10760,11 @@ function m8ResolveJournal(j,cb){
         if(m8JournalAdvance(j,"net-done",{newRev:res.newRev}))m8FinishAck(j);
         finish();return;}
       if(res.st==="conflict"){fetchCompare();return;}
+      if(res.st==="fenceStale"){
+        /* the replay was refused before execution: the journal stays exactly
+           as captured, replayable under this device's next held fence (D1/F2) */
+        try{setSync("error","another device is the active writer — take over to upload these changes");}catch(e){}
+        finish();return;}
       if(res.st==="keyReused"){m8Block("sync integrity error — request key reused");finish();return;}
       if(res.st==="auth"){try{setSync("error","session expired — log in again");}catch(e){}finish();return;}
       /* transport again: remain unresolved (F4) */
@@ -11541,8 +11596,13 @@ function m10cPush(manual,done){
      local and dirty until this device takes the pen, which the read-only bar
      offers. This is the client half of STRICT; FENCING_ENFORCED is the server
      half and is still off pending the coach migration. */
-  if(typeof M10!=="undefined"&&M10.booted&&syncOn()&&
-     !(M10.holder&&M10.uid===uid&&performance.now()<M10.deadline)){
+  /* D1/F4: `M10.booted` was an AND-term of the refusal, so a session where the
+     lease never settled — signing in mid-session, before m10Boot() was wired
+     into the login continuation — skipped this gate entirely and pushed with
+     fence:null. The gate now fails CLOSED: not booted means no proven pen, and
+     an unproven pen is not authority. */
+  if(typeof M10!=="undefined"&&syncOn()&&
+     !(M10.booted&&M10.holder&&M10.uid===uid&&performance.now()<M10.deadline)){
     if(manual)toast("Another device is the active writer — take over to upload these changes");
     fin(false);return;}
   var d=m10cRead("dirty");if(d.st!=="ok"){fin(false);return;}
@@ -11566,7 +11626,35 @@ function m10cDispatch(j,payloadObj,cb,ctx){
   var e=j.expect;
   var body={subsystem:"core",expectedRev:e.expectedRev,idempotencyKey:e.requestId,
     payload:payloadObj,clientBuild:(typeof APP_BUILD==="string"?APP_BUILD:"")};
-  if(e.fence!==null){body.fence=e.fence;body.deviceId=m10DeviceId();}
+  /* D1/F5: the journal captures the fence at ENQUEUE and this dispatcher used
+     it verbatim, so a request written before a takeover went out claiming a
+     fence this device no longer holds. m10pDispatch (m10-photoq.js:180) has
+     always re-proven the pen at every mutation point against the SAME entry
+     fence; the core commit now does the same. A displaced fence is refused
+     locally rather than sent — the journal survives at intent and replays
+     unchanged once this device holds the pen again.
+
+     Fail closed on a missing deviceId: no verified installation identity means
+     no provable authority (D10). */
+  if(e.fence!==null){
+    var pen=(typeof m10pPen==="function")?m10pPen():null;
+    if(pen&&pen.fence!==e.fence){
+      /* A DIFFERENT held fence is proof this device was displaced and later
+         re-acquired: the captured request can never be authorized as written,
+         and sending it would only earn the 409 the server arm below handles.
+         Terminalize to the SAME resolvable review state, without the round
+         trip and without a journal that can never dispatch. */
+      m10cTerminalize(j,"fence-displaced",{staleFence:pen.fence},ctx.uid);
+      setSync("error","another device is the active writer");cb&&cb(false);return;}
+    /* Holding NO pen is deliberately NOT refused here. The local deadline is
+       conservative (it subtracts the whole round trip), so a lapsed local
+       deadline does not prove the server lease is gone — and the server
+       validates the fence before any mutation anyway (cf_cas.pb.js:85). New
+       pushes are already refused upstream by the strict gate; this path is
+       journal replay, where the server is the right authority. */
+    var dev=m10DeviceId();
+    if(!dev){setSync("error","this device's sync identity could not be verified");cb&&cb(false);return;}
+    body.fence=e.fence;body.deviceId=dev;}
   m10cRoute(body).then(function(r){
     /* N3/N4: a response from a superseded session touches NOTHING — the
        captured journal stays byte-identical for replay under its own
@@ -13288,6 +13376,13 @@ function pbDoLogin(){
       else toast("Signed in, but syncing is paused — this device holds data that isn't yours");
       return;}
     setSync("syncing");
+    /* D1/F4: settle the writer lease BEFORE the first write-capable moment of
+       this new session. The page-load wiring (lightbox-boot.js) runs m10Boot()
+       only inside `if(syncOn())`, so signing in mid-session left M10.booted
+       false for the whole session: the strict gate was skipped and pushes went
+       out unfenced. The continuation runs on either outcome — losing the race
+       for the pen is a normal read-only session, not a login failure. */
+    var afterLease=function(){
     cloudGet(function(d,err){
       function finish(answered){
         trainingPull(function(){
@@ -13313,7 +13408,13 @@ function pbDoLogin(){
         return;}
       if(!err&&d)applyCloud(d);
       /* a CONFIRMED read is the only thing that may declare this a new account */
-      finish(!err);});},remember);}
+      finish(!err);});};
+    if(typeof m10Boot==="function"){
+      var settled=false;
+      var once=function(){if(settled)return;settled=true;afterLease();};
+      try{m10Boot().then(once,once);}catch(e){once();}
+    }else afterLease();
+  },remember);}
 
 /* gate the whole app behind login without duplicating render()'s body */
 var _pbOrigRender=render;
@@ -13584,7 +13685,12 @@ function m10AuthNow(){
 function m10GateReason(why){
   if(why==="corrupt")return "Sync identity problem \u2014 this device is read-only";
   if(why==="blocked")return "Sync is paused \u2014 see the banner";
-  if(why==="expired")return "This device is no longer the active writer";
+  /* D1/F6: "expired" used to return a message, and a message means toast-and-
+     stop — the athlete was told the device is read-only with no way to act on
+     it, and the read-only bar stays hidden until a reload. It is the same
+     recoverable situation as "not-holder", so it takes the same route: the
+     takeover sheet. Only genuinely unrecoverable reasons (corrupt identity,
+     paused storage) still toast. */
   return null;}
 
 /* the entry gate: TRUE to proceed */

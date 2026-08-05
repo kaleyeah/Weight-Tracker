@@ -208,6 +208,13 @@ function pbDoLogin(){
       else toast("Signed in, but syncing is paused — this device holds data that isn't yours");
       return;}
     setSync("syncing");
+    /* D1/F4: settle the writer lease BEFORE the first write-capable moment of
+       this new session. The page-load wiring (lightbox-boot.js) runs m10Boot()
+       only inside `if(syncOn())`, so signing in mid-session left M10.booted
+       false for the whole session: the strict gate was skipped and pushes went
+       out unfenced. The continuation runs on either outcome — losing the race
+       for the pen is a normal read-only session, not a login failure. */
+    var afterLease=function(){
     cloudGet(function(d,err){
       function finish(answered){
         trainingPull(function(){
@@ -233,7 +240,13 @@ function pbDoLogin(){
         return;}
       if(!err&&d)applyCloud(d);
       /* a CONFIRMED read is the only thing that may declare this a new account */
-      finish(!err);});},remember);}
+      finish(!err);});};
+    if(typeof m10Boot==="function"){
+      var settled=false;
+      var once=function(){if(settled)return;settled=true;afterLease();};
+      try{m10Boot().then(once,once);}catch(e){once();}
+    }else afterLease();
+  },remember);}
 
 /* gate the whole app behind login without duplicating render()'s body */
 var _pbOrigRender=render;

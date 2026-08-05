@@ -186,19 +186,48 @@ function m8NewRequestId(){
 
 /* ---- CAS commit route client (§3; route: server/pb_hooks/cf_cas.pb.js) ---- */
 /* cb(res): res={st:"ok",newRev} | {st:"replay",newRev,applied} |
-   {st:"conflict",serverRev,payload} | {st:"keyReused"} | {st:"transport"} |
-   {st:"auth"}. A transport result is AMBIGUOUS (E2) — the server may have
-   committed; callers must never treat it as proof of failure. */
+   {st:"conflict",serverRev,payload} | {st:"fenceStale",fence} |
+   {st:"keyReused"} | {st:"transport"} | {st:"auth"}. A transport result is
+   AMBIGUOUS (E2) — the server may have committed; callers must never treat it
+   as proof of failure. */
+/* D1/F1: the TRAINING commit carries the same single-writer proof the core and
+   photo routes already carry. It is proven at DISPATCH, not at enqueue — a
+   fence captured when the push was queued may already have been displaced by
+   the time the request goes out (the m10pDispatch rule, :164).
+
+   Fail closed on a missing deviceId: without a verified installation identity
+   there is no proof to send, and an unfenced training write is exactly what
+   enforcement rejects as stale. Refusing here keeps the change local and dirty
+   instead of manufacturing a hard block on the athlete's own device. */
+function m8HasPen(){
+  if(typeof m10AuthNow!=="function")return true;   /* gate absent: unchanged */
+  var a=m10AuthNow();
+  return !!a.ok;}                                  /* {ok:true,local:true} when signed out */
+function m8CommitFence(body){
+  if(typeof m10AuthNow!=="function")return true;   /* gate absent: unchanged */
+  var a=m10AuthNow();
+  if(a.local)return true;                          /* no account: no lease concept */
+  if(!a.ok)return false;
+  var dev=(typeof m10DeviceId==="function")?m10DeviceId():null;
+  if(!dev)return false;
+  body.fence=a.fence;body.deviceId=dev;
+  return true;}
 function m8CasCommit(expectedRev,trainingObj,requestId,cb){
   var base;try{base=pbBase();}catch(e){cb({st:"transport"});return;}
+  var body={subsystem:"training",expectedRev:expectedRev,idempotencyKey:requestId,payload:trainingObj};
+  if(!m8CommitFence(body)){cb({st:"fenceStale",fence:null});return;}
   fetch(base+"/api/cf/appdata/commit",{method:"POST",headers:pbHeaders(true),
-    body:JSON.stringify({subsystem:"training",expectedRev:expectedRev,idempotencyKey:requestId,payload:trainingObj})})
+    body:JSON.stringify(body)})
   .then(function(r){
     if(r.status===401||r.status===403){cb({st:"auth"});return null;}
     return r.json().then(function(b){
       if(r.status===200&&b&&b.ok&&!b.replay){cb({st:"ok",newRev:b.newRev});return;}
       if(b&&b.replay){cb({st:"replay",newRev:b.newRev,applied:!!b.ok});return;}
       if(r.status===409&&b&&b.conflict){cb({st:"conflict",serverRev:b.serverRev,payload:b.payload});return;}
+      /* F2: classified BEFORE the bare-409 fallback. A displaced writer is not
+         an integrity fault, and mapping it to keyReused hard-blocks training
+         sync on a device that has done nothing wrong. */
+      if(r.status===409&&b&&b.fenceStale===true){cb({st:"fenceStale",fence:b.fence});return;}
       if(r.status===409){cb({st:"keyReused"});return;}
       cb({st:"transport"});});})
   .catch(function(){cb({st:"transport"});});}
@@ -363,6 +392,13 @@ function m8Push(){
     if(jr2.st==="absent"&&m8State()==="dirty")m8Push();});return;}
   if(st==="bootstrap"||st==="fresh"){m8Bootstrap(function(){var s3=m8State();if(s3==="dirty")m8Push();});return;}
   if(st!=="dirty")return;
+  /* D1/F3: the training half of the client STRICT gate, mirroring the core's
+     (m10-lease-core.js:524). Refusing HERE — before a request identity is
+     minted and a journal written — means a read-only device leaves no
+     half-finished transition behind; the edit simply stays local and dirty
+     until this device takes the pen. m8CasCommit fails closed independently
+     (F1), so the bootstrap path is covered even though it does not pass here. */
+  if(!m8HasPen())return;
   var b=m8Read("base");if(b.st!=="ok")return;
   var gen=m8Gen;
   var copy;try{copy=JSON.parse(JSON.stringify(state.training));}catch(e){m8Block("could not snapshot training");return;}
@@ -450,6 +486,20 @@ function m8AckOutcome(j,copy,pushedCanon,gen,res,retried,opts){
         m8Block("could not record the outcome");return;/* prior journal preserved; no removal */}
       if(!m8JournalEnd()){/* boot: cleanup-only */}}
     return;}
+  if(res.st==="fenceStale"){
+    /* D1/F2: another device holds the pen. The server rejects the commit
+       BEFORE any mutation (cf_cas.pb.js:85), so this is a DEFINITE
+       non-execution, not the ambiguous transport case — the journal ends and
+       nothing is left to recover. The dirty marker deliberately stays: the
+       work is safe on this device and uploads once it takes the pen, which
+       the read-only bar offers. Never m8Block() — a displaced writer has done
+       nothing wrong, and blocking here would freeze training sync on the
+       athlete's own device with no way to clear it. */
+    if(!m8JournalAdvance(j,"done",{outcome:"fenceStale"})){
+      m8Block("could not record the outcome");return;}
+    if(!m8JournalEnd()){/* boot: cleanup-only */}
+    try{setSync("error","another device is the active writer — take over to upload these changes");}catch(e){}
+    return;}
   if(res.st==="keyReused"){
     /* F4 hard stop: same key, different identity. Journal preserved. */
     m8Block("sync integrity error — request key reused");return;}
@@ -508,6 +558,11 @@ function m8ResolveJournal(j,cb){
         if(m8JournalAdvance(j,"net-done",{newRev:res.newRev}))m8FinishAck(j);
         finish();return;}
       if(res.st==="conflict"){fetchCompare();return;}
+      if(res.st==="fenceStale"){
+        /* the replay was refused before execution: the journal stays exactly
+           as captured, replayable under this device's next held fence (D1/F2) */
+        try{setSync("error","another device is the active writer — take over to upload these changes");}catch(e){}
+        finish();return;}
       if(res.st==="keyReused"){m8Block("sync integrity error — request key reused");finish();return;}
       if(res.st==="auth"){try{setSync("error","session expired — log in again");}catch(e){}finish();return;}
       /* transport again: remain unresolved (F4) */
