@@ -959,7 +959,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-05.454-maxcuefast";
+var APP_BUILD="2026-08-05.455-proposalshare";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -2591,16 +2591,24 @@ function maxSheetHTML(){if(!state.maxOpen)return "";var ws=coachWeekly();var _ci
   if(state.genBusy){inner='<div class="wl-mhead"><span class="wl-mav">M</span><span style="min-width:0"><span class="wl-mtitle">Weekly check-in</span><span class="wl-msub">from Coach Max</span></span><button class="wl-maxx" data-act="max:close">\u2715</button></div><div class="wl-hint">\u23f3 Generating your check-in\u2026 this takes about a minute. You can close this and keep using the app.</div>';}
   else if((ws&&ws.text)||coachTdee()){
     var _td=coachTdee();
-    /* The metabolism message leads when it is unread \u2014 that IS the push the
-       member is being notified about. Once read it drops below the weekly,
-       which is the recurring headline. */
-    var _tdFirst=!!(_td&&coachUnreadT());
-    var _tdHTML=_td?('<div class="wl-mhead" style="margin-top:'+(_tdFirst?'0':'14px')+'"><span class="wl-mav">M</span><span style="min-width:0"><span class="wl-mtitle">Your measured metabolism'+(coachUnreadT()?' <span class="wl-newpill">New</span>':'')+'</span><span class="wl-msub">from Coach Max \u00b7 '+(_td.tdee?_td.tdee+' cal/day \u00b7 ':'')+(_td.period?fmtShort(parseISO(_td.period)):'')+'</span></span></div>'
-      +'<div class="wl-ai-summary" style="margin-top:6px">'+maxMoodHTML(_td.mood)+renderSummary(_td.text)+'</div>'):'';
-    var _wkHTML=(ws&&ws.text)?('<div class="wl-mhead" style="margin-top:'+(_tdFirst?'14px':'0')+'"><span class="wl-mav">M</span><span style="min-width:0"><span class="wl-mtitle">Weekly check-in</span><span class="wl-msub">from Coach Max \u00b7 week of '+fmtShort(parseISO(ws.week))+'</span></span></div>'
-      +'<div class="wl-ai-summary" style="margin-top:6px">'+maxMoodHTML(ws.mood)+renderSummary(ws.text)+'</div>'):'';
+    /* NEWEST FIRST, always. Sorting on `generated` (the actual write time)
+       rather than the report's period: a weekly is keyed by its week START,
+       so a Monday-week report written on Saturday would sort as older than it
+       is and bury itself under a stale message. Both kinds carry `generated`;
+       the period is only a fallback for anything written before it did. */
+    var _msgs=[];
+    var _when=function(g,d){return g||((d||"")+"T00:00:00.000Z");};
+    if(ws&&ws.text)_msgs.push({when:_when(ws.generated,ws.week),title:"Weekly check-in",
+      sub:"week of "+fmtShort(parseISO(ws.week)),mood:ws.mood,text:ws.text,unread:coachUnreadW()});
+    if(_td)_msgs.push({when:_when(_td.generated,_td.period),title:"Your measured metabolism",
+      sub:(_td.tdee?_td.tdee+" cal/day \u00b7 ":"")+(_td.period?fmtShort(parseISO(_td.period)):""),
+      mood:_td.mood,text:_td.text,unread:coachUnreadT()});
+    _msgs.sort(function(a,b){return String(b.when).localeCompare(String(a.when));});
     inner='<div class="wl-mhead" style="margin-bottom:2px"><span style="flex:1"></span><button class="wl-maxx" data-act="max:close">\u2715</button></div>'
-      +(_tdFirst?(_tdHTML+_wkHTML):(_wkHTML+_tdHTML));}
+      +_msgs.map(function(m,i){
+        return '<div class="wl-mhead" style="margin-top:'+(i?'14px':'0')+'"><span class="wl-mav">M</span><span style="min-width:0"><span class="wl-mtitle">'+m.title+(m.unread?' <span class="wl-newpill">New</span>':'')+'</span><span class="wl-msub">from Coach Max \u00b7 '+m.sub+'</span></span></div>'
+          +'<div class="wl-ai-summary" style="margin-top:6px">'+maxMoodHTML(m.mood)+renderSummary(m.text)+'</div>';
+      }).join("");}
   else{var dn=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][(parseInt(state.settings.weekStart,10)||0)];
     inner='<div class="wl-mhead"><span style="flex:1"></span><button class="wl-maxx" data-act="max:close">\u2715</button></div><div class="wl-maxempty"><div class="bigav">M</div><div class="t">No messages yet</div><div class="s">This is where Coach Max delivers your weekly check-in.<br>Your next one lands <b style="color:var(--text)">'+dn+' morning</b>.</div></div>';}
   /* `plain` is the no-messages styling. A TDEE-only sheet (no weekly yet) is
@@ -3072,6 +3080,162 @@ function buildBars(bk,goal,higherBetter){
   return { calculate: calculate, TIERS: TIERS, MAX_CONSECUTIVE_MISSING: MAX_CONSECUTIVE_MISSING };
 });
 /* ==BUILD-END:tdee-core.js== */
+/* ==BUILD:tdee-proposal.js== */
+/* Compound Fitness — the target-adjustment proposal, deterministic core.
+ *
+ * This is the logic behind the Progress tab's Metabolism recommendation:
+ * given the measured trend and the athlete's own target, decide whether they
+ * are on pace, off pace, non-compliant, or in a cooldown — and if a change is
+ * warranted, size it.
+ *
+ * WHY IT IS SHARED. Coach Max's TDEE message told the athlete a number he had
+ * worked out himself: "a sustainable 200-500 under your measured TDEE." That
+ * arithmetic ignores the athlete's actual target RATE, the app's capped
+ * adjustment step, the compliance check and the cooldown — and it produced
+ * 2,700 where the Progress tab said 2,205. Two different numbers from the same
+ * app is worse than no number at all. The coach now imports this module and
+ * quotes its answer instead of doing its own maths, exactly as it already does
+ * for tdee-core.
+ *
+ * Pure: no UI, no storage, no network, no `state`. Same file runs in the
+ * browser and in Node.
+ */
+(function (root, factory) {
+  var api = factory();
+  if (typeof module === "object" && module.exports) module.exports = api;
+  else root.TDEEProposal = api;
+})(typeof globalThis !== "undefined" ? globalThis : this, function () {
+  "use strict";
+
+  /* Mirrors the app's num(): parseFloat, and anything non-finite (including
+     "" and null) becomes null. Do not "improve" this — the branches below
+     depend on its exact behaviour. */
+  function num(v) { var n = parseFloat(v); return isFinite(n) ? n : null; }
+
+  var DAY_MS = 86400000;
+  function parseISO(s) { var p = String(s).split("-").map(Number); return Date.UTC(p[0], p[1] - 1, p[2]); }
+  function isoOf(ms) {
+    var d = new Date(ms), p = function (n) { return String(n).padStart(2, "0"); };
+    return d.getUTCFullYear() + "-" + p(d.getUTCMonth() + 1) + "-" + p(d.getUTCDate());
+  }
+  /* "is `today` still inside `n` days of `ds`" — the app's
+     `today < toISO(addDays(parseISO(ds), n))`, done on ISO strings. */
+  function within(today, ds, n) {
+    if (!ds) return false;
+    return String(today) < isoOf(parseISO(ds) + n * DAY_MS);
+  }
+
+  function calPerUnit(units) { return units === "kg" ? 7700 : 3500; }
+
+  function targetRate(i, mode) {
+    if (mode === "maintain") return 0;
+    var tv = num(i.targetValue);
+    if (tv == null || tv <= 0) return null;
+    if (i.targetType === "percent_bw_per_week") {
+      var cw = num(i.currentWeightAvg);
+      if (cw == null) return null;
+      return tv / 100 * cw;
+    }
+    return tv;
+  }
+
+  function buildProp(i, newCal, stepAdd, cardAdd) {
+    var floor = i.sex === "female" ? 1500 : 1800;
+    if (newCal < floor) newCal = floor;
+    var p = num(i.targetProtein), fat = null, carb = null;
+    if (p != null) {
+      fat = Math.round(newCal * 0.20 / 9);
+      if (fat < 40) fat = 40;
+      carb = Math.round(Math.max(0, newCal - p * 4 - fat * 9) / 4);
+    }
+    var stepsG = num(i.stepsGoal), cardG = num(i.cardioMinGoal);
+    return {
+      cal: newCal, oldCal: num(i.targetCalories), protein: p, fat: fat, carbs: carb,
+      oldCarbs: num(i.targetCarbs), oldFat: num(i.targetFat),
+      steps: (stepAdd && stepsG != null) ? stepsG + stepAdd : null, oldSteps: stepsG,
+      cardio: (cardAdd && cardG != null) ? cardG + cardAdd : null, oldCardio: cardG,
+    };
+  }
+
+  /**
+   * @param {object} i
+   *   rate              weekly weight change, signed (negative = losing)
+   *   foodAvg           mean daily intake across the measured window
+   *   units strategy targetCalories targetType targetValue currentWeightAvg
+   *   sex stepsGoal cardioMinGoal targetProtein targetCarbs targetFat
+   *   tdeeApplied tdeeSnooze   ISO dates, drive the cooldown
+   *   todayLocalDate           the athlete's local date
+   * @returns {{state,targetRate,gapDay?,over?,prop?}}
+   *   state: "ok" | "comply" | "cooldown" | "toofast" | "propose"
+   */
+  function analyze(i) {
+    i = i || {};
+    var rate = i.rate;
+    var cpu = calPerUnit(i.units);
+    var mode = i.strategy || "lose";
+    var tgtCal = num(i.targetCalories);
+    var tR = targetRate(i, mode);
+    var out = { state: "ok", targetRate: tR };
+
+    if (tgtCal == null || tR == null) return out;
+
+    var today = i.todayLocalDate;
+    var blocked = within(today, i.tdeeApplied, 14) || within(today, i.tdeeSnooze, 7);
+    var dirGood = (mode === "gain") ? rate : -rate;
+    var over = i.foodAvg - tgtCal;
+
+    /* COMPLIANCE FIRST. If they are not eating to the target they already
+       have, the answer is not a new target — changing the number would just
+       move the goalposts. */
+    if (mode !== "gain" && over > 100 && dirGood < tR * 0.75) { out.state = "comply"; out.over = Math.round(over); return out; }
+    if (mode === "gain" && over < -100 && dirGood < tR * 0.75) { out.state = "comply"; out.over = Math.round(over); return out; }
+
+    if (mode === "maintain") {
+      var band = (i.units === "kg" ? 0.12 : 0.25);
+      if (Math.abs(rate) <= band) { out.state = "ok"; return out; }
+      if (blocked) { out.state = "cooldown"; return out; }
+      var gm = Math.min(150, Math.max(100, Math.round(Math.abs(rate) * cpu / 7 / 10) * 10));
+      out.state = "propose";
+      out.gapDay = Math.round(Math.abs(rate) * cpu / 7);
+      out.prop = buildProp(i, tgtCal + (rate > 0 ? -gm : gm), 0, 0);
+      return out;
+    }
+
+    /* On pace: anywhere from 75% to 150% of target rate. Deliberately wide —
+       weekly weight is noisy and re-tuning on noise is how people end up
+       chasing the scale. */
+    if (dirGood >= tR * 0.75 && dirGood <= tR * 1.5) { out.state = "ok"; return out; }
+    if (blocked) { out.state = "cooldown"; return out; }
+
+    if (dirGood > tR * 1.5) {
+      /* Losing (or gaining) faster than intended. Give calories BACK, capped
+         at 200/day so a noisy week cannot swing the target wildly. */
+      var gap1 = (dirGood - tR) * cpu / 7;
+      var add = Math.min(200, Math.max(100, Math.round(gap1 / 2 / 10) * 10));
+      out.state = "toofast";
+      out.gapDay = Math.round(gap1);
+      out.prop = buildProp(i, tgtCal + (mode === "gain" ? -add : add), 0, 0);
+      return out;
+    }
+
+    /* Off pace the slow way: take part of the gap from activity rather than
+       all of it from food — 1,000 steps and 15 min of cardio are credited at
+       45 and 21 cal, and only the remainder is trimmed from intake. */
+    var gap2 = (tR - dirGood) * cpu / 7;
+    var stepsG = num(i.stepsGoal), cardG = num(i.cardioMinGoal);
+    var stepAdd = (stepsG != null) ? 1000 : 0;
+    var cardAdd = (cardG != null) ? 15 : 0;
+    var offset = (stepAdd ? 45 : 0) + (cardAdd ? 21 : 0);
+    var trim = Math.max(0, Math.min(200, Math.round((gap2 - offset) / 10) * 10));
+    out.state = "propose";
+    out.gapDay = Math.round(gap2);
+    out.prop = buildProp(i, tgtCal + (mode === "gain" ? trim : -trim), stepAdd, cardAdd);
+    return out;
+  }
+
+  return { analyze: analyze, targetRate: targetRate, buildProp: buildProp };
+});
+/* ==BUILD-END:tdee-proposal.js== */
 function tdeeCalPerUnit(){return state.settings.units==="kg"?7700:3500;}
 /* Measured TDEE window (rewritten 2026-08-05).
    WHAT WAS WRONG. The old version framed a fixed 21-day calendar window and
@@ -3129,51 +3293,39 @@ function tdeeWindow(){
   return {foodN:res.completeCalorieDays,foodAvg:res.averageDailyCalories,
           totalW:res.acceptedWeightDays,ok:res.status!=="insufficient",
           effDays:null,headN:null,tailN:null,core:res};}
-function tdeeTargetRate(){var s=state.settings;if(strategyMode()==="maintain")return 0;var tv=num(s.targetValue);if(tv==null||tv<=0)return null;
-  if(s.targetType==="percent_bw_per_week"){var cw=currentWeightAvg();if(cw==null)return null;return tv/100*cw;}
-  return tv;}
-function tdeeBuildProp(newCal,stepAdd,cardAdd){var s=state.settings;var floor=s.sex==="female"?1500:1800;if(newCal<floor)newCal=floor;
-  var p=num(s.targetProtein);var fat=null,carb=null;
-  if(p!=null){fat=Math.round(newCal*0.20/9);if(fat<40)fat=40;carb=Math.round(Math.max(0,newCal-p*4-fat*9)/4);}
-  var stepsG=num(s.stepsGoal),cardG=num(s.cardioMinGoal);
-  return {cal:newCal,oldCal:num(s.targetCalories),protein:p,fat:fat,carbs:carb,oldCarbs:num(s.targetCarbs),oldFat:num(s.targetFat),
-    steps:(stepAdd&&stepsG!=null)?stepsG+stepAdd:null,oldSteps:stepsG,cardio:(cardAdd&&cardG!=null)?cardG+cardAdd:null,oldCardio:cardG};}
+/* Delegates so the one remaining caller (the strategy card) and the proposal
+   engine cannot drift apart. tdeeBuildProp lived here too and is gone — its
+   only caller was the proposal logic that moved into the module. */
+function tdeeTargetRate(){var s=state.settings;
+  return TDEEProposal.targetRate({targetValue:s.targetValue,targetType:s.targetType,
+    currentWeightAvg:currentWeightAvg()},strategyMode());}
 function tdeeAnalysis(){var w=tdeeWindow();var res={win:w,state:"gathering"};if(!w.ok)return res;
   /* rate and tdee come from TDEECore: OLS regression across every accepted
      weigh-in, not a two-point comparison. Raw precision is preserved in the
      module; only the display value is rounded (spec §7). */
   var rate=w.core.weeklyWeightChangeLb;
-  /* cpu is still needed BELOW by the proposal branches (gapDay, step/cardio
-     sizing). Removing this declaration when the TDEE maths moved into the
-     core left four live references orphaned — a ReferenceError that killed
-     the whole Progress tab render, and one a syntax check cannot catch. */
-  var cpu=tdeeCalPerUnit();
+  /* `var cpu` used to live here for the proposal branches below. Those moved
+     into TDEEProposal, which derives it from units itself, so the declaration
+     is gone with its last use rather than left dangling. */
   res.rate=rate;res.tdee=w.core.measuredTdeeDisplay;res.intake=Math.round(w.foodAvg);
   res.status=w.core.status;res.flags=w.core.confidenceFlags;
-  var s=state.settings;var mode=strategyMode();var tgtCal=num(s.targetCalories);var tR=tdeeTargetRate();res.targetRate=tR;
-  if(tgtCal==null||tR==null){res.state="ok";return res;}
-  var today=todayISO();
-  function within(ds,n){if(!ds)return false;return today<toISO(addDays(parseISO(ds),n));}
-  var blocked=within(s.tdeeApplied,14)||within(s.tdeeSnooze,7);
-  var dirGood=(mode==="gain")?rate:-rate;
-  var over=w.foodAvg-tgtCal;
-  if(mode!=="gain"&&over>100&&dirGood<tR*0.75){res.state="comply";res.over=Math.round(over);return res;}
-  if(mode==="gain"&&over<-100&&dirGood<tR*0.75){res.state="comply";res.over=Math.round(over);return res;}
-  if(mode==="maintain"){var band=(s.units==="kg"?0.12:0.25);
-    if(Math.abs(rate)<=band){res.state="ok";return res;}
-    if(blocked){res.state="cooldown";return res;}
-    var gm=Math.min(150,Math.max(100,Math.round(Math.abs(rate)*cpu/7/10)*10));
-    res.state="propose";res.gapDay=Math.round(Math.abs(rate)*cpu/7);res.prop=tdeeBuildProp(tgtCal+(rate>0?-gm:gm),0,0);return res;}
-  if(dirGood>=tR*0.75&&dirGood<=tR*1.5){res.state="ok";return res;}
-  if(blocked){res.state="cooldown";return res;}
-  if(dirGood>tR*1.5){var gap1=(dirGood-tR)*cpu/7;var add=Math.min(200,Math.max(100,Math.round(gap1/2/10)*10));
-    res.state="toofast";res.gapDay=Math.round(gap1);res.prop=tdeeBuildProp(tgtCal+(mode==="gain"?-add:add),0,0);return res;}
-  var gap2=(tR-dirGood)*cpu/7;var stepsG=num(s.stepsGoal),cardG=num(s.cardioMinGoal);
-  var stepAdd=(stepsG!=null)?1000:0;var cardAdd=(cardG!=null)?15:0;
-  var offset=(stepAdd?45:0)+(cardAdd?21:0);
-  var trim=Math.max(0,Math.min(200,Math.round((gap2-offset)/10)*10));
-  res.state="propose";res.gapDay=Math.round(gap2);
-  res.prop=tdeeBuildProp(tgtCal+(mode==="gain"?trim:-trim),stepAdd,cardAdd);return res;}
+  /* The decision itself lives in TDEEProposal so Coach Max can quote the SAME
+     recommendation instead of doing his own arithmetic — he once told the
+     athlete 2,700 while this card said 2,205. Inputs are passed explicitly;
+     the module never reads state. */
+  var s=state.settings;
+  var p=TDEEProposal.analyze({
+    rate:rate,foodAvg:w.foodAvg,units:s.units,strategy:strategyMode(),
+    targetCalories:s.targetCalories,targetType:s.targetType,targetValue:s.targetValue,
+    currentWeightAvg:currentWeightAvg(),sex:s.sex,stepsGoal:s.stepsGoal,
+    cardioMinGoal:s.cardioMinGoal,targetProtein:s.targetProtein,
+    targetCarbs:s.targetCarbs,targetFat:s.targetFat,
+    tdeeApplied:s.tdeeApplied,tdeeSnooze:s.tdeeSnooze,todayLocalDate:todayISO()});
+  res.targetRate=p.targetRate;res.state=p.state;
+  if(p.gapDay!=null)res.gapDay=p.gapDay;
+  if(p.over!=null)res.over=p.over;
+  if(p.prop)res.prop=p.prop;
+  return res;}
 function metabolismCardHTML(){var s=state.settings;if(num(s.targetCalories)==null&&maintenanceCals()==null)return "";
   var an=tdeeAnalysis();var w=an.win;var form=maintenanceCals();var u=s.units;
   var _st=(w.core&&w.core.status)||"insufficient";

@@ -20,7 +20,7 @@ import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const INDEX = path.join(HERE, "index.html");
-const MODULES = ["tdee-core.js"];
+const MODULES = ["tdee-core.js", "tdee-proposal.js"];
 
 const begin = (n) => `/* ==BUILD:${n}== */`;
 const end = (n) => `/* ==BUILD-END:${n}== */`;

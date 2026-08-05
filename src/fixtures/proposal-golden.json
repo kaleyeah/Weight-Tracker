@@ -1,0 +1,319 @@
+{
+ "owner-live": {
+  "state": "toofast",
+  "targetRate": 1.27658,
+  "gapDay": 737,
+  "rate": -2.7503000000000024,
+  "tdee": 3118,
+  "intake": 1743,
+  "status": "high_confidence",
+  "prop": {
+   "cal": 2205,
+   "oldCal": 2005,
+   "protein": 175,
+   "fat": 49,
+   "carbs": 266,
+   "oldCarbs": null,
+   "oldFat": null,
+   "steps": null,
+   "oldSteps": 8000,
+   "cardio": null,
+   "oldCardio": 60
+  }
+ },
+ "lose-on-pace": {
+  "state": "ok",
+  "targetRate": 1,
+  "rate": -1.000300000000002,
+  "tdee": 2400,
+  "intake": 1900,
+  "status": "high_confidence",
+  "prop": null
+ },
+ "lose-too-fast": {
+  "state": "toofast",
+  "targetRate": 1,
+  "gapDay": 1000,
+  "rate": -3.000199999999998,
+  "tdee": 3200,
+  "intake": 1700,
+  "status": "high_confidence",
+  "prop": {
+   "cal": 2200,
+   "oldCal": 2000,
+   "protein": 175,
+   "fat": 49,
+   "carbs": 265,
+   "oldCarbs": null,
+   "oldFat": null,
+   "steps": null,
+   "oldSteps": 8000,
+   "cardio": null,
+   "oldCardio": 60
+  }
+ },
+ "lose-too-slow": {
+  "state": "propose",
+  "targetRate": 1,
+  "gapDay": 400,
+  "rate": -0.2001999999999992,
+  "tdee": 2050,
+  "intake": 1950,
+  "status": "high_confidence",
+  "prop": {
+   "cal": 1800,
+   "oldCal": 2000,
+   "protein": 175,
+   "fat": 40,
+   "carbs": 185,
+   "oldCarbs": null,
+   "oldFat": null,
+   "steps": 9000,
+   "oldSteps": 8000,
+   "cardio": 75,
+   "oldCardio": 60
+  }
+ },
+ "lose-noncompliant": {
+  "state": "comply",
+  "targetRate": 1,
+  "over": 500,
+  "rate": -0.2001999999999992,
+  "tdee": 2400,
+  "intake": 2300,
+  "status": "high_confidence",
+  "prop": null
+ },
+ "lose-no-target": {
+  "state": "ok",
+  "targetRate": 1,
+  "rate": -1.4000000000000001,
+  "tdee": 2600,
+  "intake": 1900,
+  "status": "high_confidence",
+  "prop": null
+ },
+ "lose-no-rate": {
+  "state": "ok",
+  "targetRate": null,
+  "rate": -1.4000000000000001,
+  "tdee": 2600,
+  "intake": 1900,
+  "status": "high_confidence",
+  "prop": null
+ },
+ "lose-floor-clamp": {
+  "state": "propose",
+  "targetRate": 2.5,
+  "gapDay": 1075,
+  "rate": -0.35,
+  "tdee": 1975,
+  "intake": 1800,
+  "status": "high_confidence",
+  "prop": {
+   "cal": 1800,
+   "oldCal": 1850,
+   "protein": 175,
+   "fat": 40,
+   "carbs": 185,
+   "oldCarbs": null,
+   "oldFat": null,
+   "steps": 9000,
+   "oldSteps": 8000,
+   "cardio": 75,
+   "oldCardio": 60
+  }
+ },
+ "lose-cooldown": {
+  "state": "cooldown",
+  "targetRate": 1,
+  "rate": -3.000199999999998,
+  "tdee": 3200,
+  "intake": 1700,
+  "status": "high_confidence",
+  "prop": null
+ },
+ "lose-snoozed": {
+  "state": "cooldown",
+  "targetRate": 1,
+  "rate": -3.000199999999998,
+  "tdee": 3200,
+  "intake": 1700,
+  "status": "high_confidence",
+  "prop": null
+ },
+ "lose-no-steps": {
+  "state": "propose",
+  "targetRate": 1,
+  "gapDay": 400,
+  "rate": -0.2001999999999992,
+  "tdee": 2050,
+  "intake": 1950,
+  "status": "high_confidence",
+  "prop": {
+   "cal": 1800,
+   "oldCal": 2000,
+   "protein": 175,
+   "fat": 40,
+   "carbs": 185,
+   "oldCarbs": null,
+   "oldFat": null,
+   "steps": null,
+   "oldSteps": null,
+   "cardio": null,
+   "oldCardio": null
+  }
+ },
+ "maintain-ok": {
+  "state": "ok",
+  "targetRate": 0,
+  "rate": -0.10010000000000009,
+  "tdee": 2450,
+  "intake": 2400,
+  "status": "high_confidence",
+  "prop": null
+ },
+ "maintain-drifting": {
+  "state": "propose",
+  "targetRate": 0,
+  "gapDay": 500,
+  "rate": -1.000300000000002,
+  "tdee": 2800,
+  "intake": 2300,
+  "status": "high_confidence",
+  "prop": {
+   "cal": 2550,
+   "oldCal": 2400,
+   "protein": 175,
+   "fat": 57,
+   "carbs": 334,
+   "oldCarbs": null,
+   "oldFat": null,
+   "steps": null,
+   "oldSteps": 8000,
+   "cardio": null,
+   "oldCardio": 60
+  }
+ },
+ "maintain-gaining": {
+  "state": "comply",
+  "targetRate": 0,
+  "over": 200,
+  "rate": 1.000300000000002,
+  "tdee": 2100,
+  "intake": 2600,
+  "status": "high_confidence",
+  "prop": null
+ },
+ "gain-on-pace": {
+  "state": "ok",
+  "targetRate": 0.5,
+  "rate": 0.4998000000000014,
+  "tdee": 2650,
+  "intake": 2900,
+  "status": "high_confidence",
+  "prop": null
+ },
+ "gain-too-fast": {
+  "state": "toofast",
+  "targetRate": 0.5,
+  "gapDay": 500,
+  "rate": 1.500100000000001,
+  "tdee": 2350,
+  "intake": 3100,
+  "status": "high_confidence",
+  "prop": {
+   "cal": 2700,
+   "oldCal": 2900,
+   "protein": 175,
+   "fat": 60,
+   "carbs": 365,
+   "oldCarbs": null,
+   "oldFat": null,
+   "steps": null,
+   "oldSteps": 8000,
+   "cardio": null,
+   "oldCardio": 60
+  }
+ },
+ "gain-too-slow": {
+  "state": "propose",
+  "targetRate": 0.5,
+  "gapDay": 200,
+  "rate": 0.10010000000000009,
+  "tdee": 2800,
+  "intake": 2850,
+  "status": "high_confidence",
+  "prop": {
+   "cal": 3030,
+   "oldCal": 2900,
+   "protein": 175,
+   "fat": 67,
+   "carbs": 432,
+   "oldCarbs": null,
+   "oldFat": null,
+   "steps": 9000,
+   "oldSteps": 8000,
+   "cardio": 75,
+   "oldCardio": 60
+  }
+ },
+ "gain-undereating": {
+  "state": "comply",
+  "targetRate": 0.5,
+  "over": -400,
+  "rate": 0.10010000000000009,
+  "tdee": 2550,
+  "intake": 2600,
+  "status": "high_confidence",
+  "prop": null
+ },
+ "kg-lose-too-fast": {
+  "state": "toofast",
+  "targetRate": 0.5,
+  "gapDay": 990,
+  "rate": -1.4000000000000001,
+  "tdee": 3240,
+  "intake": 1700,
+  "status": "high_confidence",
+  "prop": {
+   "cal": 2200,
+   "oldCal": 2000,
+   "protein": 175,
+   "fat": 49,
+   "carbs": 265,
+   "oldCarbs": null,
+   "oldFat": null,
+   "steps": null,
+   "oldSteps": 8000,
+   "cardio": null,
+   "oldCardio": 60
+  }
+ },
+ "pct-bw-too-slow": {
+  "state": "propose",
+  "targetRate": 1.8930000000000002,
+  "gapDay": 846,
+  "rate": -0.2001999999999992,
+  "tdee": 2250,
+  "intake": 2150,
+  "status": "high_confidence",
+  "prop": {
+   "cal": 2000,
+   "oldCal": 2200,
+   "protein": 175,
+   "fat": 44,
+   "carbs": 226,
+   "oldCarbs": null,
+   "oldFat": null,
+   "steps": 9000,
+   "oldSteps": 8000,
+   "cardio": 75,
+   "oldCardio": 60
+  }
+ },
+ "gathering-nodata": {
+  "state": "gathering",
+  "prop": null
+ }
+}

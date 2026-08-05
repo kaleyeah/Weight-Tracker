@@ -43,10 +43,12 @@ await page.addInitScript(([tdeeText, weeklyText]) => {
   /* Seed the report cache exactly as fetchCoachReports writes it, so this
      tests the render path without needing a live PocketBase. */
   localStorage.setItem("wl_coach_reports", JSON.stringify({
-    weekly: { week: "2026-08-03", text: weeklyText, mood: "thumbsup" },
+    weekly: { week: "2026-08-03", text: weeklyText, mood: "thumbsup",
+              generated: "2026-08-03T09:00:00.000Z" },
     nightly: {},
     tdee: { period: "2026-08-05", text: tdeeText, mood: "clapping",
-            tdee: 3120, status: "provisional", windowDays: 14, reason: "first" },
+            tdee: 3120, status: "provisional", windowDays: 14, reason: "first",
+            generated: "2026-08-05T21:23:11.000Z" },
   }));
 }, [TDEE_TEXT, WEEKLY_TEXT]);
 
@@ -81,7 +83,7 @@ ok(html.indexOf(WEEKLY_TEXT) >= 0, "the weekly check-in is still rendered alongs
 ok(html.indexOf("measured metabolism") >= 0, "the TDEE section has its own heading");
 ok(html.indexOf("3120 cal/day") >= 0, "the headline number appears in the subheading");
 ok(html.indexOf("wl-newpill") >= 0, "an unread TDEE report shows a New pill");
-ok(html.indexOf(TDEE_TEXT) < html.indexOf(WEEKLY_TEXT), "while unread, the TDEE message leads");
+ok(html.indexOf(TDEE_TEXT) < html.indexOf(WEEKLY_TEXT), "the newer message (TDEE, Aug 5) leads the older weekly (Aug 3)");
 /* Two max:close targets is correct: the backdrop (tap outside to dismiss)
    and the button. Assert on the BUTTON class, which is the one that could
    get duplicated by adding a section header. */
@@ -91,14 +93,31 @@ ok(html.indexOf("wl-maxsheet plain") < 0, "a sheet with messages does not get th
 /* 3. Once seen, it stops shouting and drops below the weekly. */
 const seen = await page.evaluate(() => {
   coachRptLoad();
+  /* Mark BOTH seen. The unified renderer now flags any unread message, so
+     leaving the weekly unread would leave a pill on the sheet and mask what
+     this case is actually asserting about the TDEE one. */
   state.settings.seenTdee = "2026-08-05";
+  state.settings.seenWeekly = "2026-08-03";
   state.maxOpen = true;
   return { html: maxSheetHTML(), unread: coachUnreadT() };
 });
 ok(seen.unread === false, "marking the period seen clears unread");
 ok(seen.html.indexOf("wl-newpill") < 0, "a read report shows no New pill");
-ok(seen.html.indexOf(TDEE_TEXT) > seen.html.indexOf(WEEKLY_TEXT), "once read, the weekly leads again");
+ok(seen.html.indexOf(TDEE_TEXT) < seen.html.indexOf(WEEKLY_TEXT), "order is by recency, NOT by unread — reading it does not demote it");
 ok(seen.html.indexOf(TDEE_TEXT) >= 0, "a read report is still readable, not hidden");
+
+/* 3b. A weekly written LATER must outrank an older TDEE. Sorting on the
+   week-start date instead of `generated` would get this backwards. */
+const wkNewer = await page.evaluate(() => {
+  localStorage.setItem("wl_coach_reports", JSON.stringify({
+    weekly: { week: "2026-08-03", text: "WEEKLY-NEWER", mood: "thumbsup", generated: "2026-08-08T09:00:00.000Z" },
+    nightly: {},
+    tdee: { period: "2026-08-05", text: "TDEE-OLDER", mood: "clapping", tdee: 3120, generated: "2026-08-05T21:00:00.000Z" },
+  }));
+  coachRptLoad(); state.maxOpen = true; return maxSheetHTML();
+});
+ok(wkNewer.indexOf("WEEKLY-NEWER") < wkNewer.indexOf("TDEE-OLDER"),
+   "a weekly generated after the TDEE report leads it, despite an earlier week-start date");
 
 /* 4. A NEWER calculation must re-flag as unread. */
 const renew = await page.evaluate(() => {
