@@ -391,8 +391,21 @@ function view_summary(){
   var s=weekStartFor(state.weekOffset),e=new Date(s);e.setDate(s.getDate()+6);
   var isThis=state.weekOffset===0;var label=fmtShort(s)+" – "+fmtShort(e);var u=state.settings.units;
   var metrics=["steps","calories","protein","fat","carbs"];var tot={},cnt={};
-  metrics.forEach(function(k){tot[k]=0;cnt[k]=0;days.forEach(function(r){if(r[k]!=null){tot[k]+=r[k];cnt[k]++;}});});
-  function avg(k){return cnt[k]?tot[k]/cnt[k]:null;}
+  /* Weekly AVERAGES follow the Owner's 2026-08-02 rule (same as the Progress
+     tab's bucketValues): an in-progress TODAY is excluded until the day is
+     Completed (a recap exists) or has passed — a half-logged day reads as a
+     bad day in an average. Weekly TOTALS below deliberately keep today: a
+     running total including this morning's food is the honest "so far".
+     Sleep is untouched either way — last night's number doesn't accumulate.
+     (Owner report, 2026-08-05: Summary averages included the partial today.) */
+  var _tdI=todayISO();var _tdPend=state.weekOffset===0&&!dayRecap(_tdI);
+  var avgTot={},avgCnt={};
+  metrics.forEach(function(k){tot[k]=0;cnt[k]=0;avgTot[k]=0;avgCnt[k]=0;
+    days.forEach(function(r){if(r[k]==null)return;
+      tot[k]+=r[k];cnt[k]++;
+      if(_tdPend&&r.date===_tdI)return;
+      avgTot[k]+=r[k];avgCnt[k]++;});});
+  function avg(k){return avgCnt[k]?avgTot[k]/avgCnt[k]:null;}
   var wv=days.filter(function(r){return r.weight!=null;}).map(function(r){return r.weight;});
   var slv=days.map(function(r){return num(state.sleep[r.date]);}).filter(function(x){return x!=null;});
   var slAvg=slv.length?Math.round(slv.reduce(function(a,b){return a+b;},0)/slv.length):null;
@@ -442,7 +455,7 @@ function view_summary(){
   h+='<div class="wl-card"><div class="wl-card-head"><span>Weekly Macros'+((_elapsed>0&&_elapsed<7)?' <em>'+_elapsed+' of 7 days so far</em>':'')+'</span></div>'+_macH+'</div>';
   var avgCal=avg("calories"),avgStep=avg("steps"),avgProt=avg("protein"),avgFat=avg("fat"),avgCarb=avg("carbs");
   var calOverGoal=(tCal!=null&&avgCal!=null&&avgCal>tCal);
-  h+='<div class="wl-card"><div class="wl-card-head"><span>Weekly Averages <em>per logged day</em></span></div><div class="wl-statrow" style="grid-template-columns:repeat(3,1fr)">'+
+  h+='<div class="wl-card"><div class="wl-card-head"><span>Weekly Averages <em>'+(_tdPend?'per completed day \u00b7 today counts once completed':'per logged day')+'</em></span></div><div class="wl-statrow" style="grid-template-columns:repeat(3,1fr)">'+
     avgStatF("Calories",fnum(avgCal),tCal!=null?"goal "+fnum(tCal):"",gcol(avgCal,tCal,true,100))+
     avgStatF("Steps",fnum(avgStep),tStep!=null?"goal "+fnum(tStep):"",gcol(avgStep,tStep,false,0))+
     avgStatF("Sleep",slAvg!=null?minToHM(slAvg):"—",tSleep!=null?"goal "+minToHM(tSleep):"",gcol(slAvg,tSleep,false,30))+
