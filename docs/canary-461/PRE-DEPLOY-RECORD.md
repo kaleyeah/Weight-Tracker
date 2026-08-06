@@ -111,3 +111,38 @@ designed. Review resolved: server copy kept (after export). Lease trail
 iPhone f3 → iPad f4 → iPhone f5 all fenced; the review prompt is EXPLAINED
 (concurrent edits on two devices across a takeover, the case the design
 refuses to auto-resolve).
+
+---
+
+# Canary CLOSE-OUT (steps 8–10), 2026-08-06 03:32Z
+
+**Step 8 (observation):** ~4.5 hours of genuinely normal two-device use plus
+the Owner's own adversarial race test, then an evening of logging, photo
+adds, and the deliberate day-close. Two pre-existing UI bugs surfaced and were
+fixed as `.462-takeover` (Owner-authorized mid-canary push; server untouched).
+
+**Step 9 (G13-style client evidence):** every commit in the window is fenced
+and build-stamped — the ledger shows an unbroken run of
+`writerFence: <held fence>, clientBuild: .461/.462, status: 200` across core
+AND photos subsystems; fence trail iPhone 3 → iPad 4 → iPhone 5 → … → 7
+(takeovers + renewals, each attributable); zero unfenced requests from the
+canary builds; zero 409s; no hard blocks; no false review prompts after the
+one EXPECTED concurrent-edit review (resolved server-copy-kept after export);
+no lost local data (Owner-verified retention across force-close).
+
+**Step 10 (post-canary record):** coreRev 373 → 392 — every increment maps to
+Owner actions (logging, takeovers, the race test, photo adds, day-close).
+**trainingRev 32 with BYTE-IDENTICAL hash `ad1598c55586bb74`** — untouched
+through the entire canary, correct since no workout was logged under it after
+the pre-record. Hooks unchanged (sha256s as recorded). Lease: fence 7, active,
+iPhone.
+
+**The coach cycle under the canary:** the Owner's day-complete tap at
+03:32Z produced the fenced core commit AND the nightly report write within
+seconds (report created 03:32:12Z, commit 03:32:15Z) — the full
+click→sync→coach→report pipeline proven under the fenced client.
+
+**Remaining, observable post-ship:** the natural 24h lease expiry+re-grant
+(a server-side read path identical for every client build).
+
+Not exercised: no rollback trigger ever fired.
