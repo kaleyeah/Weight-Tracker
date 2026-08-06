@@ -20,7 +20,7 @@ function render(){
   var maxBtn=isOwner()?'<button class="wl-maxb'+((coachUnreadW()||coachUnreadT())?" hot":"")+'" data-act="max:open" aria-label="Messages from Coach Max">M</button>':'';
   var backBtn=state.view==="checkin"?'<button class="wl-hdr-back" data-act="ci:close" aria-label="Back">‹</button>':(state.view==="photos"||state.view==="glptimeline")?'<button class="wl-hdr-back" data-act="go" data-view="weight" aria-label="Back">‹</button>':state.view==="diary"?'<button class="wl-hdr-back" data-act="go" data-view="overview" aria-label="Back">‹</button>':'';
   var _navH=headerNav();var _brand='<span class="wl-mark">'+BRANDMARK+'</span>';var _md=statusFor(todayISO());var _mbanner=_md?('<button class="wl-modebanner" data-act="go" data-view="settings"><span class="wl-mb-em">'+(_md.status.type==="vacation"?"\ud83c\udfd6\ufe0f":"\ud83e\udd12")+'</span><span>'+(_md.status.type==="vacation"?"Vacation Mode":"Recovery Mode")+'</span><span class="wl-mb-go">Settings \u203a</span></button>'):'';
-  document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header'+(_md?" hasbanner":"")+'">'+_mbanner+'<div class="wl-hdr-brand"><div class="wl-brandrow">'+_brand+'<span class="wl-eyebrow">Compound</span></div>'+hdrRight+'</div><div class="wl-hdr-main">'+backBtn+'<div class="wl-title-slot">'+(title?('<h1 class="wl-title">'+title+'</h1>'):'')+(hsub?'<div class="wl-hsub">'+esc(hsub)+'</div>':'')+'</div><div class="wl-hdr-actions">'+maxBtn+avatar+'</div></div>'+(_navH?'<div class="wl-hdr-datebar">'+_navH+'</div>':'')+'</header>'+m10RoBarHTML()+'<main class="wl-main">'+m10cxShellBannerHTML()+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML()+statusSheetHTML()+obOverlayHTML()+maxSheetHTML()+infoSheetHTML()+glpSheetHTML();
+  document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header'+(_md?" hasbanner":"")+'">'+_mbanner+'<div class="wl-hdr-brand"><div class="wl-brandrow">'+_brand+'<span class="wl-eyebrow">Compound</span></div>'+hdrRight+'</div><div class="wl-hdr-main">'+backBtn+'<div class="wl-title-slot">'+(title?('<h1 class="wl-title">'+title+'</h1>'):'')+(hsub?'<div class="wl-hsub">'+esc(hsub)+'</div>':'')+'</div><div class="wl-hdr-actions">'+maxBtn+avatar+'</div></div>'+(_navH?'<div class="wl-hdr-datebar">'+_navH+'</div>':'')+'</header>'+m10RoBarHTML()+'<main class="wl-main">'+m10cxShellBannerHTML()+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML()+statusSheetHTML()+obOverlayHTML()+maxSheetHTML()+infoSheetHTML()+glpSheetHTML()+pfReviewHTML();
   var hdr=document.querySelector(".wl-header");if(hdr)document.documentElement.style.setProperty("--headh",hdr.offsetHeight+"px");
   if(document.getElementById("wl-photostrip"))renderPhotosStrip(state.selDate);
   if(state.view==="diary")renderDiary();
@@ -386,6 +386,16 @@ var lt=getLastSync();toast((syncLabel()||"Sync")+(lt?" \u00b7 "+fmtClock(lt):"")
       try{if(state.view==="checkin")renderCheckinPhotos();else if(state.view==="photos")renderProgressPhotos();render();}catch(e){}
     });}catch(e){toast("Photo sync failed to start");}
     return;}
+  if(a==="pf:use"){var _pr=state.pfReview;if(!_pr)return;
+    var _ok=function(){return (typeof m10StillValid==="function")?m10StillValid(_pr.cap):true;};
+    if(!_ok()){toast("This device is no longer the active writer — nothing was changed");pfReviewClose();render();return;}
+    var _norm=pfReviewNorm();if(!_norm){toast("Adjust back into bounds first");return;}
+    pfReviewClose();render();
+    pfSaveProgress(_pr.blob,_pr.pose,_pr.week,_norm,_ok).catch(function(){toast("Couldn\u2019t save the photo");});
+    return;}
+  if(a==="pf:reset"){if(state.pfReview){state.pfReview.adj={panX:0,panY:0,zoom:1,rot:0};render();pfReviewPreview();}return;}
+  if(a==="pf:choose"){var _pp=state.pfReview;if(_pp){pfReviewClose();state.pendingPose=_pp.pose;state.pendingProgWeek=_pp.week;render();document.getElementById("wl-photo-input").click();}return;}
+  if(a==="pf:cancel"){pfReviewClose();render();toast("Nothing was saved");return;}
   if(a==="pphoto:add"){state.pendingPose=el.getAttribute("data-pose");state.pendingProgWeek=el.getAttribute("data-week")||toISO(weekStartFor(0));state.pendingMeal=null;document.getElementById("wl-photo-input").click();return;}
   /* ---- daily ratings ---- */
   if(a==="rat:set"){ratSet(el.getAttribute("data-date"),el.getAttribute("data-q"),el.getAttribute("data-v"));render();return;}
@@ -666,6 +676,12 @@ function m10pRetakeLeft(old,tries){
     if(!left||tries<=0)return left;
     return new Promise(function(r){setTimeout(r,200);}).then(function(){return m10pRetakeLeft(old,tries-1);});
   }).catch(function(){return old.length;});}
+document.addEventListener("input",function(e){
+  var el=e.target;if(!el||!el.getAttribute)return;
+  var k=el.getAttribute("data-pfadj");if(!k||!state.pfReview)return;
+  state.pfReview.adj[k]=parseFloat(el.value)||0;
+  pfReviewPreview();
+});
 document.getElementById("wl-photo-input").addEventListener("change",function(e){
   /* W4: authority captured at this boundary is revalidated again immediately
      before every local mutation later in the chain (processImage, idbAll,
@@ -674,37 +690,24 @@ document.getElementById("wl-photo-input").addEventListener("change",function(e){
   var _m10ok=function(){return (typeof m10StillValid==="function")?m10StillValid(_m10cap):true;};
   window.__m10PhotoCap=_m10cap;
   var files=e.target.files;if(!files||!files.length){return;}
-  if(state.pendingPose){var _pf=files[0];var _pose=state.pendingPose;var _wk=state.pendingProgWeek||toISO(weekStartFor(0));e.target.value="";state.pendingPose=null;toast("Adding photo\u2026");
-    /* X2 (round-30 ruling 2): ADD-then-delete, with authority revalidated
-       immediately before EVERY destructive step. The previous delete-then-add
-       could remove the pre-image and then fail to add — data loss, not just an
-       unauthorized write. Each delete rides the increment-4 queue (tombstone
-       first, server ack, then the local blob), so an interrupted replacement
-       always leaves a recoverable copy. */
+  if(state.pendingPose){var _pf=files[0];var _pose=state.pendingPose;var _wk=state.pendingProgWeek||toISO(weekStartFor(0));e.target.value="";state.pendingPose=null;toast("Preparing photo\u2026");
+    /* Milestone 2 (progress-photo package): the picker now feeds the
+       STANDARDIZATION REVIEW instead of saving directly. The X2 add-then-
+       delete chain is unchanged — extracted to pfSaveProgress() and executed
+       only on the review's explicit accept, with THIS capture revalidated
+       there (the review pause is exactly the async boundary W4 covers). */
     processImage(_pf).then(function(blob){
       if(!_m10ok()){toast("This device is no longer the active writer — nothing was changed");return;}
-      idbAll().then(function(all){
-        if(!_m10ok()){toast("This device is no longer the active writer — nothing was changed");return;}
-        var old=all.filter(function(p){return p.kind==="progress"&&p.week===_wk&&p.pose===_pose;});
-        idbAdd({id:"prog-"+_wk+"-"+_pose+"-"+Date.now(),date:_wk,week:_wk,pose:_pose,kind:"progress",blob:blob,ts:Date.now()+Math.random()})
-          .then(function(){
-            var chain=Promise.resolve();
-            old.forEach(function(p){chain=chain.then(function(){
-              if(!_m10ok())return null;                 /* stop: the pre-image stays */
-              return idbDelete(p.id).catch(function(){});});});
-            return chain;})
-          .then(function(){
-            if(state.view==="photos")renderProgressPhotos();else render();
-            return m10pRetakeLeft(old);})
-          .then(function(left){
-            /* Y1: report what actually happened. The new photo is saved either
-               way; claiming the replacement finished when the earlier photo is
-               still on the device (authority lost mid-retirement, offline, a
-               parked queue phase) would be a false statement. */
-            toast(left?"Photo saved — the earlier photo is still on this device and needs review":"Photo saved");
-            if(state.view==="photos")renderProgressPhotos();})
-          .catch(function(){toast("Couldn’t save the photo");});
-      });});
+      var url=URL.createObjectURL(blob);var img=new Image();
+      img.onload=function(){URL.revokeObjectURL(url);
+        var base=pfAutoSuggest(img.width,img.height);
+        if(!base){toast("Couldn\u2019t read that image");return;}
+        state.pfReview={blob:blob,pose:_pose,week:_wk,base:base,
+          adj:{panX:0,panY:0,zoom:1,rot:0},cap:_m10cap,
+          srcUrl:URL.createObjectURL(blob)};
+        render();pfReviewPreview();};
+      img.onerror=function(){URL.revokeObjectURL(url);toast("Couldn\u2019t read that image");};
+      img.src=url;});
     return;}
   var date=state.selDate;var arr=Array.prototype.slice.call(files);e.target.value="";var meal=state.pendingMeal||"";
   toast("Adding "+arr.length+" photo"+(arr.length>1?"s":"")+"…");

@@ -95,3 +95,36 @@ preprocessing and left the new function scoped. c27's first run caught it
 (ReferenceError), the block was relocated to top level, and c24 re-proved the
 photo paths. Landmark-based insertion needs brace-awareness — the same lesson
 as the .460 invite-handler cut.
+
+---
+
+# Progress-photo package — Milestone 2 record
+
+The upload standardization review, per the plan's gate ("delivers value even
+if live-camera work encounters device-specific issues").
+
+- The pose-slot picker no longer saves directly: processImage → automatic
+  suggestion (pfAutoSuggest) → review sheet with ORIGINAL and STANDARDIZED 3:4
+  previews side by side, a status line, and four adjustment controls (zoom,
+  up/down, left/right, ±7° level). Accept is explicit; Cancel saves nothing.
+- The save is the UNCHANGED X2 add-then-delete chain, extracted verbatim to
+  pfSaveProgress(); the W4 authority capture from the picker is revalidated at
+  accept — c28 proves a stale capture refuses the save.
+- Records carry `normalization` (validated) only when accepted; the source
+  blob is stored exactly as before.
+- Backup export bumped to version 2 (per-photo normalization); import accepts
+  v2 AND v1 (legacy, no metadata) — both round-trip proven.
+- Meal/daily photos and every other path untouched.
+
+**Sync note (flagged, not smuggled):** the server `photos` collection has no
+normalization column, so metadata is device-local + backup-carried for now. A
+cross-device copy re-standardizes via the M5 queue, or we add ONE optional
+text field to the collection — a tiny additive migration, but it is a server
+schema change and therefore its own Owner/Architect-gated step. Decision
+deferred deliberately.
+
+Evidence: c28-photo-review.browser.test.js 12/12, driven through the real
+change-listener flow with an in-page generated fixture; includes the
+URL-lifecycle regression found by screenshot (the pose card's async refresh
+revoked the open review's original preview — now review-owned, revoked at
+close, pinned by the "actually DISPLAYS" arm).

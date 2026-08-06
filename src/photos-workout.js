@@ -137,6 +137,86 @@ function pfDerivative(rec,maxH,cb){
     }catch(e){cb(null);}};
   img.onerror=function(){URL.revokeObjectURL(url);cb(null);};
   img.src=url;}
+/* ==== Milestone 2 (progress-photo package): upload standardization review ====
+   The picker no longer saves directly: processImage() → review sheet
+   (original vs standardized 3:4, adjust sliders, explicit accept). The save
+   itself is the UNCHANGED X2 add-then-delete chain, extracted here verbatim
+   so review-accept and any future capture flow share one audited path.
+   Authority: captured at the picker (W4), revalidated before EVERY mutation
+   here — the review pause is exactly the async boundary those rules exist for. */
+function pfSaveProgress(blob,pose,wk,norm,m10ok){
+  return idbAll().then(function(all){
+    if(!m10ok()){toast("This device is no longer the active writer — nothing was changed");return null;}
+    var old=all.filter(function(p){return p.kind==="progress"&&p.week===wk&&p.pose===pose;});
+    var rec={id:"prog-"+wk+"-"+pose+"-"+Date.now(),date:wk,week:wk,pose:pose,kind:"progress",blob:blob,ts:Date.now()+Math.random()};
+    if(norm&&pfValidNorm(norm))rec.normalization=norm;
+    return idbAdd(rec)
+      .then(function(){
+        var chain=Promise.resolve();
+        old.forEach(function(p){chain=chain.then(function(){
+          if(!m10ok())return null;                 /* stop: the pre-image stays */
+          return idbDelete(p.id).catch(function(){});});});
+        return chain;})
+      .then(function(){
+        if(state.view==="photos")renderProgressPhotos();else render();
+        return m10pRetakeLeft(old);})
+      .then(function(left){
+        toast(left?"Photo saved — the earlier photo is still on this device and needs review":"Photo saved");
+        if(state.view==="photos")renderProgressPhotos();});}
+  );}
+
+function pfReviewNorm(){
+  var r=state.pfReview;if(!r)return null;
+  var a=r.adj;
+  var n={schemaVersion:1,algorithmVersion:PF_ALGO,aspectRatio:"3:4",
+    crop:pfAdjust(r.base.crop,a.panX,a.panY,a.zoom),
+    rotationDegrees:a.rot,confidence:r.base.confidence,
+    mode:(a.panX||a.panY||a.rot||a.zoom!==1)?"manual":"auto"};
+  return pfValidNorm(n)?n:null;}
+
+function pfReviewHTML(){
+  var r=state.pfReview;if(!r)return "";
+  /* the original preview's URL is owned by the REVIEW, not the shared
+     photoURLs pool — the pose card's async refresh calls clearPhotoURLs()
+     mid-review and would revoke it out from under the open sheet (found by
+     screenshot: the original rendered as its alt text). Created once at open,
+     revoked once at close. */
+  var srcUrl=r.srcUrl;
+  var n=pfReviewNorm();
+  var status=n?(r.base.confidence>=0.5?"Ready":"Suggested frame — adjust if it looks off")
+             :"Adjustment out of bounds — reset a slider";
+  var h='<div class="wl-confirm" style="z-index:2400"><div class="wl-confirm-card" style="max-height:86vh;overflow:auto;text-align:left">';
+  h+='<div style="font-weight:800;font-size:16px;margin-bottom:2px">Standardize this photo</div>';
+  h+='<div class="wl-hint" style="margin-bottom:10px">'+esc(POSES.filter(function(x){return x[0]===r.pose;}).map(function(x){return x[1];})[0]||r.pose)+' · week of '+esc(fmtShort(parseISO(r.week)))+' · your original is kept untouched</div>';
+  h+='<div class="wl-pfrev-row"><div><div class="wl-pfrev-cap">Original</div><img class="wl-pfrev-src" src="'+srcUrl+'" alt="Original photo"></div>';
+  h+='<div><div class="wl-pfrev-cap">Standardized 3:4</div><div id="wl-pfrev-std" class="wl-pfrev-std"><div class="wl-hint">Preparing…</div></div></div></div>';
+  h+='<div class="wl-hint" style="margin:8px 0 2px">'+esc(status)+'</div>';
+  var sl=function(k,lbl,min,max,step,val){return '<label class="wl-field wl-field-full" style="margin-top:8px"><span>'+lbl+'</span><input type="range" data-pfadj="'+k+'" min="'+min+'" max="'+max+'" step="'+step+'" value="'+val+'" aria-label="'+lbl+'"></label>';};
+  h+=sl("zoom","Zoom",1,3,0.01,r.adj.zoom)+sl("panY","Up / down",-0.5,0.5,0.005,r.adj.panY)
+    +sl("panX","Left / right",-0.5,0.5,0.005,r.adj.panX)+sl("rot","Level (°)",-7,7,0.1,r.adj.rot);
+  h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" '+(n?'data-act="pf:use"':'disabled style="opacity:.4"')+'>Use this photo</button>';
+  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pf:reset">Reset to suggestion</button>';
+  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pf:choose">Choose another</button>';
+  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pf:cancel">Cancel</button>';
+  return h+'</div></div>';}
+
+/* the standardized preview, drawn AFTER render (needs the DOM node). The
+   preview is a derivative of a throwaway in-memory record — the cache key
+   includes the crop, so slider moves regenerate and the byte-identical
+   source is never involved beyond reading. */
+function pfReviewClose(){
+  var r=state.pfReview;
+  if(r&&r.srcUrl){try{URL.revokeObjectURL(r.srcUrl);}catch(e){}}
+  state.pfReview=null;}
+
+function pfReviewPreview(){
+  var r=state.pfReview;if(!r)return;
+  var host=document.getElementById("wl-pfrev-std");if(!host)return;
+  var n=pfReviewNorm();if(!n){host.innerHTML='<div class="wl-hint">—</div>';return;}
+  pfDerivative({id:"pf-preview",blob:r.blob,normalization:n},480,function(du){
+    var h2=document.getElementById("wl-pfrev-std");if(!h2||!state.pfReview)return;
+    h2.innerHTML=du?'<img class="wl-pfrev-img" src="'+du+'" alt="Standardized preview">':'<div class="wl-hint">Preview unavailable — you can still save</div>';});}
+
 /* ---- progress-photo backup / restore (device-only, never synced) ---- */
 function progressPhotos(){return idbAll().then(function(all){return all.filter(function(p){return p.kind==="progress";});});}
 function blobToDataURL(blob){return new Promise(function(res,rej){var r=new FileReader();r.onload=function(){res(r.result);};r.onerror=function(){rej(r.error);};r.readAsDataURL(blob);});}
@@ -149,8 +229,8 @@ function exportProgressPhotos(){
   progressPhotos().then(function(list){
     if(!list.length){toast("No progress photos to export");return;}
     toast("Preparing "+list.length+" photo"+(list.length===1?"":"s")+"…");
-    Promise.all(list.map(function(p){return blobToDataURL(p.blob).then(function(du){return {id:p.id,week:p.week||p.date,pose:p.pose,date:p.date,ts:p.ts,dataUrl:du};});})).then(function(recs){
-      var out={app:"compound",kind:"progress-photos",version:1,exported:new Date().toISOString(),count:recs.length,photos:recs};
+    Promise.all(list.map(function(p){return blobToDataURL(p.blob).then(function(du){var o={id:p.id,week:p.week||p.date,pose:p.pose,date:p.date,ts:p.ts,dataUrl:du};if(pfHasNorm(p))o.normalization=p.normalization;return o;});})).then(function(recs){
+      var out={app:"compound",kind:"progress-photos",version:2,exported:new Date().toISOString(),count:recs.length,photos:recs};
       shareOrDownload("compound-progress-photos-"+todayISO()+".json","application/json",JSON.stringify(out));
     }).catch(function(){toast("Couldn't prepare photos");});
   }).catch(function(){toast("Photos aren't available on this device");});}
@@ -185,7 +265,9 @@ function importProgressPhotos(text,m10cap){
                pre-image before the old record could be retired. Imported
                photos are always staged under a fresh unique id. */
             var stagedId="prog-"+wk+"-"+rec.pose+"-"+Date.now()+"-"+Math.random().toString(36).slice(2,8);
-            return idbAdd({id:stagedId,date:wk,week:wk,pose:rec.pose,kind:"progress",blob:blob,ts:rec.ts||(Date.now()+Math.random())}).then(function(){
+            var staged={id:stagedId,date:wk,week:wk,pose:rec.pose,kind:"progress",blob:blob,ts:rec.ts||(Date.now()+Math.random())};
+            if(rec.normalization&&pfValidNorm(rec.normalization))staged.normalization=rec.normalization;
+            return idbAdd(staged).then(function(){
               added++;
               var dchain=Promise.resolve();
               dupes.forEach(function(p){dchain=dchain.then(function(){
