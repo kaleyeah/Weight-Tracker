@@ -119,7 +119,10 @@ const eq=(a,b,m)=>{if(a!==b)throw new Error((m||'eq')+': '+JSON.stringify(a)+' !
       badge:!!document.querySelector('#pftl-p-f1 .pftl-pin'),
       btn:(document.querySelector('[data-act="pftl:pinref"]')||{}).textContent||''}));
     test('pinning stores the per-pose reference and badges the card',()=>{
-      eq(t.refs.front,'p-f1');ok(t.badge,'no pin badge');ok(/Unpin/.test(t.btn));});
+      /* v2 pins carry {id,week} so a re-keyed record still resolves by week */
+      eq(t.refs.front&&t.refs.front.id,'p-f1');
+      ok(t.refs.front&&t.refs.front.week,'pin lost its week: '+JSON.stringify(t.refs.front));
+      ok(t.badge,'no pin badge');ok(/Unpin/.test(t.btn));});
     await page.click('[data-act="pftl:pinref"]');
     await page.waitForTimeout(300);
     const u=await page.evaluate(()=>JSON.parse(localStorage.getItem('wl_pf_refs')||'{}'));

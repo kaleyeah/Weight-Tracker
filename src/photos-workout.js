@@ -246,6 +246,30 @@ function pfOvSave(pr){try{localStorage.setItem("wl_pf_overlay",JSON.stringify(pr
    overlay prefs. No pin → the most recent same-pose photo (prior behavior). */
 function pfRefs(){try{return JSON.parse(localStorage.getItem("wl_pf_refs")||"{}");}catch(e){return {};}}
 function pfRefSave(m){try{localStorage.setItem("wl_pf_refs",JSON.stringify(m));}catch(e){}}
+/* v2 pins are {id,week}; v1 pins were bare id strings (Owner's devices carry
+   them) — normalize on read, and resolve by id FIRST then week, so a record
+   re-keyed by sync/retake still finds the same week's photo (Owner report
+   2026-08-06: pin resolution failed silently and the ghost fell back) */
+function pfRefGet(pose){var v=pfRefs()[pose];
+  if(!v)return null;
+  if(typeof v==="string")return {id:v,week:null};
+  return {id:v.id||null,week:v.week||null};}
+function pfRefResolve(pose,list){var ref=pfRefGet(pose);
+  if(!ref)return {rec:null,pinned:false,broken:false};
+  var byId=list.filter(function(p){return p.id===ref.id;})[0];
+  if(byId)return {rec:byId,pinned:true,broken:false};
+  var byWk=ref.week?list.filter(function(p){return (p.week||p.date)===ref.week;})[0]:null;
+  if(byWk)return {rec:byWk,pinned:true,broken:false};
+  return {rec:null,pinned:false,broken:true};}
+/* newest-first that does not trust ts: server-adopted records carry ts as a
+   string (often empty), which made “most recent” degrade to storage order
+   and hand the ghost the OLDEST photo */
+function pfNewestFirst(a,b){
+  var wa=a.week||a.date||"",wb=b.week||b.date||"";
+  if(wa!==wb)return wa<wb?1:-1;
+  var ta=+a.ts||0,tb=+b.ts||0;
+  if(ta!==tb)return tb-ta;
+  return (a.id||"")<(b.id||"")?1:-1;}
 function pfCamStop(){
   if(!pfCam)return;
   try{((pfCam.stream&&pfCam.stream.getTracks())||[]).forEach(function(t){try{t.stop();}catch(e){}});}catch(e){}
@@ -325,15 +349,16 @@ function pfCamPrev(){
     if(!pfCam||pfCam!==c)return;
     var img=document.getElementById("pfcam-prev");if(!img)return;
     var mine=all.filter(function(p){return p.kind==="progress"&&p.pose===c.pose&&p.blob;})
-      .sort(function(a,b){return (b.ts||0)-(a.ts||0);});
+      .sort(pfNewestFirst);
     if(c.prevUrl){try{URL.revokeObjectURL(c.prevUrl);}catch(e){}c.prevUrl=null;}
     var gsrc=document.getElementById("pfcam-ghostsrc");
     if(!mine.length){img.style.display="none";img.removeAttribute("src");
       if(gsrc)gsrc.textContent="";return;}
-    var pinId=pfRefs()[c.pose];
-    var pinned=pinId?mine.filter(function(p){return p.id===pinId;})[0]:null;
-    var rec=pinned||mine[0];
-    if(gsrc)gsrc.textContent="Ghost: "+(pinned?("pinned \u00b7 "+fmtShort(parseISO(rec.week||rec.date))):("last photo \u00b7 "+fmtShort(parseISO(rec.week||rec.date))));
+    var res=pfRefResolve(c.pose,mine);
+    var rec=res.rec||mine[0];
+    if(gsrc)gsrc.textContent="Ghost: "+(res.pinned?("pinned \u00b7 "+fmtShort(parseISO(rec.week||rec.date)))
+      :(res.broken?("pinned photo unavailable \u2014 using latest \u00b7 "+fmtShort(parseISO(rec.week||rec.date)))
+      :("last photo \u00b7 "+fmtShort(parseISO(rec.week||rec.date)))));
     var show=function(src){if(!pfCam||pfCam!==c)return;var i2=document.getElementById("pfcam-prev");
       if(i2){i2.src=src;i2.style.display="";}};
     if(pfHasNorm(rec))pfDerivative(rec,720,function(du){
@@ -517,16 +542,18 @@ function renderProgressPhotos(){clearPhotoURLs();var curWk=toISO(weekStartFor(0)
         html2+='<div class="wl-posetimeline">';
         items.forEach(function(p){
           var si=sel.indexOf(p.id);
-          var isRef=pfRefs()[pose]===p.id;
+          var _ref=pfRefGet(pose);
+          var isRef=!!(_ref&&_ref.id===p.id);
           html2+='<div class="wl-tlitem"><button class="wl-tlimg pftl'+(si>=0?" sel":"")+'" data-act="pftl:sel" data-id="'+p.id+'" id="pftl-'+p.id+'" aria-pressed="'+(si>=0)+'">'
             +(isRef?'<span class="pftl-pin" title="Camera alignment reference">📌</span>':"")
             +(si>=0?'<span class="pftl-badge">'+(si+1)+' ✓</span>':"")
             +'</button><span class="wl-tllbl">'+fmtShort(parseISO(p.week||p.date))+'</span></div>';});
         html2+='<div class="wl-tlitem"><button class="wl-tladd" data-act="pphoto:add" data-pose="'+pose+'" aria-label="Add next check-in"><span>＋</span></button><span class="wl-tllbl">Add next</span></div>';
         html2+='</div>';
-        var refId=pfRefs()[pose];
+        var _tref=pfRefGet(pose);var refId=_tref?_tref.id:null;
+        var _selRec=sel.length===1?items.filter(function(p){return p.id===sel[0];})[0]:null;
         html2+='<div class="wl-pftl-actions"><button class="wl-btn '+(sel.length===2?"wl-btn-primary":"wl-btn-ghost")+'" '+(sel.length===2?'data-act="pftl:compare"':'disabled style="opacity:.4"')+'>Compare</button>'
-          +(sel.length===1?'<button class="wl-btn wl-btn-ghost" data-act="pftl:pinref" data-id="'+sel[0]+'">'+(refId===sel[0]?"Unpin reference":"Pin as camera reference")+'</button>':"")
+          +(sel.length===1?'<button class="wl-btn wl-btn-ghost" data-act="pftl:pinref" data-id="'+sel[0]+'" data-week="'+esc((_selRec&&(_selRec.week||_selRec.date))||"")+'">'+(refId===sel[0]?"Unpin reference":"Pin as camera reference")+'</button>':"")
           +(sel.length?'<button class="wl-btn wl-btn-ghost" data-act="pftl:clear">Clear</button>':"")
           +'<span class="wl-hint" style="margin-left:auto">Tap two dates to compare</span></div>';
       }

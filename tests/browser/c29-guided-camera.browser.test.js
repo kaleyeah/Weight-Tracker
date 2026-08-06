@@ -105,6 +105,59 @@ const eq=(a,b,m)=>{if(a!==b)throw new Error((m||'eq')+': '+JSON.stringify(a)+' !
       ok(/Ghost: pinned/.test(gh.label),'label: '+gh.label));
   }
 
+  /* ---- pin durability + honest fallback (Owner report 2026-08-06: pins
+     resolved against a re-keyed id failed SILENTLY, and the "latest" fallback
+     trusted ts — which server-adopted records carry as a string — handing the
+     ghost the OLDEST photo) ---- */
+  {
+    const readGhost=async()=>await page.evaluate(async()=>{
+      const g=document.getElementById('pfcam-prev');
+      const px=await new Promise(res=>{const im=new Image();im.onload=()=>{
+        const c2=document.createElement('canvas');c2.width=im.width;c2.height=im.height;
+        const x2=c2.getContext('2d');x2.drawImage(im,0,0);
+        res(Array.from(x2.getImageData(Math.round(im.width/2),Math.round(im.height/2),1,1).data.slice(0,3)));};
+        im.onerror=()=>res(null);im.src=g.src;});
+      return {px:px,label:(document.getElementById('pfcam-ghostsrc')||{}).textContent||''};});
+    /* A: the pinned id is GONE but the pin carries its week — resolve by week */
+    await page.evaluate(()=>{localStorage.setItem('wl_pf_refs',
+      JSON.stringify({front:{id:'rekeyed-away',week:'2026-07-27'}}));pfCamPrev();});
+    await page.waitForTimeout(400);
+    const a=await readGhost();
+    test('a re-keyed pin still resolves by its week — ghost stays the pinned photo',()=>{
+      ok(/Ghost: pinned/.test(a.label),'label: '+a.label);
+      ok(a.px&&a.px[0]>90&&a.px[1]<90,'expected the brown Jul 27 photo: '+JSON.stringify(a.px));});
+    /* B: the pin points at nothing — the ghost SAYS so instead of silently falling back */
+    await page.evaluate(()=>{localStorage.setItem('wl_pf_refs',
+      JSON.stringify({front:{id:'gone',week:'2099-01-01'}}));pfCamPrev();});
+    await page.waitForTimeout(400);
+    const b=await readGhost();
+    test('an unresolvable pin is ANNOUNCED, not silent',()=>
+      ok(/pinned photo unavailable/.test(b.label),'label: '+b.label));
+    /* C: no pin + string ts on every record (server-adopted shape) — the
+       fallback must pick the newest WEEK, not storage order */
+    await page.evaluate(async()=>{
+      const mk=async(color)=>{const cv=document.createElement('canvas');cv.width=900;cv.height=1200;
+        const cx=cv.getContext('2d');cx.fillStyle=color;cx.fillRect(0,0,900,1200);
+        return await new Promise(r=>cv.toBlob(r,'image/jpeg',0.85));};
+      /* EVERY record with string ts (an all-adopted device); the oldest id
+         sorts FIRST in IndexedDB — the old code's mine[0] */
+      const brown=await idbGetLocal('prog-prev-front'),green=await idbGetLocal('prog-new-front');
+      await idbDelete('prog-prev-front');await idbDelete('prog-new-front');
+      await idbAdd({id:'prog-a-oldest-front',date:'2026-07-20',week:'2026-07-20',pose:'front',kind:'progress',blob:await mk('#2233CC'),ts:''});
+      await idbAdd(Object.assign({},brown,{ts:''}));
+      await idbAdd(Object.assign({},green,{ts:''}));
+      localStorage.removeItem('wl_pf_refs');pfCamPrev();});
+    await page.waitForTimeout(400);
+    const c3=await readGhost();
+    test('with string ts everywhere, the fallback is the newest week — never the oldest record',()=>{
+      ok(/last photo/.test(c3.label)&&/Aug 3/.test(c3.label),'label: '+c3.label);
+      ok(c3.px&&c3.px[1]>90&&c3.px[2]<90,'expected the green Aug 3 photo, got: '+JSON.stringify(c3.px));});
+    /* restore the original pin for the arms below */
+    await page.evaluate(async()=>{await idbDelete('prog-a-oldest-front');
+      localStorage.setItem('wl_pf_refs',JSON.stringify({front:'prog-prev-front'}));pfCamPrev();});
+    await page.waitForTimeout(400);
+  }
+
   /* ---- overlay strength: live, clamped 10–75, remembered locally ---- */
   {
     await page.evaluate(()=>{const sl=document.querySelector('[data-pfov]');

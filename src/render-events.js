@@ -419,8 +419,9 @@ var lt=getLastSync();toast((syncLabel()||"Sync")+(lt?" \u00b7 "+fmtClock(lt):"")
     state.pfSel=_s;renderProgressPhotos();return;}
   if(a==="pftl:pinref"){var _rid=el.getAttribute("data-id");var _rp2=pfRefs();
     var _pz=state.pfTlPose||"front";
-    if(_rp2[_pz]===_rid){delete _rp2[_pz];toast("Reference unpinned — ghost follows your latest photo");}
-    else{_rp2[_pz]=_rid;toast("Pinned — the camera ghost for this pose now always uses this photo");}
+    var _cur=pfRefGet(_pz);
+    if(_cur&&_cur.id===_rid){delete _rp2[_pz];toast("Reference unpinned \u2014 ghost follows your latest photo");}
+    else{_rp2[_pz]={id:_rid,week:el.getAttribute("data-week")||null};toast("Pinned \u2014 the camera ghost for this pose now always uses this photo");}
     pfRefSave(_rp2);renderProgressPhotos();return;}
   if(a==="pftl:compare"){if((state.pfSel||[]).length===2){state.pfCompare=true;renderProgressPhotos();}return;}
   if(a==="pftl:clear"){state.pfSel=[];state.pfCompare=false;renderProgressPhotos();return;}
