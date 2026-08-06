@@ -207,6 +207,68 @@ const eq=(a,b,m)=>{if(a!==b)throw new Error((m||'eq')+': '+JSON.stringify(a)+' !
       ok(s.p2[2]>s.p2[0],'second preview not blue — stale cache served the first photo: '+s.p2);});
   }
 
+  /* ---- review ghost (Owner, 2026-08-06): the standardize sheet overlays the
+     pinned-else-latest same-pose reference — 'the review is where the crop is
+     framed; otherwise you have no idea what to select'. Uploads route through
+     this same sheet, so this covers them too. ---- */
+  {
+    const s=await page.evaluate(async()=>{
+      const mk=(color)=>new Promise(res=>{
+        const cv=document.createElement('canvas');cv.width=600;cv.height=800;
+        const g=cv.getContext('2d');g.fillStyle=color;g.fillRect(0,0,600,800);
+        cv.toBlob(res,'image/jpeg',0.9);});
+      for(const p of (await idbAll()).filter(x=>x.pose==='back'))await idbDelete(p.id);
+      await idbAdd({id:'bk-ref',date:'2026-07-27',week:'2026-07-27',pose:'back',kind:'progress',blob:await mk('#00AA44'),ts:1});
+      await idbAdd({id:'bk-new',date:'2026-08-03',week:'2026-08-03',pose:'back',kind:'progress',blob:await mk('#AAAA00'),ts:2});
+      localStorage.setItem('wl_pf_refs',JSON.stringify({back:{id:'bk-ref',week:'2026-07-27'}}));
+      localStorage.setItem('wl_pf_overlay',JSON.stringify({on:true,strength:48}));
+      const base=pfAutoSuggest(600,800);
+      state.pfReview={blob:await mk('#CC2222'),pose:'back',week:'2026-08-09',base:base,
+        revId:(typeof pfRevSeq!=='undefined')?++pfRevSeq:undefined,
+        adj:{panX:0,panY:0,zoom:1,rot:0},cap:null,srcUrl:''};
+      render();pfReviewPreview();
+      for(let i=0;i<40;i++){
+        if(document.querySelector('#wl-pfrev-std .wl-pfrev-ghost'))break;
+        await new Promise(r=>setTimeout(r,50));}
+      const g=document.querySelector('#wl-pfrev-std .wl-pfrev-ghost');
+      const px=g?await new Promise(res=>{const im=new Image();im.onload=()=>{
+        const cv=document.createElement('canvas');cv.width=4;cv.height=4;
+        cv.getContext('2d').drawImage(im,0,0,4,4);
+        const d=cv.getContext('2d').getImageData(2,2,1,1).data;res([d[0],d[1],d[2]]);};
+        im.onerror=()=>res(null);im.src=g.src;}):null;
+      return {ghost:!!g,op:g?g.style.opacity:'',px:px,
+        lbl:(document.getElementById('wl-pfrev-ghostlbl')||{}).textContent||''};});
+    test('the review overlays the PINNED same-pose reference at the saved strength',()=>{
+      ok(s.ghost,'no ghost overlay');eq(s.op,'0.48','opacity: '+s.op);
+      ok(/Ghost: pinned/.test(s.lbl),'label: '+s.lbl);
+      ok(s.px&&s.px[1]>90&&s.px[0]<90,'ghost is not the pinned GREEN photo: '+JSON.stringify(s.px));});
+    const t=await page.evaluate(async()=>{
+      document.querySelector('[data-act="pfrev:ghost"]').click();
+      await new Promise(r=>setTimeout(r,300));
+      return {ghost:!!document.querySelector('#wl-pfrev-std .wl-pfrev-ghost'),
+        prefs:JSON.parse(localStorage.getItem('wl_pf_overlay')||'{}')};});
+    test('the Ghost toggle hides the overlay and remembers the shared preference',()=>{
+      eq(t.ghost,false,'ghost still shown');eq(t.prefs.on,false);});
+    const u=await page.evaluate(async()=>{
+      const prefs=JSON.parse(localStorage.getItem('wl_pf_overlay')||'{}');prefs.on=true;
+      localStorage.setItem('wl_pf_overlay',JSON.stringify(prefs));
+      for(const p of (await idbAll()).filter(x=>x.pose==='back'&&x.id!=='bk-ref'))await idbDelete(p.id);
+      localStorage.removeItem('wl_pf_refs');
+      const rec=(await idbAll()).find(x=>x.id==='bk-ref');
+      const base=pfAutoSuggest(600,800);
+      pfReviewClose();
+      state.pfReview={blob:rec.blob,pose:'back',week:rec.week,base:base,
+        revId:(typeof pfRevSeq!=='undefined')?++pfRevSeq:undefined,
+        adj:{panX:0,panY:0,zoom:1,rot:0},cap:null,srcUrl:'',legacyId:'bk-ref',legacyLeft:1};
+      render();pfReviewPreview();
+      await new Promise(r=>setTimeout(r,600));
+      return {ghost:!!document.querySelector('#wl-pfrev-std .wl-pfrev-ghost'),
+        lbl:(document.getElementById('wl-pfrev-ghostlbl')||{}).textContent||''};});
+    test('standardizing a pose\'s ONLY photo never ghosts against itself',()=>{
+      eq(u.ghost,false,'self-ghost shown');eq(u.lbl,'','label should be empty: '+u.lbl);});
+    await page.evaluate(()=>{pfReviewClose();render();});
+  }
+
   test('no page errors across the whole flow',()=>eq(errs.length,0,errs.join(';')));
 
   await ctx.close();await browser.close();server.close();

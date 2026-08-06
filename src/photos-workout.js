@@ -195,6 +195,7 @@ function pfReviewHTML(){
   if(r.legacyId&&r.narrow)h+='<div class="wl-hint" style="margin-bottom:8px;color:var(--accent)">This photo was already cropped tall — the 3:4 frame can only show what’s still in it.</div>';
   h+='<div class="wl-pfrev-row"><div><div class="wl-pfrev-cap">Original</div><img class="wl-pfrev-src" src="'+srcUrl+'" alt="Original photo"></div>';
   h+='<div><div class="wl-pfrev-cap">Standardized 3:4</div><div id="wl-pfrev-std" class="wl-pfrev-std"><div class="wl-hint">Preparing…</div></div></div></div>';
+  h+='<div class="wl-pfrev-ghostrow"><button class="pfcam-ovtgl'+(pfOvPrefs().on?" on":"")+'" data-act="pfrev:ghost" aria-pressed="'+(pfOvPrefs().on?"true":"false")+'">Ghost</button><span id="wl-pfrev-ghostlbl"></span></div>';
   h+='<div class="wl-hint" style="margin:8px 0 2px">'+esc(status)+'</div>';
   var sl=function(k,lbl,min,max,step,val){return '<label class="wl-field wl-field-full" style="margin-top:8px"><span>'+lbl+'</span><input type="range" data-pfadj="'+k+'" min="'+min+'" max="'+max+'" step="'+step+'" value="'+val+'" aria-label="'+lbl+'"></label>';};
   h+=sl("zoom","Zoom",1,3,0.01,r.adj.zoom)+sl("panY","Up / down",-0.5,0.5,0.005,r.adj.panY)
@@ -213,6 +214,7 @@ function pfReviewHTML(){
 function pfReviewClose(){
   var r=state.pfReview;
   if(r&&r.srcUrl){try{URL.revokeObjectURL(r.srcUrl);}catch(e){}}
+  if(r&&r.ghostUrl){try{URL.revokeObjectURL(r.ghostUrl);}catch(e){}}
   state.pfReview=null;}
 
 function pfReviewPreview(){
@@ -221,7 +223,39 @@ function pfReviewPreview(){
   var n=pfReviewNorm();if(!n){host.innerHTML='<div class="wl-hint">—</div>';return;}
   pfDerivative({id:"pf-preview-"+(r.revId||0),blob:r.blob,normalization:n},480,function(du){
     var h2=document.getElementById("wl-pfrev-std");if(!h2||!state.pfReview)return;
-    h2.innerHTML=du?'<img class="wl-pfrev-img" src="'+du+'" alt="Standardized preview">':'<div class="wl-hint">Preview unavailable — you can still save</div>';});}
+    h2.innerHTML=du?'<img class="wl-pfrev-img" src="'+du+'" alt="Standardized preview">':'<div class="wl-hint">Preview unavailable — you can still save</div>';
+    if(du)pfReviewGhost();});}
+/* Owner 2026-08-06: the review is where the crop is FRAMED — overlay the
+   same pinned-else-latest reference the camera uses, so upload and
+   standardize align against it too (never composited; display layer only). */
+function pfReviewGhost(){
+  var r=state.pfReview;if(!r)return;
+  var prefs=pfOvPrefs();
+  idbAll().then(function(all){
+    var r2=state.pfReview;if(!r2||r2!==r)return;
+    var host=document.getElementById("wl-pfrev-std");if(!host)return;
+    var mine=all.filter(function(p){return p.kind==="progress"&&p.pose===r.pose&&p.blob&&p.id!==r.legacyId;})
+      .sort(pfNewestFirst);
+    var lbl=document.getElementById("wl-pfrev-ghostlbl");
+    if(!mine.length){if(lbl)lbl.textContent="";return;}
+    var res=pfRefResolve(r.pose,mine);
+    var rec=res.rec||mine[0];
+    if(lbl)lbl.textContent="Ghost: "+(res.pinned?("pinned · "+fmtShort(parseISO(rec.week||rec.date)))
+      :(res.broken?("pinned photo unavailable — using latest · "+fmtShort(parseISO(rec.week||rec.date)))
+      :("last photo · "+fmtShort(parseISO(rec.week||rec.date)))));
+    if(!prefs.on)return;
+    var put=function(src){
+      var h2=document.getElementById("wl-pfrev-std");if(!h2||!state.pfReview||state.pfReview!==r)return;
+      var g=h2.querySelector(".wl-pfrev-ghost");
+      if(!g){g=document.createElement("img");g.className="wl-pfrev-ghost";g.alt="";h2.appendChild(g);}
+      g.style.opacity=String(prefs.strength/100);g.src=src;};
+    if(pfHasNorm(rec))pfDerivative(rec,480,function(du){
+      if(du)put(du);
+      else{if(r.ghostUrl){try{URL.revokeObjectURL(r.ghostUrl);}catch(e){}}
+        r.ghostUrl=URL.createObjectURL(rec.blob);put(r.ghostUrl);}});
+    else{if(r.ghostUrl){try{URL.revokeObjectURL(r.ghostUrl);}catch(e){}}
+      r.ghostUrl=URL.createObjectURL(rec.blob);put(r.ghostUrl);}
+  }).catch(function(){});}
 
 /* ==== Milestone 3 (progress-photo package): guided four-pose camera ====
    One continuous session: ONE permission grant, ONE stream, Front → Left →

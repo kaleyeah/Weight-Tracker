@@ -441,6 +441,8 @@ var lt=getLastSync();toast((syncLabel()||"Sync")+(lt?" \u00b7 "+fmtClock(lt):"")
   if(a==="pfcam:close"){pfCamStop();toast("Camera closed — nothing was saved beyond accepted poses");return;}
   if(a==="pfcam:pose"){if(pfCam){pfCam.pose=el.getAttribute("data-pose");pfCamRender();pfCamPrev();}return;}
   if(a==="pfcam:ov"){var _pv=pfOvPrefs();_pv.on=!_pv.on;pfOvSave(_pv);if(pfCam){pfCamRender();pfCamPrev();}return;}
+  if(a==="pfrev:ghost"){var _pv3=pfOvPrefs();_pv3.on=!_pv3.on;pfOvSave(_pv3);
+    if(state.pfReview){render();pfReviewPreview();}return;}
   /* ---- daily ratings ---- */
   if(a==="rat:set"){ratSet(el.getAttribute("data-date"),el.getAttribute("data-q"),el.getAttribute("data-v"));render();return;}
   /* ---- weekly check-in ---- */
