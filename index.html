@@ -8595,6 +8595,16 @@ function rptRangesFor(it,n){n=Math.max(1,n|0);var def=rptDefRanges((it&&it.movem
    Newest sessions first, capped at 6 samples so it tracks current conditioning.
    Default 3 — Griffin's measured average across six exercises before any RPT data
    existed. */
+/* Rep capacity at weight wb, given tfa total reps done at wa. Epley's linear
+   1RM model is calibrated for heavy sets — ABOVE ~10 total reps it collapses
+   ('15 reps at 15 lb → try 4 at 20', Owner, 2026-08-05: est. 1RM 22.5 makes
+   20 lb read as 89% of max, which is nonsense for light isolation work).
+   Inside its domain Epley stands untouched; beyond it, reps scale by load
+   ratio — conservative, matches observed high-rep behavior, and degrades
+   gracefully instead of absurdly. */
+function rptCapAt(wa,tfa,wb){
+  if(tfa<=10){var E=wa*(1+tfa/30);return 30*(E/wb-1);}
+  return tfa*wa/wb;}
 var FB_FATIGUE_DEFAULT=3;
 function rptFatigueFor(exId){
   var ls=state.training.liftSessions||{};var ds=Object.keys(ls).sort().reverse();
@@ -8611,8 +8621,7 @@ function rptFatigueFor(exId){
           var wa=num(a.weight),wb=num(b.weight);
           var tfa=num(a.reps)+(num(a.rir)||0),tfb=num(b.reps)+(num(b.rir)||0);
           if(wa==null||wb==null||wa<=0||wb<=0||!(tfa>0))continue;
-          var E=wa*(1+tfa/30);
-          var cap=30*(E/wb-1);
+          var cap=rptCapAt(wa,tfa,wb);
           var drop=cap-tfb;
           if(isFinite(drop)&&drop>-4&&drop<14)vals.push(drop);}}}}
   if(!vals.length)return FB_FATIGUE_DEFAULT;
@@ -8627,8 +8636,7 @@ function rptPredictReps(en,si){
   var wa=num(a.weight),wb=num(b.weight),ra=num(a.reps),ia=num(a.rir);
   if(wa==null||wb==null||wa<=0||wb<=0||ra==null||ra<=0)return null;
   var tfa=ra+(ia||0);
-  var E=wa*(1+tfa/30);
-  var cap=30*(E/wb-1);
+  var cap=rptCapAt(wa,tfa,wb);
   var tgt=Math.round(cap-rptFatigueFor(en.exerciseId)-(ia||0));
   if(!isFinite(tgt))return null;
   if(tgt<1)tgt=1;if(tgt>40)tgt=40;
@@ -8985,6 +8993,13 @@ function analyzeSession(date,sessId){var arr=(state.training.liftSessions||{})[d
       else if(pb.maxE1rm!=null&&bestE!=null&&bestE>pb.maxE1rm*1.004)prs.push({name:en.name,type:"e1rm",e:Math.round(bestE),w:bestEw,r:bestEr});
     }
     var rh=num(en.repHigh);
+    /* Owner report 2026-08-05: 15 reps at the same weight for weeks, never a
+       go-up cue. The workout screen DISPLAYS a default 8–12 target when no
+       range was typed, but this analysis silently skipped any entry whose
+       repHigh field was empty — two parts of the app disagreeing about what
+       an empty range means. Double progression now judges against the same
+       default 12 it displays; RPT keeps its own ladder and stays out. */
+    if(rh==null&&(en.progression||"double")!=="rpt")rh=12;
     if(rh!=null){var done=(en.sets||[]).filter(function(st){return st.status!=="skipped"&&num(st.reps)!=null&&num(st.weight)!=null;});
       if(done.length>=1&&done.every(function(st){return num(st.reps)>=rh&&(num(st.rir)==null||num(st.rir)<=1);})){var mw2=null;done.forEach(function(st){var w=num(st.weight);if(mw2==null||w>mw2)mw2=w;});progress.push({name:en.name,next:(mw2!=null?mw2+progStep():null)});}
     }
