@@ -236,6 +236,12 @@ function pfOvPrefs(){try{var v=JSON.parse(localStorage.getItem("wl_pf_overlay")|
   return {on:v.on!==false,strength:Math.min(75,Math.max(10,v.strength!=null?v.strength:48))};}
   catch(e){return {on:true,strength:48};}}
 function pfOvSave(pr){try{localStorage.setItem("wl_pf_overlay",JSON.stringify(pr));}catch(e){}}
+/* Pinned alignment reference (Owner, 2026-08-06): a per-pose photo the ghost
+   ALWAYS uses, so alignment errors never chain week-to-week and a mid-session
+   retake never switches the ghost to today's shot. Device-local like the
+   overlay prefs. No pin → the most recent same-pose photo (prior behavior). */
+function pfRefs(){try{return JSON.parse(localStorage.getItem("wl_pf_refs")||"{}");}catch(e){return {};}}
+function pfRefSave(m){try{localStorage.setItem("wl_pf_refs",JSON.stringify(m));}catch(e){}}
 function pfCamStop(){
   if(!pfCam)return;
   try{((pfCam.stream&&pfCam.stream.getTracks())||[]).forEach(function(t){try{t.stop();}catch(e){}});}catch(e){}
@@ -297,6 +303,7 @@ function pfCamRender(){
     +'<button class="pfcam-ovtgl'+(prefs.on?" on":"")+'" data-act="pfcam:ov" aria-pressed="'+(prefs.on?"true":"false")+'">Ghost</button>'
     +'<input type="range" data-pfov="strength" min="10" max="75" step="1" value="'+prefs.strength+'" aria-label="Overlay strength"'+(prefs.on?"":" disabled")+'>'
     +'<span id="pfcam-ovval" class="pfcam-ovval">'+prefs.strength+'%</span></div>'
+    +'<div id="pfcam-ghostsrc" class="pfcam-ghostsrc"></div>'
     +'<div class="pfcam-tip">'+esc(PF_POSE_TIPS[c.pose]||"")+'</div>'
     +'<div class="pfcam-foot"><button class="pfcam-shutter" data-act="pfcam:shot" aria-label="Take photo"></button></div>'
     +'</div>';
@@ -311,8 +318,13 @@ function pfCamPrev(){
     var mine=all.filter(function(p){return p.kind==="progress"&&p.pose===c.pose&&p.blob;})
       .sort(function(a,b){return (b.ts||0)-(a.ts||0);});
     if(c.prevUrl){try{URL.revokeObjectURL(c.prevUrl);}catch(e){}c.prevUrl=null;}
-    if(!mine.length){img.style.display="none";img.removeAttribute("src");return;}
-    var rec=mine[0];
+    var gsrc=document.getElementById("pfcam-ghostsrc");
+    if(!mine.length){img.style.display="none";img.removeAttribute("src");
+      if(gsrc)gsrc.textContent="";return;}
+    var pinId=pfRefs()[c.pose];
+    var pinned=pinId?mine.filter(function(p){return p.id===pinId;})[0]:null;
+    var rec=pinned||mine[0];
+    if(gsrc)gsrc.textContent="Ghost: "+(pinned?("pinned \u00b7 "+fmtShort(parseISO(rec.week||rec.date))):("last photo \u00b7 "+fmtShort(parseISO(rec.week||rec.date))));
     var show=function(src){if(!pfCam||pfCam!==c)return;var i2=document.getElementById("pfcam-prev");
       if(i2){i2.src=src;i2.style.display="";}};
     if(pfHasNorm(rec))pfDerivative(rec,720,function(du){
@@ -496,12 +508,16 @@ function renderProgressPhotos(){clearPhotoURLs();var curWk=toISO(weekStartFor(0)
         html2+='<div class="wl-posetimeline">';
         items.forEach(function(p){
           var si=sel.indexOf(p.id);
+          var isRef=pfRefs()[pose]===p.id;
           html2+='<div class="wl-tlitem"><button class="wl-tlimg pftl'+(si>=0?" sel":"")+'" data-act="pftl:sel" data-id="'+p.id+'" id="pftl-'+p.id+'" aria-pressed="'+(si>=0)+'">'
+            +(isRef?'<span class="pftl-pin" title="Camera alignment reference">📌</span>':"")
             +(si>=0?'<span class="pftl-badge">'+(si+1)+' ✓</span>':"")
             +'</button><span class="wl-tllbl">'+fmtShort(parseISO(p.week||p.date))+'</span></div>';});
         html2+='<div class="wl-tlitem"><button class="wl-tladd" data-act="pphoto:add" data-pose="'+pose+'" aria-label="Add next check-in"><span>＋</span></button><span class="wl-tllbl">Add next</span></div>';
         html2+='</div>';
+        var refId=pfRefs()[pose];
         html2+='<div class="wl-pftl-actions"><button class="wl-btn '+(sel.length===2?"wl-btn-primary":"wl-btn-ghost")+'" '+(sel.length===2?'data-act="pftl:compare"':'disabled style="opacity:.4"')+'>Compare</button>'
+          +(sel.length===1?'<button class="wl-btn wl-btn-ghost" data-act="pftl:pinref" data-id="'+sel[0]+'">'+(refId===sel[0]?"Unpin reference":"Pin as camera reference")+'</button>':"")
           +(sel.length?'<button class="wl-btn wl-btn-ghost" data-act="pftl:clear">Clear</button>':"")
           +'<span class="wl-hint" style="margin-left:auto">Tap two dates to compare</span></div>';
       }

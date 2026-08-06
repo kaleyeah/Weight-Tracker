@@ -104,6 +104,30 @@ const eq=(a,b,m)=>{if(a!==b)throw new Error((m||'eq')+': '+JSON.stringify(a)+' !
     await page.waitForTimeout(150);
   }
 
+  /* ---- Pinned camera reference (Owner, 2026-08-06) ---- */
+  {
+    await page.evaluate(()=>{state.pfSel=['p-f1'];renderProgressPhotos();});
+    await page.waitForTimeout(300);
+    const s=await page.evaluate(()=>({
+      btn:(document.querySelector('[data-act="pftl:pinref"]')||{}).textContent||''}));
+    test('one selected card offers Pin as camera reference',()=>
+      ok(/Pin as camera reference/.test(s.btn),'btn: '+s.btn));
+    await page.click('[data-act="pftl:pinref"]');
+    await page.waitForTimeout(300);
+    const t=await page.evaluate(()=>({
+      refs:JSON.parse(localStorage.getItem('wl_pf_refs')||'{}'),
+      badge:!!document.querySelector('#pftl-p-f1 .pftl-pin'),
+      btn:(document.querySelector('[data-act="pftl:pinref"]')||{}).textContent||''}));
+    test('pinning stores the per-pose reference and badges the card',()=>{
+      eq(t.refs.front,'p-f1');ok(t.badge,'no pin badge');ok(/Unpin/.test(t.btn));});
+    await page.click('[data-act="pftl:pinref"]');
+    await page.waitForTimeout(300);
+    const u=await page.evaluate(()=>JSON.parse(localStorage.getItem('wl_pf_refs')||'{}'));
+    test('unpinning clears it — ghost falls back to most recent',()=>eq(u.front,undefined));
+    await page.evaluate(()=>{state.pfSel=[];renderProgressPhotos();});
+    await page.waitForTimeout(200);
+  }
+
   /* ---- M5: the queue, oldest first; narrow hint only when relevant ---- */
   {
     await page.click('[data-act="pfleg:start"]');

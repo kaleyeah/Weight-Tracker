@@ -914,6 +914,9 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 .pftl{position:relative;}
 .wl-tlimg.pftl{aspect-ratio:3/4;height:auto;width:86px;background-color:var(--bg2);}
 .wl-tlimg.pftl.sel{border:2px solid var(--accent);}
+.pftl-pin{position:absolute;top:4px;left:4px;font-size:12px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.8));}
+.pfcam-ghostsrc{color:var(--faint);font-size:11px;text-align:center;margin-top:4px;}
+.pfcam-ghostsrc:empty{display:none;}
 .pftl-badge{position:absolute;top:4px;right:4px;background:var(--accent);color:#1a1508;font-size:10px;font-weight:800;border-radius:999px;padding:2px 6px;}
 .wl-tladd{width:86px;aspect-ratio:3/4;border-radius:10px;border:1px dashed var(--line);background:var(--bg2);color:var(--muted);font-size:22px;}
 .wl-pftl-actions{display:flex;gap:8px;align-items:center;margin-top:10px;}
@@ -2055,9 +2058,11 @@ function tcChartSVG(cfg) {
     }
     s += '<path d="' + line + '" fill="none" stroke="' + C.line + '" stroke-width="' + (subdued ? 1.1 : 2) + '"' + (subdued ? ' opacity="0.45"' : "") + ' stroke-linejoin="round" stroke-linecap="round"/>';
   }
-  /* points (tap targets provided by the view via a transparent overlay ring) */
+  /* points: OPEN circles like the approved reference (Owner, 2026-08-06) —
+     line-colored ring, surface-colored center, never filled */
+  var pf = C.pointFill || "#10151E";
   pts.forEach(function (p) {
-    s += '<circle data-act="t2:pt" data-date="' + p.date + '" data-value="' + p.value + '" cx="' + sx(p.date) + '" cy="' + sy(p.value) + '" r="' + (subdued ? 2 : 3) + '" fill="' + C.line + '"' + (subdued ? ' opacity="0.5"' : "") + "/>";
+    s += '<circle data-act="t2:pt" data-date="' + p.date + '" data-value="' + p.value + '" cx="' + sx(p.date) + '" cy="' + sy(p.value) + '" r="' + (subdued ? 2.4 : 4) + '" fill="' + pf + '" stroke="' + C.line + '" stroke-width="' + (subdued ? 1.1 : 1.8) + '"' + (subdued ? ' opacity="0.55"' : "") + "/>";
     s += '<circle data-act="t2:pt" data-date="' + p.date + '" data-value="' + p.value + '" cx="' + sx(p.date) + '" cy="' + sy(p.value) + '" r="13" fill="transparent"/>';
   });
   /* W-mode per-point value labels, alternating above/below when crowded */
@@ -2071,7 +2076,7 @@ function tcChartSVG(cfg) {
   if (cfg.mode === "M") {
     var lp = pts[pts.length - 1], lx = sx(lp.date);
     s += '<text x="' + Math.min(lx, W2 - padR - 2) + '" y="' + (sy(lp.value) - 8) + '" fill="' + C.accent + '" font-size="10" font-weight="800" text-anchor="' + (lx > W2 - 60 ? "end" : "middle") + '">' + tcNum(lp.value, cfg.dec) + "</text>";
-    s += '<circle cx="' + lx + '" cy="' + sy(lp.value) + '" r="4.2" fill="none" stroke="' + C.accent + '" stroke-width="1.6"/>';
+    s += '<circle cx="' + lx + '" cy="' + sy(lp.value) + '" r="5.6" fill="none" stroke="' + C.accent + '" stroke-width="1.6"/>';
   }
   /* 6M month-average segments + adjacent-month deltas */
   if (cfg.mode === "6M") {
@@ -3942,7 +3947,7 @@ function t2InnerHTML(tab,u){
       /* Owner 2026-08-05: the data layer reads BLUE like the approved reference
       — the existing CH.reg token, so no new palette; amber stays on the app
       chrome (tabs, buttons, badges) */
-      colors:{axis:CH.axis,grid:CH.grid,line:CH.reg,accent:CH.reg,fill:"rgba(124,147,245,0.10)"},
+      colors:{axis:CH.axis,grid:CH.grid,line:CH.reg,accent:CH.reg,fill:"rgba(124,147,245,0.10)",pointFill:"#10151E"},
       ariaLabel:esc(cfg.label)+" trend, "+cur.count+" measurement"+(cur.count===1?"":"s")+", average "+tcNum(cur.avg,cfg.dec)+" "+esc(cfg.unit)});
     /* text alternative + tapped-point details */
     var pt=state.t2Pt;
@@ -7901,6 +7906,12 @@ function pfOvPrefs(){try{var v=JSON.parse(localStorage.getItem("wl_pf_overlay")|
   return {on:v.on!==false,strength:Math.min(75,Math.max(10,v.strength!=null?v.strength:48))};}
   catch(e){return {on:true,strength:48};}}
 function pfOvSave(pr){try{localStorage.setItem("wl_pf_overlay",JSON.stringify(pr));}catch(e){}}
+/* Pinned alignment reference (Owner, 2026-08-06): a per-pose photo the ghost
+   ALWAYS uses, so alignment errors never chain week-to-week and a mid-session
+   retake never switches the ghost to today's shot. Device-local like the
+   overlay prefs. No pin → the most recent same-pose photo (prior behavior). */
+function pfRefs(){try{return JSON.parse(localStorage.getItem("wl_pf_refs")||"{}");}catch(e){return {};}}
+function pfRefSave(m){try{localStorage.setItem("wl_pf_refs",JSON.stringify(m));}catch(e){}}
 function pfCamStop(){
   if(!pfCam)return;
   try{((pfCam.stream&&pfCam.stream.getTracks())||[]).forEach(function(t){try{t.stop();}catch(e){}});}catch(e){}
@@ -7962,6 +7973,7 @@ function pfCamRender(){
     +'<button class="pfcam-ovtgl'+(prefs.on?" on":"")+'" data-act="pfcam:ov" aria-pressed="'+(prefs.on?"true":"false")+'">Ghost</button>'
     +'<input type="range" data-pfov="strength" min="10" max="75" step="1" value="'+prefs.strength+'" aria-label="Overlay strength"'+(prefs.on?"":" disabled")+'>'
     +'<span id="pfcam-ovval" class="pfcam-ovval">'+prefs.strength+'%</span></div>'
+    +'<div id="pfcam-ghostsrc" class="pfcam-ghostsrc"></div>'
     +'<div class="pfcam-tip">'+esc(PF_POSE_TIPS[c.pose]||"")+'</div>'
     +'<div class="pfcam-foot"><button class="pfcam-shutter" data-act="pfcam:shot" aria-label="Take photo"></button></div>'
     +'</div>';
@@ -7976,8 +7988,13 @@ function pfCamPrev(){
     var mine=all.filter(function(p){return p.kind==="progress"&&p.pose===c.pose&&p.blob;})
       .sort(function(a,b){return (b.ts||0)-(a.ts||0);});
     if(c.prevUrl){try{URL.revokeObjectURL(c.prevUrl);}catch(e){}c.prevUrl=null;}
-    if(!mine.length){img.style.display="none";img.removeAttribute("src");return;}
-    var rec=mine[0];
+    var gsrc=document.getElementById("pfcam-ghostsrc");
+    if(!mine.length){img.style.display="none";img.removeAttribute("src");
+      if(gsrc)gsrc.textContent="";return;}
+    var pinId=pfRefs()[c.pose];
+    var pinned=pinId?mine.filter(function(p){return p.id===pinId;})[0]:null;
+    var rec=pinned||mine[0];
+    if(gsrc)gsrc.textContent="Ghost: "+(pinned?("pinned \u00b7 "+fmtShort(parseISO(rec.week||rec.date))):("last photo \u00b7 "+fmtShort(parseISO(rec.week||rec.date))));
     var show=function(src){if(!pfCam||pfCam!==c)return;var i2=document.getElementById("pfcam-prev");
       if(i2){i2.src=src;i2.style.display="";}};
     if(pfHasNorm(rec))pfDerivative(rec,720,function(du){
@@ -8161,12 +8178,16 @@ function renderProgressPhotos(){clearPhotoURLs();var curWk=toISO(weekStartFor(0)
         html2+='<div class="wl-posetimeline">';
         items.forEach(function(p){
           var si=sel.indexOf(p.id);
+          var isRef=pfRefs()[pose]===p.id;
           html2+='<div class="wl-tlitem"><button class="wl-tlimg pftl'+(si>=0?" sel":"")+'" data-act="pftl:sel" data-id="'+p.id+'" id="pftl-'+p.id+'" aria-pressed="'+(si>=0)+'">'
+            +(isRef?'<span class="pftl-pin" title="Camera alignment reference">📌</span>':"")
             +(si>=0?'<span class="pftl-badge">'+(si+1)+' ✓</span>':"")
             +'</button><span class="wl-tllbl">'+fmtShort(parseISO(p.week||p.date))+'</span></div>';});
         html2+='<div class="wl-tlitem"><button class="wl-tladd" data-act="pphoto:add" data-pose="'+pose+'" aria-label="Add next check-in"><span>＋</span></button><span class="wl-tllbl">Add next</span></div>';
         html2+='</div>';
+        var refId=pfRefs()[pose];
         html2+='<div class="wl-pftl-actions"><button class="wl-btn '+(sel.length===2?"wl-btn-primary":"wl-btn-ghost")+'" '+(sel.length===2?'data-act="pftl:compare"':'disabled style="opacity:.4"')+'>Compare</button>'
+          +(sel.length===1?'<button class="wl-btn wl-btn-ghost" data-act="pftl:pinref" data-id="'+sel[0]+'">'+(refId===sel[0]?"Unpin reference":"Pin as camera reference")+'</button>':"")
           +(sel.length?'<button class="wl-btn wl-btn-ghost" data-act="pftl:clear">Clear</button>':"")
           +'<span class="wl-hint" style="margin-left:auto">Tap two dates to compare</span></div>';
       }
@@ -9858,6 +9879,11 @@ var lt=getLastSync();toast((syncLabel()||"Sync")+(lt?" \u00b7 "+fmtClock(lt):"")
     var _i=_s.indexOf(_id);
     if(_i>=0)_s.splice(_i,1);else{if(_s.length>=2)_s.shift();_s.push(_id);}
     state.pfSel=_s;renderProgressPhotos();return;}
+  if(a==="pftl:pinref"){var _rid=el.getAttribute("data-id");var _rp2=pfRefs();
+    var _pz=state.pfTlPose||"front";
+    if(_rp2[_pz]===_rid){delete _rp2[_pz];toast("Reference unpinned — ghost follows your latest photo");}
+    else{_rp2[_pz]=_rid;toast("Pinned — the camera ghost for this pose now always uses this photo");}
+    pfRefSave(_rp2);renderProgressPhotos();return;}
   if(a==="pftl:compare"){if((state.pfSel||[]).length===2){state.pfCompare=true;renderProgressPhotos();}return;}
   if(a==="pftl:clear"){state.pfSel=[];state.pfCompare=false;renderProgressPhotos();return;}
   if(a==="pfcmp:close"){state.pfCompare=false;renderProgressPhotos();return;}

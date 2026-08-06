@@ -45,12 +45,15 @@ const eq=(a,b,m)=>{if(a!==b)throw new Error((m||'eq')+': '+JSON.stringify(a)+' !
   await page.goto('http://127.0.0.1:'+server.address().port,{waitUntil:'load'});
   await page.waitForTimeout(900);
 
-  /* seed ONE existing front photo so the ghost overlay has something to show */
+  /* seed TWO front photos: an older BROWN one (pinned as the reference) and a
+     newer GREEN one — the ghost must honor the pin, not recency */
   await page.evaluate(async()=>{
-    const cv=document.createElement('canvas');cv.width=900;cv.height=1200;
-    const cx=cv.getContext('2d');cx.fillStyle='#884400';cx.fillRect(0,0,900,1200);
-    const blob=await new Promise(r=>cv.toBlob(r,'image/jpeg',0.85));
-    await idbAdd({id:'prog-prev-front',date:'2026-07-27',week:'2026-07-27',pose:'front',kind:'progress',blob:blob,ts:Date.now()-6e8});
+    const mk=async(color)=>{const cv=document.createElement('canvas');cv.width=900;cv.height=1200;
+      const cx=cv.getContext('2d');cx.fillStyle=color;cx.fillRect(0,0,900,1200);
+      return await new Promise(r=>cv.toBlob(r,'image/jpeg',0.85));};
+    await idbAdd({id:'prog-prev-front',date:'2026-07-27',week:'2026-07-27',pose:'front',kind:'progress',blob:await mk('#884400'),ts:Date.now()-6e8});
+    await idbAdd({id:'prog-new-front',date:'2026-08-03',week:'2026-08-03',pose:'front',kind:'progress',blob:await mk('#00aa44'),ts:Date.now()-1e6});
+    localStorage.setItem('wl_pf_refs',JSON.stringify({front:'prog-prev-front'}));
     state.view='photos';render();});
   await page.waitForTimeout(400);
 
@@ -88,6 +91,18 @@ const eq=(a,b,m)=>{if(a!==b)throw new Error((m||'eq')+': '+JSON.stringify(a)+' !
       ok(s.live,'tracks not live');eq(s.guides,3,'guide lines');});
     test('the previous same-pose photo ghosts at the default 48%',()=>{
       ok(s.ghostShown,'no ghost');eq(Math.round(s.ghostOpacity*100),48);eq(String(s.slider),'48');});
+    const gh=await page.evaluate(async()=>{
+      const g=document.getElementById('pfcam-prev');
+      const px=await new Promise(res=>{const im=new Image();im.onload=()=>{
+        const c2=document.createElement('canvas');c2.width=im.width;c2.height=im.height;
+        const x2=c2.getContext('2d');x2.drawImage(im,0,0);
+        res(Array.from(x2.getImageData(Math.round(im.width/2),Math.round(im.height/2),1,1).data.slice(0,3)));};
+        im.onerror=()=>res(null);im.src=g.src;});
+      return {px:px,label:(document.getElementById('pfcam-ghostsrc')||{}).textContent||''};});
+    test('PINNED reference wins over recency — the ghost is the older photo',()=>{
+      ok(gh.px&&gh.px[0]>90&&gh.px[1]<90,'ghost center px: '+JSON.stringify(gh.px)+' (expected brown, not green)');});
+    test('the camera says which ghost it is using',()=>
+      ok(/Ghost: pinned/.test(gh.label),'label: '+gh.label));
   }
 
   /* ---- overlay strength: live, clamped 10–75, remembered locally ---- */

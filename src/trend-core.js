@@ -224,9 +224,11 @@ function tcChartSVG(cfg) {
     }
     s += '<path d="' + line + '" fill="none" stroke="' + C.line + '" stroke-width="' + (subdued ? 1.1 : 2) + '"' + (subdued ? ' opacity="0.45"' : "") + ' stroke-linejoin="round" stroke-linecap="round"/>';
   }
-  /* points (tap targets provided by the view via a transparent overlay ring) */
+  /* points: OPEN circles like the approved reference (Owner, 2026-08-06) —
+     line-colored ring, surface-colored center, never filled */
+  var pf = C.pointFill || "#10151E";
   pts.forEach(function (p) {
-    s += '<circle data-act="t2:pt" data-date="' + p.date + '" data-value="' + p.value + '" cx="' + sx(p.date) + '" cy="' + sy(p.value) + '" r="' + (subdued ? 2 : 3) + '" fill="' + C.line + '"' + (subdued ? ' opacity="0.5"' : "") + "/>";
+    s += '<circle data-act="t2:pt" data-date="' + p.date + '" data-value="' + p.value + '" cx="' + sx(p.date) + '" cy="' + sy(p.value) + '" r="' + (subdued ? 2.4 : 4) + '" fill="' + pf + '" stroke="' + C.line + '" stroke-width="' + (subdued ? 1.1 : 1.8) + '"' + (subdued ? ' opacity="0.55"' : "") + "/>";
     s += '<circle data-act="t2:pt" data-date="' + p.date + '" data-value="' + p.value + '" cx="' + sx(p.date) + '" cy="' + sy(p.value) + '" r="13" fill="transparent"/>';
   });
   /* W-mode per-point value labels, alternating above/below when crowded */
@@ -240,7 +242,7 @@ function tcChartSVG(cfg) {
   if (cfg.mode === "M") {
     var lp = pts[pts.length - 1], lx = sx(lp.date);
     s += '<text x="' + Math.min(lx, W2 - padR - 2) + '" y="' + (sy(lp.value) - 8) + '" fill="' + C.accent + '" font-size="10" font-weight="800" text-anchor="' + (lx > W2 - 60 ? "end" : "middle") + '">' + tcNum(lp.value, cfg.dec) + "</text>";
-    s += '<circle cx="' + lx + '" cy="' + sy(lp.value) + '" r="4.2" fill="none" stroke="' + C.accent + '" stroke-width="1.6"/>';
+    s += '<circle cx="' + lx + '" cy="' + sy(lp.value) + '" r="5.6" fill="none" stroke="' + C.accent + '" stroke-width="1.6"/>';
   }
   /* 6M month-average segments + adjacent-month deltas */
   if (cfg.mode === "6M") {
