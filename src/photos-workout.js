@@ -104,6 +104,39 @@ function processImage(file){return new Promise(function(res){
       cv.toBlob(function(b){res(b||file);},"image/jpeg",0.85);};
     img.onerror=function(){URL.revokeObjectURL(url);res(file);};img.src=url;
   }catch(e){res(file);}});}
+
+/* ==== Milestone 1 (progress-photo package): deterministic 3:4 derivative ====
+   Reads the AUTHORITATIVE source blob + a validated normalization and renders
+   the standardized view. The source is never re-encoded or written back —
+   association protection is that the normalization lives ON the record and
+   the derivative exists only in this session cache, keyed by pfDerivKey so an
+   edited normalization can never be served a stale derivative. No call sites
+   render this yet (legacy display is deliberately unchanged in M1); the
+   upload-review flow (M2) and the pose timeline (M4) consume it. */
+var _pfCache={},_pfCacheKeys=[];
+function pfDerivative(rec,maxH,cb){
+  if(!pfHasNorm(rec)||!rec.blob){cb(null);return;}
+  var key=pfDerivKey(rec.id,rec.normalization);
+  if(_pfCache[key]){cb(_pfCache[key],key);return;}
+  var url=URL.createObjectURL(rec.blob);var img=new Image();
+  img.onload=function(){URL.revokeObjectURL(url);
+    try{
+      var rect=pfCropRect(rec.normalization.crop,img.width,img.height);
+      if(!rect){cb(null);return;}
+      var outH=Math.min(maxH||1024,rect.height),outW=Math.round(outH*3/4);
+      var cv=document.createElement("canvas");cv.width=outW;cv.height=outH;
+      var cx=cv.getContext("2d");
+      var rot=(rec.normalization.rotationDegrees||0)*Math.PI/180;
+      cx.save();cx.translate(outW/2,outH/2);if(rot)cx.rotate(rot);
+      cx.drawImage(img,rect.x,rect.y,rect.width,rect.height,-outW/2,-outH/2,outW,outH);
+      cx.restore();
+      var du=cv.toDataURL("image/jpeg",0.85);
+      _pfCache[key]=du;_pfCacheKeys.push(key);
+      while(_pfCacheKeys.length>60)delete _pfCache[_pfCacheKeys.shift()];
+      cb(du,key);
+    }catch(e){cb(null);}};
+  img.onerror=function(){URL.revokeObjectURL(url);cb(null);};
+  img.src=url;}
 /* ---- progress-photo backup / restore (device-only, never synced) ---- */
 function progressPhotos(){return idbAll().then(function(all){return all.filter(function(p){return p.kind==="progress";});});}
 function blobToDataURL(blob){return new Promise(function(res,rej){var r=new FileReader();r.onload=function(){res(r.result);};r.onerror=function(){rej(r.error);};r.readAsDataURL(blob);});}

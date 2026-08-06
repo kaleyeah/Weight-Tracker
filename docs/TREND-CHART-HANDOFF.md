@@ -64,3 +64,34 @@
 
 No production data was migrated, rewritten, or touched — the component is
 read-only over the existing stores.
+
+---
+
+# Progress-photo package — Milestone 1 record (same night)
+
+Delivered per the implementation plan's gate: the non-destructive transform
+foundation, NO camera, NO UI change (legacy rendering deliberately untouched).
+
+- `src/photo-frame.js` (NEW, UMD) — pure geometry + metadata: normalization
+  validation (schema 1, 3:4 only, crop in [0,1], rotation capped at ±7° —
+  leveling, not art), deterministic centered auto-suggestion, pixel-rect
+  computation with clamping and ratio re-truing, pan/zoom adjustment math for
+  the M2 crop editor, and the derivative cache key (photoId+algorithm+exact
+  transform; confidence/mode deliberately excluded — they describe, they
+  don't transform). 21/21 unit tests.
+- `pfDerivative` in `src/photos-workout.js` — renders the standardized 3:4
+  view from the AUTHORITATIVE blob + validated normalization; session cache
+  keyed by pfDerivKey (edited normalization ⇒ new key, stale derivative
+  unreachable); source never re-encoded or written back.
+- `tests/browser/c27-photo-frame.browser.test.js` — 10/10: quadrant-colored
+  fixture proves WHICH source window the derivative shows by pixel probe;
+  exact 3:4; deterministic + cached; invalidation on edit; source blob
+  BYTE-IDENTICAL afterward; invalid metadata degrades to legacy; legacy
+  records untouched; fixtures cleaned from IDB.
+
+Incident during the build, recorded honestly: the generator was first
+inserted mid-`processImage` (a text-anchor slice), which broke photo
+preprocessing and left the new function scoped. c27's first run caught it
+(ReferenceError), the block was relocated to top level, and c24 re-proved the
+photo paths. Landmark-based insertion needs brace-awareness — the same lesson
+as the .460 invite-handler cut.
