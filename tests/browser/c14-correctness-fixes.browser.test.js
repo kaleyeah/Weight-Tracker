@@ -223,7 +223,11 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
       p1:{lm:p1.leanmass['2026-07-31'],wa:p1.waist['2026-07-31'],n:p1.count},
       p2:{lm:p2.leanmass['2026-07-31'],wa:p2.waist['2026-07-31']},
       p3:p3.leanmass,
-      tabs:seg, chartHasLatest:!!card&&/latest 152\.4/.test(card.textContent)
+      /* trend component (2026-08-06): the old card printed "latest 152.4" in
+         a hint line; the component shows the entry as the M-mode latest-point
+         label / W value label instead. The PROTECTION is unchanged: the value
+         the athlete just saved must appear on the chart card. */
+      tabs:seg, chartHasLatest:!!card&&/152\.4/.test(card.textContent)
     };
   });
   test('LBM: the weight check-in has a Lean mass field that saves',()=>{notOk(lbm.fail,JSON.stringify(lbm));eq(String(lbm.val),'152.4');});
