@@ -2065,11 +2065,11 @@ function tcChartSVG(cfg) {
     s += '<circle data-act="t2:pt" data-date="' + p.date + '" data-value="' + p.value + '" cx="' + sx(p.date) + '" cy="' + sy(p.value) + '" r="' + (subdued ? 2.4 : 4) + '" fill="' + pf + '" stroke="' + C.line + '" stroke-width="' + (subdued ? 1.1 : 1.8) + '"' + (subdued ? ' opacity="0.55"' : "") + "/>";
     s += '<circle data-act="t2:pt" data-date="' + p.date + '" data-value="' + p.value + '" cx="' + sx(p.date) + '" cy="' + sy(p.value) + '" r="13" fill="transparent"/>';
   });
-  /* W-mode per-point value labels, alternating above/below when crowded */
+  /* W-mode per-point value labels — always ABOVE the circles (Owner,
+     2026-08-06, matching his reference) */
   if (cfg.mode === "W") {
-    pts.forEach(function (p, j) {
-      var above = !(j % 2 && pts.length > 4);
-      s += '<text x="' + sx(p.date) + '" y="' + (sy(p.value) + (above ? -8 : 14)) + '" fill="' + C.accent + '" font-size="9" font-weight="700" text-anchor="middle">' + tcNum(p.value, cfg.dec) + "</text>";
+    pts.forEach(function (p) {
+      s += '<text x="' + sx(p.date) + '" y="' + (sy(p.value) - 9) + '" fill="' + C.accent + '" font-size="9" font-weight="700" text-anchor="middle">' + tcNum(p.value, cfg.dec) + "</text>";
     });
   }
   /* M-mode latest-value label */
@@ -5180,6 +5180,30 @@ function srBodyCompHTML(inp){
        chg+'<span class="bc-d">'+srEsc(r.stale?("last logged "+r.dateLabel):r.dateLabel)+'</span></div>';});
   h+='<div class="wl-hint">Dates show the last entry for each metric. Change is against the previous entry before this week. Lean mass holding or rising while weight falls means muscle is being kept.</div>';
   return h+'</div>';}
+/* Lean body mass on the report (Owner, 2026-08-06): weekly average with the
+   week-over-week move, plus the full history as a chart — the fat-vs-muscle
+   question lives here. Chart comes from the same tcChartSVG the app uses, so
+   the export can never disagree with the Progress tab. */
+function srLbmHTML(inp){
+  var L=inp.lbm;if(!L||!L.series.length)return "";
+  var u=srEsc(inp.units);
+  var h='<div class="wl-card"><div class="wl-card-head"><span>Lean body mass</span>'+
+    '<span class="wl-count">'+L.series.length+' reading'+(L.series.length===1?'':'s')+'</span></div>';
+  if(L.cur.avg!=null){
+    var chg="";
+    if(L.chg!=null&&L.chg!==0)chg=' <span class="bc-chg '+(L.chg>0?"good":"bad")+'">'+(L.chg>0?"&#8593;":"&#8595;")+' '+srR1(Math.abs(L.chg))+' '+u+' vs last week</span>';
+    else if(L.chg===0)chg=' <span class="bc-chg flat">level with last week</span>';
+    h+='<div class="bc-row"><span class="bc-k">This week avg</span><span class="bc-v">'+srR1(L.cur.avg)+'<em> '+u+'</em></span>'+chg+'<span class="bc-d">'+L.cur.n+' reading'+(L.cur.n===1?'':'s')+(L.cur.derived?' ('+L.cur.derived+' calculated)':'')+'</span></div>';
+    if(L.prev.avg!=null)h+='<div class="bc-row"><span class="bc-k">Last week avg</span><span class="bc-v">'+srR1(L.prev.avg)+'<em> '+u+'</em></span><span class="bc-chg"></span><span class="bc-d">'+L.prev.n+' reading'+(L.prev.n===1?'':'s')+'</span></div>';
+  }else h+='<div class="wl-hint">No lean-mass readings this week yet.</div>';
+  var first=L.series[0].date,last=L.series[L.series.length-1].date;
+  h+='<div class="spark">'+tcChartSVG({mode:"M",startISO:first,endISO:last,
+    points:L.series,avg:null,dec:1,unit:inp.units,
+    colors:{axis:"#5A6474",grid:"#252D3A",line:"#F5B944",accent:"#F5B944",fill:"rgba(245,181,68,0.08)",pointFill:"#10151E"},
+    ariaLabel:"Lean body mass history"})+'</div>';
+  h+='<div class="wl-hint">Held or rising lean mass while weight falls means the loss is FAT and muscle is being kept — the whole point. Calculated readings come from that day\u2019s weight and body-fat pair; scale readings are used as logged.</div>';
+  return h+'</div>';}
+
 /* the Summary tab's weekly-average hero, change pill included */
 function srHeroHTML(inp){
   var u=srEsc(inp.units),he=inp.hero;
@@ -5405,6 +5429,7 @@ function srReportHTML(inp){
   h+=srPhotosHTML(inp.photos)+"\n";
   h+=srHeroHTML(inp)+"\n";
   h+=srBodyCompHTML(inp)+"\n";
+  h+=srLbmHTML(inp)+"\n";
   h+=srChipsHTML(inp)+"\n";
   h+=srTotalsHTML(inp)+"\n";
   h+=srMacrosHTML(inp)+"\n";
@@ -5503,11 +5528,32 @@ function srInput(offset){
     averages:averages,activity:activity,
     daily:{label:fmtShort(M.ws)+" – "+fmtShort(M.we),rows:dailyRows},
     bodycomp:srBodyCompInput(offset),
+    lbm:srLbmInput(offset),
     cardio:srCardioInput(offset),
     sessions:sessions,assumed:!!M.anyAssumed};}
 /* Latest body-composition readings for the week, with the move since the
    previous reading. Falls back to the most recent reading ever, flagged stale,
    so a coach still sees where the athlete stands. */
+/* Lean-mass series under the SAME canonical rule as the trend chart: a
+   stored (scale) reading wins its date; otherwise weight×(1−bf%) from the
+   same-day pair, marked derived. (Owner, 2026-08-06: weekly average, the
+   week-over-week move, and the full history belong on the progress report —
+   "is it body fat I'm losing or muscle mass".) */
+function srLbmSeries(){
+  var wObs=(state.weights||[]).map(function(x){return {date:x.date,value:num(x.weight)};})
+    .filter(function(x){return x.value!=null;});
+  return tcLbmObs(wObs,t2MapObs(state.bodyfat),t2MapObs(state.leanmass));}
+function srLbmInput(offset){
+  var series=srLbmSeries();
+  if(!series.length)return null;
+  var wk=function(off){var ds=weekDays(off).map(function(d){return toISO(d);});
+    var pts=series.filter(function(o){return ds.indexOf(o.date)>=0;});
+    var sum=0;pts.forEach(function(o){sum+=o.value;});
+    return {n:pts.length,derived:pts.filter(function(o){return o.derived;}).length,
+      avg:pts.length?sum/pts.length:null};};
+  var cur=wk(offset),prev=wk(offset-1);
+  return {series:series,cur:cur,prev:prev,
+    chg:(cur.avg!=null&&prev.avg!=null)?Math.round((cur.avg-prev.avg)*10)/10:null};}
 function srBodyCompInput(offset){
   var days=weekDays(offset).map(function(d){return toISO(d);});
   var startISO=days[0],u=state.settings.units;

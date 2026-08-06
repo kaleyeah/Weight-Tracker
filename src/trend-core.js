@@ -231,11 +231,11 @@ function tcChartSVG(cfg) {
     s += '<circle data-act="t2:pt" data-date="' + p.date + '" data-value="' + p.value + '" cx="' + sx(p.date) + '" cy="' + sy(p.value) + '" r="' + (subdued ? 2.4 : 4) + '" fill="' + pf + '" stroke="' + C.line + '" stroke-width="' + (subdued ? 1.1 : 1.8) + '"' + (subdued ? ' opacity="0.55"' : "") + "/>";
     s += '<circle data-act="t2:pt" data-date="' + p.date + '" data-value="' + p.value + '" cx="' + sx(p.date) + '" cy="' + sy(p.value) + '" r="13" fill="transparent"/>';
   });
-  /* W-mode per-point value labels, alternating above/below when crowded */
+  /* W-mode per-point value labels — always ABOVE the circles (Owner,
+     2026-08-06, matching his reference) */
   if (cfg.mode === "W") {
-    pts.forEach(function (p, j) {
-      var above = !(j % 2 && pts.length > 4);
-      s += '<text x="' + sx(p.date) + '" y="' + (sy(p.value) + (above ? -8 : 14)) + '" fill="' + C.accent + '" font-size="9" font-weight="700" text-anchor="middle">' + tcNum(p.value, cfg.dec) + "</text>";
+    pts.forEach(function (p) {
+      s += '<text x="' + sx(p.date) + '" y="' + (sy(p.value) - 9) + '" fill="' + C.accent + '" font-size="9" font-weight="700" text-anchor="middle">' + tcNum(p.value, cfg.dec) + "</text>";
     });
   }
   /* M-mode latest-value label */

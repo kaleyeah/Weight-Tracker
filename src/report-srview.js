@@ -100,6 +100,30 @@ function srBodyCompHTML(inp){
        chg+'<span class="bc-d">'+srEsc(r.stale?("last logged "+r.dateLabel):r.dateLabel)+'</span></div>';});
   h+='<div class="wl-hint">Dates show the last entry for each metric. Change is against the previous entry before this week. Lean mass holding or rising while weight falls means muscle is being kept.</div>';
   return h+'</div>';}
+/* Lean body mass on the report (Owner, 2026-08-06): weekly average with the
+   week-over-week move, plus the full history as a chart — the fat-vs-muscle
+   question lives here. Chart comes from the same tcChartSVG the app uses, so
+   the export can never disagree with the Progress tab. */
+function srLbmHTML(inp){
+  var L=inp.lbm;if(!L||!L.series.length)return "";
+  var u=srEsc(inp.units);
+  var h='<div class="wl-card"><div class="wl-card-head"><span>Lean body mass</span>'+
+    '<span class="wl-count">'+L.series.length+' reading'+(L.series.length===1?'':'s')+'</span></div>';
+  if(L.cur.avg!=null){
+    var chg="";
+    if(L.chg!=null&&L.chg!==0)chg=' <span class="bc-chg '+(L.chg>0?"good":"bad")+'">'+(L.chg>0?"&#8593;":"&#8595;")+' '+srR1(Math.abs(L.chg))+' '+u+' vs last week</span>';
+    else if(L.chg===0)chg=' <span class="bc-chg flat">level with last week</span>';
+    h+='<div class="bc-row"><span class="bc-k">This week avg</span><span class="bc-v">'+srR1(L.cur.avg)+'<em> '+u+'</em></span>'+chg+'<span class="bc-d">'+L.cur.n+' reading'+(L.cur.n===1?'':'s')+(L.cur.derived?' ('+L.cur.derived+' calculated)':'')+'</span></div>';
+    if(L.prev.avg!=null)h+='<div class="bc-row"><span class="bc-k">Last week avg</span><span class="bc-v">'+srR1(L.prev.avg)+'<em> '+u+'</em></span><span class="bc-chg"></span><span class="bc-d">'+L.prev.n+' reading'+(L.prev.n===1?'':'s')+'</span></div>';
+  }else h+='<div class="wl-hint">No lean-mass readings this week yet.</div>';
+  var first=L.series[0].date,last=L.series[L.series.length-1].date;
+  h+='<div class="spark">'+tcChartSVG({mode:"M",startISO:first,endISO:last,
+    points:L.series,avg:null,dec:1,unit:inp.units,
+    colors:{axis:"#5A6474",grid:"#252D3A",line:"#F5B944",accent:"#F5B944",fill:"rgba(245,181,68,0.08)",pointFill:"#10151E"},
+    ariaLabel:"Lean body mass history"})+'</div>';
+  h+='<div class="wl-hint">Held or rising lean mass while weight falls means the loss is FAT and muscle is being kept — the whole point. Calculated readings come from that day\u2019s weight and body-fat pair; scale readings are used as logged.</div>';
+  return h+'</div>';}
+
 /* the Summary tab's weekly-average hero, change pill included */
 function srHeroHTML(inp){
   var u=srEsc(inp.units),he=inp.hero;
@@ -325,6 +349,7 @@ function srReportHTML(inp){
   h+=srPhotosHTML(inp.photos)+"\n";
   h+=srHeroHTML(inp)+"\n";
   h+=srBodyCompHTML(inp)+"\n";
+  h+=srLbmHTML(inp)+"\n";
   h+=srChipsHTML(inp)+"\n";
   h+=srTotalsHTML(inp)+"\n";
   h+=srMacrosHTML(inp)+"\n";

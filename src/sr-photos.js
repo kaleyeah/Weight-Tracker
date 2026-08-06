@@ -82,11 +82,32 @@ function srInput(offset){
     averages:averages,activity:activity,
     daily:{label:fmtShort(M.ws)+" – "+fmtShort(M.we),rows:dailyRows},
     bodycomp:srBodyCompInput(offset),
+    lbm:srLbmInput(offset),
     cardio:srCardioInput(offset),
     sessions:sessions,assumed:!!M.anyAssumed};}
 /* Latest body-composition readings for the week, with the move since the
    previous reading. Falls back to the most recent reading ever, flagged stale,
    so a coach still sees where the athlete stands. */
+/* Lean-mass series under the SAME canonical rule as the trend chart: a
+   stored (scale) reading wins its date; otherwise weight×(1−bf%) from the
+   same-day pair, marked derived. (Owner, 2026-08-06: weekly average, the
+   week-over-week move, and the full history belong on the progress report —
+   "is it body fat I'm losing or muscle mass".) */
+function srLbmSeries(){
+  var wObs=(state.weights||[]).map(function(x){return {date:x.date,value:num(x.weight)};})
+    .filter(function(x){return x.value!=null;});
+  return tcLbmObs(wObs,t2MapObs(state.bodyfat),t2MapObs(state.leanmass));}
+function srLbmInput(offset){
+  var series=srLbmSeries();
+  if(!series.length)return null;
+  var wk=function(off){var ds=weekDays(off).map(function(d){return toISO(d);});
+    var pts=series.filter(function(o){return ds.indexOf(o.date)>=0;});
+    var sum=0;pts.forEach(function(o){sum+=o.value;});
+    return {n:pts.length,derived:pts.filter(function(o){return o.derived;}).length,
+      avg:pts.length?sum/pts.length:null};};
+  var cur=wk(offset),prev=wk(offset-1);
+  return {series:series,cur:cur,prev:prev,
+    chg:(cur.avg!=null&&prev.avg!=null)?Math.round((cur.avg-prev.avg)*10)/10:null};}
 function srBodyCompInput(offset){
   var days=weekDays(offset).map(function(d){return toISO(d);});
   var startISO=days[0],u=state.settings.units;

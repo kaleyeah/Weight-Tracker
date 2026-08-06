@@ -84,6 +84,40 @@ const eq=(a,b,m)=>{if(a!==b)throw new Error((m||'eq')+': '+JSON.stringify(a)+' !
     if(!s2.recap){ok(/today counts once completed/.test(s2.head),'still pending — acceptable, recap store differs');}
     else ok(!/today counts once completed/.test(s2.head),'head kept the pending note: '+s2.head);});
 
+  /* ---- LBM on the progress report (Owner, 2026-08-06) ---- */
+  {
+    const s2=await page.evaluate(()=>{
+      const iso=(n)=>{const d=new Date();d.setDate(d.getDate()-n);
+        const m=d.getMonth()+1,dd=d.getDate();
+        return d.getFullYear()+'-'+(m<10?'0':'')+m+'-'+(dd<10?'0':'')+dd;};
+      /* this athlete-week vs last: use weekDays() so the boundary is real */
+      const thisWk=weekDays(0).map(d=>toISO(d)).filter(x=>x<=todayISO());
+      const lastWk=weekDays(-1).map(d=>toISO(d));
+      state.weights=[];state.bodyfat={};state.leanmass={};
+      /* last week: scale LBM 140 on two days; this week: scale 142 + one
+         derived day (180 lb at 25% -> 135) */
+      state.leanmass[lastWk[1]]=140;state.leanmass[lastWk[3]]=140;
+      state.leanmass[thisWk[0]]=142;
+      if(thisWk[1]){state.weights.push({date:thisWk[1],weight:180});state.bodyfat[thisWk[1]]=25;}
+      const L=srLbmInput(0);
+      const html=srLbmHTML({units:'lbs',lbm:L});
+      return {cur:L.cur,prev:L.prev,chg:L.chg,
+        hasChart:/svg/.test(html)&&/stroke=/.test(html),
+        openCircles:/fill="#10151E" stroke="/.test(html),
+        saysCalc:/1 calculated/.test(html),
+        saysVs:/vs last week/.test(html),
+        fatVsMuscle:/muscle is being kept/.test(html)};});
+    test('LBM: weekly averages follow the canonical stored+derived rule',()=>{
+      eq(s2.prev.avg,140,'last week avg');eq(s2.cur.n,2,'this week readings');
+      ok(Math.abs(s2.cur.avg-138.5)<0.01,'this week avg: '+s2.cur.avg);});
+    test('LBM: the report shows the week-over-week move and the calc count',()=>{
+      ok(s2.saysVs,'no WoW text');ok(s2.saysCalc,'derived reading unlabeled');
+      ok(Math.abs(s2.chg-(-1.5))<0.01,'chg: '+s2.chg);});
+    test('LBM: the history chart renders with open circles',()=>{
+      ok(s2.hasChart,'no chart');ok(s2.openCircles,'points not open circles');});
+    test('LBM: the fat-vs-muscle read is stated on the report',()=>ok(s2.fatVsMuscle));
+  }
+
   test('no page errors',()=>eq(errs.length,0,errs.join(';')));
 
   await ctx.close();await browser.close();server.close();
