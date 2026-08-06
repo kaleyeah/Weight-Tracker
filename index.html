@@ -2750,8 +2750,22 @@ function photoDiagHTML(){
       (sn.local==null?"?":sn.local)+" ("+(sn.localProgress==null?"?":sn.localProgress)+" progress).";
   }
   else line="Photo sync did not run — "+(r.why||"reason unknown")+".";
+  /* instrument-don't-guess (Owner rule): when operations are pending, SHOW
+     them — op, state, why it is parked, and the date it belongs to */
+  var opsLine="";
+  try{
+    var _po=(typeof m10pOps==="function")?m10pOps():[];
+    if(_po.length){
+      opsLine='<div class="wl-hint" style="margin-top:4px">Pending photo operations on this device:</div>'
+        +_po.map(function(o){
+          var why=o.voidReason?(" — "+o.voidReason):(o.displacedReason?(" — displaced: "+o.displacedReason):"");
+          var when=(o.meta&&(o.meta.date||o.meta.week))||(o.capturedLocalMeta&&o.capturedLocalMeta.date)||"";
+          return '<div class="wl-hint" style="margin-top:2px">· '+esc(o.op)+' ('+esc(o.state)+why+')'+(when?' · '+esc(when):'')+'</div>';
+        }).join("");
+    }
+  }catch(e){}
   return '<div class="wl-hint" style="margin-top:8px">'+esc(line)+
-    ' <button class="wl-link" data-act="photo:resync">Download photos now</button></div>';
+    ' <button class="wl-link" data-act="photo:resync">Download photos now</button></div>'+opsLine;
 }
 function renderCheckinPhotos(){
   var host=document.getElementById("wl-ciphotos");if(!host)return;
@@ -7937,6 +7951,10 @@ function pfSaveProgress(blob,pose,wk,norm,m10ok){
         if(state.view==="photos")renderProgressPhotos();});}
   );}
 
+var pfRevSeq=0;   /* unique per-review preview identity — a constant id made
+                     same-size captures collide in the derivative cache and
+                     the review showed ANOTHER photo's standardized preview
+                     (Owner screenshot IMG_2898, 2026-08-06) */
 function pfReviewNorm(){
   var r=state.pfReview;if(!r)return null;
   var a=r.adj;
@@ -7987,7 +8005,7 @@ function pfReviewPreview(){
   var r=state.pfReview;if(!r)return;
   var host=document.getElementById("wl-pfrev-std");if(!host)return;
   var n=pfReviewNorm();if(!n){host.innerHTML='<div class="wl-hint">—</div>';return;}
-  pfDerivative({id:"pf-preview",blob:r.blob,normalization:n},480,function(du){
+  pfDerivative({id:"pf-preview-"+(r.revId||0),blob:r.blob,normalization:n},480,function(du){
     var h2=document.getElementById("wl-pfrev-std");if(!h2||!state.pfReview)return;
     h2.innerHTML=du?'<img class="wl-pfrev-img" src="'+du+'" alt="Standardized preview">':'<div class="wl-hint">Preview unavailable — you can still save</div>';});}
 
@@ -8068,6 +8086,11 @@ function pfCamRender(){
     +'<line x1="0" y1="30" x2="300" y2="30" stroke="rgba(245,181,68,.75)" stroke-width="1.4" stroke-dasharray="6 5"/>'
     +'<line x1="0" y1="378" x2="300" y2="378" stroke="rgba(245,181,68,.75)" stroke-width="1.4" stroke-dasharray="6 5"/>'
     +'<line x1="150" y1="0" x2="150" y2="400" stroke="rgba(245,181,68,.45)" stroke-width="1" stroke-dasharray="3 6"/>'
+    /* Owner 2026-08-06: unlabeled lines didn't explain themselves — say what
+       each one is for, on the line itself */
+    +'<text x="5" y="26" fill="rgba(245,181,68,.9)" font-size="10" font-weight="700">top of head</text>'
+    +'<text x="5" y="374" fill="rgba(245,181,68,.9)" font-size="10" font-weight="700">feet</text>'
+    +'<text x="155" y="12" fill="rgba(245,181,68,.6)" font-size="9">center</text>'
     +'</svg>'
     +'<div id="pfcam-tilt" class="pfcam-tilt"></div>'
     +'</div>'
@@ -8120,7 +8143,7 @@ function pfCamShot(){
       img.onload=function(){
         var base=pfAutoSuggest(img.width,img.height);
         if(!base){URL.revokeObjectURL(url);toast("Capture failed — try again");return;}
-        state.pfReview={blob:blob,pose:c2.pose,week:c2.week,base:base,
+        state.pfReview={blob:blob,pose:c2.pose,week:c2.week,base:base,revId:++pfRevSeq,
           adj:{panX:0,panY:0,zoom:1,rot:0},cap:c2.cap,srcUrl:url,fromCam:true};
         render();pfReviewPreview();};
       img.onerror=function(){URL.revokeObjectURL(url);toast("Capture failed — try again");};
@@ -8240,7 +8263,7 @@ function pfLegacyNext(cap){
     img.onload=function(){
       var base=pfAutoSuggest(img.width,img.height);
       if(!base){URL.revokeObjectURL(url);state.pfLegSkip=(state.pfLegSkip||[]).concat([rec.id]);pfLegacyNext(cap);return;}
-      state.pfReview={blob:rec.blob,pose:rec.pose,week:rec.week||rec.date,base:base,
+      state.pfReview={blob:rec.blob,pose:rec.pose,week:rec.week||rec.date,base:base,revId:++pfRevSeq,
         adj:{panX:0,panY:0,zoom:1,rot:0},cap:cap,srcUrl:url,
         legacyId:rec.id,legacyLeft:legacy.length,
         narrow:(img.width/img.height)<0.72};
@@ -10316,7 +10339,7 @@ document.getElementById("wl-photo-input").addEventListener("change",function(e){
       img.onload=function(){URL.revokeObjectURL(url);
         var base=pfAutoSuggest(img.width,img.height);
         if(!base){toast("Couldn\u2019t read that image");return;}
-        state.pfReview={blob:blob,pose:_pose,week:_wk,base:base,
+        state.pfReview={blob:blob,pose:_pose,week:_wk,base:base,revId:++pfRevSeq,
           adj:{panX:0,panY:0,zoom:1,rot:0},cap:_m10cap,
           srcUrl:URL.createObjectURL(blob)};
         render();pfReviewPreview();};

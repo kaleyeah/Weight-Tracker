@@ -169,6 +169,44 @@ const eq=(a,b,m)=>{if(a!==b)throw new Error((m||'eq')+': '+JSON.stringify(a)+' !
       eq(s.saved,before,'a record was saved without authority');eq(s.sheet,false);});
   }
 
+  /* ---- IMG_2898 (Owner, 2026-08-06): two same-size reviews in one session
+     must each preview THEIR OWN photo. The constant "pf-preview" cache id +
+     identical auto-suggest crops collided, and review #2 showed photo #1's
+     standardized derivative. Repro: solid RED then solid BLUE, same dims. ---- */
+  {
+    const s=await page.evaluate(async()=>{
+      const mk=(color)=>new Promise(res=>{
+        const cv=document.createElement('canvas');cv.width=600;cv.height=800;
+        const g=cv.getContext('2d');g.fillStyle=color;g.fillRect(0,0,600,800);
+        cv.toBlob(res,'image/jpeg',0.9);});
+      const preview=async(blob)=>{
+        const base=pfAutoSuggest(600,800);
+        state.pfReview={blob:blob,pose:'front',week:'2026-08-02',base:base,
+          revId:(typeof pfRevSeq!=='undefined')?++pfRevSeq:undefined,
+          adj:{panX:0,panY:0,zoom:1,rot:0},cap:null,srcUrl:''};
+        render();pfReviewPreview();
+        for(let i=0;i<40;i++){
+          const im=document.querySelector('#wl-pfrev-std img');
+          if(im&&im.src)return im.src;
+          await new Promise(r=>setTimeout(r,50));}
+        return null;};
+      const px=(src)=>new Promise(res=>{const im=new Image();
+        im.onload=()=>{const cv=document.createElement('canvas');cv.width=4;cv.height=4;
+          cv.getContext('2d').drawImage(im,0,0,4,4);
+          const d=cv.getContext('2d').getImageData(2,2,1,1).data;res([d[0],d[1],d[2]]);};
+        im.onerror=()=>res(null);im.src=src;});
+      const red=await preview(await mk('#CC2222'));
+      pfReviewClose();render();
+      const blue=await preview(await mk('#2233CC'));
+      pfReviewClose();render();
+      const p1=red?await px(red):null,p2=blue?await px(blue):null;
+      return {p1:p1,p2:p2};});
+    test('the second same-size review previews ITS OWN photo, not the first (IMG_2898)',()=>{
+      ok(s.p1&&s.p2,'previews missing: '+JSON.stringify(s));
+      ok(s.p1[0]>s.p1[2],'first preview not red: '+s.p1);
+      ok(s.p2[2]>s.p2[0],'second preview not blue — stale cache served the first photo: '+s.p2);});
+  }
+
   test('no page errors across the whole flow',()=>eq(errs.length,0,errs.join(';')));
 
   await ctx.close();await browser.close();server.close();

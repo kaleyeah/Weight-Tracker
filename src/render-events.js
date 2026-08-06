@@ -754,7 +754,7 @@ document.getElementById("wl-photo-input").addEventListener("change",function(e){
       img.onload=function(){URL.revokeObjectURL(url);
         var base=pfAutoSuggest(img.width,img.height);
         if(!base){toast("Couldn\u2019t read that image");return;}
-        state.pfReview={blob:blob,pose:_pose,week:_wk,base:base,
+        state.pfReview={blob:blob,pose:_pose,week:_wk,base:base,revId:++pfRevSeq,
           adj:{panX:0,panY:0,zoom:1,rot:0},cap:_m10cap,
           srcUrl:URL.createObjectURL(blob)};
         render();pfReviewPreview();};
