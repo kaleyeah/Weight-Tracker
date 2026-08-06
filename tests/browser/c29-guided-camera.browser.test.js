@@ -158,6 +158,36 @@ const eq=(a,b,m)=>{if(a!==b)throw new Error((m||'eq')+': '+JSON.stringify(a)+' !
     await page.waitForTimeout(400);
   }
 
+  /* ---- selfie flip (Owner, 2026-08-06): front camera with ghost+guides;
+     preview and ghost mirror, capture stays true-orientation ---- */
+  {
+    const s=await page.evaluate(()=>({flip:!!document.querySelector('[data-act="pfcam:flip"]'),
+      selfie:!!document.querySelector('.pfcam-view.pfcam-selfie')}));
+    test('the camera offers a flip button, starting rear (no mirror)',()=>{
+      ok(s.flip,'no flip button');eq(s.selfie,false,'started mirrored');});
+    await page.click('[data-act="pfcam:flip"]');
+    await page.waitForTimeout(700);
+    const t=await page.evaluate(()=>({
+      facing:pfCam&&pfCam.facing,
+      selfie:!!document.querySelector('.pfcam-view.pfcam-selfie'),
+      live:pfCam&&pfCam.stream.getTracks().every(tr=>tr.readyState==='live'),
+      guides:document.querySelectorAll('.pfcam-guides line').length,
+      ghost:(()=>{const g=document.getElementById('pfcam-prev');
+        return !!g&&g.style.display!=='none'&&!!g.src;})(),
+      remembered:(JSON.parse(localStorage.getItem('wl_pf_overlay')||'{}').facing)}));
+    test('flipping switches to the FRONT camera with a live stream',()=>{
+      eq(t.facing,'user');ok(t.live,'stream not live after flip');});
+    test('selfie mode mirrors the preview+ghost and keeps guides and ghost',()=>{
+      ok(t.selfie,'no mirror class');eq(t.guides,3,'guides');ok(t.ghost,'ghost gone');});
+    test('the chosen camera is remembered for next time',()=>eq(t.remembered,'user'));
+    await page.click('[data-act="pfcam:flip"]');
+    await page.waitForTimeout(700);
+    const u=await page.evaluate(()=>({facing:pfCam&&pfCam.facing,
+      selfie:!!document.querySelector('.pfcam-view.pfcam-selfie')}));
+    test('flipping back returns to rear, unmirrored',()=>{
+      eq(u.facing,'environment');eq(u.selfie,false);});
+  }
+
   /* ---- overlay strength: live, clamped 10–75, remembered locally ---- */
   {
     await page.evaluate(()=>{const sl=document.querySelector('[data-pfov]');

@@ -279,8 +279,9 @@ var PF_POSE_TIPS={front:"Face the camera, arms slightly out, whole body between 
   left:"Turn 90° — your LEFT side to the camera",right:"Turn 90° — your RIGHT side to the camera",
   back:"Back to the camera, arms slightly out"};
 function pfOvPrefs(){try{var v=JSON.parse(localStorage.getItem("wl_pf_overlay")||"{}");
-  return {on:v.on!==false,strength:Math.min(75,Math.max(10,v.strength!=null?v.strength:48))};}
-  catch(e){return {on:true,strength:48};}}
+  return {on:v.on!==false,strength:Math.min(75,Math.max(10,v.strength!=null?v.strength:48)),
+    facing:v.facing==="user"?"user":"environment"};}
+  catch(e){return {on:true,strength:48,facing:"environment"};}}
 function pfOvSave(pr){try{localStorage.setItem("wl_pf_overlay",JSON.stringify(pr));}catch(e){}}
 /* Pinned alignment reference (Owner, 2026-08-06): a per-pose photo the ghost
    ALWAYS uses, so alignment errors never chain week-to-week and a mid-session
@@ -325,16 +326,33 @@ function pfCamFallback(pose,week){
 function pfCamOpen(pose,week,cap){
   if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)){
     toast("No camera here — choose a file instead");pfCamFallback(pose,week);return;}
-  navigator.mediaDevices.getUserMedia({video:{facingMode:"environment",width:{ideal:1440},height:{ideal:1920}},audio:false})
+  var facing=pfOvPrefs().facing;
+  navigator.mediaDevices.getUserMedia({video:{facingMode:facing,width:{ideal:1440},height:{ideal:1920}},audio:false})
   .then(function(stream){
     if(pfCam)pfCamStop();
-    pfCam={stream:stream,pose:pose,week:week,cap:cap,
+    pfCam={stream:stream,pose:pose,week:week,cap:cap,facing:facing,
       order:POSES.map(function(x){return x[0];}),shots:{},prevUrl:null,video:null,tiltSeen:false};
     window.addEventListener("deviceorientation",pfCamTilt);
     pfCamRender();pfCamPrev();})
   .catch(function(){
     toast("Camera unavailable or denied — choose a file instead");
     pfCamFallback(pose,week);});}
+/* Owner 2026-08-06: selfie support — flip to the FRONT camera with the ghost
+   and guides still working. The preview (and the ghost, so alignment holds)
+   mirrors like a normal selfie; the SAVED photo stays true-orientation —
+   drawImage reads the raw frame, CSS transforms never reach the canvas — so
+   selfie weeks compare honestly against rear-camera weeks. */
+function pfCamFlip(){
+  var c=pfCam;if(!c)return;
+  var want=c.facing==="user"?"environment":"user";
+  navigator.mediaDevices.getUserMedia({video:{facingMode:want,width:{ideal:1440},height:{ideal:1920}},audio:false})
+  .then(function(stream){
+    var c2=pfCam;if(!c2){try{stream.getTracks().forEach(function(t){t.stop();});}catch(e){}return;}
+    try{c2.stream.getTracks().forEach(function(t){t.stop();});}catch(e){}
+    c2.stream=stream;c2.facing=want;
+    var pv=pfOvPrefs();pv.facing=want;pfOvSave(pv);
+    pfCamRender();pfCamPrev();})
+  .catch(function(){toast("Couldn\u2019t switch cameras \u2014 staying on this one");});}
 function pfCamTilt(e){
   var c=pfCam;if(!c)return;
   var el=document.getElementById("pfcam-tilt");if(!el)return;
@@ -354,12 +372,13 @@ function pfCamRender(){
   d.innerHTML=
     '<div class="pfcam-wrap">'
     +'<div class="pfcam-head"><span><b>'+esc(lbl)+'</b> \u00b7 '+idx+' of 4</span>'
+    +'<button class="pfcam-flip" data-act="pfcam:flip" aria-label="Switch camera">\ud83d\udd04</button>'
     +'<button class="pfcam-x" data-act="pfcam:close" aria-label="Close camera">\u2715</button></div>'
     +'<div class="pfcam-tabs">'+c.order.map(function(pz){
       var pl=(POSES.filter(function(x){return x[0]===pz;})[0]||["",pz])[1];
       return '<button class="'+(pz===c.pose?"on":"")+'" data-act="pfcam:pose" data-pose="'+pz+'">'
         +esc(pl)+(c.shots[pz]?" \u2713":"")+'</button>';}).join("")+'</div>'
-    +'<div class="pfcam-view">'
+    +'<div class="pfcam-view'+(c.facing==="user"?" pfcam-selfie":"")+'">'
     +'<video id="pfcam-video" autoplay playsinline muted></video>'
     +'<img id="pfcam-prev" alt="" style="display:none;opacity:'+(prefs.on?(prefs.strength/100):0)+'">'
     +'<svg class="pfcam-guides" viewBox="0 0 300 400" preserveAspectRatio="none" aria-hidden="true">'
