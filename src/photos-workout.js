@@ -913,6 +913,16 @@ function buildWorkoutEntries(rt,bw){return (rt.items||[]).map(function(it){var e
 }).filter(Boolean);}
 function rebuildEntryNotes(ei){var w=state.workout;if(!w)return;var en=w.entries[ei];if(!en)return;var rt=getRoutine(w.routineId);var it=rt&&rItem(rt,en.itemId);var ex=exById(en.exerciseId);var notes=[];if(ex)(ex.notes||[]).forEach(function(n){notes.push({id:n.id,text:n.text,pinned:true});});if(it)(it.notes||[]).forEach(function(n){notes.push({id:n.id,text:n.text,pinned:false});});en.notes=notes;saveWorkout();}
 function sugInvertReps(E,w){E=num(E);w=num(w);if(E==null||w==null||w<=0)return null;var r=Math.round(30*(E/w-1));if(r<1)r=1;if(r>30)r=30;return r;}
+/* PO weight-edit prediction from the REAL reference set (w0,r0) — the same
+   two-regime capacity model as RPT: Epley inside its heavy domain, load-ratio
+   above ~10 reps. This is what turns 'bumped 15→20 lb' into ~11 instead of
+   Epley's 4 (Owner, 2026-08-05). Falls back to the e1RM inversion when no
+   reference set is known. */
+function sugPredictAt(w0,r0,wNew){
+  w0=num(w0);r0=num(r0);wNew=num(wNew);
+  if(w0==null||r0==null||wNew==null||w0<=0||r0<=0||wNew<=0)return null;
+  var r=Math.round(rptCapAt(w0,r0,wNew));
+  if(r<1)r=1;if(r>30)r=30;return r;}
 /* ---- Reverse Pyramid (RPT) progression helpers ---- */
 function rptInc(){return state.settings.units==="kg"?2.5:5;}
 function rptRound(w){var i=rptInc();return Math.round(num(w)/i)*i;}
@@ -980,13 +990,14 @@ function rptPredictReps(en,si){
    takes over from the configured rep range (Griffin's call), and a rep count he
    has already typed himself is never overwritten. */
 function rptRetarget(en,si){
+  /* Owner rulings 2026-08-05: RPT honors its ladder — the prediction never
+     overrides targets or pre-fills reps (his set 2 collapsed to '7' instead
+     of the 8–10 he holds the ladder to). It survives as a HINT ('8–10 · ~9')
+     beside the range, which he asked to keep. */
   if(!en||(en.progression||"double")!=="rpt")return;
   var nx=en.sets[si+1];
   if(!nx||nx.status==="done"||nx.status==="skipped")return;
-  var t=rptPredictReps(en,si);
-  if(t==null)return;
-  nx.tgtLo=t;nx.tgtHi=t;nx.sugR=null;
-  if(!nx.repsTouched)nx.reps=String(t);}
+  nx.predR=rptPredictReps(en,si);}
 /* Bring an in-progress workout's targets up to date — used after a reload, since
    applying an app update mid-session drops you back here with sets already logged. */
 /* The next exercise with unfinished sets, in the order they appear. Returns null
@@ -1175,10 +1186,12 @@ function sugForEntry(en,routineId){
   /* Reverse Pyramid — weighted lifts: heaviest set first, descend ~10%/set, Set 1 drives the bump. */
   if(mode==="rpt"&&!bw){
     var n=en.sets.length;var ranges=(en.setRanges&&en.setRanges.length)?en.setRanges:rptRangesFor(rt&&rItem(rt,en.itemId),n);
-    var lastS1W=num(done[0].weight),lastS1R=num(done[0].reps);
+    var lastS1W=num(done[0].weight),lastS1R=num(done[0].reps),lastS1RIR=num(done[0].rir);
     if(lastS1W==null||lastS1W<=0)return en.sets.map(function(){return null;});
     var s1=ranges[0]||{lo:6,hi:8};
-    var jumped=lastS1R!=null&&lastS1R>=s1.hi;
+    /* Owner rulings 2026-08-05: the bump requires the top set at RIR 0/1 —
+       logged, never blank — matching the cue exactly */
+    var jumped=lastS1R!=null&&lastS1R>=s1.hi&&lastS1RIR!=null&&lastS1RIR<=1;
     var s1w=jumped?lastS1W+inc:lastS1W;
     var rout=[];
     for(var i=0;i<n;i++){var rg=ranges[i]||ranges[ranges.length-1]||{lo:6,hi:8};
@@ -1248,7 +1261,9 @@ if(!done&&!sk&&!(st.reps!=null&&st.reps!=="")){
   var _lo=null,_hi=null;
   if((en.progression||"double")==="rpt"&&en.setRanges&&en.setRanges[si]){_lo=num(en.setRanges[si].lo);_hi=num(en.setRanges[si].hi);}
   else{_lo=num(en.repLow);_hi=num(en.repHigh);}
-  if(_lo!=null&&_hi!=null)_rp=_lo+"–"+_hi;else if(_lo!=null)_rp=String(_lo);else if(_hi!=null)_rp=String(_hi);}
+  if(_lo!=null&&_hi!=null)_rp=_lo+"–"+_hi;else if(_lo!=null)_rp=String(_lo);else if(_hi!=null)_rp=String(_hi);
+  /* the capacity hint rides BESIDE the range, never instead of it (Owner #1) */
+  if(_rp&&num(st.predR)!=null)_rp+=" · ~"+num(st.predR);}
 if(sk)h+='<span class="wl-set-skip">skipped</span>';else h+='<input class="wl-set-input" data-wo="reps" data-ei="'+ei+'" data-si="'+si+'" type="text" inputmode="numeric"'+(_rp?' placeholder="'+_rp+'"':'')+' value="'+esc(st.reps||"")+'"'+(done?" disabled":"")+'>';
   h+='<input class="wl-set-input wl-set-rir" data-wo="rir" data-ei="'+ei+'" data-si="'+si+'" type="text" inputmode="numeric" placeholder="–" value="'+esc(st.rir||"")+'"'+((sk||done)?" disabled":"")+'>';
   h+='<span class="wl-set-tgt">'+(done&&!sk?setTargetIcon(st,en):"")+'</span>';
@@ -1327,17 +1342,32 @@ function analyzeSession(date,sessId){var arr=(state.training.liftSessions||{})[d
       if(pb.maxWeight!=null&&bestW>pb.maxWeight)prs.push({name:en.name,type:"weight",w:bestW,r:repsAtTopW});
       else if(pb.maxE1rm!=null&&bestE!=null&&bestE>pb.maxE1rm*1.004)prs.push({name:en.name,type:"e1rm",e:Math.round(bestE),w:bestEw,r:bestEr});
     }
+    if((en.progression||"double")==="rpt"){
+      /* Owner rulings 2026-08-05: SET 1 is the decision-maker — top of the
+         top set's range (8, on his held 6–8/8–10/10–12 ladder) at an RIR of
+         0 or 1 moves the lift up. Blanks never qualify: no RIR logged, no
+         progression. This cue ANNOUNCES what the next-session seeding
+         (sugForEntry) auto-applies under the same gate. */
+      var top=null,wi=0;
+      (en.sets||[]).forEach(function(st){if(st.status==="warmup")return;
+        if(wi++===0&&st.status!=="skipped")top=st;});
+      if(top){var r=num(top.reps),w=num(top.weight),rir=num(top.rir);
+        if(r!=null&&w!=null&&r>=8&&rir!=null&&rir<=1)
+          progress.push({name:en.name,next:w+progStep()});}
+    }else{
     var rh=num(en.repHigh);
     /* Owner report 2026-08-05: 15 reps at the same weight for weeks, never a
        go-up cue. The workout screen DISPLAYS a default 8–12 target when no
        range was typed, but this analysis silently skipped any entry whose
        repHigh field was empty — two parts of the app disagreeing about what
        an empty range means. Double progression now judges against the same
-       default 12 it displays; RPT keeps its own ladder and stays out. */
-    if(rh==null&&(en.progression||"double")!=="rpt")rh=12;
+       default 12 it displays. */
+    if(rh==null)rh=12;
     if(rh!=null){var done=(en.sets||[]).filter(function(st){return st.status!=="skipped"&&num(st.reps)!=null&&num(st.weight)!=null;});
-      if(done.length>=1&&done.every(function(st){return num(st.reps)>=rh&&(num(st.rir)==null||num(st.rir)<=1);})){var mw2=null;done.forEach(function(st){var w=num(st.weight);if(mw2==null||w>mw2)mw2=w;});progress.push({name:en.name,next:(mw2!=null?mw2+progStep():null)});}
-    }
+      /* RIR 0/1 REQUIRED — blanks never progress (Owner #3), the same gate
+         the PO seeding has always enforced; cue and auto-apply now agree */
+      if(done.length>=1&&done.every(function(st){return num(st.reps)>=rh&&num(st.rir)!=null&&num(st.rir)<=1;})){var mw2=null;done.forEach(function(st){var w=num(st.weight);if(mw2==null||w>mw2)mw2=w;});progress.push({name:en.name,next:(mw2!=null?mw2+progStep():null)});}
+    }}
   });
   return {prs:prs,progress:progress};}
 function allTimeBests(){var ls=state.training.liftSessions||{};var map={};

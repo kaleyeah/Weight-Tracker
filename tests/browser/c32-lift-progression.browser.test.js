@@ -1,15 +1,16 @@
-/* C32 (browser) — the lifting progression logic, from the Owner's live report
-   (2026-08-05): "15 reps with 15 lb on every set of lateral raises — never a
-   go-up suggestion. Bumped to 20 lb and it suggested 4 reps."
+/* C32 (browser) — lifting progression, per the Owner's rulings of 2026-08-05:
 
-       CF_SRC=<file> node tests/browser/c32-lift-progression.browser.test.js
+   1. RPT honors its ladder (6–8/8–10/10–12, HIS call); the capacity
+      prediction is a HINT beside the range, never an override.
+   2. RPT moves up on SET 1 hitting the top of its range — set 1 decides.
+   3. RIR is REQUIRED — 0 or 1 progresses; a blank NEVER does, anywhere.
+   4. Progression AUTO-APPLIES: next session's top set is pre-loaded heavier,
+      back-offs re-derived; the post-workout card announces it.
+   PO predicts (his ruling: "Progressive Overload SHOULD predict") — with the
+   capacity model in its domain: Epley for heavy sets, load-ratio above ~10
+   reps ("15×15 → 20 lb" predicts ~11, never Epley's 4).
 
-   Bug A: the workout screen displays a DEFAULT 8–12 target when no rep range
-   was typed, but analyzeSession skipped empty-range entries entirely — the
-   go-up cue could never fire on them. Double progression now judges against
-   the same default 12 it displays; explicit ranges still rule; RPT stays out.
-   Bug B: Epley 1RM inversion out of its domain — above ~10 total reps the
-   predictor now scales reps by load ratio. Heavy-set behavior unchanged. */
+       CF_SRC=<file> node tests/browser/c32-lift-progression.browser.test.js */
 const path=require('path'),http=require('http'),fs=require('fs');
 const {chromium}=require(path.join(process.env.HOME,'staging-cas','node_modules','playwright'));
 const SRC=process.env.CF_SRC||'/home/griffin/projects/compound-app/index.html';
@@ -35,60 +36,126 @@ const eq=(a,b,m)=>{if(a!==b)throw new Error((m||'eq')+': '+JSON.stringify(a)+' !
   await page.goto('http://127.0.0.1:'+server.address().port,{waitUntil:'load'});
   await page.waitForTimeout(900);
 
-  /* ---- Bug A: the Owner's exact case — 15×15 every set, NO typed range ---- */
+  const mkSet=(w,r,rir)=>({weight:String(w),reps:String(r),rir:rir==null?null:String(rir),status:'done'});
+
+  /* ---- PO cue: the Owner's lateral-raise case, WITH the required RIR ---- */
   {
-    const s=await page.evaluate(()=>{
-      const mkSet=(w,r)=>({weight:String(w),reps:String(r),rir:null,status:'done'});
+    const s=await page.evaluate(async(mk)=>{
+      const mkSet=eval('('+mk+')');
       state.training.liftSessions['2026-08-05']=[{id:'s1',ts:1,mode:'full',name:'Shoulders',
         entries:[{exerciseId:'ex-latr',name:'Dumbbell Lateral Raise',muscle:'shoulders',
           progression:'double',repLow:null,repHigh:null,
-          sets:[mkSet(15,15),mkSet(15,15),mkSet(15,15)]}]}];
+          sets:[mkSet(15,15,1),mkSet(15,15,0),mkSet(15,15,1)]}]}];
       const an=analyzeSession('2026-08-05','s1');
-      return {n:an.progress.length,name:(an.progress[0]||{}).name,next:(an.progress[0]||{}).next};});
-    test('OWNER CASE: 15×15 with an empty rep range now fires the go-up cue',()=>{
-      eq(s.n,1,'no cue');eq(s.name,'Dumbbell Lateral Raise');});
-    test('the cue suggests a concrete heavier weight',()=>ok(s.next>15,'next: '+s.next));
+      return {n:an.progress.length,next:(an.progress[0]||{}).next};},mkSet.toString());
+    test('OWNER CASE: 15×15 at RIR ≤1 with an empty range fires the go-up cue',()=>{
+      eq(s.n,1,'no cue');eq(s.next,20);});
   }
-
-  /* ---- Bug A guards: explicit ranges still rule; RPT stays out ---- */
+  /* ---- Ruling 3: blanks NEVER progress ---- */
   {
-    const s=await page.evaluate(()=>{
-      const mkSet=(w,r)=>({weight:String(w),reps:String(r),rir:null,status:'done'});
+    const s=await page.evaluate(async(mk)=>{
+      const mkSet=eval('('+mk+')');
       state.training.liftSessions['2026-08-04']=[{id:'s2',ts:1,mode:'full',name:'X',
-        entries:[
-          {exerciseId:'e1',name:'HighRange',muscle:'shoulders',progression:'double',
-            repLow:12,repHigh:20,sets:[mkSet(15,15)]},          /* 15 < explicit 20 */
-          {exerciseId:'e2',name:'RptLift',muscle:'chest',progression:'rpt',
-            repLow:null,repHigh:null,sets:[mkSet(100,15)]}]}];   /* RPT: no double cue */
-      const an=analyzeSession('2026-08-04','s2');
-      return an.progress.map(p=>p.name);});
-    test('an EXPLICIT 12–20 range is respected — 15 reps stays quiet',()=>
-      eq(s.indexOf('HighRange'),-1,'cued: '+s.join(',')));
-    test('RPT entries keep their own ladder — no double-progression cue',()=>
-      eq(s.indexOf('RptLift'),-1,'cued: '+s.join(',')));
+        entries:[{exerciseId:'e-po',name:'BlankRir',muscle:'shoulders',progression:'double',
+          repLow:null,repHigh:null,sets:[mkSet(15,15,null),mkSet(15,15,null)]}]}];
+      return analyzeSession('2026-08-04','s2').progress.length;},mkSet.toString());
+    test('RULING 3: a blank RIR never progresses, even at 15 reps every set',()=>eq(s,0));
   }
 
-  /* ---- Bug B: the Owner's 15 lb ×15 → 20 lb prediction ---- */
+  /* ---- Ruling 2: RPT — set 1 decides, alone ---- */
+  {
+    const s=await page.evaluate(async(mk)=>{
+      const mkSet=eval('('+mk+')');
+      state.training.liftSessions['2026-08-03']=[{id:'s3',ts:1,mode:'full',name:'RPT day',
+        entries:[
+          {exerciseId:'e-r1',name:'Bench RPT',muscle:'chest',progression:'rpt',
+            sets:[mkSet(100,8,1),mkSet(90,10,0),mkSet(80,12,1)]},   /* set 1 tops 6–8 */
+          {exerciseId:'e-r2',name:'Row RPT',muscle:'back',progression:'rpt',
+            sets:[mkSet(100,7,0),mkSet(90,10,0),mkSet(80,12,0)]}]}]; /* set 1 short of 8 */
+      const an=analyzeSession('2026-08-03','s3');
+      return {names:an.progress.map(p=>p.name),next:(an.progress[0]||{}).next};},mkSet.toString());
+    test('RULING 2: set 1 topping 6–8 at RIR ≤1 moves the lift up (→105)',()=>{
+      eq(s.names.length,1,'cues: '+s.names.join(','));eq(s.names[0],'Bench RPT');eq(s.next,105);});
+    test('RULING 2: back-off sets topping THEIR ranges do NOT drive progression',()=>
+      eq(s.names.indexOf('Row RPT'),-1,'Row cued off a back-off set'));
+  }
+
+  /* ---- Ruling 4: the bump AUTO-APPLIES at the next session's seeding ---- */
+  {
+    const s=await page.evaluate(async(mk)=>{
+      const mkSet=eval('('+mk+')');
+      state.training.liftSessions['2026-08-02']=[{id:'s4',ts:1,mode:'full',name:'R',routineId:'rt1',
+        entries:[{exerciseId:'e-auto',name:'OHP RPT',muscle:'shoulders',progression:'rpt',
+          sets:[mkSet(100,8,1),mkSet(90,9,1),mkSet(80,11,1)]}]}];
+      const en={exerciseId:'e-auto',name:'OHP RPT',muscle:'shoulders',progression:'rpt',
+        bodyweight:false,itemId:'it1',setRanges:null,
+        sets:[{weight:'',reps:'',rir:'',status:'pending'},{weight:'',reps:'',rir:'',status:'pending'},{weight:'',reps:'',rir:'',status:'pending'}]};
+      applySuggestions([en],'rt1');
+      return {w1:en.sets[0].weight,t1:en.sets[0].tgtLo+'–'+en.sets[0].tgtHi,
+        w2:en.sets[1].weight,t2:en.sets[1].tgtLo+'–'+en.sets[1].tgtHi};},mkSet.toString());
+    test('RULING 4: next session pre-loads the heavier top set (100→105)',()=>{
+      eq(s.w1,'105');eq(s.t1,'6–8');});
+    test('RULING 4: back-offs re-derive at −10% with their own ranges',()=>{
+      eq(s.w2,'95');eq(s.t2,'8–10');});
+  }
+  /* ---- Ruling 4 + 3 combined: blank RIR on set 1 ⇒ NO auto-bump ---- */
+  {
+    const s=await page.evaluate(async(mk)=>{
+      const mkSet=eval('('+mk+')');
+      state.training.liftSessions['2026-08-01']=[{id:'s5',ts:1,mode:'full',name:'R',routineId:'rt2',
+        entries:[{exerciseId:'e-hold',name:'Curl RPT',muscle:'biceps',progression:'rpt',
+          sets:[mkSet(50,8,null),mkSet(45,10,1)]}]}];
+      const en={exerciseId:'e-hold',name:'Curl RPT',muscle:'biceps',progression:'rpt',
+        bodyweight:false,itemId:'it2',setRanges:null,
+        sets:[{weight:'',reps:'',rir:'',status:'pending'},{weight:'',reps:'',rir:'',status:'pending'}]};
+      applySuggestions([en],'rt2');
+      return en.sets[0].weight;},mkSet.toString());
+    test('RULING 3+4: set 1 topped but RIR blank ⇒ weight holds, no bump',()=>eq(s,'50'));
+  }
+
+  /* ---- Ruling 1: the range rules; the prediction is a labeled hint ---- */
   {
     const s=await page.evaluate(()=>{
-      const en={exerciseId:'ex-none',progression:'rpt',
-        sets:[{weight:'15',reps:'15',rir:null,status:'done'},
-              {weight:'20',reps:'',status:'todo'}]};
-      return {cap:rptCapAt(15,15,20),tgt:rptPredictReps(en,0)};});
-    test('OWNER CASE: 15×15 → 20 lb predicts a sane high-rep target, never 4',()=>{
-      ok(s.tgt>=7&&s.tgt<=12,'target: '+s.tgt);});
-    test('the raw capacity model gives ~11 (load-ratio), not Epley\'s 3.75',()=>
-      ok(Math.abs(s.cap-11.25)<0.01,'cap: '+s.cap));
+      const en={progression:'rpt',exerciseId:'e-hint',bodyweight:false,
+        setRanges:[{lo:6,hi:8},{lo:8,hi:10},{lo:10,hi:12}],
+        sets:[{weight:'100',reps:'8',rir:'1',status:'done'},
+              {weight:'90',reps:'',rir:'',status:'pending',tgtLo:8,tgtHi:10},
+              {weight:'80',reps:'',rir:'',status:'pending'}]};
+      rptRetarget(en,0);
+      const st=en.sets[1];
+      return {reps:st.reps,tgtLo:st.tgtLo,tgtHi:st.tgtHi,hint:st.predR!=null};});
+    test('RULING 1: the range survives — no rep pre-fill, targets intact',()=>{
+      eq(s.reps,'');eq(s.tgtLo,8);eq(s.tgtHi,10);});
+    test('RULING 1: the prediction lives on as a hint beside the range',()=>ok(s.hint,'no predR hint'));
   }
 
-  /* ---- Bug B guard: heavy-set Epley domain is UNCHANGED ---- */
+  /* ---- PO predicts — in the right domain ---- */
   {
     const s=await page.evaluate(()=>({
-      cap:rptCapAt(100,6,90),
-      tgt:rptPredictReps({exerciseId:'ex-none',progression:'rpt',
-        sets:[{weight:'100',reps:'6',rir:null,status:'done'},{weight:'90',reps:'',status:'todo'}]},0)}));
-    test('heavy sets keep the exact Epley prediction (100×6 → 90 lb ⇒ cap 10)',()=>{
-      ok(Math.abs(s.cap-10)<0.01,'cap: '+s.cap);eq(s.tgt,7,'tgt with default fatigue 3');});
+      high:sugPredictAt(15,15,20),
+      heavyCap:rptCapAt(100,6,90)}));
+    test('PO OWNER CASE: 15×15 → 20 lb predicts ~11, never Epley\'s 4',()=>
+      ok(s.high>=10&&s.high<=12,'predicted: '+s.high));
+    test('heavy sets keep exact Epley (100×6 → 90 ⇒ capacity 10)',()=>
+      ok(Math.abs(s.heavyCap-10)<0.01,'cap: '+s.heavyCap));
+  }
+
+  /* ---- the live logger's hard rule stands ---- */
+  {
+    const s=await page.evaluate(()=>{
+      /* grant the pen so the write gate passes and the RIR rule is what speaks */
+      M10.booted=true;M10.holder=true;M10.uid=pbUid();M10.fence=1;M10.deadline=performance.now()+1e6;
+      state.workout={routineId:null,name:'W',date:todayISO(),tState:'working',stateStartTs:Date.now(),
+        warmupMs:0,workMs:0,restMs:0,bw:null,entries:[{exerciseId:'e-x',name:'X',muscle:'chest',
+          progression:'double',bodyweight:false,
+          sets:[{weight:'100',reps:'8',rir:'',status:'pending'}]}],finishing:false};
+      state.view='workout';render();
+      const btn=document.querySelector('[data-act="wo:log"][data-ei="0"][data-si="0"]');
+      if(btn)btn.click();
+      return {warn:state.logWarn?state.logWarn.msg:null,
+        status:state.workout.entries[0].sets[0].status};});
+    test('HARD RULE: logging a set without RIR is refused with the warning',()=>{
+      ok(s.warn&&/RIR/.test(s.warn),'warn: '+s.warn);eq(s.status,'pending');});
   }
 
   test('no page errors',()=>eq(errs.length,0,errs.join(';')));
