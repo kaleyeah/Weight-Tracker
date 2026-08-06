@@ -193,9 +193,16 @@ function pfReviewHTML(){
   h+='<div style="font-weight:800;font-size:16px;margin-bottom:2px">'+(r.legacyId?"Standardize existing photo":"Standardize this photo")+'</div>';
   h+='<div class="wl-hint" style="margin-bottom:10px">'+esc(POSES.filter(function(x){return x[0]===r.pose;}).map(function(x){return x[1];})[0]||r.pose)+' · week of '+esc(fmtShort(parseISO(r.week)))+(r.legacyId&&!r.solo?' · '+r.legacyLeft+' to review':'')+' · your original is kept untouched</div>';
   if(r.legacyId&&r.narrow)h+='<div class="wl-hint" style="margin-bottom:8px;color:var(--accent)">This photo was already cropped tall — the 3:4 frame can only show what’s still in it.</div>';
-  h+='<div class="wl-pfrev-row"><div><div class="wl-pfrev-cap">Original</div><img class="wl-pfrev-src" src="'+srcUrl+'" alt="Original photo"></div>';
-  h+='<div><div class="wl-pfrev-cap">Standardized 3:4</div><div id="wl-pfrev-std" class="wl-pfrev-std"><div class="wl-hint">Preparing…</div></div></div></div>';
-  h+='<div class="wl-pfrev-ghostrow"><button class="pfcam-ovtgl'+(pfOvPrefs().on?" on":"")+'" data-act="pfrev:ghost" aria-pressed="'+(pfOvPrefs().on?"true":"false")+'">Ghost</button><span id="wl-pfrev-ghostlbl"></span></div>';
+  /* Owner 2026-08-06: 'so small it's hard to see when editing' — the
+     Standardized pane is the work surface (the ghost lives on it); it gets
+     the full sheet width, the original becomes a small reference thumb. */
+  h+='<div class="wl-pfrev-origrow"><img class="wl-pfrev-srcsm" src="'+srcUrl+'" alt="Original photo"><span class="wl-pfrev-cap">Original · untouched</span></div>';
+  h+='<div class="wl-pfrev-cap" style="margin-top:8px">Standardized 3:4</div><div id="wl-pfrev-std" class="wl-pfrev-std"><div class="wl-hint">Preparing…</div></div>';
+  var _gp=pfOvPrefs();
+  h+='<div class="wl-pfrev-ghostrow"><button class="pfcam-ovtgl'+(_gp.on?" on":"")+'" data-act="pfrev:ghost" aria-pressed="'+(_gp.on?"true":"false")+'">Ghost</button>'
+    +'<input type="range" data-pfrevov="strength" min="10" max="75" step="1" value="'+_gp.strength+'" aria-label="Ghost strength"'+(_gp.on?"":" disabled")+'>'
+    +'<span id="wl-pfrev-ovval" class="pfcam-ovval">'+_gp.strength+'%</span>'
+    +'<span id="wl-pfrev-ghostlbl"></span></div>';
   h+='<div class="wl-hint" style="margin:8px 0 2px">'+esc(status)+'</div>';
   var sl=function(k,lbl,min,max,step,val){return '<label class="wl-field wl-field-full" style="margin-top:8px"><span>'+lbl+'</span><input type="range" data-pfadj="'+k+'" min="'+min+'" max="'+max+'" step="'+step+'" value="'+val+'" aria-label="'+lbl+'"></label>';};
   h+=sl("zoom","Zoom",1,3,0.01,r.adj.zoom)+sl("panY","Up / down",-0.5,0.5,0.005,r.adj.panY)
@@ -610,13 +617,15 @@ function renderProgressPhotos(){clearPhotoURLs();var curWk=toISO(weekStartFor(0)
       if(state.pfCompare&&sel.length===2){
         var pair=sel.map(function(id){return progs.filter(function(p){return p.id===id;})[0];}).filter(Boolean);
         if(pair.length===2){
-          html2+='<div class="wl-confirm" style="z-index:2350"><div class="wl-confirm-card" style="max-height:88vh;overflow:auto">'
-            +'<div style="font-weight:800;font-size:16px;margin-bottom:8px;text-align:left">'+((POSES.filter(function(x){return x[0]===pose;})[0]||["",""])[1])+' — compare</div>'
-            +'<div class="pfcmp-row">'+pair.map(function(p){
-              return '<div><div class="pfcmp-img" id="pfcmp-'+p.id+'"></div><div class="wl-tllbl" style="margin-top:5px">'+fmtShort(parseISO(p.week||p.date))+'</div></div>';}).join("")
+          /* Owner 2026-08-06: 'barely bigger than a thumbnail' — compare is
+             a FULL-SCREEN edge-to-edge overlay now, both photos at once */
+          html2+='<div class="pfcmp-fs">'
+            +'<div class="pfcmp-fs-head"><span>'+((POSES.filter(function(x){return x[0]===pose;})[0]||["",""])[1])+' — compare</span><button class="pfcam-x" data-act="pfcmp:close" aria-label="Close compare">\u2715</button></div>'
+            +'<div class="pfcmp-row pfcmp-row-fs">'+pair.map(function(p){
+              return '<div><div class="wl-tllbl" style="margin-bottom:5px">'+fmtShort(parseISO(p.week||p.date))+'</div><div class="pfcmp-img" id="pfcmp-'+p.id+'"></div></div>';}).join("")
             +'</div>'
-            +'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:12px" data-act="pfcmp:close">Close</button>'
-            +'</div></div>';
+            +'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:auto" data-act="pfcmp:close">Close</button>'
+            +'</div>';
         }
       }
       if(!progs.length)html2='<div class="wl-card"><div class="wl-hint">No progress photos yet. Add your first set above — then each week’s photos line up here by pose so you can see the change over time.</div></div>';

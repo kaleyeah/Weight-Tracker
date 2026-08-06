@@ -79,8 +79,11 @@ const eq=(a,b,m)=>{if(a!==b)throw new Error((m||'eq')+': '+JSON.stringify(a)+' !
   {
     const s=await page.evaluate(async()=>({
       sheet:/Standardize this photo/.test(document.body.innerText),
-      original:!!document.querySelector('.wl-pfrev-src'),
-      originalLoaded:await new Promise(res=>{const im=document.querySelector('.wl-pfrev-src');
+      /* 2026-08-06 layout: the original is a small reference thumb
+         (.wl-pfrev-srcsm) beside a full-width Standardized pane — the
+         revoked-URL protection below guards the thumb now */
+      original:!!document.querySelector('.wl-pfrev-srcsm'),
+      originalLoaded:await new Promise(res=>{const im=document.querySelector('.wl-pfrev-srcsm');
         if(!im)return res(false);if(im.complete)return res(im.naturalWidth>0);
         im.onload=()=>res(im.naturalWidth>0);im.onerror=()=>res(false);setTimeout(()=>res(im.naturalWidth>0),2500);}),
       std:!!document.querySelector('#wl-pfrev-std img'),

@@ -790,6 +790,11 @@ document.addEventListener("input",function(e){
     var gi=document.getElementById("pfcam-prev");if(gi&&pv.on)gi.style.opacity=String(pv.strength/100);
     var lb=document.getElementById("pfcam-ovval");if(lb)lb.textContent=pv.strength+"%";
     return;}
+  if(el.getAttribute("data-pfrevov")){
+    var pv2=pfOvPrefs();pv2.strength=Math.min(75,Math.max(10,parseInt(el.value,10)||48));pfOvSave(pv2);
+    var g2=document.querySelector("#wl-pfrev-std .wl-pfrev-ghost");if(g2&&pv2.on)g2.style.opacity=String(pv2.strength/100);
+    var l2=document.getElementById("wl-pfrev-ovval");if(l2)l2.textContent=pv2.strength+"%";
+    return;}
 });
 document.getElementById("wl-photo-input").addEventListener("change",function(e){
   /* W4: authority captured at this boundary is revalidated again immediately
