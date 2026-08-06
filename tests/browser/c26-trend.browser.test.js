@@ -169,6 +169,13 @@ function seedState(){
       copy:(document.querySelector('.wl-t2-copy')||{}).textContent||''}));
     test('LBM (no stored entries) derives from weight+bodyfat pairs',()=>
       ok(/^\d+\.\d/.test(s.avg),'avg: '+s.avg));
+    /* Owner question 2026-08-06: derived points must SAY they are derived */
+    await page.click('svg.wl-chart circle[data-act="t2:pt"][r="13"]');
+    await page.waitForTimeout(200);
+    const det=await page.evaluate(()=>(document.querySelector('.wl-readout')||{}).textContent||'');
+    test('a derived LBM point discloses its arithmetic, never "logged entry"',()=>{
+      ok(/calculated from weight \+ body fat/.test(det),'readout: '+det);
+      ok(!/logged entry/.test(det),'claimed logged: '+det);});
   }
 
   /* ---- empty metric: honest empty state, intact layout ---- */

@@ -213,8 +213,11 @@ function t2InnerHTML(tab,u){
     /* text alternative + tapped-point details */
     var pt=state.t2Pt;
     var ptIn=pt&&pt.tab===tab&&pt.date>=p.startISO&&pt.date<=p.endISO;
+    /* honesty in the details (Owner, 2026-08-06): a derived LBM point must
+       say so — 'logged entry' was claiming scale data for arithmetic */
+    var ptObs=ptIn?(obs.filter(function(o){return o.date===pt.date;})[0]||{}):{};
     h+='<div class="wl-readout">'+(ptIn
-      ?('<b>'+tcNum(pt.value,cfg.dec)+'</b> '+esc(cfg.unit)+' \u00b7 '+esc(fmtShort(parseISO(pt.date)))+' \u00b7 logged entry')
+      ?('<b>'+tcNum(pt.value,cfg.dec)+'</b> '+esc(cfg.unit)+' · '+esc(fmtShort(parseISO(pt.date)))+' · '+(ptObs.derived?'calculated from weight + body fat':'logged entry'))
       :(cur.count+' measurement'+(cur.count===1?"":"s")+' \u00b7 tap a point for details'))+'</div>';
   }else{
     h+='<div class="wl-empty">'+(obs.length?('No '+esc(cfg.labelLower)+' entries in this period.')
