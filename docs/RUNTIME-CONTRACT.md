@@ -23,6 +23,7 @@ migration and explicit tests (non-negotiable rule 6).
 | `wl_dirty` / `wl_lastsync` | legacy dirty flag / last-sync stamp |
 | `wl_sync` | RETIRED GitHub config — deleted at every load (10051); keep the delete |
 | `wl_sumopen`, `wl_calopen`, `wl_announced` | UI state / update-banner memory |
+| `wl_pf_overlay` | guided-camera ghost-overlay prefs (on + 10–75% strength) — DEVICE-LOCAL by design (addendum §1: per-installation state), never synced |
 | `wl_m10_deviceid` | this installation's device id (see §5) |
 
 **Per-account families** — `wl_training_{dirty,base,journal,conflict}__<uid>`,
@@ -37,6 +38,13 @@ uid-scoped families. The journal restores only this fixed list.
 ## 2. IndexedDB
 
 One DB `wl_photos`, one store `photos` (keyPath `id`, non-unique index `date`).
+Progress records MAY carry an optional `normalization` object (schema 1:
+3:4 crop in normalized coords, ±7° rotation, mode auto/manual/legacy) — added
+2026-08-06 by the photo package. It is metadata DESCRIBING a view of the
+authoritative blob; the blob itself is never rewritten. Absent on legacy
+records (legacy display remains valid). Device-local + carried by the photo
+backup (format version 2; v1 imports remain accepted); NOT yet synced — the
+server column is a deliberately deferred Owner/Architect decision.
 **Opened WITHOUT a version number, deliberately** — it adopts whatever version
 the device holds and self-heals a v1-with-no-store device by reopening at
 `version+1`. Do not "tidy" this to `open("wl_photos", 1)`; the comment at the
