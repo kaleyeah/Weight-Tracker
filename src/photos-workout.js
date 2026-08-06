@@ -1189,9 +1189,9 @@ function sugForEntry(en,routineId){
     var lastS1W=num(done[0].weight),lastS1R=num(done[0].reps),lastS1RIR=num(done[0].rir);
     if(lastS1W==null||lastS1W<=0)return en.sets.map(function(){return null;});
     var s1=ranges[0]||{lo:6,hi:8};
-    /* Owner rulings 2026-08-05: the bump requires the top set at RIR 0/1 —
-       logged, never blank — matching the cue exactly */
-    var jumped=lastS1R!=null&&lastS1R>=s1.hi&&lastS1RIR!=null&&lastS1RIR<=1;
+    /* Owner refinement 2026-08-05: the bump requires the top set at ANY
+       LOGGED RIR — presence, not value, matching the cue exactly */
+    var jumped=lastS1R!=null&&lastS1R>=s1.hi&&lastS1RIR!=null;
     var s1w=jumped?lastS1W+inc:lastS1W;
     var rout=[];
     for(var i=0;i<n;i++){var rg=ranges[i]||ranges[ranges.length-1]||{lo:6,hi:8};
@@ -1201,7 +1201,9 @@ function sugForEntry(en,routineId){
   /* Double progression (never-blank: default 8-12 when unset). */
   var lo=num(en.repLow);if(lo==null)lo=8;var hi=num(en.repHigh);if(hi==null)hi=12;
   function rr(d){return num(d.rir);}
-  var allTop=done.every(function(d){return num(d.reps)>=hi&&rr(d)!=null&&rr(d)<=1;});
+  /* up path: ANY logged RIR (Owner refinement); the deload path below keeps
+     RIR ≤1 — dropping below range only means 'too heavy' when it was hard */
+  var allTop=done.every(function(d){return num(d.reps)>=hi&&rr(d)!=null;});
   var allBelow=done.every(function(d){return num(d.reps)<lo&&rr(d)!=null&&rr(d)<=1;});
   var lastW=null;done.forEach(function(d){var w=num(d.weight);if(w!=null&&(lastW==null||w>lastW))lastW=w;});
   var out=[];
@@ -1351,8 +1353,11 @@ function analyzeSession(date,sessId){var arr=(state.training.liftSessions||{})[d
       var top=null,wi=0;
       (en.sets||[]).forEach(function(st){if(st.status==="warmup")return;
         if(wi++===0&&st.status!=="skipped")top=st;});
+      /* Owner refinement 2026-08-05: topping the range progresses at ANY
+         logged RIR — the RIR must exist (his hard rule), its value does not
+         gate the bump. Warm-ups stay out via the catcher above. */
       if(top){var r=num(top.reps),w=num(top.weight),rir=num(top.rir);
-        if(r!=null&&w!=null&&r>=8&&rir!=null&&rir<=1)
+        if(r!=null&&w!=null&&r>=8&&rir!=null)
           progress.push({name:en.name,next:w+progStep()});}
     }else{
     var rh=num(en.repHigh);
@@ -1363,10 +1368,10 @@ function analyzeSession(date,sessId){var arr=(state.training.liftSessions||{})[d
        an empty range means. Double progression now judges against the same
        default 12 it displays. */
     if(rh==null)rh=12;
-    if(rh!=null){var done=(en.sets||[]).filter(function(st){return st.status!=="skipped"&&num(st.reps)!=null&&num(st.weight)!=null;});
-      /* RIR 0/1 REQUIRED — blanks never progress (Owner #3), the same gate
-         the PO seeding has always enforced; cue and auto-apply now agree */
-      if(done.length>=1&&done.every(function(st){return num(st.reps)>=rh&&num(st.rir)!=null&&num(st.rir)<=1;})){var mw2=null;done.forEach(function(st){var w=num(st.weight);if(mw2==null||w>mw2)mw2=w;});progress.push({name:en.name,next:(mw2!=null?mw2+progStep():null)});}
+    if(rh!=null){var done=(en.sets||[]).filter(function(st){return st.status!=="skipped"&&st.status!=="warmup"&&num(st.reps)!=null&&num(st.weight)!=null;});
+      /* Owner refinement 2026-08-05: top of range at ANY logged RIR counts
+         (presence required — blanks never progress; value never gates) */
+      if(done.length>=1&&done.every(function(st){return num(st.reps)>=rh&&num(st.rir)!=null;})){var mw2=null;done.forEach(function(st){var w=num(st.weight);if(mw2==null||w>mw2)mw2=w;});progress.push({name:en.name,next:(mw2!=null?mw2+progStep():null)});}
     }}
   });
   return {prs:prs,progress:progress};}

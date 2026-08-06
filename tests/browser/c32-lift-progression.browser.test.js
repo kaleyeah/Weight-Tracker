@@ -3,7 +3,8 @@
    1. RPT honors its ladder (6–8/8–10/10–12, HIS call); the capacity
       prediction is a HINT beside the range, never an override.
    2. RPT moves up on SET 1 hitting the top of its range — set 1 decides.
-   3. RIR is REQUIRED — 0 or 1 progresses; a blank NEVER does, anywhere.
+   3. RIR is REQUIRED (hard rule); topping the range progresses at ANY
+      logged RIR — presence gates, value never does. Warm-ups excluded.
    4. Progression AUTO-APPLIES: next session's top set is pre-loaded heavier,
       back-offs re-derived; the post-workout card announces it.
    PO predicts (his ruling: "Progressive Overload SHOULD predict") — with the
@@ -78,6 +79,25 @@ const eq=(a,b,m)=>{if(a!==b)throw new Error((m||'eq')+': '+JSON.stringify(a)+' !
       eq(s.names.length,1,'cues: '+s.names.join(','));eq(s.names[0],'Bench RPT');eq(s.next,105);});
     test('RULING 2: back-off sets topping THEIR ranges do NOT drive progression',()=>
       eq(s.names.indexOf('Row RPT'),-1,'Row cued off a back-off set'));
+  }
+  /* ---- Refinement: ANY logged RIR counts at the top; warm-ups never block ---- */
+  {
+    const s=await page.evaluate(async(mk)=>{
+      const mkSet=eval('('+mk+')');
+      const wu=(w,r)=>({weight:String(w),reps:String(r),rir:null,status:'warmup'});
+      state.training.liftSessions['2026-07-31']=[{id:'s6',ts:1,mode:'full',name:'R',
+        entries:[
+          {exerciseId:'e-easy',name:'EasyTop RPT',muscle:'chest',progression:'rpt',
+            sets:[mkSet(100,8,3),mkSet(90,10,2)]},        /* topped at RIR 3 */
+          {exerciseId:'e-wu',name:'WarmupPO',muscle:'legs',progression:'double',
+            repLow:null,repHigh:null,
+            sets:[wu(45,5),mkSet(100,12,2),mkSet(100,12,3)]}]}];  /* warm-up must not block */
+      const an=analyzeSession('2026-07-31','s6');
+      return an.progress.map(p=>p.name);},mkSet.toString());
+    test('REFINEMENT: topping the range at RIR 3 still progresses',()=>
+      ok(s.indexOf('EasyTop RPT')>=0,'cued: '+s.join(',')));
+    test('REFINEMENT: a warm-up set never blocks the PO cue',()=>
+      ok(s.indexOf('WarmupPO')>=0,'cued: '+s.join(',')));
   }
 
   /* ---- Ruling 4: the bump AUTO-APPLIES at the next session's seeding ---- */
