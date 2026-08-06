@@ -171,6 +171,14 @@ function tcChartSVG(cfg) {
   var pts = cfg.points, C = cfg.colors;
   if (!pts.length) return "";
   var xMin = tcParse(cfg.startISO).getTime(), xMax = tcParse(cfg.endISO).getTime();
+  /* 6M zooms to the DATA (Owner, 2026-08-06: a short history crammed into the
+     right sliver of a six-month axis is unreadable). When the first
+     observation starts well inside the window, the axis starts just before it
+     instead — the period label above the chart still names the full window. */
+  if (cfg.mode === "6M" && pts.length) {
+    var firstT = tcParse(pts[0].date).getTime();
+    if (firstT - xMin > (xMax - xMin) * 0.25) xMin = firstT - 3 * 86400000;
+  }
   if (xMin === xMax) { xMin -= 43200000; xMax += 43200000; }
   var ys = pts.map(function (p) { return p.value; });
   if (cfg.avg != null) ys.push(cfg.avg);
