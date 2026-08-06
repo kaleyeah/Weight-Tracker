@@ -491,7 +491,10 @@ var lt=getLastSync();toast((syncLabel()||"Sync")+(lt?" \u00b7 "+fmtClock(lt):"")
     state.pendingPose=_pu.pose;state.pendingProgWeek=_pu.week;render();
     document.getElementById("wl-photo-input").click();return;}
   if(a==="pfsrc:cancel"){state.pfChoose=null;render();return;}
-  if(a==="pfcam:shot"){pfCamShot();return;}
+  if(a==="pfcam:shot"){pfCamShutter();return;}
+  if(a==="pfcam:timer"){var _tv=parseInt(el.getAttribute("data-t"),10)||0;
+    var _pv4=pfOvPrefs();_pv4.timer=_tv;pfOvSave(_pv4);
+    if(pfCam)pfCamRender();return;}
   if(a==="pfcam:close"){pfCamStop();toast("Camera closed — nothing was saved beyond accepted poses");return;}
   if(a==="pfcam:pose"){if(pfCam){pfCam.pose=el.getAttribute("data-pose");pfCamRender();pfCamPrev();}return;}
   if(a==="pfcam:flip"){if(typeof pfCamFlip==="function")pfCamFlip();return;}

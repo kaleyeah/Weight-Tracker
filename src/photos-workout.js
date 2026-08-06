@@ -280,8 +280,9 @@ var PF_POSE_TIPS={front:"Face the camera, arms slightly out, whole body between 
   back:"Back to the camera, arms slightly out"};
 function pfOvPrefs(){try{var v=JSON.parse(localStorage.getItem("wl_pf_overlay")||"{}");
   return {on:v.on!==false,strength:Math.min(75,Math.max(10,v.strength!=null?v.strength:48)),
-    facing:v.facing==="user"?"user":"environment"};}
-  catch(e){return {on:true,strength:48,facing:"environment"};}}
+    facing:v.facing==="user"?"user":"environment",
+    timer:[3,5,10].indexOf(v.timer)>=0?v.timer:0};}
+  catch(e){return {on:true,strength:48,facing:"environment",timer:0};}}
 function pfOvSave(pr){try{localStorage.setItem("wl_pf_overlay",JSON.stringify(pr));}catch(e){}}
 /* Pinned alignment reference (Owner, 2026-08-06): a per-pose photo the ghost
    ALWAYS uses, so alignment errors never chain week-to-week and a mid-session
@@ -315,6 +316,7 @@ function pfNewestFirst(a,b){
   return (a.id||"")<(b.id||"")?1:-1;}
 function pfCamStop(){
   if(!pfCam)return;
+  if(pfCam.timerTick){try{clearInterval(pfCam.timerTick);}catch(e){}pfCam.timerTick=null;}
   try{((pfCam.stream&&pfCam.stream.getTracks())||[]).forEach(function(t){try{t.stop();}catch(e){}});}catch(e){}
   if(pfCam.prevUrl){try{URL.revokeObjectURL(pfCam.prevUrl);}catch(e){}}
   window.removeEventListener("deviceorientation",pfCamTilt);
@@ -392,11 +394,14 @@ function pfCamRender(){
     +'<text x="155" y="12" fill="rgba(245,181,68,.6)" font-size="9">center</text>'
     +'</svg>'
     +'<div id="pfcam-tilt" class="pfcam-tilt"></div>'
+    +'<div id="pfcam-count" class="pfcam-count" style="display:none"></div>'
     +'</div>'
     +'<div class="pfcam-ovrow">'
     +'<button class="pfcam-ovtgl'+(prefs.on?" on":"")+'" data-act="pfcam:ov" aria-pressed="'+(prefs.on?"true":"false")+'">Ghost</button>'
     +'<input type="range" data-pfov="strength" min="10" max="75" step="1" value="'+prefs.strength+'" aria-label="Overlay strength"'+(prefs.on?"":" disabled")+'>'
     +'<span id="pfcam-ovval" class="pfcam-ovval">'+prefs.strength+'%</span></div>'
+    +'<div class="pfcam-timerrow"><span class="pfcam-timerlbl">Timer</span>'+[0,3,5,10].map(function(t){
+      return '<button class="pfcam-timerchip'+(prefs.timer===t?" on":"")+'" data-act="pfcam:timer" data-t="'+t+'">'+(t===0?"Off":t+"s")+'</button>';}).join("")+'</div>'
     +'<div id="pfcam-ghostsrc" class="pfcam-ghostsrc"></div>'
     +'<div class="pfcam-tip">'+esc(PF_POSE_TIPS[c.pose]||"")+'</div>'
     +'<div class="pfcam-foot"><button class="pfcam-shutter" data-act="pfcam:shot" aria-label="Take photo"></button></div>'
@@ -426,6 +431,26 @@ function pfCamPrev(){
       if(du)show(du);else{c.prevUrl=URL.createObjectURL(rec.blob);show(c.prevUrl);}});
     else{c.prevUrl=URL.createObjectURL(rec.blob);show(c.prevUrl);}
   }).catch(function(){});}
+/* Owner 2026-08-06: shutter timer (3/5/10s) for selfie / step-back shots.
+   Tap starts the countdown; tapping again cancels. The countdown lives on
+   the session and dies with it (close/flip-safe). */
+function pfCamShutter(){
+  var c=pfCam;if(!c)return;
+  if(c.timerTick){clearInterval(c.timerTick);c.timerTick=null;
+    var el0=document.getElementById("pfcam-count");if(el0)el0.style.display="none";
+    toast("Timer cancelled");return;}
+  var t=pfOvPrefs().timer;
+  if(!t){pfCamShot();return;}
+  var left=t;var el=document.getElementById("pfcam-count");
+  if(el){el.textContent=String(left);el.style.display="";}
+  c.timerTick=setInterval(function(){
+    var c2=pfCam;if(!c2||c2!==c){clearInterval(c.timerTick);return;}
+    left--;
+    var e2=document.getElementById("pfcam-count");
+    if(left<=0){clearInterval(c2.timerTick);c2.timerTick=null;
+      if(e2)e2.style.display="none";
+      pfCamShot();return;}
+    if(e2)e2.textContent=String(left);},1000);}
 function pfCamShot(){
   var c=pfCam;if(!c||!c.video||!c.video.videoWidth){toast("Camera not ready yet");return;}
   var v=c.video,vw=v.videoWidth,vh=v.videoHeight,ar=3/4,cw,ch;

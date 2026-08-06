@@ -188,6 +188,50 @@ const eq=(a,b,m)=>{if(a!==b)throw new Error((m||'eq')+': '+JSON.stringify(a)+' !
       eq(u.facing,'environment');eq(u.selfie,false);});
   }
 
+  /* ---- shutter timer (Owner, 2026-08-06): 3/5/10s chips, big countdown,
+     tap-again cancels; Off keeps the immediate shutter every other arm uses ---- */
+  {
+    const s=await page.evaluate(()=>({
+      chips:[...document.querySelectorAll('.pfcam-timerchip')].map(b=>b.textContent),
+      on:(document.querySelector('.pfcam-timerchip.on')||{}).textContent}));
+    test('timer chips Off/3s/5s/10s render, defaulting Off',()=>{
+      eq(s.chips.join(','),'Off,3s,5s,10s');eq(s.on,'Off');});
+    await page.evaluate(()=>{[...document.querySelectorAll('.pfcam-timerchip')]
+      .find(b=>b.textContent==='3s').click();});
+    await page.waitForTimeout(300);
+    const t=await page.evaluate(()=>({
+      remembered:JSON.parse(localStorage.getItem('wl_pf_overlay')||'{}').timer,
+      on:(document.querySelector('.pfcam-timerchip.on')||{}).textContent}));
+    test('picking 3s highlights it and remembers it',()=>{
+      eq(t.remembered,3);eq(t.on,'3s');});
+    await page.click('.pfcam-shutter');
+    await page.waitForTimeout(400);
+    const u=await page.evaluate(()=>({
+      counting:(document.getElementById('pfcam-count')||{}).style.display==='',
+      num:(document.getElementById('pfcam-count')||{}).textContent,
+      review:!!state.pfReview}));
+    test('the shutter starts a visible countdown instead of capturing',()=>{
+      ok(u.counting,'no countdown shown');eq(u.review,false,'captured immediately');
+      ok(/^[0-9]+$/.test(u.num),'count: '+u.num);});
+    await page.click('.pfcam-shutter');           /* tap again = cancel */
+    await page.waitForTimeout(300);
+    const v=await page.evaluate(()=>({
+      counting:(document.getElementById('pfcam-count')||{}).style.display==='',
+      review:!!state.pfReview}));
+    test('tapping during the countdown cancels it',()=>{
+      eq(v.counting,false,'still counting');eq(v.review,false);});
+    /* full run: 3s countdown then the capture fires into the review */
+    await page.click('.pfcam-shutter');
+    await page.waitForTimeout(4200);
+    const w=await page.evaluate(()=>({review:!!state.pfReview,
+      counting:(document.getElementById('pfcam-count')||{}).style.display===''}));
+    test('the countdown completes and the capture opens the review',()=>{
+      ok(w.review,'no review after countdown');eq(w.counting,false);});
+    await page.evaluate(()=>{pfReviewClose();render();
+      [...document.querySelectorAll('.pfcam-timerchip')].find(b=>b.textContent==='Off').click();});
+    await page.waitForTimeout(300);
+  }
+
   /* ---- overlay strength: live, clamped 10–75, remembered locally ---- */
   {
     await page.evaluate(()=>{const sl=document.querySelector('[data-pfov]');
