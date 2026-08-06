@@ -1,0 +1,44 @@
+{
+  "configSnapshotId": "cfg_v1_initial",
+  "configVersion": "1.0.0",
+  "manifestVersion": "1.0.0",
+  "confidenceThresholds": {
+    "high": { "min": 0.85, "max": 1.0 },
+    "moderate": { "min": 0.65, "max": 0.849 },
+    "low": { "min": 0.4, "max": 0.649 },
+    "insufficient_data": { "min": 0.0, "max": 0.399 }
+  },
+  "measurementRecencyDays": {
+    "weight": 3,
+    "waist": 7,
+    "neck": 14,
+    "hip": 14,
+    "chest": 14,
+    "upperArm": 14,
+    "thigh": 14
+  },
+  "requiredPoses": ["front", "left_side", "right_side", "back"],
+  "requiredMeasurements": ["height", "weight", "waist"],
+  "minimumAgeYears": 18,
+  "supportedEstimationSex": ["male", "female"],
+  "bodyFatBounds": { "min": 1, "max": 75 },
+  "goalProjectionTargets": [18, 15, 12],
+  "goalProjectionAssumption": "lean_mass_maintained",
+  "retention": {
+    "temporaryCopiesRetentionHours": 24,
+    "providerAssetRetention": "not_persisted_or_shortest_available",
+    "originalPhotoRetention": "athlete_managed"
+  },
+  "engineVersions": {
+    "formulaEngine": "1.0.0",
+    "reconciliationEngine": "1.0.0",
+    "confidenceEngine": "1.0.0",
+    "photoQualitySchema": "1.0.0",
+    "visualObservationSchema": "1.0.0"
+  },
+  "providers": {
+    "vision": { "provider": "openai", "adapterVersion": "1.0.0", "trainingUsePolicy": "excluded_where_supported" },
+    "visualization": { "provider": "openai", "adapterVersion": "1.0.0" },
+    "animation": { "provider": "luma", "adapterVersion": "1.0.0" }
+  }
+}

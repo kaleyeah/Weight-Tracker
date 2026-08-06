@@ -1,0 +1,1258 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "compound://schemas/assessment-manifest/1.0.0",
+  "title": "Compound Assessment Manifest",
+  "description": "Canonical contract for every Compound body-composition assessment (02-ASSESSMENT-MANIFEST.md, manifest version 1.0.0). This file is the single source of truth: the runtime validator consumes it directly, and the sync test fails if code and schema ever disagree.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "assessmentId",
+    "athleteId",
+    "assessmentType",
+    "assessmentRevision",
+    "manifestVersion",
+    "createdAt",
+    "status"
+  ],
+  "properties": {
+    "assessmentId": {
+      "type": "string",
+      "pattern": "^ast_[A-Za-z0-9]{6,40}$"
+    },
+    "athleteId": {
+      "type": "string",
+      "pattern": "^ath_[A-Za-z0-9]{6,40}$"
+    },
+    "assessmentType": {
+      "enum": [
+        "baseline",
+        "progress",
+        "goal_visualization_source",
+        "coach_requested",
+        "manual_reassessment"
+      ]
+    },
+    "assessmentRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "manifestVersion": {
+      "type": "string",
+      "pattern": "^\\d{1,4}\\.\\d{1,5}\\.\\d{1,6}$"
+    },
+    "createdAt": {
+      "$ref": "#/$defs/isoDateTime"
+    },
+    "completedAt": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/isoDateTime"
+        }
+      ]
+    },
+    "status": {
+      "enum": [
+        "draft",
+        "awaiting_inputs",
+        "awaiting_consent",
+        "validating",
+        "quality_review",
+        "queued",
+        "processing",
+        "reconciliation",
+        "completed",
+        "completed_with_warnings",
+        "failed",
+        "cancelled",
+        "deleted"
+      ]
+    },
+    "athleteContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ageYears",
+        "estimationSex",
+        "height",
+        "weight",
+        "waist"
+      ],
+      "properties": {
+        "ageYears": {
+          "type": "integer",
+          "minimum": 18,
+          "maximum": 120
+        },
+        "estimationSex": {
+          "enum": [
+            "male",
+            "female",
+            "unsupported",
+            "not_provided"
+          ]
+        },
+        "height": {
+          "$ref": "#/$defs/measurement"
+        },
+        "weight": {
+          "$ref": "#/$defs/measurement"
+        },
+        "waist": {
+          "$ref": "#/$defs/measurement"
+        },
+        "neck": {
+          "$ref": "#/$defs/measurement"
+        },
+        "hip": {
+          "$ref": "#/$defs/measurement"
+        },
+        "chest": {
+          "$ref": "#/$defs/measurement"
+        },
+        "upperArm": {
+          "$ref": "#/$defs/measurement"
+        },
+        "thigh": {
+          "$ref": "#/$defs/measurement"
+        },
+        "smartScaleBodyFat": {
+          "$ref": "#/$defs/measurement"
+        }
+      }
+    },
+    "photos": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/photoAsset"
+      }
+    },
+    "photoQuality": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/photoQualityReview"
+      }
+    },
+    "consent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "consentId",
+        "granted",
+        "grantedAt",
+        "consentTextVersion",
+        "privacyPolicyVersion",
+        "allowedPurposes"
+      ],
+      "properties": {
+        "consentId": {
+          "type": "string",
+          "pattern": "^con_[A-Za-z0-9]{6,40}$"
+        },
+        "granted": {
+          "type": "boolean"
+        },
+        "grantedAt": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/isoDateTime"
+            }
+          ]
+        },
+        "revokedAt": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/isoDateTime"
+            }
+          ]
+        },
+        "consentTextVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "privacyPolicyVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "allowedPurposes": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "photo_quality_review",
+              "body_composition_estimation",
+              "assessment_explanation"
+            ]
+          }
+        },
+        "optionalPurposes": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "goal_visualization": {
+              "type": "boolean"
+            },
+            "animation": {
+              "type": "boolean"
+            },
+            "coachSharing": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "providerExecutions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "executionId",
+          "purpose",
+          "provider",
+          "providerAdapterVersion",
+          "status"
+        ],
+        "properties": {
+          "executionId": {
+            "type": "string",
+            "pattern": "^exe_[A-Za-z0-9]{6,40}$"
+          },
+          "purpose": {
+            "enum": [
+              "photo_quality_review",
+              "visual_body_observation",
+              "assessment_explanation",
+              "goal_visualization",
+              "animation"
+            ]
+          },
+          "provider": {
+            "type": "string",
+            "minLength": 1
+          },
+          "model": {
+            "type": "string"
+          },
+          "providerAdapterVersion": {
+            "type": "string"
+          },
+          "promptTemplateId": {
+            "type": "string"
+          },
+          "promptVersion": {
+            "type": "string"
+          },
+          "responseSchemaVersion": {
+            "type": "string"
+          },
+          "startedAt": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/$defs/isoDateTime"
+              }
+            ]
+          },
+          "completedAt": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/$defs/isoDateTime"
+              }
+            ]
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "success",
+              "partial_success",
+              "failed",
+              "timed_out",
+              "cancelled"
+            ]
+          },
+          "providerAssetIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "providerRetentionState": {
+            "enum": [
+              "not_persisted",
+              "pending_deletion",
+              "deleted",
+              "deletion_unverified",
+              "retained_by_provider"
+            ]
+          },
+          "trainingUsePolicy": {
+            "enum": [
+              "excluded_where_supported",
+              "excluded_verified",
+              "unknown"
+            ]
+          }
+        }
+      }
+    },
+    "visualObservations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "visualEstimate",
+        "visualConfidence"
+      ],
+      "properties": {
+        "abdominalDefinition": {
+          "$ref": "#/$defs/observationScale"
+        },
+        "waistDefinition": {
+          "$ref": "#/$defs/observationScale"
+        },
+        "chestDefinition": {
+          "$ref": "#/$defs/observationScale"
+        },
+        "armDefinition": {
+          "$ref": "#/$defs/observationScale"
+        },
+        "shoulderSeparation": {
+          "$ref": "#/$defs/observationScale"
+        },
+        "backDefinition": {
+          "$ref": "#/$defs/observationScale"
+        },
+        "lowerBackFatVisibility": {
+          "$ref": "#/$defs/observationScale"
+        },
+        "legDefinition": {
+          "$ref": "#/$defs/observationScale"
+        },
+        "vascularity": {
+          "$ref": "#/$defs/observationScale"
+        },
+        "fatDistributionPattern": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "muscularityLevel": {
+          "type": "string"
+        },
+        "looseSkinPossibility": {
+          "enum": [
+            "none",
+            "low",
+            "moderate",
+            "high",
+            "unknown"
+          ]
+        },
+        "poseConsistency": {
+          "enum": [
+            "good",
+            "acceptable",
+            "poor",
+            "unknown"
+          ]
+        },
+        "lightingConsistency": {
+          "enum": [
+            "good",
+            "acceptable",
+            "poor",
+            "unknown"
+          ]
+        },
+        "visualEstimate": {
+          "$ref": "#/$defs/bodyFatRange"
+        },
+        "visualConfidence": {
+          "enum": [
+            "high",
+            "moderate",
+            "low",
+            "insufficient_data"
+          ]
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "formulaResults": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "formulaId",
+          "formulaVersion",
+          "eligible"
+        ],
+        "properties": {
+          "formulaId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "formulaVersion": {
+            "type": "string"
+          },
+          "eligible": {
+            "type": "boolean"
+          },
+          "skippedReason": {
+            "type": "string"
+          },
+          "inputsUsed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "estimate": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 75
+          },
+          "confidence": {
+            "enum": [
+              "high",
+              "moderate",
+              "low",
+              "insufficient_data"
+            ]
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "historicalContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "priorAssessmentId": {
+          "type": "string"
+        },
+        "priorAssessmentDate": {
+          "$ref": "#/$defs/isoDateTime"
+        },
+        "priorBodyFatBest": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 75
+        },
+        "weightChange": {
+          "type": "number"
+        },
+        "weightChangeUnit": {
+          "enum": [
+            "lb",
+            "kg"
+          ]
+        },
+        "waistChange": {
+          "type": "number"
+        },
+        "waistChangeUnit": {
+          "enum": [
+            "in",
+            "cm"
+          ]
+        },
+        "daysBetweenAssessments": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "photoComparability": {
+          "enum": [
+            "good",
+            "acceptable",
+            "poor",
+            "unknown"
+          ]
+        },
+        "trendDirection": {
+          "enum": [
+            "decreasing",
+            "stable",
+            "increasing",
+            "unknown"
+          ]
+        },
+        "historicalSupport": {
+          "enum": [
+            "supports_current_estimate",
+            "neutral",
+            "conflicts_with_current_estimate",
+            "insufficient_history"
+          ]
+        }
+      }
+    },
+    "reconciliation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "engineVersion",
+        "inputsConsidered",
+        "method",
+        "agreementLevel",
+        "finalEstimate"
+      ],
+      "properties": {
+        "engineVersion": {
+          "type": "string"
+        },
+        "inputsConsidered": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "visual_estimate",
+              "formula_estimate",
+              "historical_context",
+              "smart_scale",
+              "prior_estimate"
+            ]
+          }
+        },
+        "inputsExcluded": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "input",
+              "reason"
+            ],
+            "properties": {
+              "input": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "method": {
+          "type": "string",
+          "minLength": 1
+        },
+        "agreementLevel": {
+          "enum": [
+            "strong",
+            "moderate",
+            "weak",
+            "conflicting",
+            "insufficient"
+          ]
+        },
+        "conflicts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "finalEstimate": {
+          "$ref": "#/$defs/bodyFatRange"
+        }
+      }
+    },
+    "confidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "engineVersion",
+        "score",
+        "level"
+      ],
+      "properties": {
+        "engineVersion": {
+          "type": "string"
+        },
+        "score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "level": {
+          "enum": [
+            "high",
+            "moderate",
+            "low",
+            "insufficient_data"
+          ]
+        },
+        "positiveFactors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "negativeFactors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "insufficientFactors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bodyFat",
+        "bodyComposition",
+        "confidence",
+        "officialStatus",
+        "acceptedByAthlete"
+      ],
+      "properties": {
+        "bodyFat": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "low",
+            "high",
+            "best"
+          ],
+          "properties": {
+            "low": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 75
+            },
+            "high": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 75
+            },
+            "best": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 75
+            },
+            "displayRange": {
+              "type": "string"
+            },
+            "displayBest": {
+              "type": "string"
+            }
+          }
+        },
+        "bodyComposition": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "weight",
+            "weightUnit",
+            "estimatedFatMass",
+            "estimatedLeanMass"
+          ],
+          "properties": {
+            "weight": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "weightUnit": {
+              "enum": [
+                "lb",
+                "kg"
+              ]
+            },
+            "estimatedFatMass": {
+              "type": "number",
+              "minimum": 0
+            },
+            "estimatedLeanMass": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "estimatedFatFreeMass": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          }
+        },
+        "confidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "level"
+          ],
+          "properties": {
+            "level": {
+              "enum": [
+                "high",
+                "moderate",
+                "low",
+                "insufficient_data"
+              ]
+            },
+            "display": {
+              "type": "string"
+            }
+          }
+        },
+        "officialStatus": {
+          "enum": [
+            "proposed",
+            "accepted",
+            "rejected",
+            "superseded",
+            "coach_review_requested"
+          ]
+        },
+        "acceptedByAthlete": {
+          "type": "boolean"
+        },
+        "acceptedAt": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/isoDateTime"
+            }
+          ]
+        }
+      }
+    },
+    "goalProjections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "targetBodyFatPercent",
+          "eligible"
+        ],
+        "properties": {
+          "targetBodyFatPercent": {
+            "type": "number",
+            "minimum": 3,
+            "maximum": 60
+          },
+          "estimatedTargetWeight": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "estimatedFatLossRequired": {
+            "type": "number"
+          },
+          "assumption": {
+            "enum": [
+              "lean_mass_maintained"
+            ]
+          },
+          "eligible": {
+            "type": "boolean"
+          },
+          "warning": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "explanation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "summary",
+        "medicalDisclaimerVersion"
+      ],
+      "properties": {
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "primaryReasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "uncertaintyReasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "nextSteps": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "medicalDisclaimerVersion": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "coachReview": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "requested": {
+          "type": "boolean"
+        },
+        "reviewedBy": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "reviewedAt": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/isoDateTime"
+            }
+          ]
+        },
+        "coachEstimate": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/bodyFatRange"
+            }
+          ]
+        },
+        "coachNotes": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "overrideReason": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "originalPhotoRetention",
+        "temporaryCopiesRetentionHours",
+        "providerAssetRetention",
+        "metadataStripped"
+      ],
+      "properties": {
+        "originalPhotoRetention": {
+          "enum": [
+            "athlete_managed"
+          ]
+        },
+        "temporaryCopiesRetentionHours": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 168
+        },
+        "providerAssetRetention": {
+          "enum": [
+            "not_persisted_or_shortest_available",
+            "not_persisted",
+            "deletion_unverified"
+          ]
+        },
+        "metadataStripped": {
+          "type": "boolean"
+        },
+        "encryptedInTransit": {
+          "type": "boolean"
+        },
+        "encryptedAtRest": {
+          "type": "boolean"
+        },
+        "coachAccessGranted": {
+          "type": "boolean"
+        },
+        "socialSharingGranted": {
+          "type": "boolean"
+        },
+        "marketingUseGranted": {
+          "type": "boolean"
+        }
+      }
+    },
+    "audit": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "event",
+          "at"
+        ],
+        "properties": {
+          "event": {
+            "enum": [
+              "assessment_created",
+              "input_added",
+              "input_changed",
+              "photo_rejected",
+              "photo_replaced",
+              "consent_granted",
+              "consent_revoked",
+              "analysis_started",
+              "provider_called",
+              "provider_completed",
+              "provider_failed",
+              "reconciliation_completed",
+              "assessment_completed",
+              "assessment_accepted",
+              "assessment_rejected",
+              "coach_review_requested",
+              "coach_review_completed",
+              "visualization_generated",
+              "animation_generated",
+              "deletion_requested",
+              "deletion_completed"
+            ]
+          },
+          "at": {
+            "$ref": "#/$defs/isoDateTime"
+          },
+          "detail": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "reproducibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "manifestVersion",
+        "configSnapshotId"
+      ],
+      "properties": {
+        "manifestVersion": {
+          "type": "string"
+        },
+        "formulaEngineVersion": {
+          "type": "string"
+        },
+        "reconciliationEngineVersion": {
+          "type": "string"
+        },
+        "confidenceEngineVersion": {
+          "type": "string"
+        },
+        "photoQualitySchemaVersion": {
+          "type": "string"
+        },
+        "visualObservationSchemaVersion": {
+          "type": "string"
+        },
+        "providerAdapterVersions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "configSnapshotId": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  },
+  "$defs": {
+    "isoDateTime": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,6})?Z$"
+    },
+    "measurement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "value",
+        "unit"
+      ],
+      "properties": {
+        "value": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "unit": {
+          "enum": [
+            "in",
+            "cm",
+            "lb",
+            "kg",
+            "percent"
+          ]
+        },
+        "measuredAt": {
+          "$ref": "#/$defs/isoDateTime"
+        },
+        "source": {
+          "enum": [
+            "manual",
+            "healthkit",
+            "coach",
+            "smart_scale",
+            "device_import",
+            "previous_assessment",
+            "unknown"
+          ]
+        },
+        "protocol": {
+          "type": "string"
+        },
+        "quality": {
+          "enum": [
+            "confirmed",
+            "unconfirmed",
+            "stale",
+            "suspect",
+            "rejected"
+          ]
+        }
+      }
+    },
+    "photoAsset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "photoId",
+        "pose",
+        "assetClass",
+        "storageLocation",
+        "analysisEligible",
+        "generatedImage",
+        "metadataStripped"
+      ],
+      "properties": {
+        "photoId": {
+          "type": "string",
+          "pattern": "^pho_[A-Za-z0-9]{6,40}$"
+        },
+        "pose": {
+          "enum": [
+            "front",
+            "left_side",
+            "right_side",
+            "back"
+          ]
+        },
+        "assetClass": {
+          "enum": [
+            "real_progress_photo",
+            "temporary_analysis_copy",
+            "generated_goal_visualization",
+            "generated_animation_frame",
+            "coach_reference_image",
+            "unsupported_asset"
+          ]
+        },
+        "captureMethod": {
+          "enum": [
+            "compound_camera",
+            "library_upload",
+            "unknown"
+          ]
+        },
+        "capturedAt": {
+          "$ref": "#/$defs/isoDateTime"
+        },
+        "storageLocation": {
+          "enum": [
+            "private_compound_storage",
+            "temporary_analysis_storage",
+            "provider_transient"
+          ]
+        },
+        "analysisEligible": {
+          "type": "boolean"
+        },
+        "generatedImage": {
+          "type": "boolean"
+        },
+        "metadataStripped": {
+          "type": "boolean"
+        }
+      }
+    },
+    "photoQualityReview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "photoId",
+        "pose",
+        "status"
+      ],
+      "properties": {
+        "photoId": {
+          "type": "string"
+        },
+        "pose": {
+          "enum": [
+            "front",
+            "left_side",
+            "right_side",
+            "back"
+          ]
+        },
+        "status": {
+          "enum": [
+            "accepted",
+            "accepted_with_warnings",
+            "retake_recommended",
+            "rejected",
+            "unreviewed"
+          ]
+        },
+        "score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "checks": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "personDetected": {
+              "type": "boolean"
+            },
+            "singlePerson": {
+              "type": "boolean"
+            },
+            "fullBodyVisible": {
+              "type": "boolean"
+            },
+            "bodyCentered": {
+              "type": "boolean"
+            },
+            "correctPose": {
+              "type": "boolean"
+            },
+            "adequateLighting": {
+              "type": "boolean"
+            },
+            "adequateSharpness": {
+              "type": "boolean"
+            },
+            "minimalObstruction": {
+              "type": "boolean"
+            },
+            "cameraAngleAcceptable": {
+              "type": "boolean"
+            },
+            "likelySameAthlete": {
+              "type": "boolean"
+            },
+            "likelyGeneratedOrManipulated": {
+              "type": "boolean"
+            }
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "retakeRequired": {
+          "type": "boolean"
+        }
+      }
+    },
+    "bodyFatRange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "low",
+        "high",
+        "best"
+      ],
+      "properties": {
+        "low": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 75
+        },
+        "high": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 75
+        },
+        "best": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 75
+        }
+      }
+    },
+    "observationScale": {
+      "enum": [
+        "none",
+        "minimal",
+        "limited",
+        "moderate",
+        "clear",
+        "high",
+        "unknown"
+      ]
+    }
+  }
+}
