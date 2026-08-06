@@ -67,6 +67,7 @@ const MODULES = [
   { name: "icons.js" },
   { name: "app-core.js" },
   { name: "state-glp-calc.js" },
+  { name: "trend-core.js" },
   { name: "ratings-checkin-coach.js" },
   { name: "views-weight-summary.js" },
   { name: "lifting-model.js" },

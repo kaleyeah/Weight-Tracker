@@ -364,6 +364,13 @@ document.addEventListener("click",function(e){
   if(a==="hist:more"){state.histMore=true;render();return;}
   if(a==="hist:day"){var hd=el.getAttribute("data-date");state.selDate=hd;var hp=parseISO(hd);state.calY=hp.getFullYear();state.calM=hp.getMonth();state.view="train";render();return;}
   if(a==="bc:tab"){state.bcTab=el.getAttribute("data-tab");render();return;}
+  /* measurement trend component (Owner package 2026-08-06): metric switching
+     (bc:tab above) deliberately PRESERVES t2Mode/t2Off per the spec */
+  if(a==="t2:mode"){state.t2Mode=el.getAttribute("data-mode");state.t2Off=0;state.t2Pt=null;render();return;}
+  if(a==="t2:prev"){state.t2Off=(state.t2Off||0)+1;state.t2Pt=null;render();return;}
+  if(a==="t2:next"){if((state.t2Off||0)>0){state.t2Off=state.t2Off-1;state.t2Pt=null;render();}return;}
+  if(a==="t2:tocur"){state.t2Off=0;state.t2Pt=null;render();return;}
+  if(a==="t2:pt"){state.t2Pt={tab:state.bcTab||"weight",date:el.getAttribute("data-date"),value:num(el.getAttribute("data-value"))};render();return;}
   if(a==="morestats"){state.moreStats=(state.moreStats===false);render();return;}
   if(a==="syncdot"){var _sr=syncIdleReason();if(_sr){toast("Sync: "+_sr);return;}
 var lt=getLastSync();toast((syncLabel()||"Sync")+(lt?" \u00b7 "+fmtClock(lt):"")+(syncState.msg?" \u2014 "+syncState.msg:""));return;}

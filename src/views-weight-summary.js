@@ -154,6 +154,80 @@ function forecastCardHTML(){var u=state.settings.units;var sw=sortedWeights();va
   if(fc.done)h+='<div class="wl-empty">You\u2019re at or below your goal weight. Nice work.</div>';
   else h+='<div class="wl-forecast-grid">'+fcCell("At your target",state.settings.targetType==="percent_bw_per_week"?state.settings.targetValue+"% / week":state.settings.targetValue+" "+u+" / week",fc.target,"")+fcCell("At your current pace",(fc.observed&&fc.observed.rate!=null)?r1(fc.observed.rate)+" "+u+" / week":"based on your data",fc.observed,_fcWhy)+'</div>';
   return h+'</div>';}
+/* ===== Measurement trend component (Owner package 2026-08-06) =====
+   One reusable W/M/6M trend body for Weight / Body fat / Waist / LBM,
+   powered by the pure trend-core module. Deliberately SELF-CONTAINED:
+   its rolling windows (7d / 30d / 6 calendar months ending today) are the
+   package's semantics and do not touch trendCtx(), which continues to drive
+   steps, calories, sleep and training history unchanged. */
+function t2Cfg(tab,u){
+  if(tab==="bodyfat")return {id:"bodyfat",label:"Body fat",labelLower:"body fat",unit:"%",dec:1,pp:true};
+  if(tab==="leanmass")return {id:"leanmass",label:"Lean body mass",labelLower:"lean body mass",unit:u,dec:1,pp:false};
+  if(tab==="waist")return {id:"waist",label:"Waist",labelLower:"waist",unit:u==="kg"?"cm":"in",dec:1,pp:false,showPct:false};
+  return {id:"weight",label:"Weight",labelLower:"weight",unit:u,dec:1,pp:false};}
+function t2MapObs(map){return Object.keys(map||{}).map(function(d){return {date:d,value:num(map[d])};})
+  .filter(function(x){return x.value!=null;});}
+function t2Obs(tab){
+  var wObs=sortedWeights().map(function(x){return {date:x.date,value:num(x.weight)};})
+    .filter(function(x){return x.value!=null;});
+  if(tab==="weight")return wObs;
+  if(tab==="bodyfat")return t2MapObs(state.bodyfat);
+  if(tab==="waist")return t2MapObs(state.waist);
+  /* LBM: stored entries win per date; otherwise derived from the SAME-DATE
+     weight+bodyfat pair (the app's pairing convention is the shared date key) */
+  return tcLbmObs(wObs,t2MapObs(state.bodyfat),t2MapObs(state.leanmass));}
+function t2InnerHTML(tab,u){
+  var cfg=t2Cfg(tab,u);
+  var mode=state.t2Mode||"M";var off=state.t2Off||0;
+  var p=tcPeriod(mode,off,todayISO());
+  var obs=t2Obs(tab);
+  var cur=tcWindow(obs,p.startISO,p.endISO);
+  var prev=tcWindow(obs,p.prevStartISO,p.prevEndISO);
+  /* strong-claim gate: the PACE_MIN_WEIGHINS discipline; a 7-day window uses
+     3 because 7-of-7 would silence the comparison for nearly everyone.
+     Stated product default, flagged in the package handoff. */
+  var minC=mode==="W"?3:PACE_MIN_WEIGHINS;
+  var cmp=tcCompare(cur,prev,minC);
+  var badge=tcBadge(cfg,mode,cmp);
+  var h="";
+  /* headline: period average */
+  h+='<div class="wl-t2-head"><div><div class="wl-t2-cap">Average</div>'
+    +'<div class="wl-t2-avg">'+(cur.avg!=null?tcNum(cur.avg,cfg.dec):"\u2014")
+    +(cur.avg!=null?'<span class="wl-t2-unit">'+esc(cfg.unit)+'</span>':"")+'</div>'
+    +(badge?'<span class="wl-t2-badge '+badge.dir+'">'+badge.arrow+' '+esc(badge.text)+'</span>':"")
+    +'</div>'
+    +'<div class="wl-seg wl-t2-seg">'+["W","M","6M"].map(function(m){return '<button class="'+(mode===m?"on":"")+'" data-act="t2:mode" data-mode="'+m+'" aria-pressed="'+(mode===m)+'">'+m+'</button>';}).join("")+'</div></div>';
+  /* period navigation — Next disabled at the current period, never future */
+  h+='<div class="wl-hnav" style="justify-content:center;margin-top:8px"><button class="wl-hnav-arw" data-act="t2:prev" aria-label="Previous period">\u2039</button>'
+    +'<button class="wl-hnav-lbl" data-act="t2:tocur"><span>'+esc(p.label)+'</span></button>'
+    +'<button class="wl-hnav-arw'+(off>0?'':' off')+'" '+(off>0?'data-act="t2:next" aria-label="Next period"':'disabled')+'>\u203a</button></div>';
+  /* plain-language summary generated from the displayed numbers */
+  h+='<div class="wl-hint wl-t2-copy">'+esc(tcSummary(cfg,mode,cur,prev,cmp))+'</div>';
+  /* chart */
+  if(cur.points.length){
+    var buckets=mode==="6M"?tcMonthBuckets(obs,p.startISO,p.endISO):null;
+    h+=tcChartSVG({mode:mode,startISO:p.startISO,endISO:p.endISO,points:cur.points,
+      monthBuckets:buckets,avg:mode==="M"?cur.avg:null,dec:cfg.dec,unit:cfg.unit,
+      colors:{axis:CH.axis,grid:CH.grid,line:CH.avg,accent:CH.avg,fill:"rgba(245,181,68,0.08)"},
+      ariaLabel:esc(cfg.label)+" trend, "+cur.count+" measurement"+(cur.count===1?"":"s")+", average "+tcNum(cur.avg,cfg.dec)+" "+esc(cfg.unit)});
+    /* text alternative + tapped-point details */
+    var pt=state.t2Pt;
+    var ptIn=pt&&pt.tab===tab&&pt.date>=p.startISO&&pt.date<=p.endISO;
+    h+='<div class="wl-readout">'+(ptIn
+      ?('<b>'+tcNum(pt.value,cfg.dec)+'</b> '+esc(cfg.unit)+' \u00b7 '+esc(fmtShort(parseISO(pt.date)))+' \u00b7 logged entry')
+      :(cur.count+' measurement'+(cur.count===1?"":"s")+' \u00b7 tap a point for details'))+'</div>';
+  }else{
+    h+='<div class="wl-empty">'+(obs.length?('No '+esc(cfg.labelLower)+' entries in this period.')
+      :('No '+esc(cfg.labelLower)+' logged yet \u2014 add it from the Weight check-in when you measure.'))+'</div>';
+  }
+  /* source + recency: honest about what the store actually records — entries
+     carry no per-record source/time metadata (flagged in the handoff) */
+  var lastObs=obs.length?obs[obs.length-1].date:null;
+  h+='<div class="wl-t2-src"><span>Manual & imported entries</span><span>'+(lastObs?('Latest: '+esc(fmtShort(parseISO(lastObs)))):"\u2014")+'</span></div>';
+  /* existing flows, unchanged targets */
+  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="go" data-view="overview">+ Add a measurement (Home tab)</button>';
+  return h;}
+
 function view_weight(){
   var u=state.settings.units;var ctx=trendCtx();var off=state.trendOffset||0;var perLbl=ctx.gran==="month"?"/mo":"/day";
   var h='<div class="wl-stack">';h+=forecastCardHTML();h+=metabolismCardHTML();
@@ -166,15 +240,7 @@ function view_weight(){
   var bcTab=state.bcTab||"weight";if(!bcTabs.some(function(t){return t[0]===bcTab;}))bcTab="weight";
   h+='<div class="wl-card"><div class="wl-card-head"><span>Body composition</span></div>';
   if(bcTabs.length>1)h+='<div class="wl-seg wl-seg-wide" style="margin-bottom:12px">'+bcTabs.map(function(t){return '<button class="'+(bcTab===t[0]?"on":"")+'" data-act="bc:tab" data-tab="'+t[0]+'">'+t[1]+'</button>';}).join("")+'</div>';
-  if(bcTab==="weight"){var rw=sw.filter(function(x){return x.date>=startISO&&x.date<=endISO;});var wc=prepChart(rw);var wchg=rw.length>=2?(rw[rw.length-1].weight-rw[0].weight):null;
-    h+='<div class="wl-hint" style="margin-bottom:6px"><b>Change '+(wchg!=null?(wchg<=0?"\u25bc ":"\u25b2 ")+Math.abs(r1(wchg))+" "+u:"\u2014")+'</b>'+(rw.length?' \u00b7 latest '+r1(rw[rw.length-1].weight)+" "+u:"")+'</div>';
-    if(wc.data.length)h+=buildChart(wc,goal,u,true,ctx.start.getTime(),ctx.end.getTime());else h+='<div class="wl-empty">No weigh-ins in this period.</div>';
-  }else{var bcMap=bcTab==="bodyfat"?state.bodyfat:bcTab==="leanmass"?state.leanmass:state.waist;var bcU=bcTab==="bodyfat"?"%":bcTab==="leanmass"?u:(u==="kg"?"cm":"in");
-    var arr=Object.keys(bcMap||{}).map(function(d){return {date:d,weight:num(bcMap[d])};}).filter(function(x){return x.weight!=null&&x.date>=startISO&&x.date<=endISO;}).sort(function(a,b){return a.date.localeCompare(b.date);});
-    var cc=prepChart(arr);var chg=arr.length>=2?(arr[arr.length-1].weight-arr[0].weight):null;
-    h+='<div class="wl-hint" style="margin-bottom:6px"><b>Change '+(chg!=null?(chg<=0?"\u25bc ":"\u25b2 ")+Math.abs(r1(chg))+" "+bcU:"\u2014")+'</b>'+(arr.length?' \u00b7 latest '+r1(arr[arr.length-1].weight)+" "+bcU:"")+'</div>';
-    if(cc.data.length)h+=buildChart(cc,null,bcU,true,ctx.start.getTime(),ctx.end.getTime());else if(!bcHas(bcMap))h+='<div class="wl-empty">No '+(bcTab==="bodyfat"?"body fat":bcTab==="leanmass"?"lean mass":"waist")+' logged yet \u2014 add it from the Weight check-in when you measure.</div>';else h+='<div class="wl-empty">No '+(bcTab==="bodyfat"?"body fat":bcTab==="leanmass"?"lean mass":"waist")+' entries in this period.</div>';
-  }
+  h+=t2InnerHTML(bcTab,u);
   h+='</div>';
   h+=feelCardHTML();
   h+=ciHistoryHTML();
