@@ -673,8 +673,9 @@ function maxSheetHTML(){if(!state.maxOpen)return "";
     inner='<div class="wl-mhead" style="margin-bottom:6px"><span class="wl-mav">M</span><span style="min-width:0"><span class="wl-mtitle">Messages</span><span class="wl-msub">from Coach Max</span></span><button class="wl-maxx" data-act="max:close">\u2715</button></div>'
       +'<div class="wl-inbox">'+msgs.map(function(m){
         return '<button class="wl-inbox-row'+(m.unread?' unread':'')+'" data-act="max:read" data-key="'+esc(m.key)+'">'
+          +'<span class="wl-inbox-dot'+(m.unread?'':' off')+'"></span>'
           +'<span class="wl-inbox-mood">'+(MAXFACE[String(m.mood||"").toLowerCase()]?'<img src="'+MAXFACE[String(m.mood||"").toLowerCase()]+'" alt="">':'M')+'</span>'
-          +'<span class="wl-inbox-main"><span class="wl-inbox-top"><span class="wl-inbox-title">'+m.title+'</span>'+(m.unread?'<span class="wl-newpill">New</span>':'')+'</span>'
+          +'<span class="wl-inbox-main"><span class="wl-inbox-top"><span class="wl-inbox-title">'+m.title+'</span></span>'
           +'<span class="wl-inbox-sub">'+m.sub+'</span>'
           +'<span class="wl-inbox-prev">'+maxPreview(m.text)+'</span></span>'
           +'<span class="wl-inbox-go">\u203a</span></button>';}).join("")+'</div>';}

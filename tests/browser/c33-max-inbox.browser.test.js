@@ -67,6 +67,7 @@ const eq=(a,b,m)=>{if(a!==b)throw new Error((m||'eq')+': '+JSON.stringify(a)+' !
       rows:[...document.querySelectorAll('.wl-inbox-row')].map(r=>({
         title:(r.querySelector('.wl-inbox-title')||{}).textContent,
         unread:r.classList.contains('unread'),
+        dot:!!r.querySelector('.wl-inbox-dot:not(.off)'),
         prev:(r.querySelector('.wl-inbox-prev')||{}).textContent||''})),
       fullMsgOpen:!!document.querySelector('.wl-ai-summary')}));
     test('the sheet opens as an inbox list, not a message wall',()=>{
@@ -81,6 +82,8 @@ const eq=(a,b,m)=>{if(a!==b)throw new Error((m||'eq')+': '+JSON.stringify(a)+' !
       ok(s.rows[1].unread,'tdee should be unread');});
     test('only the LATEST daily recap can be unread — history stays quiet',()=>
       eq(s.rows[2].unread,false,'old recap flagged New'));
+    test('unread shows as a blue LEFT dot, read rows keep an empty gutter (Owner ruling)',()=>{
+      ok(s.rows[0].dot,'no dot on unread row');eq(s.rows[2].dot,false,'dot on read row');});
   }
 
   /* ---- tap → one message opens and becomes read ---- */
@@ -101,9 +104,11 @@ const eq=(a,b,m)=>{if(a!==b)throw new Error((m||'eq')+': '+JSON.stringify(a)+' !
     await page.waitForTimeout(200);
     const t=await page.evaluate(()=>({
       list:document.querySelectorAll('.wl-inbox-row').length,
-      firstUnread:document.querySelector('.wl-inbox-row').classList.contains('unread')}));
-    test('back returns to the list with the read pill cleared',()=>{
-      eq(t.list,4);eq(t.firstUnread,false,'still marked unread after reading');});
+      firstUnread:document.querySelector('.wl-inbox-row').classList.contains('unread'),
+      firstDot:!!document.querySelector('.wl-inbox-row').querySelector('.wl-inbox-dot:not(.off)')}));
+    test('back returns to the list with the read dot cleared',()=>{
+      eq(t.list,4);eq(t.firstUnread,false,'still marked unread after reading');
+      eq(t.firstDot,false,'dot still shown after reading');});
   }
 
   /* ---- weekly/TDEE use their synced seen fields, set on READ ---- */

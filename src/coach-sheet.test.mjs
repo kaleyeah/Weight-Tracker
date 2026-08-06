@@ -121,7 +121,7 @@ await page.evaluate(([tdeeText, weeklyText]) => {
   }));
   coachRptLoad();
 }, [TDEE_TEXT, WEEKLY_TEXT]);
-ok(html.indexOf("wl-newpill") >= 0, "an unread TDEE report shows a New pill");
+ok(html.indexOf('class="wl-inbox-dot"') >= 0, "an unread report shows the blue unread dot (Owner 2026-08-06: like an email app)");
 ok(html.indexOf(TDEE_TEXT) < html.indexOf(WEEKLY_TEXT), "the newer message (TDEE, Aug 5) leads the older weekly (Aug 3)");
 /* Two max:close targets is correct: the backdrop (tap outside to dismiss)
    and the button. Assert on the BUTTON class, which is the one that could
@@ -141,7 +141,7 @@ const seen = await page.evaluate(() => {
   return { html: maxSheetHTML(), unread: coachUnreadT() };
 });
 ok(seen.unread === false, "marking the period seen clears unread");
-ok(seen.html.indexOf("wl-newpill") < 0, "a read report shows no New pill");
+ok(seen.html.indexOf('class="wl-inbox-dot"') < 0, "a read report shows no dot — every gutter dot is the transparent .off spacer");
 ok(seen.html.indexOf(TDEE_TEXT) < seen.html.indexOf(WEEKLY_TEXT), "order is by recency, NOT by unread — reading it does not demote it");
 ok(seen.html.indexOf(TDEE_TEXT) >= 0, "a read report is still readable, not hidden");
 
