@@ -463,7 +463,7 @@ function view_summary(){
       cl(mv(cc,function(v){return v;}),(tCarb!=null&&cc!=null)?((cc>tCarb&&calOverD)?"bad":"good"):"")+
       '</tr>';});
   h+='</tbody></table><button class="wl-btn wl-btn-primary wl-full" style="margin-top:14px" data-act="sum:exportweek">Export this week</button><div class="wl-hint" style="margin-top:8px">Two files: a readable progress report you can open on your phone, plus the CSV — every logged metric, training, and notes.</div>';
-  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:14px" data-act="sum:coachreport">Export coach report</button><div class="wl-hint" style="margin-top:8px">The whole week as your coach sees it — photos, summary, and every workout — plus the CSV, in one share.</div></div>';
+  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:14px" data-act="sum:coachreport">Export progress report</button><div class="wl-hint" style="margin-top:8px">Your whole week in one file — photos, summary, and every workout — plus the CSV, in one share. It stays with you; the coach never receives your photos.</div></div>';
   h+='<div class="wl-card"><button class="wl-btn wl-btn-primary wl-full" data-act="go" data-view="diary">'+I.camera+'Food Diary</button><div class="wl-hint" style="margin-top:8px">A visual collage of your meal photos by day, with each day\u2019s calories and macros.</div></div>';
   return h+'</div>';}
 function csvCell(v){v=(v==null?"":String(v));return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}

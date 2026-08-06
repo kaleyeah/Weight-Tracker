@@ -311,11 +311,11 @@ var SRCSS=[
 function srReportHTML(inp){
   var who=inp.who||"Athlete";
   var h='<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n';
-  h+='<title>'+srEsc("Compound — Coach report — "+who+" — "+(inp.range||""))+'</title>\n';
+  h+='<title>'+srEsc("Compound — Progress report — "+who+" — "+(inp.range||""))+'</title>\n';
   h+='<meta name="viewport" content="width=device-width, initial-scale=1">\n';
   h+='<style>'+SRCSS.join("")+'</style>\n</head>\n<body>\n<div class="pg">\n';
   h+='<div class="hdr"><div class="brandrow">'+SRMARK+'<span class="brandword">COMPOUND</span>'+
-    '<span class="stamp">Coach report</span></div>'+
+    '<span class="stamp">Progress report</span></div>'+
     '<h1>'+srEsc(inp.weekTitle||"This week")+'</h1>'+
     '<div class="ident"><span>'+srEsc(who)+'</span><span class="sep">·</span>'+
     '<span class="plan">'+srEsc(inp.plan||"")+'</span><span class="sep">·</span>'+

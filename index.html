@@ -4046,7 +4046,7 @@ function view_summary(){
       cl(mv(cc,function(v){return v;}),(tCarb!=null&&cc!=null)?((cc>tCarb&&calOverD)?"bad":"good"):"")+
       '</tr>';});
   h+='</tbody></table><button class="wl-btn wl-btn-primary wl-full" style="margin-top:14px" data-act="sum:exportweek">Export this week</button><div class="wl-hint" style="margin-top:8px">Two files: a readable progress report you can open on your phone, plus the CSV — every logged metric, training, and notes.</div>';
-  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:14px" data-act="sum:coachreport">Export coach report</button><div class="wl-hint" style="margin-top:8px">The whole week as your coach sees it — photos, summary, and every workout — plus the CSV, in one share.</div></div>';
+  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:14px" data-act="sum:coachreport">Export progress report</button><div class="wl-hint" style="margin-top:8px">Your whole week in one file — photos, summary, and every workout — plus the CSV, in one share. It stays with you; the coach never receives your photos.</div></div>';
   h+='<div class="wl-card"><button class="wl-btn wl-btn-primary wl-full" data-act="go" data-view="diary">'+I.camera+'Food Diary</button><div class="wl-hint" style="margin-top:8px">A visual collage of your meal photos by day, with each day\u2019s calories and macros.</div></div>';
   return h+'</div>';}
 function csvCell(v){v=(v==null?"":String(v));return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
@@ -5219,11 +5219,11 @@ var SRCSS=[
 function srReportHTML(inp){
   var who=inp.who||"Athlete";
   var h='<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n';
-  h+='<title>'+srEsc("Compound — Coach report — "+who+" — "+(inp.range||""))+'</title>\n';
+  h+='<title>'+srEsc("Compound — Progress report — "+who+" — "+(inp.range||""))+'</title>\n';
   h+='<meta name="viewport" content="width=device-width, initial-scale=1">\n';
   h+='<style>'+SRCSS.join("")+'</style>\n</head>\n<body>\n<div class="pg">\n';
   h+='<div class="hdr"><div class="brandrow">'+SRMARK+'<span class="brandword">COMPOUND</span>'+
-    '<span class="stamp">Coach report</span></div>'+
+    '<span class="stamp">Progress report</span></div>'+
     '<h1>'+srEsc(inp.weekTitle||"This week")+'</h1>'+
     '<div class="ident"><span>'+srEsc(who)+'</span><span class="sep">·</span>'+
     '<span class="plan">'+srEsc(inp.plan||"")+'</span><span class="sep">·</span>'+
@@ -5464,7 +5464,7 @@ function srExport(){
   var files;
   try{
     var off=state.weekOffset||0;var base=toISO(weekStartFor(off));
-    files=[{name:"coach-report-"+base+".html",
+    files=[{name:"progress-report-"+base+".html",
       mime:"text/html;charset=utf-8",text:srReportHTML(srInput(off))},
       {name:"weight-summary-"+base+".csv",
       mime:"text/csv",text:csvFor(weekDays(off).map(dayRow),"Weekly")}];

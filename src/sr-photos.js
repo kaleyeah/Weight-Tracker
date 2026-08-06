@@ -215,7 +215,7 @@ function srExport(){
   var files;
   try{
     var off=state.weekOffset||0;var base=toISO(weekStartFor(off));
-    files=[{name:"coach-report-"+base+".html",
+    files=[{name:"progress-report-"+base+".html",
       mime:"text/html;charset=utf-8",text:srReportHTML(srInput(off))},
       {name:"weight-summary-"+base+".csv",
       mime:"text/csv",text:csvFor(weekDays(off).map(dayRow),"Weekly")}];
