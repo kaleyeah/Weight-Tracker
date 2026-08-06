@@ -212,6 +212,15 @@ function m10pDispatch(done){
 
   /* ---------- add ---------- */
   if(en.op==="add"){
+    /* recovery (2026-08-06): an add op for a photo this device has ALREADY
+       verifiably uploaded (per its own durable map — written only after a
+       validated server ack) is complete by definition. Clear it instead of
+       re-uploading; the server rejects duplicate localIds. Restricted to
+       pre-ack states — an acked op owns a NEW server id whose map write
+       must still land. */
+    if(en.state==="intent"||en.state==="blob-ok"){
+      var _srv=null;try{_srv=(pbPhotoMap()||{})[en.localId];}catch(e){}
+      if(_srv){if(clearEntry())next(true);else fin(false);return;}}
     if(en.state==="intent"){
       /* ruling 3: an intent is NOT dispatchable — resolve its identity first,
          distinguishing "blob present (promote)" from "definitively absent" */

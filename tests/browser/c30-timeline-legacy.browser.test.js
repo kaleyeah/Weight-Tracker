@@ -231,6 +231,43 @@ const eq=(a,b,m)=>{if(a!==b)throw new Error((m||'eq')+': '+JSON.stringify(a)+' !
     await page.waitForTimeout(200);
   }
 
+  /* ---- the 2026-08-06 wedge (Owner's phone): re-uploads of already-
+     uploaded photos hit the server's unique-localId constraint (untyped
+     500) and starved the queue. Two guards: a keyed put on a MAPPED record
+     queues nothing, and a stranded add op for a mapped localId completes
+     quietly instead of re-uploading. ---- */
+  {
+    const s=await page.evaluate(async()=>{
+      localStorage.removeItem('wl_photo_ops__userA');
+      const m=JSON.parse(localStorage.getItem('wl_photomap')||'{}');
+      m['p-f3']='srv-p-f3';localStorage.setItem('wl_photomap',JSON.stringify(m));
+      const rec=(await idbAll()).find(p=>p.id==='p-f3');
+      rec.normalization=rec.normalization||null;   /* metadata-style keyed put */
+      await idbAdd(rec);
+      await new Promise(r=>setTimeout(r,300));
+      const back=(await idbAll()).find(p=>p.id==='p-f3');
+      return {queued:(typeof m10pOps==='function')?m10pOps().length:-1,stillThere:!!back};});
+    test('a keyed put on an already-uploaded record queues NO upload op',()=>{
+      eq(s.queued,0,'ops queued: '+s.queued);ok(s.stillThere,'local write lost');});
+
+    const t=await page.evaluate(async()=>{
+      /* inject the Owner's exact stranded shapes: intent AND blob-ok add ops
+         for a localId the map already covers */
+      const uid='userA';
+      const okI=m10pMutate(uid,ops=>{ops.push(
+        {id:'pop-stranded-1',op:'add',localId:'p-f3',requestId:'m10c-'+'a'.repeat(24),state:'intent',
+         meta:{kind:'progress',date:'2026-07-20',week:'2026-07-20',pose:'front',meal:'',ts:'1'}},
+        {id:'pop-stranded-2',op:'add',localId:'p-f3',requestId:'m10c-'+'b'.repeat(24),state:'blob-ok',
+         blobSha256:'c'.repeat(64),blobByteLength:1234,
+         meta:{kind:'progress',date:'2026-07-20',week:'2026-07-20',pose:'front',meal:'',ts:'1'}});});
+      const beforeN=m10pOps(uid).length;
+      for(let i=0;i<8;i++){m10pDispatch();await new Promise(r=>setTimeout(r,200));
+        if(!m10pOps(uid).length)break;}
+      return {okI:okI,beforeN:beforeN,afterN:m10pOps(uid).length};});
+    test('stranded add ops for mapped photos drain quietly — the wedge clears itself',()=>{
+      ok(t.okI,'could not inject');eq(t.beforeN,2);eq(t.afterN,0,'ops left: '+t.afterN);});
+  }
+
   /* ---- M5: the queue, oldest first; narrow hint only when relevant ---- */
   {
     await page.click('[data-act="pfleg:start"]');

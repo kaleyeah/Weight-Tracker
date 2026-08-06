@@ -520,9 +520,10 @@ function importProgressPhotos(text,m10cap){
 function clearPhotoURLs(){photoURLs.forEach(function(u){try{URL.revokeObjectURL(u);}catch(e){}});photoURLs=[];photoMap={};}
 function pfThumbInto(elId,rec,maxH){
   var el=document.getElementById(elId);if(!el)return;
-  var put=function(src,fit){el.style.backgroundImage="url("+src+")";el.style.backgroundSize=fit||"cover";};
+  var put=function(src,fit){el.style.backgroundImage="url("+src+")";el.style.backgroundSize=fit||"cover";el.style.backgroundRepeat="no-repeat";el.style.backgroundPosition="center";};
   if(pfHasNorm(rec))pfDerivative(rec,maxH,function(du){
     var el2=document.getElementById(elId);if(!el2)return;
+    el2.style.backgroundRepeat="no-repeat";el2.style.backgroundPosition="center";
     if(du){el2.style.backgroundImage="url("+du+")";el2.style.backgroundSize="cover";}
     else{var u=URL.createObjectURL(rec.blob);photoURLs.push(u);el2.style.backgroundImage="url("+u+")";el2.style.backgroundSize="contain";}});
   else{var u2=URL.createObjectURL(rec.blob);photoURLs.push(u2);put(u2,"contain");}}

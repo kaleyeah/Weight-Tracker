@@ -10,6 +10,13 @@
     var uid=m8Uid();
     if(!uid||!syncOn())return idbAddLocal(rec);
     if(window.m8StorageBlocked)return Promise.reject("blocked");
+    /* 2026-08-06 wedge root cause (Owner's phone, server log 'localId:
+       Value must be unique'): a KEYED PUT on a record this device has
+       already verifiably uploaded (it is in the photo map) is a local
+       metadata update — normalization, retake bookkeeping — NOT new
+       content. Re-queueing an upload made the server reject the duplicate
+       localId with an untyped 500 and the retry wedged the whole queue. */
+    try{if((pbPhotoMap()||{})[String(rec.id)])return idbAddLocal(rec);}catch(e){}
     var opId=m10pOpId();
     if(!opId)return Promise.reject("no-identity");
     var rid=m10cRequestId();
