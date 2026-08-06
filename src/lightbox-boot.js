@@ -200,7 +200,22 @@ document.addEventListener("visibilitychange",function(){if(!document.hidden){che
   document.addEventListener("touchend",function(){
     if(!pulling)return;pulling=false;
     if(dist*0.5>=THRESH){var e=el();e.classList.add("spin");e.classList.remove("ready");e.style.transition="transform .2s ease";e.style.transform="translateX(-50%) translateY(48px)";e.style.opacity="1";
-      cloudPull(true,function(){setTimeout(function(){e.classList.remove("spin");move(0,false);},350);});}
+      /* Owner 2026-08-06: "the icon moves but the last sync time is still
+         old" — this called cloudPull directly, which never stamps. Mirror
+         autoSync: pull, push if dirty (the push journal stamps itself),
+         stamp+ok on clean, ride the coach-report fetch. Same lesson as the
+         2026-08-03 read-only-device fix, applied to the manual gesture. */
+      cloudPull(true,function(){
+        var fin=function(){setTimeout(function(){e.classList.remove("spin");move(0,false);},350);};
+        try{
+          var st=(typeof m10cState==="function")?m10cState():null;
+          if(st==="dirty"&&typeof m10cPush==="function"){
+            m10cPush(true,function(ok){if(ok)setSync("ok");try{render();}catch(_e){}fin();});return;}
+          if(st==="clean"){try{setLastSync();}catch(_e){}setSync("ok");}
+          try{fetchCoachReports(function(ch){if(ch)try{render();}catch(_e){}});}catch(_e){}
+          try{render();}catch(_e){}
+        }catch(ex){}
+        fin();});}
     else move(0,false);
     dist=0;
   });

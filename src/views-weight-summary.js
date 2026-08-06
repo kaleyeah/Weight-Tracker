@@ -279,8 +279,11 @@ function calNoticeHTML(iso){var e=state.food[iso];if(!e)return "";
   var p=num(e.protein),c=num(e.carbs),f=num(e.fat);if(p==null&&c==null&&f==null)return "";
   var mt=Math.round((p||0)*4+(c||0)*4+(f||0)*9);var cal=num(e.calories);
   if(cal==null)return '<div class="wl-calnote"><span>Macros add up to <b>'+mt.toLocaleString()+' cal</b>.</span><span class="wl-calnote-actions"><button class="wl-calnote-btn" data-act="cal:overwrite">Use as calories</button></span></div>';
-  if(Math.abs(cal-mt)<=2||e.calDismiss)return "";
-  return '<div class="wl-calnote"><span>Macros total <b>'+mt.toLocaleString()+' cal</b>, but Calories says <b>'+Math.round(cal).toLocaleString()+'</b>.</span><span class="wl-calnote-actions"><button class="wl-calnote-btn" data-act="cal:overwrite">Overwrite</button><button class="wl-calnote-btn ghost" data-act="cal:ignore">Ignore</button></span></div>';}
+  /* Owner 2026-08-06: the macros-vs-calories mismatch warning is RETIRED
+     ("no point anymore") — his calories come from scale/import flows and the
+     nag was noise. The cal==null fill-in offer above stays: it feeds the
+     calAuto disclosure the muscle-preservation math relies on. */
+  return "";}
 function dayBarHTML(){
   var sel=state.selDate;var isToday=sel===todayISO();var open=state.calOpen;
   var h='';
