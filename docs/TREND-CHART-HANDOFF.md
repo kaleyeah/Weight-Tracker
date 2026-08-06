@@ -149,3 +149,26 @@ Evidence: c29-guided-camera 16/16 under Chromium's fake camera device.
 REMAINING for the M3 definition of done: the Owner's real-device iPhone
 installed-PWA session (rear camera, portrait, all four poses) — scheduled
 with him.
+
+---
+
+# Progress-photo package — Milestones 4+5 record
+
+**M4 — pose timeline + comparison.** The stacked per-pose gallery became one
+pose-tabbed, horizontally scrolling strip: every card in the standardized 3:4
+frame (derivative when normalization exists; the raw source displayed CONTAIN
+— honest, never a hidden second cover-crop), date under each card, an
+Add-next card after the latest entry, thumbnails filled lazily at strip size.
+Tap-to-select up to two (numbered ✓ badges, not color alone; oldest selection
+rolls off), Compare renders both dates side by side in the same 3:4 viewport.
+
+**M5 — legacy re-standardization.** "Standardize existing photos (N)" runs
+one photo at a time through the SAME M2 review: accept writes ONLY the
+normalization metadata onto the existing record (c30 proves blob byte-length
+identity), skip parks it for the session, cancel ends the queue, never a bulk
+rewrite. The already-cropped-tall notice appears only when the source is
+genuinely narrower than the 3:4 frame (the mock's 400×1024 case).
+
+Evidence: c30-timeline-legacy 15/15. Milestone 6 items remaining: Owner
+real-device pass (M3's iPhone session + a legacy queue walk), the deferred
+server normalization column, and release/canary process — all Owner-gated.

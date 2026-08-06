@@ -391,6 +391,19 @@ var lt=getLastSync();toast((syncLabel()||"Sync")+(lt?" \u00b7 "+fmtClock(lt):"")
     if(!_ok()){toast("This device is no longer the active writer — nothing was changed");pfReviewClose();render();return;}
     var _norm=pfReviewNorm();if(!_norm){toast("Adjust back into bounds first");return;}
     pfReviewClose();render();
+    if(_pr.legacyId){
+      /* Milestone 5: metadata-ONLY update of the existing record — the blob
+         is carried through untouched (idbAdd is a keyed put), authority
+         revalidated immediately before the write */
+      idbAll().then(function(all){
+        var rec=all.filter(function(p){return p.id===_pr.legacyId;})[0];
+        if(!rec){pfLegacyNext(_pr.cap);return;}
+        if(!_ok()){toast("This device is no longer the active writer — nothing was changed");return;}
+        rec.normalization=_norm;
+        idbAdd(rec).then(function(){pfLegacyNext(_pr.cap);})
+          .catch(function(){toast("Couldn’t save the framing");});
+      }).catch(function(){toast("Couldn’t save the framing");});
+      return;}
     pfSaveProgress(_pr.blob,_pr.pose,_pr.week,_norm,_ok).catch(function(){toast("Couldn\u2019t save the photo");});
     if(_pr.fromCam)pfCamAdvance(_pr.pose);
     return;}
@@ -401,6 +414,19 @@ var lt=getLastSync();toast((syncLabel()||"Sync")+(lt?" \u00b7 "+fmtClock(lt):"")
     document.getElementById("wl-photo-input").click();return;}
   if(a==="pf:cancel"){pfReviewClose();render();toast("Nothing was saved");return;}
   if(a==="pphoto:add"){state.pfChoose={pose:el.getAttribute("data-pose"),week:el.getAttribute("data-week")||toISO(weekStartFor(0))};state.pendingMeal=null;render();return;}
+  if(a==="pftl:pose"){state.pfTlPose=el.getAttribute("data-pose");state.pfSel=[];state.pfCompare=false;renderProgressPhotos();return;}
+  if(a==="pftl:sel"){var _id=el.getAttribute("data-id");var _s=state.pfSel||[];
+    var _i=_s.indexOf(_id);
+    if(_i>=0)_s.splice(_i,1);else{if(_s.length>=2)_s.shift();_s.push(_id);}
+    state.pfSel=_s;renderProgressPhotos();return;}
+  if(a==="pftl:compare"){if((state.pfSel||[]).length===2){state.pfCompare=true;renderProgressPhotos();}return;}
+  if(a==="pftl:clear"){state.pfSel=[];state.pfCompare=false;renderProgressPhotos();return;}
+  if(a==="pfcmp:close"){state.pfCompare=false;renderProgressPhotos();return;}
+  if(a==="pfleg:start"){state.pfLegSkip=[];
+    pfLegacyNext((typeof m10Capture==="function")?m10Capture():null);return;}
+  if(a==="pf:skiplegacy"){var _pl=state.pfReview;if(!_pl)return;
+    state.pfLegSkip=(state.pfLegSkip||[]).concat([_pl.legacyId]);
+    var _cap2=_pl.cap;pfReviewClose();render();pfLegacyNext(_cap2);return;}
   if(a==="pfsrc:cam"){var _pc=state.pfChoose;if(!_pc)return;state.pfChoose=null;render();
     pfCamOpen(_pc.pose,_pc.week,(typeof m10Capture==="function")?m10Capture():null);return;}
   if(a==="pfsrc:upload"){var _pu=state.pfChoose;if(!_pu)return;state.pfChoose=null;

@@ -911,6 +911,16 @@ html[data-theme="light"] .wl-header{background:#0F1218;}
 html[data-theme="light"] .wl-brandword{color:#151A21;}
 html[data-theme] .wl-header.mode-vac{background:linear-gradient(180deg,rgba(124,147,245,.20),transparent 72%),#0F1218;}
 html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159,176,201,.17),transparent 72%),#0F1218;}
+.pftl{position:relative;}
+.wl-tlimg.pftl{aspect-ratio:3/4;height:auto;width:86px;background-color:var(--bg2);}
+.wl-tlimg.pftl.sel{border:2px solid var(--accent);}
+.pftl-badge{position:absolute;top:4px;right:4px;background:var(--accent);color:#1a1508;font-size:10px;font-weight:800;border-radius:999px;padding:2px 6px;}
+.wl-tladd{width:86px;aspect-ratio:3/4;border-radius:10px;border:1px dashed var(--line);background:var(--bg2);color:var(--muted);font-size:22px;}
+.wl-pftl-actions{display:flex;gap:8px;align-items:center;margin-top:10px;}
+.wl-pftl-actions .wl-btn{min-height:38px;padding:0 16px;}
+.pfcmp-row{display:flex;gap:10px;}
+.pfcmp-row>div{flex:1;min-width:0;text-align:center;}
+.pfcmp-img{aspect-ratio:3/4;border-radius:10px;border:1px solid var(--line);background-color:var(--bg2);background-size:cover;background-position:center;}
 #pf-cam{position:fixed;inset:0;z-index:2300;background:#0b0d13;display:flex;flex-direction:column;}
 .pfcam-wrap{display:flex;flex-direction:column;height:100%;max-width:520px;margin:0 auto;width:100%;padding:calc(env(safe-area-inset-top,0px) + 8px) 14px calc(env(safe-area-inset-bottom,0px) + 10px);}
 .pfcam-head{display:flex;justify-content:space-between;align-items:center;color:var(--text);font-size:15px;padding:4px 2px 8px;}
@@ -7822,8 +7832,9 @@ function pfReviewHTML(){
   var status=n?(r.base.confidence>=0.5?"Ready":"Suggested frame — adjust if it looks off")
              :"Adjustment out of bounds — reset a slider";
   var h='<div class="wl-confirm" style="z-index:2400"><div class="wl-confirm-card" style="max-height:86vh;overflow:auto;text-align:left">';
-  h+='<div style="font-weight:800;font-size:16px;margin-bottom:2px">Standardize this photo</div>';
-  h+='<div class="wl-hint" style="margin-bottom:10px">'+esc(POSES.filter(function(x){return x[0]===r.pose;}).map(function(x){return x[1];})[0]||r.pose)+' · week of '+esc(fmtShort(parseISO(r.week)))+' · your original is kept untouched</div>';
+  h+='<div style="font-weight:800;font-size:16px;margin-bottom:2px">'+(r.legacyId?"Standardize existing photo":"Standardize this photo")+'</div>';
+  h+='<div class="wl-hint" style="margin-bottom:10px">'+esc(POSES.filter(function(x){return x[0]===r.pose;}).map(function(x){return x[1];})[0]||r.pose)+' · week of '+esc(fmtShort(parseISO(r.week)))+(r.legacyId?' · '+r.legacyLeft+' to review':'')+' · your original is kept untouched</div>';
+  if(r.legacyId&&r.narrow)h+='<div class="wl-hint" style="margin-bottom:8px;color:var(--accent)">This photo was already cropped tall — the 3:4 frame can only show what’s still in it.</div>';
   h+='<div class="wl-pfrev-row"><div><div class="wl-pfrev-cap">Original</div><img class="wl-pfrev-src" src="'+srcUrl+'" alt="Original photo"></div>';
   h+='<div><div class="wl-pfrev-cap">Standardized 3:4</div><div id="wl-pfrev-std" class="wl-pfrev-std"><div class="wl-hint">Preparing…</div></div></div></div>';
   h+='<div class="wl-hint" style="margin:8px 0 2px">'+esc(status)+'</div>';
@@ -7832,7 +7843,8 @@ function pfReviewHTML(){
     +sl("panX","Left / right",-0.5,0.5,0.005,r.adj.panX)+sl("rot","Level (°)",-7,7,0.1,r.adj.rot);
   h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" '+(n?'data-act="pf:use"':'disabled style="opacity:.4"')+'>Use this photo</button>';
   h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pf:reset">Reset to suggestion</button>';
-  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pf:choose">'+(r.fromCam?"Retake":"Choose another")+'</button>';
+  h+=r.legacyId?'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pf:skiplegacy">Skip this photo</button>'
+    :'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pf:choose">'+(r.fromCam?"Retake":"Choose another")+'</button>';
   h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pf:cancel">Cancel</button>';
   return h+'</div></div>';}
 
@@ -8064,6 +8076,41 @@ function importProgressPhotos(text,m10cap){
     }).catch(function(){toast("Couldn't import — photos unavailable");});
   },{label:"Import",danger:false});}
 function clearPhotoURLs(){photoURLs.forEach(function(u){try{URL.revokeObjectURL(u);}catch(e){}});photoURLs=[];photoMap={};}
+function pfThumbInto(elId,rec,maxH){
+  var el=document.getElementById(elId);if(!el)return;
+  var put=function(src,fit){el.style.backgroundImage="url("+src+")";el.style.backgroundSize=fit||"cover";};
+  if(pfHasNorm(rec))pfDerivative(rec,maxH,function(du){
+    var el2=document.getElementById(elId);if(!el2)return;
+    if(du){el2.style.backgroundImage="url("+du+")";el2.style.backgroundSize="cover";}
+    else{var u=URL.createObjectURL(rec.blob);photoURLs.push(u);el2.style.backgroundImage="url("+u+")";el2.style.backgroundSize="contain";}});
+  else{var u2=URL.createObjectURL(rec.blob);photoURLs.push(u2);put(u2,"contain");}}
+
+/* ==== Milestone 5: legacy re-standardization queue ====
+   One photo at a time through the SAME M2 review; accepting writes ONLY the
+   normalization metadata onto the existing record (the blob is untouched —
+   idbAdd is a keyed put). Skip parks the photo for this session; Cancel ends
+   the queue. Never a bulk rewrite. */
+function pfLegacyNext(cap){
+  idbAll().then(function(all){
+    var skip=state.pfLegSkip||[];
+    var legacy=all.filter(function(p){return p.kind==="progress"&&!pfHasNorm(p)&&skip.indexOf(p.id)<0&&p.blob;})
+      .sort(function(a,b){return (a.week||a.date||"")<(b.week||b.date||"")?-1:1;});
+    if(!legacy.length){toast(skip.length?"Done — skipped photos stay as they were":"All photos standardized");
+      state.pfLegSkip=null;if(state.view==="photos")renderProgressPhotos();return;}
+    var rec=legacy[0];
+    var url=URL.createObjectURL(rec.blob);var img=new Image();
+    img.onload=function(){
+      var base=pfAutoSuggest(img.width,img.height);
+      if(!base){URL.revokeObjectURL(url);state.pfLegSkip=(state.pfLegSkip||[]).concat([rec.id]);pfLegacyNext(cap);return;}
+      state.pfReview={blob:rec.blob,pose:rec.pose,week:rec.week||rec.date,base:base,
+        adj:{panX:0,panY:0,zoom:1,rot:0},cap:cap,srcUrl:url,
+        legacyId:rec.id,legacyLeft:legacy.length,
+        narrow:(img.width/img.height)<0.72};
+      render();pfReviewPreview();};
+    img.onerror=function(){URL.revokeObjectURL(url);state.pfLegSkip=(state.pfLegSkip||[]).concat([rec.id]);pfLegacyNext(cap);};
+    img.src=url;
+  }).catch(function(){toast("Photos aren’t available right now");});}
+
 var POSES=[["front","Front"],["left","Left Side"],["right","Right Side"],["back","Back"]];
 function view_photos(){
   var h='<div class="wl-stack">';
@@ -8079,13 +8126,53 @@ function renderProgressPhotos(){clearPhotoURLs();var curWk=toISO(weekStartFor(0)
       else{html+='<div class="wl-poseslot"><button class="wl-poseadd" data-act="pphoto:add" data-pose="'+ps[0]+'"><span>\uff0b</span></button><span class="wl-poselbl">'+ps[1]+'</span></div>';}});
       host.innerHTML=html;}
     var tl=document.getElementById("wl-progtimeline");
-    if(tl){var html2="";var any=false;POSES.forEach(function(ps){var items=progs.filter(function(p){return p.pose===ps[0];}).sort(function(a,b){return (a.week||a.date||"")<(b.week||b.date||"")?-1:1;});
-      if(!items.length)return;any=true;
-      html2+='<div class="wl-card"><div class="wl-card-head"><span>'+ps[1]+'</span><span class="wl-count">'+items.length+'</span></div><div class="wl-posetimeline">';
-      items.forEach(function(p){var url=URL.createObjectURL(p.blob);photoURLs.push(url);html2+='<div class="wl-tlitem"><button class="wl-tlimg" data-act="photo:view" data-id="'+p.id+'" style="background-image:url('+url+')"></button><span class="wl-tllbl">'+fmtShort(parseISO(p.week||p.date))+'</span></div>';});
-      html2+='</div></div>';});
-      if(!any)html2='<div class="wl-card"><div class="wl-hint">No progress photos yet. Add your first set above \u2014 then each week\u2019s photos line up here by pose so you can see the change over time.</div></div>';
-      tl.innerHTML=html2;}
+    if(tl){
+      /* ==== Milestone 4: pose timeline + two-photo comparison ==== */
+      var pose=state.pfTlPose||"front";
+      var sel=state.pfSel||[];
+      var items=progs.filter(function(p){return p.pose===pose;})
+        .sort(function(a,b){return (a.week||a.date||"")<(b.week||b.date||"")?-1:1;});
+      var legacyN=progs.filter(function(p){return !pfHasNorm(p);}).length;
+      var html2='<div class="wl-card"><div class="wl-card-head"><span>Timeline</span><span class="wl-count">'+items.length+'</span></div>';
+      html2+='<div class="wl-seg wl-seg-wide" style="margin-bottom:10px">'+POSES.map(function(ps){
+        return '<button class="'+(pose===ps[0]?"on":"")+'" data-act="pftl:pose" data-pose="'+ps[0]+'">'+ps[1]+'</button>';}).join("")+'</div>';
+      if(!items.length){
+        html2+='<div class="wl-hint">No '+((POSES.filter(function(x){return x[0]===pose;})[0]||["",pose])[1])+' photos yet — add one from the weekly card above.</div>';
+      }else{
+        html2+='<div class="wl-posetimeline">';
+        items.forEach(function(p){
+          var si=sel.indexOf(p.id);
+          html2+='<div class="wl-tlitem"><button class="wl-tlimg pftl'+(si>=0?" sel":"")+'" data-act="pftl:sel" data-id="'+p.id+'" id="pftl-'+p.id+'" aria-pressed="'+(si>=0)+'">'
+            +(si>=0?'<span class="pftl-badge">'+(si+1)+' ✓</span>':"")
+            +'</button><span class="wl-tllbl">'+fmtShort(parseISO(p.week||p.date))+'</span></div>';});
+        html2+='<div class="wl-tlitem"><button class="wl-tladd" data-act="pphoto:add" data-pose="'+pose+'" aria-label="Add next check-in"><span>＋</span></button><span class="wl-tllbl">Add next</span></div>';
+        html2+='</div>';
+        html2+='<div class="wl-pftl-actions"><button class="wl-btn '+(sel.length===2?"wl-btn-primary":"wl-btn-ghost")+'" '+(sel.length===2?'data-act="pftl:compare"':'disabled style="opacity:.4"')+'>Compare</button>'
+          +(sel.length?'<button class="wl-btn wl-btn-ghost" data-act="pftl:clear">Clear</button>':"")
+          +'<span class="wl-hint" style="margin-left:auto">Tap two dates to compare</span></div>';
+      }
+      if(legacyN)html2+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="pfleg:start">Standardize existing photos ('+legacyN+')</button>'
+        +'<div class="wl-hint" style="margin-top:6px">One at a time — accept, adjust, or skip. Originals are never changed.</div>';
+      html2+='</div>';
+      if(state.pfCompare&&sel.length===2){
+        var pair=sel.map(function(id){return progs.filter(function(p){return p.id===id;})[0];}).filter(Boolean);
+        if(pair.length===2){
+          html2+='<div class="wl-confirm" style="z-index:2350"><div class="wl-confirm-card" style="max-height:88vh;overflow:auto">'
+            +'<div style="font-weight:800;font-size:16px;margin-bottom:8px;text-align:left">'+((POSES.filter(function(x){return x[0]===pose;})[0]||["",""])[1])+' — compare</div>'
+            +'<div class="pfcmp-row">'+pair.map(function(p){
+              return '<div><div class="pfcmp-img" id="pfcmp-'+p.id+'"></div><div class="wl-tllbl" style="margin-top:5px">'+fmtShort(parseISO(p.week||p.date))+'</div></div>';}).join("")
+            +'</div>'
+            +'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:12px" data-act="pfcmp:close">Close</button>'
+            +'</div></div>';
+        }
+      }
+      if(!progs.length)html2='<div class="wl-card"><div class="wl-hint">No progress photos yet. Add your first set above — then each week’s photos line up here by pose so you can see the change over time.</div></div>';
+      tl.innerHTML=html2;
+      items.forEach(function(p){pfThumbInto("pftl-"+p.id,p,320);});
+      if(state.pfCompare&&sel.length===2)sel.forEach(function(id){
+        var rec=progs.filter(function(p){return p.id===id;})[0];
+        if(rec)pfThumbInto("pfcmp-"+id,rec,720);});
+    }
   }).catch(function(){});
 }
 function renderPhotosStrip(date){var host=document.getElementById("wl-photostrip");if(!host)return;
@@ -9674,6 +9761,19 @@ var lt=getLastSync();toast((syncLabel()||"Sync")+(lt?" \u00b7 "+fmtClock(lt):"")
     if(!_ok()){toast("This device is no longer the active writer — nothing was changed");pfReviewClose();render();return;}
     var _norm=pfReviewNorm();if(!_norm){toast("Adjust back into bounds first");return;}
     pfReviewClose();render();
+    if(_pr.legacyId){
+      /* Milestone 5: metadata-ONLY update of the existing record — the blob
+         is carried through untouched (idbAdd is a keyed put), authority
+         revalidated immediately before the write */
+      idbAll().then(function(all){
+        var rec=all.filter(function(p){return p.id===_pr.legacyId;})[0];
+        if(!rec){pfLegacyNext(_pr.cap);return;}
+        if(!_ok()){toast("This device is no longer the active writer — nothing was changed");return;}
+        rec.normalization=_norm;
+        idbAdd(rec).then(function(){pfLegacyNext(_pr.cap);})
+          .catch(function(){toast("Couldn’t save the framing");});
+      }).catch(function(){toast("Couldn’t save the framing");});
+      return;}
     pfSaveProgress(_pr.blob,_pr.pose,_pr.week,_norm,_ok).catch(function(){toast("Couldn\u2019t save the photo");});
     if(_pr.fromCam)pfCamAdvance(_pr.pose);
     return;}
@@ -9684,6 +9784,19 @@ var lt=getLastSync();toast((syncLabel()||"Sync")+(lt?" \u00b7 "+fmtClock(lt):"")
     document.getElementById("wl-photo-input").click();return;}
   if(a==="pf:cancel"){pfReviewClose();render();toast("Nothing was saved");return;}
   if(a==="pphoto:add"){state.pfChoose={pose:el.getAttribute("data-pose"),week:el.getAttribute("data-week")||toISO(weekStartFor(0))};state.pendingMeal=null;render();return;}
+  if(a==="pftl:pose"){state.pfTlPose=el.getAttribute("data-pose");state.pfSel=[];state.pfCompare=false;renderProgressPhotos();return;}
+  if(a==="pftl:sel"){var _id=el.getAttribute("data-id");var _s=state.pfSel||[];
+    var _i=_s.indexOf(_id);
+    if(_i>=0)_s.splice(_i,1);else{if(_s.length>=2)_s.shift();_s.push(_id);}
+    state.pfSel=_s;renderProgressPhotos();return;}
+  if(a==="pftl:compare"){if((state.pfSel||[]).length===2){state.pfCompare=true;renderProgressPhotos();}return;}
+  if(a==="pftl:clear"){state.pfSel=[];state.pfCompare=false;renderProgressPhotos();return;}
+  if(a==="pfcmp:close"){state.pfCompare=false;renderProgressPhotos();return;}
+  if(a==="pfleg:start"){state.pfLegSkip=[];
+    pfLegacyNext((typeof m10Capture==="function")?m10Capture():null);return;}
+  if(a==="pf:skiplegacy"){var _pl=state.pfReview;if(!_pl)return;
+    state.pfLegSkip=(state.pfLegSkip||[]).concat([_pl.legacyId]);
+    var _cap2=_pl.cap;pfReviewClose();render();pfLegacyNext(_cap2);return;}
   if(a==="pfsrc:cam"){var _pc=state.pfChoose;if(!_pc)return;state.pfChoose=null;render();
     pfCamOpen(_pc.pose,_pc.week,(typeof m10Capture==="function")?m10Capture():null);return;}
   if(a==="pfsrc:upload"){var _pu=state.pfChoose;if(!_pu)return;state.pfChoose=null;

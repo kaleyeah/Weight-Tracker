@@ -186,8 +186,9 @@ function pfReviewHTML(){
   var status=n?(r.base.confidence>=0.5?"Ready":"Suggested frame — adjust if it looks off")
              :"Adjustment out of bounds — reset a slider";
   var h='<div class="wl-confirm" style="z-index:2400"><div class="wl-confirm-card" style="max-height:86vh;overflow:auto;text-align:left">';
-  h+='<div style="font-weight:800;font-size:16px;margin-bottom:2px">Standardize this photo</div>';
-  h+='<div class="wl-hint" style="margin-bottom:10px">'+esc(POSES.filter(function(x){return x[0]===r.pose;}).map(function(x){return x[1];})[0]||r.pose)+' · week of '+esc(fmtShort(parseISO(r.week)))+' · your original is kept untouched</div>';
+  h+='<div style="font-weight:800;font-size:16px;margin-bottom:2px">'+(r.legacyId?"Standardize existing photo":"Standardize this photo")+'</div>';
+  h+='<div class="wl-hint" style="margin-bottom:10px">'+esc(POSES.filter(function(x){return x[0]===r.pose;}).map(function(x){return x[1];})[0]||r.pose)+' · week of '+esc(fmtShort(parseISO(r.week)))+(r.legacyId?' · '+r.legacyLeft+' to review':'')+' · your original is kept untouched</div>';
+  if(r.legacyId&&r.narrow)h+='<div class="wl-hint" style="margin-bottom:8px;color:var(--accent)">This photo was already cropped tall — the 3:4 frame can only show what’s still in it.</div>';
   h+='<div class="wl-pfrev-row"><div><div class="wl-pfrev-cap">Original</div><img class="wl-pfrev-src" src="'+srcUrl+'" alt="Original photo"></div>';
   h+='<div><div class="wl-pfrev-cap">Standardized 3:4</div><div id="wl-pfrev-std" class="wl-pfrev-std"><div class="wl-hint">Preparing…</div></div></div></div>';
   h+='<div class="wl-hint" style="margin:8px 0 2px">'+esc(status)+'</div>';
@@ -196,7 +197,8 @@ function pfReviewHTML(){
     +sl("panX","Left / right",-0.5,0.5,0.005,r.adj.panX)+sl("rot","Level (°)",-7,7,0.1,r.adj.rot);
   h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" '+(n?'data-act="pf:use"':'disabled style="opacity:.4"')+'>Use this photo</button>';
   h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pf:reset">Reset to suggestion</button>';
-  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pf:choose">'+(r.fromCam?"Retake":"Choose another")+'</button>';
+  h+=r.legacyId?'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pf:skiplegacy">Skip this photo</button>'
+    :'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pf:choose">'+(r.fromCam?"Retake":"Choose another")+'</button>';
   h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pf:cancel">Cancel</button>';
   return h+'</div></div>';}
 
@@ -428,6 +430,41 @@ function importProgressPhotos(text,m10cap){
     }).catch(function(){toast("Couldn't import — photos unavailable");});
   },{label:"Import",danger:false});}
 function clearPhotoURLs(){photoURLs.forEach(function(u){try{URL.revokeObjectURL(u);}catch(e){}});photoURLs=[];photoMap={};}
+function pfThumbInto(elId,rec,maxH){
+  var el=document.getElementById(elId);if(!el)return;
+  var put=function(src,fit){el.style.backgroundImage="url("+src+")";el.style.backgroundSize=fit||"cover";};
+  if(pfHasNorm(rec))pfDerivative(rec,maxH,function(du){
+    var el2=document.getElementById(elId);if(!el2)return;
+    if(du){el2.style.backgroundImage="url("+du+")";el2.style.backgroundSize="cover";}
+    else{var u=URL.createObjectURL(rec.blob);photoURLs.push(u);el2.style.backgroundImage="url("+u+")";el2.style.backgroundSize="contain";}});
+  else{var u2=URL.createObjectURL(rec.blob);photoURLs.push(u2);put(u2,"contain");}}
+
+/* ==== Milestone 5: legacy re-standardization queue ====
+   One photo at a time through the SAME M2 review; accepting writes ONLY the
+   normalization metadata onto the existing record (the blob is untouched —
+   idbAdd is a keyed put). Skip parks the photo for this session; Cancel ends
+   the queue. Never a bulk rewrite. */
+function pfLegacyNext(cap){
+  idbAll().then(function(all){
+    var skip=state.pfLegSkip||[];
+    var legacy=all.filter(function(p){return p.kind==="progress"&&!pfHasNorm(p)&&skip.indexOf(p.id)<0&&p.blob;})
+      .sort(function(a,b){return (a.week||a.date||"")<(b.week||b.date||"")?-1:1;});
+    if(!legacy.length){toast(skip.length?"Done — skipped photos stay as they were":"All photos standardized");
+      state.pfLegSkip=null;if(state.view==="photos")renderProgressPhotos();return;}
+    var rec=legacy[0];
+    var url=URL.createObjectURL(rec.blob);var img=new Image();
+    img.onload=function(){
+      var base=pfAutoSuggest(img.width,img.height);
+      if(!base){URL.revokeObjectURL(url);state.pfLegSkip=(state.pfLegSkip||[]).concat([rec.id]);pfLegacyNext(cap);return;}
+      state.pfReview={blob:rec.blob,pose:rec.pose,week:rec.week||rec.date,base:base,
+        adj:{panX:0,panY:0,zoom:1,rot:0},cap:cap,srcUrl:url,
+        legacyId:rec.id,legacyLeft:legacy.length,
+        narrow:(img.width/img.height)<0.72};
+      render();pfReviewPreview();};
+    img.onerror=function(){URL.revokeObjectURL(url);state.pfLegSkip=(state.pfLegSkip||[]).concat([rec.id]);pfLegacyNext(cap);};
+    img.src=url;
+  }).catch(function(){toast("Photos aren’t available right now");});}
+
 var POSES=[["front","Front"],["left","Left Side"],["right","Right Side"],["back","Back"]];
 function view_photos(){
   var h='<div class="wl-stack">';
@@ -443,13 +480,53 @@ function renderProgressPhotos(){clearPhotoURLs();var curWk=toISO(weekStartFor(0)
       else{html+='<div class="wl-poseslot"><button class="wl-poseadd" data-act="pphoto:add" data-pose="'+ps[0]+'"><span>\uff0b</span></button><span class="wl-poselbl">'+ps[1]+'</span></div>';}});
       host.innerHTML=html;}
     var tl=document.getElementById("wl-progtimeline");
-    if(tl){var html2="";var any=false;POSES.forEach(function(ps){var items=progs.filter(function(p){return p.pose===ps[0];}).sort(function(a,b){return (a.week||a.date||"")<(b.week||b.date||"")?-1:1;});
-      if(!items.length)return;any=true;
-      html2+='<div class="wl-card"><div class="wl-card-head"><span>'+ps[1]+'</span><span class="wl-count">'+items.length+'</span></div><div class="wl-posetimeline">';
-      items.forEach(function(p){var url=URL.createObjectURL(p.blob);photoURLs.push(url);html2+='<div class="wl-tlitem"><button class="wl-tlimg" data-act="photo:view" data-id="'+p.id+'" style="background-image:url('+url+')"></button><span class="wl-tllbl">'+fmtShort(parseISO(p.week||p.date))+'</span></div>';});
-      html2+='</div></div>';});
-      if(!any)html2='<div class="wl-card"><div class="wl-hint">No progress photos yet. Add your first set above \u2014 then each week\u2019s photos line up here by pose so you can see the change over time.</div></div>';
-      tl.innerHTML=html2;}
+    if(tl){
+      /* ==== Milestone 4: pose timeline + two-photo comparison ==== */
+      var pose=state.pfTlPose||"front";
+      var sel=state.pfSel||[];
+      var items=progs.filter(function(p){return p.pose===pose;})
+        .sort(function(a,b){return (a.week||a.date||"")<(b.week||b.date||"")?-1:1;});
+      var legacyN=progs.filter(function(p){return !pfHasNorm(p);}).length;
+      var html2='<div class="wl-card"><div class="wl-card-head"><span>Timeline</span><span class="wl-count">'+items.length+'</span></div>';
+      html2+='<div class="wl-seg wl-seg-wide" style="margin-bottom:10px">'+POSES.map(function(ps){
+        return '<button class="'+(pose===ps[0]?"on":"")+'" data-act="pftl:pose" data-pose="'+ps[0]+'">'+ps[1]+'</button>';}).join("")+'</div>';
+      if(!items.length){
+        html2+='<div class="wl-hint">No '+((POSES.filter(function(x){return x[0]===pose;})[0]||["",pose])[1])+' photos yet — add one from the weekly card above.</div>';
+      }else{
+        html2+='<div class="wl-posetimeline">';
+        items.forEach(function(p){
+          var si=sel.indexOf(p.id);
+          html2+='<div class="wl-tlitem"><button class="wl-tlimg pftl'+(si>=0?" sel":"")+'" data-act="pftl:sel" data-id="'+p.id+'" id="pftl-'+p.id+'" aria-pressed="'+(si>=0)+'">'
+            +(si>=0?'<span class="pftl-badge">'+(si+1)+' ✓</span>':"")
+            +'</button><span class="wl-tllbl">'+fmtShort(parseISO(p.week||p.date))+'</span></div>';});
+        html2+='<div class="wl-tlitem"><button class="wl-tladd" data-act="pphoto:add" data-pose="'+pose+'" aria-label="Add next check-in"><span>＋</span></button><span class="wl-tllbl">Add next</span></div>';
+        html2+='</div>';
+        html2+='<div class="wl-pftl-actions"><button class="wl-btn '+(sel.length===2?"wl-btn-primary":"wl-btn-ghost")+'" '+(sel.length===2?'data-act="pftl:compare"':'disabled style="opacity:.4"')+'>Compare</button>'
+          +(sel.length?'<button class="wl-btn wl-btn-ghost" data-act="pftl:clear">Clear</button>':"")
+          +'<span class="wl-hint" style="margin-left:auto">Tap two dates to compare</span></div>';
+      }
+      if(legacyN)html2+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="pfleg:start">Standardize existing photos ('+legacyN+')</button>'
+        +'<div class="wl-hint" style="margin-top:6px">One at a time — accept, adjust, or skip. Originals are never changed.</div>';
+      html2+='</div>';
+      if(state.pfCompare&&sel.length===2){
+        var pair=sel.map(function(id){return progs.filter(function(p){return p.id===id;})[0];}).filter(Boolean);
+        if(pair.length===2){
+          html2+='<div class="wl-confirm" style="z-index:2350"><div class="wl-confirm-card" style="max-height:88vh;overflow:auto">'
+            +'<div style="font-weight:800;font-size:16px;margin-bottom:8px;text-align:left">'+((POSES.filter(function(x){return x[0]===pose;})[0]||["",""])[1])+' — compare</div>'
+            +'<div class="pfcmp-row">'+pair.map(function(p){
+              return '<div><div class="pfcmp-img" id="pfcmp-'+p.id+'"></div><div class="wl-tllbl" style="margin-top:5px">'+fmtShort(parseISO(p.week||p.date))+'</div></div>';}).join("")
+            +'</div>'
+            +'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:12px" data-act="pfcmp:close">Close</button>'
+            +'</div></div>';
+        }
+      }
+      if(!progs.length)html2='<div class="wl-card"><div class="wl-hint">No progress photos yet. Add your first set above — then each week’s photos line up here by pose so you can see the change over time.</div></div>';
+      tl.innerHTML=html2;
+      items.forEach(function(p){pfThumbInto("pftl-"+p.id,p,320);});
+      if(state.pfCompare&&sel.length===2)sel.forEach(function(id){
+        var rec=progs.filter(function(p){return p.id===id;})[0];
+        if(rec)pfThumbInto("pfcmp-"+id,rec,720);});
+    }
   }).catch(function(){});
 }
 function renderPhotosStrip(date){var host=document.getElementById("wl-photostrip");if(!host)return;
