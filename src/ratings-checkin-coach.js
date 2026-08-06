@@ -484,8 +484,22 @@ function photoDiagHTML(){
       (sn.local==null?"?":sn.local)+" ("+(sn.localProgress==null?"?":sn.localProgress)+" progress).";
   }
   else line="Photo sync did not run — "+(r.why||"reason unknown")+".";
+  /* instrument-don't-guess (Owner rule): when operations are pending, SHOW
+     them — op, state, why it is parked, and the date it belongs to */
+  var opsLine="";
+  try{
+    var _po=(typeof m10pOps==="function")?m10pOps():[];
+    if(_po.length){
+      opsLine='<div class="wl-hint" style="margin-top:4px">Pending photo operations on this device:</div>'
+        +_po.map(function(o){
+          var why=o.voidReason?(" — "+o.voidReason):(o.displacedReason?(" — displaced: "+o.displacedReason):"");
+          var when=(o.meta&&(o.meta.date||o.meta.week))||(o.capturedLocalMeta&&o.capturedLocalMeta.date)||"";
+          return '<div class="wl-hint" style="margin-top:2px">· '+esc(o.op)+' ('+esc(o.state)+why+')'+(when?' · '+esc(when):'')+'</div>';
+        }).join("");
+    }
+  }catch(e){}
   return '<div class="wl-hint" style="margin-top:8px">'+esc(line)+
-    ' <button class="wl-link" data-act="photo:resync">Download photos now</button></div>';
+    ' <button class="wl-link" data-act="photo:resync">Download photos now</button></div>'+opsLine;
 }
 function renderCheckinPhotos(){
   var host=document.getElementById("wl-ciphotos");if(!host)return;
