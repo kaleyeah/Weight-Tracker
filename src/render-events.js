@@ -137,15 +137,17 @@ document.addEventListener("click",function(e){
     if(pbRecId)_hkLaunch();else pbGetRecord(function(){_hkLaunch();});
     return;}
   if(a==="hk:cancel"){state.hkWait=null;render();return;}
-  if(a==="max:open"){state.maxOpen=true;fetchCoachReports(function(ch){if(ch){
-    /* Mark seen AFTER the fetch too: opening the sheet is what clears the
-       badge, and a report that arrived in this very fetch must not stay
-       flagged unread behind an already-open sheet. */
-    var _t2=coachTdee();if(_t2&&_t2.period&&state.settings.seenTdee!==_t2.period){state.settings.seenTdee=_t2.period;save();}
-    render();}});
-    var _mws=coachWeekly();if(_mws&&_mws.week&&state.settings.seenWeekly!==_mws.week){state.settings.seenWeekly=_mws.week;save();}
+  if(a==="max:open"){state.maxOpen=true;state.maxMsg=null;/* inbox list first;
+    READING a message is what marks it seen now (Owner inbox, 2026-08-06) */
+    fetchCoachReports(function(ch){if(ch)render();});
     var _mtd=coachTdee();if(_mtd&&_mtd.period&&state.settings.seenTdee!==_mtd.period){state.settings.seenTdee=_mtd.period;save();}
     render();return;}
+  if(a==="max:read"){var _mk=el.getAttribute("data-key");state.maxMsg=_mk;
+    if(_mk.indexOf("weekly:")===0){var _w9=coachWeekly();if(_w9&&_w9.week&&state.settings.seenWeekly!==_w9.week){state.settings.seenWeekly=_w9.week;save();}}
+    else if(_mk.indexOf("tdee:")===0){var _t9=coachTdee();if(_t9&&_t9.period&&state.settings.seenTdee!==_t9.period){state.settings.seenTdee=_t9.period;save();}}
+    else{var _r9=maxRead();_r9[_mk]=Date.now();maxReadSave(_r9);}
+    render();return;}
+  if(a==="max:back"){state.maxMsg=null;render();return;}
   if(a==="max:close"){state.maxOpen=false;render();return;}
   if(a==="info"){state.infoOpen=el.getAttribute("data-info");render();return;}
   if(a==="info:close"){state.infoOpen=null;render();return;}

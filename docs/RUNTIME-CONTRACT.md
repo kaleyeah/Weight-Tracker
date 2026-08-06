@@ -25,6 +25,7 @@ migration and explicit tests (non-negotiable rule 6).
 | `wl_sumopen`, `wl_calopen`, `wl_announced` | UI state / update-banner memory |
 | `wl_pf_overlay` | guided-camera ghost-overlay prefs (on + 10–75% strength) — DEVICE-LOCAL by design (addendum §1: per-installation state), never synced |
 | `wl_pf_refs` | per-pose pinned camera-alignment reference (photo id) — DEVICE-LOCAL, never synced; absent pose keys fall back to most-recent |
+| `wl_max_read` | Max-inbox read map `{key:true}` (keys `nightly:<iso>`) for DAILY recaps — DEVICE-LOCAL; weekly/TDEE read state stays in the synced `settings.seenWeekly`/`seenTdee`. Marked on READING a message, not on opening the sheet |
 | `wl_m10_deviceid` | this installation's device id (see §5) |
 
 **Per-account families** — `wl_training_{dirty,base,journal,conflict}__<uid>`,

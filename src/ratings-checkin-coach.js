@@ -630,36 +630,57 @@ function activitySummaryHTML(sel){
    decide whether to show the "This Week's Progress Photos" prompt, which the
    weekly check-in card replaced. Nothing reads that state now. */
 
-function maxSheetHTML(){if(!state.maxOpen)return "";var ws=coachWeekly();var _ciDay=(new Date().getDay()===(parseInt(state.settings.weekStart,10)||0));
-  var inner;
-  if(state.genBusy){inner='<div class="wl-mhead"><span class="wl-mav">M</span><span style="min-width:0"><span class="wl-mtitle">Weekly check-in</span><span class="wl-msub">from Coach Max</span></span><button class="wl-maxx" data-act="max:close">\u2715</button></div><div class="wl-hint">\u23f3 Generating your check-in\u2026 this takes about a minute. You can close this and keep using the app.</div>';}
-  else if((ws&&ws.text)||coachTdee()){
-    var _td=coachTdee();
-    /* NEWEST FIRST, always. Sorting on `generated` (the actual write time)
-       rather than the report's period: a weekly is keyed by its week START,
-       so a Monday-week report written on Saturday would sort as older than it
-       is and bury itself under a stale message. Both kinds carry `generated`;
-       the period is only a fallback for anything written before it did. */
-    var _msgs=[];
-    var _when=function(g,d){return g||((d||"")+"T00:00:00.000Z");};
-    if(ws&&ws.text){var _wst=coachStamp(ws.generated,null);
-      _msgs.push({when:_when(ws.generated,ws.week),title:"Weekly check-in",
-        sub:"week of "+fmtShort(parseISO(ws.week))+(_wst?" \u00b7 "+_wst:""),
-        mood:ws.mood,text:ws.text,unread:coachUnreadW()});}
-    if(_td)_msgs.push({when:_when(_td.generated,_td.period),title:"Your measured metabolism",
-      sub:(_td.tdee?_td.tdee+" cal/day \u00b7 ":"")+coachStamp(_td.generated,_td.period),
-      mood:_td.mood,text:_td.text,unread:coachUnreadT()});
-    _msgs.sort(function(a,b){return String(b.when).localeCompare(String(a.when));});
-    inner='<div class="wl-mhead" style="margin-bottom:2px"><span style="flex:1"></span><button class="wl-maxx" data-act="max:close">\u2715</button></div>'
-      +_msgs.map(function(m,i){
-        return '<div class="wl-mhead" style="margin-top:'+(i?'14px':'0')+'"><span class="wl-mav">M</span><span style="min-width:0"><span class="wl-mtitle">'+m.title+(m.unread?' <span class="wl-newpill">New</span>':'')+'</span><span class="wl-msub">from Coach Max \u00b7 '+m.sub+'</span></span></div>'
-          +'<div class="wl-ai-summary" style="margin-top:6px">'+maxMoodHTML(m.mood)+renderSummary(m.text)+'</div>';
-      }).join("");}
+/* ==== Max INBOX (Owner, 2026-08-06: "like an email — click it") ====
+   The sheet is a message LIST — every kind of Max message in one place,
+   newest first — and tapping a row opens that one message. A message counts
+   as read when IT is opened, not when the sheet is (unread pills and the
+   avatar cue now mean "you haven't read this", which is what they claimed).
+   Read-state for daily recaps is device-local (wl_max_read); weekly/TDEE
+   keep their existing synced seen fields, now set on message-open. */
+function maxRead(){try{return JSON.parse(localStorage.getItem("wl_max_read")||"{}");}catch(e){return {};}}
+function maxReadSave(m){try{localStorage.setItem("wl_max_read",JSON.stringify(m));}catch(e){}}
+function maxMsgs(){
+  var msgs=[];var _when=function(g,d){return g||((d||"")+"T00:00:00.000Z");};
+  var ws=coachWeekly();
+  if(ws&&ws.text){var _wst=coachStamp(ws.generated,null);
+    msgs.push({key:"weekly:"+(ws.week||""),title:"Weekly check-in",
+      sub:"week of "+fmtShort(parseISO(ws.week))+(_wst?" \u00b7 "+_wst:""),
+      when:_when(ws.generated,ws.week),mood:ws.mood,text:ws.text,unread:coachUnreadW()});}
+  var _td=coachTdee();
+  if(_td)msgs.push({key:"tdee:"+(_td.period||""),title:"Your measured metabolism",
+    sub:(_td.tdee?_td.tdee+" cal/day \u00b7 ":"")+coachStamp(_td.generated,_td.period),
+    when:_when(_td.generated,_td.period),mood:_td.mood,text:_td.text,unread:coachUnreadT()});
+  var n=(state.coachRpt&&state.coachRpt.nightly)||{};var rd=maxRead();
+  var nk=Object.keys(n).sort().reverse();
+  nk.slice(0,60).forEach(function(iso,idx){var r=n[iso];if(!r||!r.text)return;
+    var st=coachStamp(r.generated,null);
+    msgs.push({key:"nightly:"+iso,title:"Daily recap",
+      sub:fmtShort(parseISO(iso))+(st?" \u00b7 "+st:""),
+      when:_when(r.generated,iso),mood:r.mood,text:r.text,
+      /* only the LATEST recap can be unread — history never floods "New" */
+      unread:idx===0&&!rd["nightly:"+iso]});});
+  msgs.sort(function(a,b){return String(b.when).localeCompare(String(a.when));});
+  return msgs;}
+function maxPreview(t){return esc(String(t||"").replace(/\*\*/g,"").replace(/\s+/g," ").slice(0,78))+(String(t||"").length>78?"\u2026":"");}
+function maxSheetHTML(){if(!state.maxOpen)return "";
+  var inner;var msgs=maxMsgs();
+  var open=state.maxMsg?msgs.filter(function(m){return m.key===state.maxMsg;})[0]:null;
+  if(state.genBusy&&!open){inner='<div class="wl-mhead"><span class="wl-mav">M</span><span style="min-width:0"><span class="wl-mtitle">Weekly check-in</span><span class="wl-msub">from Coach Max</span></span><button class="wl-maxx" data-act="max:close">\u2715</button></div><div class="wl-hint">\u23f3 Generating your check-in\u2026 this takes about a minute. You can close this and keep using the app.</div>';}
+  else if(open){
+    inner='<div class="wl-mhead"><button class="wl-maxback" data-act="max:back" aria-label="Back to messages">\u2039</button><span class="wl-mav">M</span><span style="min-width:0"><span class="wl-mtitle">'+open.title+'</span><span class="wl-msub">from Coach Max \u00b7 '+open.sub+'</span></span><button class="wl-maxx" data-act="max:close">\u2715</button></div>'
+      +'<div class="wl-ai-summary" style="margin-top:6px">'+maxMoodHTML(open.mood)+renderSummary(open.text)+'</div>';}
+  else if(msgs.length){
+    inner='<div class="wl-mhead" style="margin-bottom:6px"><span class="wl-mav">M</span><span style="min-width:0"><span class="wl-mtitle">Messages</span><span class="wl-msub">from Coach Max</span></span><button class="wl-maxx" data-act="max:close">\u2715</button></div>'
+      +'<div class="wl-inbox">'+msgs.map(function(m){
+        return '<button class="wl-inbox-row'+(m.unread?' unread':'')+'" data-act="max:read" data-key="'+esc(m.key)+'">'
+          +'<span class="wl-inbox-mood">'+(MAXFACE[String(m.mood||"").toLowerCase()]?'<img src="'+MAXFACE[String(m.mood||"").toLowerCase()]+'" alt="">':'M')+'</span>'
+          +'<span class="wl-inbox-main"><span class="wl-inbox-top"><span class="wl-inbox-title">'+m.title+'</span>'+(m.unread?'<span class="wl-newpill">New</span>':'')+'</span>'
+          +'<span class="wl-inbox-sub">'+m.sub+'</span>'
+          +'<span class="wl-inbox-prev">'+maxPreview(m.text)+'</span></span>'
+          +'<span class="wl-inbox-go">\u203a</span></button>';}).join("")+'</div>';}
   else{var dn=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][(parseInt(state.settings.weekStart,10)||0)];
-    inner='<div class="wl-mhead"><span style="flex:1"></span><button class="wl-maxx" data-act="max:close">\u2715</button></div><div class="wl-maxempty"><div class="bigav">M</div><div class="t">No messages yet</div><div class="s">This is where Coach Max delivers your weekly check-in.<br>Your next one lands <b style="color:var(--text)">'+dn+' morning</b>.</div></div>';}
-  /* `plain` is the no-messages styling. A TDEE-only sheet (no weekly yet) is
-     still a real message and must keep the accent border. */
-  return '<div class="wl-maxbg top" data-act="max:close"><div class="wl-maxsheet'+((ws&&ws.text)||coachTdee()||state.genBusy?'':' plain')+'" data-act="noop">'+inner+'</div></div>';}
+    inner='<div class="wl-mhead"><span style="flex:1"></span><button class="wl-maxx" data-act="max:close">\u2715</button></div><div class="wl-maxempty"><div class="bigav">M</div><div class="t">No messages yet</div><div class="s">This is where Coach Max delivers your check-ins and recaps.<br>Your next weekly lands <b style="color:var(--text)">'+dn+' morning</b>.</div></div>';}
+  return '<div class="wl-maxbg top" data-act="max:close"><div class="wl-maxsheet'+(msgs.length||state.genBusy?'':' plain')+'" data-act="noop">'+inner+'</div></div>';}
 /* ---- Coach Max info sheets (tap an ⓘ to learn a concept) ---- */
 var INFO={
   progression:{title:"Double vs Reverse Pyramid",body:[

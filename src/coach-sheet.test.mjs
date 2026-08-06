@@ -86,8 +86,9 @@ ok(html.indexOf("3120 cal/day") >= 0, "the headline number appears in the subhea
 /* Time of day, not just the date. Owner asked for it explicitly: a message
    stamped only "Aug 5" is ambiguous when several land the same day. */
 const stamped = await page.evaluate(() => {
+  /* inbox layout (2026-08-06): the stamp lives on the row's .wl-inbox-sub */
   const el = document.createElement("div"); el.innerHTML = maxSheetHTML();
-  return Array.from(el.querySelectorAll(".wl-msub")).map(n => n.textContent);
+  return Array.from(el.querySelectorAll(".wl-inbox-sub")).map(n => n.textContent);
 });
 const tdeeSub = stamped.find(t => t.indexOf("3120 cal/day") >= 0) || "";
 const wkSub = stamped.find(t => t.indexOf("week of") >= 0) || "";
@@ -104,7 +105,7 @@ const legacy = await page.evaluate(() => {
   }));
   coachRptLoad(); state.maxOpen = true;
   const el = document.createElement("div"); el.innerHTML = maxSheetHTML();
-  return (el.querySelector(".wl-msub") || {}).textContent || "";
+  return (el.querySelector(".wl-inbox-sub") || {}).textContent || "";
 });
 ok(legacy.indexOf("3120 cal/day") >= 0, "a report with no generated timestamp still renders");
 ok(!/\d{1,2}:\d{2}/.test(legacy), "and shows no invented time — got: " + legacy);
