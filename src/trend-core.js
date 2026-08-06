@@ -273,7 +273,9 @@ function tcChartSVG(cfg) {
       if (j > 0) {
         var d2 = b.avg - bks[j - 1].avg;
         var dy = (ly === y2 + 12) ? y2 + 23 : y2 + 13;
-        if (d2 !== 0) s += '<text x="' + mid + '" y="' + dy + '" fill="' + C.axis + '" font-size="8.5" text-anchor="middle">' + (d2 > 0 ? "+" : "−") + tcNum(Math.abs(d2), cfg.dec) + "</text>";
+        /* Owner, 2026-08-06: the month-over-month amount reads in the SAME
+           color as the average segments, not axis grey */
+        if (d2 !== 0) s += '<text x="' + mid + '" y="' + dy + '" fill="' + C.accent + '" font-size="9.5" font-weight="700" text-anchor="middle">' + (d2 > 0 ? "+" : "−") + tcNum(Math.abs(d2), cfg.dec) + "</text>";
       }
     });
   }
