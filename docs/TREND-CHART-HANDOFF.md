@@ -128,3 +128,24 @@ change-listener flow with an in-page generated fixture; includes the
 URL-lifecycle regression found by screenshot (the pose card's async refresh
 revoked the open review's original preview — now review-owned, revoked at
 close, pinned by the "actually DISPLAYS" arm).
+
+---
+
+# Progress-photo package — Milestone 3 record
+
+The guided four-pose camera. One explicit chooser (Take guided photo / Upload
+existing) before any permission ask; ONE getUserMedia grant and ONE stream for
+the whole Front→Left→Right→Back session; fixed 3:4 viewport with head/foot/
+center guides and device-orientation level feedback when the sensor speaks;
+previous same-pose photo ghosted (default on, 48%, 10–75% live slider with
+numeric value, remembered in wl_pf_overlay on this device only); the shutter
+is the only capture and feeds the SAME M2 review (Retake returns to the live
+camera; accept saves through pfSaveProgress and advances the sequence). The
+ghost is a DOM layer the capture canvas never draws — c29 pixel-proves it is
+absent from the captured bytes. Close, save-of-last-pose, permission denial,
+and page-hide all stop every track; denial falls back to the upload picker.
+
+Evidence: c29-guided-camera 16/16 under Chromium's fake camera device.
+REMAINING for the M3 definition of done: the Owner's real-device iPhone
+installed-PWA session (rear camera, portrait, all four poses) — scheduled
+with him.

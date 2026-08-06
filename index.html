@@ -911,6 +911,29 @@ html[data-theme="light"] .wl-header{background:#0F1218;}
 html[data-theme="light"] .wl-brandword{color:#151A21;}
 html[data-theme] .wl-header.mode-vac{background:linear-gradient(180deg,rgba(124,147,245,.20),transparent 72%),#0F1218;}
 html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159,176,201,.17),transparent 72%),#0F1218;}
+#pf-cam{position:fixed;inset:0;z-index:2300;background:#0b0d13;display:flex;flex-direction:column;}
+.pfcam-wrap{display:flex;flex-direction:column;height:100%;max-width:520px;margin:0 auto;width:100%;padding:calc(env(safe-area-inset-top,0px) + 8px) 14px calc(env(safe-area-inset-bottom,0px) + 10px);}
+.pfcam-head{display:flex;justify-content:space-between;align-items:center;color:var(--text);font-size:15px;padding:4px 2px 8px;}
+.pfcam-x{background:var(--bg2);border:1px solid var(--line);color:var(--text);border-radius:10px;min-width:44px;min-height:38px;font-size:15px;}
+.pfcam-tabs{display:flex;gap:6px;margin-bottom:8px;}
+.pfcam-tabs button{flex:1;min-height:36px;border-radius:9px;border:1px solid var(--line);background:var(--bg2);color:var(--muted);font-size:12px;font-weight:700;}
+.pfcam-tabs button.on{background:var(--accent);color:#1a1508;border-color:var(--accent);}
+.pfcam-view{position:relative;width:100%;aspect-ratio:3/4;border-radius:14px;overflow:hidden;background:#000;flex:none;}
+.pfcam-view video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+#pfcam-prev{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none;}
+.pfcam-guides{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;}
+.pfcam-tilt{position:absolute;top:8px;left:50%;transform:translateX(-50%);background:rgba(11,13,19,.75);color:var(--muted);font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;}
+.pfcam-tilt.ok{color:var(--good);}
+.pfcam-tilt:empty{display:none;}
+.pfcam-ovrow{display:flex;align-items:center;gap:10px;margin-top:10px;}
+.pfcam-ovtgl{min-height:36px;min-width:64px;border-radius:9px;border:1px solid var(--line);background:var(--bg2);color:var(--muted);font-weight:700;font-size:13px;}
+.pfcam-ovtgl.on{background:var(--accent);color:#1a1508;border-color:var(--accent);}
+.pfcam-ovrow input[type=range]{flex:1;accent-color:var(--accent);min-height:28px;}
+.pfcam-ovval{font-family:var(--mono);font-size:12px;color:var(--muted);min-width:38px;text-align:right;}
+.pfcam-tip{color:var(--muted);font-size:12.5px;text-align:center;margin-top:8px;line-height:1.45;}
+.pfcam-foot{margin-top:auto;display:flex;justify-content:center;padding-top:10px;}
+.pfcam-shutter{width:68px;height:68px;border-radius:50%;border:5px solid #fff;background:rgba(255,255,255,.25);}
+.pfcam-shutter:active{background:#fff;}
 .wl-pfrev-row{display:flex;gap:10px;margin-top:4px;}
 .wl-pfrev-row>div{flex:1;min-width:0;}
 .wl-pfrev-cap{font-size:11px;color:var(--muted);font-weight:700;margin-bottom:4px;}
@@ -7809,7 +7832,7 @@ function pfReviewHTML(){
     +sl("panX","Left / right",-0.5,0.5,0.005,r.adj.panX)+sl("rot","Level (°)",-7,7,0.1,r.adj.rot);
   h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" '+(n?'data-act="pf:use"':'disabled style="opacity:.4"')+'>Use this photo</button>';
   h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pf:reset">Reset to suggestion</button>';
-  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pf:choose">Choose another</button>';
+  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pf:choose">'+(r.fromCam?"Retake":"Choose another")+'</button>';
   h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pf:cancel">Cancel</button>';
   return h+'</div></div>';}
 
@@ -7829,6 +7852,153 @@ function pfReviewPreview(){
   pfDerivative({id:"pf-preview",blob:r.blob,normalization:n},480,function(du){
     var h2=document.getElementById("wl-pfrev-std");if(!h2||!state.pfReview)return;
     h2.innerHTML=du?'<img class="wl-pfrev-img" src="'+du+'" alt="Standardized preview">':'<div class="wl-hint">Preview unavailable — you can still save</div>';});}
+
+/* ==== Milestone 3 (progress-photo package): guided four-pose camera ====
+   One continuous session: ONE permission grant, ONE stream, Front → Left →
+   Right → Back with retake via the pose tabs. The shutter is the only thing
+   that captures; each capture feeds the SAME M2 standardization review, and
+   an accepted capture saves through the same audited pfSaveProgress chain.
+   The previous same-pose photo can be ghosted over the viewfinder as an
+   alignment aid only — it is never composited into the captured image (it is
+   a separate <img> the canvas never sees). Camera tracks stop promptly on
+   close, error, save-of-last-pose, or the page being hidden. */
+var pfCam=null;
+var PF_POSE_TIPS={front:"Face the camera, arms slightly out, whole body between the lines",
+  left:"Turn 90° — your LEFT side to the camera",right:"Turn 90° — your RIGHT side to the camera",
+  back:"Back to the camera, arms slightly out"};
+function pfOvPrefs(){try{var v=JSON.parse(localStorage.getItem("wl_pf_overlay")||"{}");
+  return {on:v.on!==false,strength:Math.min(75,Math.max(10,v.strength!=null?v.strength:48))};}
+  catch(e){return {on:true,strength:48};}}
+function pfOvSave(pr){try{localStorage.setItem("wl_pf_overlay",JSON.stringify(pr));}catch(e){}}
+function pfCamStop(){
+  if(!pfCam)return;
+  try{((pfCam.stream&&pfCam.stream.getTracks())||[]).forEach(function(t){try{t.stop();}catch(e){}});}catch(e){}
+  if(pfCam.prevUrl){try{URL.revokeObjectURL(pfCam.prevUrl);}catch(e){}}
+  window.removeEventListener("deviceorientation",pfCamTilt);
+  var d=document.getElementById("pf-cam");if(d)d.remove();
+  pfCam=null;}
+function pfCamFallback(pose,week){
+  state.pendingPose=pose;state.pendingProgWeek=week;
+  var el=document.getElementById("wl-photo-input");if(el)el.click();}
+function pfCamOpen(pose,week,cap){
+  if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)){
+    toast("No camera here — choose a file instead");pfCamFallback(pose,week);return;}
+  navigator.mediaDevices.getUserMedia({video:{facingMode:"environment",width:{ideal:1440},height:{ideal:1920}},audio:false})
+  .then(function(stream){
+    if(pfCam)pfCamStop();
+    pfCam={stream:stream,pose:pose,week:week,cap:cap,
+      order:POSES.map(function(x){return x[0];}),shots:{},prevUrl:null,video:null,tiltSeen:false};
+    window.addEventListener("deviceorientation",pfCamTilt);
+    pfCamRender();pfCamPrev();})
+  .catch(function(){
+    toast("Camera unavailable or denied — choose a file instead");
+    pfCamFallback(pose,week);});}
+function pfCamTilt(e){
+  var c=pfCam;if(!c)return;
+  var el=document.getElementById("pfcam-tilt");if(!el)return;
+  var g=e&&e.gamma;
+  if(typeof g!=="number"||!isFinite(g)){return;}
+  c.tiltSeen=true;
+  var a=Math.round(Math.abs(g));
+  el.textContent=a<=2?"Level \u2713":("Tilt "+a+"\u00b0 "+(g>0?"right":"left"));
+  el.className="pfcam-tilt"+(a<=2?" ok":"");}
+function pfCamRender(){
+  var c=pfCam;if(!c)return;
+  var d=document.getElementById("pf-cam");
+  if(!d){d=document.createElement("div");d.id="pf-cam";document.body.appendChild(d);}
+  var prefs=pfOvPrefs();
+  var lbl=(POSES.filter(function(x){return x[0]===c.pose;})[0]||["",c.pose])[1];
+  var idx=c.order.indexOf(c.pose)+1;
+  d.innerHTML=
+    '<div class="pfcam-wrap">'
+    +'<div class="pfcam-head"><span><b>'+esc(lbl)+'</b> \u00b7 '+idx+' of 4</span>'
+    +'<button class="pfcam-x" data-act="pfcam:close" aria-label="Close camera">\u2715</button></div>'
+    +'<div class="pfcam-tabs">'+c.order.map(function(pz){
+      var pl=(POSES.filter(function(x){return x[0]===pz;})[0]||["",pz])[1];
+      return '<button class="'+(pz===c.pose?"on":"")+'" data-act="pfcam:pose" data-pose="'+pz+'">'
+        +esc(pl)+(c.shots[pz]?" \u2713":"")+'</button>';}).join("")+'</div>'
+    +'<div class="pfcam-view">'
+    +'<video id="pfcam-video" autoplay playsinline muted></video>'
+    +'<img id="pfcam-prev" alt="" style="display:none;opacity:'+(prefs.on?(prefs.strength/100):0)+'">'
+    +'<svg class="pfcam-guides" viewBox="0 0 300 400" preserveAspectRatio="none" aria-hidden="true">'
+    +'<line x1="0" y1="30" x2="300" y2="30" stroke="rgba(245,181,68,.75)" stroke-width="1.4" stroke-dasharray="6 5"/>'
+    +'<line x1="0" y1="378" x2="300" y2="378" stroke="rgba(245,181,68,.75)" stroke-width="1.4" stroke-dasharray="6 5"/>'
+    +'<line x1="150" y1="0" x2="150" y2="400" stroke="rgba(245,181,68,.45)" stroke-width="1" stroke-dasharray="3 6"/>'
+    +'</svg>'
+    +'<div id="pfcam-tilt" class="pfcam-tilt"></div>'
+    +'</div>'
+    +'<div class="pfcam-ovrow">'
+    +'<button class="pfcam-ovtgl'+(prefs.on?" on":"")+'" data-act="pfcam:ov" aria-pressed="'+(prefs.on?"true":"false")+'">Ghost</button>'
+    +'<input type="range" data-pfov="strength" min="10" max="75" step="1" value="'+prefs.strength+'" aria-label="Overlay strength"'+(prefs.on?"":" disabled")+'>'
+    +'<span id="pfcam-ovval" class="pfcam-ovval">'+prefs.strength+'%</span></div>'
+    +'<div class="pfcam-tip">'+esc(PF_POSE_TIPS[c.pose]||"")+'</div>'
+    +'<div class="pfcam-foot"><button class="pfcam-shutter" data-act="pfcam:shot" aria-label="Take photo"></button></div>'
+    +'</div>';
+  var v=document.getElementById("pfcam-video");
+  try{v.srcObject=c.stream;}catch(e){}
+  c.video=v;}
+function pfCamPrev(){
+  var c=pfCam;if(!c)return;
+  idbAll().then(function(all){
+    if(!pfCam||pfCam!==c)return;
+    var img=document.getElementById("pfcam-prev");if(!img)return;
+    var mine=all.filter(function(p){return p.kind==="progress"&&p.pose===c.pose&&p.blob;})
+      .sort(function(a,b){return (b.ts||0)-(a.ts||0);});
+    if(c.prevUrl){try{URL.revokeObjectURL(c.prevUrl);}catch(e){}c.prevUrl=null;}
+    if(!mine.length){img.style.display="none";img.removeAttribute("src");return;}
+    var rec=mine[0];
+    var show=function(src){if(!pfCam||pfCam!==c)return;var i2=document.getElementById("pfcam-prev");
+      if(i2){i2.src=src;i2.style.display="";}};
+    if(pfHasNorm(rec))pfDerivative(rec,720,function(du){
+      if(du)show(du);else{c.prevUrl=URL.createObjectURL(rec.blob);show(c.prevUrl);}});
+    else{c.prevUrl=URL.createObjectURL(rec.blob);show(c.prevUrl);}
+  }).catch(function(){});}
+function pfCamShot(){
+  var c=pfCam;if(!c||!c.video||!c.video.videoWidth){toast("Camera not ready yet");return;}
+  var v=c.video,vw=v.videoWidth,vh=v.videoHeight,ar=3/4,cw,ch;
+  if(vw/vh>ar){ch=vh;cw=vh*ar;}else{cw=vw;ch=vw/ar;}
+  var x0=(vw-cw)/2,y0=(vh-ch)/2;
+  var cv=document.createElement("canvas");cv.width=Math.round(cw);cv.height=Math.round(ch);
+  /* the ghost overlay and guides live in DOM layers the canvas never sees —
+     only the video frame is drawn (spec: alignment aid, never composited) */
+  cv.getContext("2d").drawImage(v,x0,y0,cw,ch,0,0,cv.width,cv.height);
+  cv.toBlob(function(b){
+    if(!b){toast("Capture failed — try again");return;}
+    processImage(b).then(function(blob){
+      var c2=pfCam;if(!c2)return;
+      var url=URL.createObjectURL(blob);var img=new Image();
+      img.onload=function(){
+        var base=pfAutoSuggest(img.width,img.height);
+        if(!base){URL.revokeObjectURL(url);toast("Capture failed — try again");return;}
+        state.pfReview={blob:blob,pose:c2.pose,week:c2.week,base:base,
+          adj:{panX:0,panY:0,zoom:1,rot:0},cap:c2.cap,srcUrl:url,fromCam:true};
+        render();pfReviewPreview();};
+      img.onerror=function(){URL.revokeObjectURL(url);toast("Capture failed — try again");};
+      img.src=url;});
+  },"image/jpeg",0.92);}
+function pfCamAdvance(donePose){
+  var c=pfCam;if(!c)return;
+  c.shots[donePose]=true;
+  var next=null;
+  for(var i=0;i<c.order.length;i++)if(!c.shots[c.order[i]]){next=c.order[i];break;}
+  if(next===null){pfCamStop();toast("All four poses captured");
+    if(state.view==="photos")renderProgressPhotos();return;}
+  c.pose=next;pfCamRender();pfCamPrev();}
+document.addEventListener("visibilitychange",function(){
+  if(document.visibilityState==="hidden"&&pfCam)pfCamStop();});
+window.addEventListener("pagehide",function(){if(pfCam)pfCamStop();});
+
+/* the take-or-upload chooser (spec §4: an empty slot offers both; camera
+   permission is requested only after the EXPLICIT guided-photo tap) */
+function pfChooseHTML(){
+  var pc=state.pfChoose;if(!pc)return "";
+  var lbl=(POSES.filter(function(x){return x[0]===pc.pose;})[0]||["",pc.pose])[1];
+  return '<div class="wl-confirm" style="z-index:2400"><div class="wl-confirm-card">'
+    +'<div class="wl-confirm-msg">'+esc(lbl)+' — add this week\u2019s photo</div>'
+    +'<button class="wl-btn wl-btn-primary wl-full" data-act="pfsrc:cam">\ud83d\udcf7 Take guided photo</button>'
+    +'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pfsrc:upload">Upload existing photo</button>'
+    +'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pfsrc:cancel">Cancel</button>'
+    +'</div></div>';}
 
 /* ---- progress-photo backup / restore (device-only, never synced) ---- */
 function progressPhotos(){return idbAll().then(function(all){return all.filter(function(p){return p.kind==="progress";});});}
@@ -9133,7 +9303,7 @@ function render(){
   var maxBtn=isOwner()?'<button class="wl-maxb'+((coachUnreadW()||coachUnreadT())?" hot":"")+'" data-act="max:open" aria-label="Messages from Coach Max">M</button>':'';
   var backBtn=state.view==="checkin"?'<button class="wl-hdr-back" data-act="ci:close" aria-label="Back">‹</button>':(state.view==="photos"||state.view==="glptimeline")?'<button class="wl-hdr-back" data-act="go" data-view="weight" aria-label="Back">‹</button>':state.view==="diary"?'<button class="wl-hdr-back" data-act="go" data-view="overview" aria-label="Back">‹</button>':'';
   var _navH=headerNav();var _brand='<span class="wl-mark">'+BRANDMARK+'</span>';var _md=statusFor(todayISO());var _mbanner=_md?('<button class="wl-modebanner" data-act="go" data-view="settings"><span class="wl-mb-em">'+(_md.status.type==="vacation"?"\ud83c\udfd6\ufe0f":"\ud83e\udd12")+'</span><span>'+(_md.status.type==="vacation"?"Vacation Mode":"Recovery Mode")+'</span><span class="wl-mb-go">Settings \u203a</span></button>'):'';
-  document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header'+(_md?" hasbanner":"")+'">'+_mbanner+'<div class="wl-hdr-brand"><div class="wl-brandrow">'+_brand+'<span class="wl-eyebrow">Compound</span></div>'+hdrRight+'</div><div class="wl-hdr-main">'+backBtn+'<div class="wl-title-slot">'+(title?('<h1 class="wl-title">'+title+'</h1>'):'')+(hsub?'<div class="wl-hsub">'+esc(hsub)+'</div>':'')+'</div><div class="wl-hdr-actions">'+maxBtn+avatar+'</div></div>'+(_navH?'<div class="wl-hdr-datebar">'+_navH+'</div>':'')+'</header>'+m10RoBarHTML()+'<main class="wl-main">'+m10cxShellBannerHTML()+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML()+statusSheetHTML()+obOverlayHTML()+maxSheetHTML()+infoSheetHTML()+glpSheetHTML()+pfReviewHTML();
+  document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header'+(_md?" hasbanner":"")+'">'+_mbanner+'<div class="wl-hdr-brand"><div class="wl-brandrow">'+_brand+'<span class="wl-eyebrow">Compound</span></div>'+hdrRight+'</div><div class="wl-hdr-main">'+backBtn+'<div class="wl-title-slot">'+(title?('<h1 class="wl-title">'+title+'</h1>'):'')+(hsub?'<div class="wl-hsub">'+esc(hsub)+'</div>':'')+'</div><div class="wl-hdr-actions">'+maxBtn+avatar+'</div></div>'+(_navH?'<div class="wl-hdr-datebar">'+_navH+'</div>':'')+'</header>'+m10RoBarHTML()+'<main class="wl-main">'+m10cxShellBannerHTML()+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML()+statusSheetHTML()+obOverlayHTML()+maxSheetHTML()+infoSheetHTML()+glpSheetHTML()+pfReviewHTML()+pfChooseHTML();
   var hdr=document.querySelector(".wl-header");if(hdr)document.documentElement.style.setProperty("--headh",hdr.offsetHeight+"px");
   if(document.getElementById("wl-photostrip"))renderPhotosStrip(state.selDate);
   if(state.view==="diary")renderDiary();
@@ -9505,11 +9675,25 @@ var lt=getLastSync();toast((syncLabel()||"Sync")+(lt?" \u00b7 "+fmtClock(lt):"")
     var _norm=pfReviewNorm();if(!_norm){toast("Adjust back into bounds first");return;}
     pfReviewClose();render();
     pfSaveProgress(_pr.blob,_pr.pose,_pr.week,_norm,_ok).catch(function(){toast("Couldn\u2019t save the photo");});
+    if(_pr.fromCam)pfCamAdvance(_pr.pose);
     return;}
   if(a==="pf:reset"){if(state.pfReview){state.pfReview.adj={panX:0,panY:0,zoom:1,rot:0};render();pfReviewPreview();}return;}
-  if(a==="pf:choose"){var _pp=state.pfReview;if(_pp){pfReviewClose();state.pendingPose=_pp.pose;state.pendingProgWeek=_pp.week;render();document.getElementById("wl-photo-input").click();}return;}
+  if(a==="pf:choose"){var _pp=state.pfReview;if(!_pp)return;
+    if(_pp.fromCam){pfReviewClose();render();return;}   /* back to the live camera beneath */
+    pfReviewClose();state.pendingPose=_pp.pose;state.pendingProgWeek=_pp.week;render();
+    document.getElementById("wl-photo-input").click();return;}
   if(a==="pf:cancel"){pfReviewClose();render();toast("Nothing was saved");return;}
-  if(a==="pphoto:add"){state.pendingPose=el.getAttribute("data-pose");state.pendingProgWeek=el.getAttribute("data-week")||toISO(weekStartFor(0));state.pendingMeal=null;document.getElementById("wl-photo-input").click();return;}
+  if(a==="pphoto:add"){state.pfChoose={pose:el.getAttribute("data-pose"),week:el.getAttribute("data-week")||toISO(weekStartFor(0))};state.pendingMeal=null;render();return;}
+  if(a==="pfsrc:cam"){var _pc=state.pfChoose;if(!_pc)return;state.pfChoose=null;render();
+    pfCamOpen(_pc.pose,_pc.week,(typeof m10Capture==="function")?m10Capture():null);return;}
+  if(a==="pfsrc:upload"){var _pu=state.pfChoose;if(!_pu)return;state.pfChoose=null;
+    state.pendingPose=_pu.pose;state.pendingProgWeek=_pu.week;render();
+    document.getElementById("wl-photo-input").click();return;}
+  if(a==="pfsrc:cancel"){state.pfChoose=null;render();return;}
+  if(a==="pfcam:shot"){pfCamShot();return;}
+  if(a==="pfcam:close"){pfCamStop();toast("Camera closed — nothing was saved beyond accepted poses");return;}
+  if(a==="pfcam:pose"){if(pfCam){pfCam.pose=el.getAttribute("data-pose");pfCamRender();pfCamPrev();}return;}
+  if(a==="pfcam:ov"){var _pv=pfOvPrefs();_pv.on=!_pv.on;pfOvSave(_pv);if(pfCam){pfCamRender();pfCamPrev();}return;}
   /* ---- daily ratings ---- */
   if(a==="rat:set"){ratSet(el.getAttribute("data-date"),el.getAttribute("data-q"),el.getAttribute("data-v"));render();return;}
   /* ---- weekly check-in ---- */
@@ -9791,9 +9975,13 @@ function m10pRetakeLeft(old,tries){
   }).catch(function(){return old.length;});}
 document.addEventListener("input",function(e){
   var el=e.target;if(!el||!el.getAttribute)return;
-  var k=el.getAttribute("data-pfadj");if(!k||!state.pfReview)return;
-  state.pfReview.adj[k]=parseFloat(el.value)||0;
-  pfReviewPreview();
+  var k=el.getAttribute("data-pfadj");
+  if(k&&state.pfReview){state.pfReview.adj[k]=parseFloat(el.value)||0;pfReviewPreview();return;}
+  if(el.getAttribute("data-pfov")){
+    var pv=pfOvPrefs();pv.strength=Math.min(75,Math.max(10,parseInt(el.value,10)||48));pfOvSave(pv);
+    var gi=document.getElementById("pfcam-prev");if(gi&&pv.on)gi.style.opacity=String(pv.strength/100);
+    var lb=document.getElementById("pfcam-ovval");if(lb)lb.textContent=pv.strength+"%";
+    return;}
 });
 document.getElementById("wl-photo-input").addEventListener("change",function(e){
   /* W4: authority captured at this boundary is revalidated again immediately

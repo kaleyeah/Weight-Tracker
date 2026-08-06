@@ -63,7 +63,11 @@ const eq=(a,b,m)=>{if(a!==b)throw new Error((m||'eq')+': '+JSON.stringify(a)+' !
        then set the way the slot handler sets it; the REAL change listener
        is driven by setInputFiles either way. */
     const slot='[data-act="pphoto:add"][data-pose="'+pose+'"]';
-    if(await page.evaluate(sel=>!!document.querySelector(sel),slot))await page.click(slot);
+    if(await page.evaluate(sel=>!!document.querySelector(sel),slot)){
+      await page.click(slot);
+      /* M3: the slot now opens the take-or-upload chooser first */
+      await page.click('[data-act="pfsrc:upload"]');
+    }
     await page.evaluate(p2=>{state.pendingPose=p2;state.pendingProgWeek=null;},pose);
     await page.setInputFiles('#wl-photo-input',fixture);
     await page.waitForFunction(()=>!!document.querySelector('[data-act="pf:use"]'),null,{timeout:8000});

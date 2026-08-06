@@ -20,7 +20,7 @@ function render(){
   var maxBtn=isOwner()?'<button class="wl-maxb'+((coachUnreadW()||coachUnreadT())?" hot":"")+'" data-act="max:open" aria-label="Messages from Coach Max">M</button>':'';
   var backBtn=state.view==="checkin"?'<button class="wl-hdr-back" data-act="ci:close" aria-label="Back">‹</button>':(state.view==="photos"||state.view==="glptimeline")?'<button class="wl-hdr-back" data-act="go" data-view="weight" aria-label="Back">‹</button>':state.view==="diary"?'<button class="wl-hdr-back" data-act="go" data-view="overview" aria-label="Back">‹</button>':'';
   var _navH=headerNav();var _brand='<span class="wl-mark">'+BRANDMARK+'</span>';var _md=statusFor(todayISO());var _mbanner=_md?('<button class="wl-modebanner" data-act="go" data-view="settings"><span class="wl-mb-em">'+(_md.status.type==="vacation"?"\ud83c\udfd6\ufe0f":"\ud83e\udd12")+'</span><span>'+(_md.status.type==="vacation"?"Vacation Mode":"Recovery Mode")+'</span><span class="wl-mb-go">Settings \u203a</span></button>'):'';
-  document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header'+(_md?" hasbanner":"")+'">'+_mbanner+'<div class="wl-hdr-brand"><div class="wl-brandrow">'+_brand+'<span class="wl-eyebrow">Compound</span></div>'+hdrRight+'</div><div class="wl-hdr-main">'+backBtn+'<div class="wl-title-slot">'+(title?('<h1 class="wl-title">'+title+'</h1>'):'')+(hsub?'<div class="wl-hsub">'+esc(hsub)+'</div>':'')+'</div><div class="wl-hdr-actions">'+maxBtn+avatar+'</div></div>'+(_navH?'<div class="wl-hdr-datebar">'+_navH+'</div>':'')+'</header>'+m10RoBarHTML()+'<main class="wl-main">'+m10cxShellBannerHTML()+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML()+statusSheetHTML()+obOverlayHTML()+maxSheetHTML()+infoSheetHTML()+glpSheetHTML()+pfReviewHTML();
+  document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header'+(_md?" hasbanner":"")+'">'+_mbanner+'<div class="wl-hdr-brand"><div class="wl-brandrow">'+_brand+'<span class="wl-eyebrow">Compound</span></div>'+hdrRight+'</div><div class="wl-hdr-main">'+backBtn+'<div class="wl-title-slot">'+(title?('<h1 class="wl-title">'+title+'</h1>'):'')+(hsub?'<div class="wl-hsub">'+esc(hsub)+'</div>':'')+'</div><div class="wl-hdr-actions">'+maxBtn+avatar+'</div></div>'+(_navH?'<div class="wl-hdr-datebar">'+_navH+'</div>':'')+'</header>'+m10RoBarHTML()+'<main class="wl-main">'+m10cxShellBannerHTML()+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML()+statusSheetHTML()+obOverlayHTML()+maxSheetHTML()+infoSheetHTML()+glpSheetHTML()+pfReviewHTML()+pfChooseHTML();
   var hdr=document.querySelector(".wl-header");if(hdr)document.documentElement.style.setProperty("--headh",hdr.offsetHeight+"px");
   if(document.getElementById("wl-photostrip"))renderPhotosStrip(state.selDate);
   if(state.view==="diary")renderDiary();
@@ -392,11 +392,25 @@ var lt=getLastSync();toast((syncLabel()||"Sync")+(lt?" \u00b7 "+fmtClock(lt):"")
     var _norm=pfReviewNorm();if(!_norm){toast("Adjust back into bounds first");return;}
     pfReviewClose();render();
     pfSaveProgress(_pr.blob,_pr.pose,_pr.week,_norm,_ok).catch(function(){toast("Couldn\u2019t save the photo");});
+    if(_pr.fromCam)pfCamAdvance(_pr.pose);
     return;}
   if(a==="pf:reset"){if(state.pfReview){state.pfReview.adj={panX:0,panY:0,zoom:1,rot:0};render();pfReviewPreview();}return;}
-  if(a==="pf:choose"){var _pp=state.pfReview;if(_pp){pfReviewClose();state.pendingPose=_pp.pose;state.pendingProgWeek=_pp.week;render();document.getElementById("wl-photo-input").click();}return;}
+  if(a==="pf:choose"){var _pp=state.pfReview;if(!_pp)return;
+    if(_pp.fromCam){pfReviewClose();render();return;}   /* back to the live camera beneath */
+    pfReviewClose();state.pendingPose=_pp.pose;state.pendingProgWeek=_pp.week;render();
+    document.getElementById("wl-photo-input").click();return;}
   if(a==="pf:cancel"){pfReviewClose();render();toast("Nothing was saved");return;}
-  if(a==="pphoto:add"){state.pendingPose=el.getAttribute("data-pose");state.pendingProgWeek=el.getAttribute("data-week")||toISO(weekStartFor(0));state.pendingMeal=null;document.getElementById("wl-photo-input").click();return;}
+  if(a==="pphoto:add"){state.pfChoose={pose:el.getAttribute("data-pose"),week:el.getAttribute("data-week")||toISO(weekStartFor(0))};state.pendingMeal=null;render();return;}
+  if(a==="pfsrc:cam"){var _pc=state.pfChoose;if(!_pc)return;state.pfChoose=null;render();
+    pfCamOpen(_pc.pose,_pc.week,(typeof m10Capture==="function")?m10Capture():null);return;}
+  if(a==="pfsrc:upload"){var _pu=state.pfChoose;if(!_pu)return;state.pfChoose=null;
+    state.pendingPose=_pu.pose;state.pendingProgWeek=_pu.week;render();
+    document.getElementById("wl-photo-input").click();return;}
+  if(a==="pfsrc:cancel"){state.pfChoose=null;render();return;}
+  if(a==="pfcam:shot"){pfCamShot();return;}
+  if(a==="pfcam:close"){pfCamStop();toast("Camera closed — nothing was saved beyond accepted poses");return;}
+  if(a==="pfcam:pose"){if(pfCam){pfCam.pose=el.getAttribute("data-pose");pfCamRender();pfCamPrev();}return;}
+  if(a==="pfcam:ov"){var _pv=pfOvPrefs();_pv.on=!_pv.on;pfOvSave(_pv);if(pfCam){pfCamRender();pfCamPrev();}return;}
   /* ---- daily ratings ---- */
   if(a==="rat:set"){ratSet(el.getAttribute("data-date"),el.getAttribute("data-q"),el.getAttribute("data-v"));render();return;}
   /* ---- weekly check-in ---- */
@@ -678,9 +692,13 @@ function m10pRetakeLeft(old,tries){
   }).catch(function(){return old.length;});}
 document.addEventListener("input",function(e){
   var el=e.target;if(!el||!el.getAttribute)return;
-  var k=el.getAttribute("data-pfadj");if(!k||!state.pfReview)return;
-  state.pfReview.adj[k]=parseFloat(el.value)||0;
-  pfReviewPreview();
+  var k=el.getAttribute("data-pfadj");
+  if(k&&state.pfReview){state.pfReview.adj[k]=parseFloat(el.value)||0;pfReviewPreview();return;}
+  if(el.getAttribute("data-pfov")){
+    var pv=pfOvPrefs();pv.strength=Math.min(75,Math.max(10,parseInt(el.value,10)||48));pfOvSave(pv);
+    var gi=document.getElementById("pfcam-prev");if(gi&&pv.on)gi.style.opacity=String(pv.strength/100);
+    var lb=document.getElementById("pfcam-ovval");if(lb)lb.textContent=pv.strength+"%";
+    return;}
 });
 document.getElementById("wl-photo-input").addEventListener("change",function(e){
   /* W4: authority captured at this boundary is revalidated again immediately
