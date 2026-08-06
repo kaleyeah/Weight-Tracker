@@ -191,7 +191,7 @@ function pfReviewHTML(){
              :"Adjustment out of bounds — reset a slider";
   var h='<div class="wl-confirm" style="z-index:2400"><div class="wl-confirm-card" style="max-height:86vh;overflow:auto;text-align:left">';
   h+='<div style="font-weight:800;font-size:16px;margin-bottom:2px">'+(r.legacyId?"Standardize existing photo":"Standardize this photo")+'</div>';
-  h+='<div class="wl-hint" style="margin-bottom:10px">'+esc(POSES.filter(function(x){return x[0]===r.pose;}).map(function(x){return x[1];})[0]||r.pose)+' · week of '+esc(fmtShort(parseISO(r.week)))+(r.legacyId?' · '+r.legacyLeft+' to review':'')+' · your original is kept untouched</div>';
+  h+='<div class="wl-hint" style="margin-bottom:10px">'+esc(POSES.filter(function(x){return x[0]===r.pose;}).map(function(x){return x[1];})[0]||r.pose)+' · week of '+esc(fmtShort(parseISO(r.week)))+(r.legacyId&&!r.solo?' · '+r.legacyLeft+' to review':'')+' · your original is kept untouched</div>';
   if(r.legacyId&&r.narrow)h+='<div class="wl-hint" style="margin-bottom:8px;color:var(--accent)">This photo was already cropped tall — the 3:4 frame can only show what’s still in it.</div>';
   h+='<div class="wl-pfrev-row"><div><div class="wl-pfrev-cap">Original</div><img class="wl-pfrev-src" src="'+srcUrl+'" alt="Original photo"></div>';
   h+='<div><div class="wl-pfrev-cap">Standardized 3:4</div><div id="wl-pfrev-std" class="wl-pfrev-std"><div class="wl-hint">Preparing…</div></div></div></div>';
@@ -202,7 +202,8 @@ function pfReviewHTML(){
     +sl("panX","Left / right",-0.5,0.5,0.005,r.adj.panX)+sl("rot","Level (°)",-7,7,0.1,r.adj.rot);
   h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" '+(n?'data-act="pf:use"':'disabled style="opacity:.4"')+'>Use this photo</button>';
   h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pf:reset">Reset to suggestion</button>';
-  h+=r.legacyId?'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pf:skiplegacy">Skip this photo</button>'
+  h+=r.solo?''
+    :r.legacyId?'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pf:skiplegacy">Skip this photo</button>'
     :'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pf:choose">'+(r.fromCam?"Retake":"Choose another")+'</button>';
   h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pf:cancel">Cancel</button>';
   return h+'</div></div>';}
@@ -587,10 +588,22 @@ function renderProgressPhotos(){clearPhotoURLs();var curWk=toISO(weekStartFor(0)
         var _tref=pfRefGet(pose);var refId=_tref?_tref.id:null;
         var _selRec=sel.length===1?items.filter(function(p){return p.id===sel[0];})[0]:null;
         html2+='<div class="wl-pftl-actions"><button class="wl-btn '+(sel.length===2?"wl-btn-primary":"wl-btn-ghost")+'" '+(sel.length===2?'data-act="pftl:compare"':'disabled style="opacity:.4"')+'>Compare</button>'
-          +(sel.length===1?'<button class="wl-btn wl-btn-ghost" data-act="pftl:pinref" data-id="'+sel[0]+'" data-week="'+esc((_selRec&&(_selRec.week||_selRec.date))||"")+'">'+(refId===sel[0]?"Unpin reference":"Pin as camera reference")+'</button>':"")
+          +(sel.length===1?'<button class="wl-btn wl-btn-ghost" data-act="pftl:pinref" data-id="'+sel[0]+'" data-week="'+esc((_selRec&&(_selRec.week||_selRec.date))||"")+'">'+(refId===sel[0]?"Unpin reference":"Pin as camera reference")+'</button>'
+            +'<button class="wl-btn wl-btn-ghost" data-act="pftl:editdate" data-id="'+sel[0]+'">Edit date</button>'
+            +'<button class="wl-btn wl-btn-ghost" data-act="pftl:restd" data-id="'+sel[0]+'">Re-standardize</button>':"")
           +(sel.length?'<button class="wl-btn wl-btn-ghost" data-act="pftl:clear">Clear</button>':"")
           +'<span class="wl-hint" style="margin-left:auto">Tap two dates to compare</span></div>';
       }
+      if(state.pfDateEdit){
+        var _der=items.filter(function(p){return p.id===state.pfDateEdit.id;})[0];
+        var _dcur=(_der&&(_der.week||_der.date))||toISO(weekStartFor(0));
+        html2+='<div class="wl-confirm" style="z-index:2400"><div class="wl-confirm-card" style="text-align:left">'
+          +'<div style="font-weight:800;font-size:16px;margin-bottom:2px">Edit photo date</div>'
+          +'<div class="wl-hint" style="margin-bottom:10px">Progress photos are filed by week — the date you pick snaps to the week it belongs to. Syncs to every device.</div>'
+          +'<label class="wl-field wl-field-full"><span>Date</span><input type="date" id="wl-pfdate" value="'+esc(_dcur)+'"></label>'
+          +'<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="pfdate:save" data-id="'+esc(state.pfDateEdit.id)+'">Save date</button>'
+          +'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pfdate:cancel">Cancel</button>'
+          +'</div></div>';}
       if(legacyN)html2+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="pfleg:start">Standardize existing photos ('+legacyN+')</button>'
         +'<div class="wl-hint" style="margin-top:6px">One at a time — accept, adjust, or skip. Originals are never changed.</div>';
       html2+='</div>';

@@ -29,6 +29,9 @@ const eq=(a,b,m)=>{if(a!==b)throw new Error((m||'eq')+': '+JSON.stringify(a)+' !
       const b=JSON.parse(r.request().postData()||'{}');
       return reply(200,{ok:true,exists:true,granted:true,fence:1,holderDeviceId:b.deviceId,
         deviceName:b.deviceName||'x',active:true,serverNow:Date.now(),ttlMs:86400000});}
+    if(/cf\/photos\/update/.test(url)){
+      const b=JSON.parse(r.request().postData()||'{}');
+      return reply(200,{ok:true,recordId:b.serverId,applied:true,newMeta:b.newMeta});}
     if(/collections\/appdata\/records/.test(url))return reply(200,{items:[]});
     return reply(200,{items:[],token:'tok',record:{id:'userA'}});});
   await ctx.addInitScript(()=>{
@@ -128,6 +131,103 @@ const eq=(a,b,m)=>{if(a!==b)throw new Error((m||'eq')+': '+JSON.stringify(a)+' !
     const u=await page.evaluate(()=>JSON.parse(localStorage.getItem('wl_pf_refs')||'{}'));
     test('unpinning clears it — ghost falls back to most recent',()=>eq(u.front,undefined));
     await page.evaluate(()=>{state.pfSel=[];renderProgressPhotos();});
+    await page.waitForTimeout(200);
+  }
+
+  /* ---- Edit date + Re-standardize (Owner rulings, 2026-08-06: fix wrong
+     dates and bad crops IN the app — no re-upload, no duplicates) ---- */
+  {
+    await page.evaluate(()=>{
+      /* the seeds above rode the gated idbAdd, which queued an upload op per
+         photo; with no upload route mocked those wedge at the queue head and
+         starve any meta op behind them. This arm is about the META op — start
+         from an empty queue. */
+      localStorage.removeItem('wl_photo_ops__userA');
+      state.pfSel=['p-f1'];renderProgressPhotos();});
+    await page.waitForTimeout(300);
+    const s=await page.evaluate(()=>({
+      edit:!!document.querySelector('[data-act="pftl:editdate"]'),
+      restd:!!document.querySelector('[data-act="pftl:restd"]')}));
+    test('one selected card offers Edit date and Re-standardize',()=>{
+      ok(s.edit,'no Edit date');ok(s.restd,'no Re-standardize');});
+
+    /* edit date on an UNMAPPED photo: plain gated local update, both fields */
+    await page.click('[data-act="pftl:editdate"]');
+    await page.waitForTimeout(300);
+    const t=await page.evaluate(async()=>{
+      const inp=document.getElementById('wl-pfdate');
+      if(!inp)return {card:false};
+      inp.value='2026-06-18';                       /* a Thursday */
+      document.querySelector('[data-act="pfdate:save"]').click();
+      await new Promise(r=>setTimeout(r,600));
+      const rec=(await idbAll()).find(p=>p.id==='p-f1');
+      return {card:true,week:rec.week,date:rec.date,
+        sheetGone:!document.getElementById('wl-pfdate'),
+        queued:(typeof m10pOps==='function')?m10pOps().filter(o=>o.op==='meta').length:0};});
+    test('the date card saves: chosen date snaps to its week start, local record moves',()=>{
+      ok(t.card,'date card never opened');
+      eq(t.week,'2026-06-14','week');eq(t.date,'2026-06-14','date');  /* Sunday of that week */
+      ok(t.sheetGone,'card still open');});
+    test('an unmapped photo queues NO server op — nothing to relabel remotely',()=>
+      eq(t.queued,0));
+
+    /* edit date on a MAPPED photo: the meta op owns both sides; the mocked
+       server route acks and the local record moves through the queue */
+    const q=await page.evaluate(async()=>{
+      /* the local-branch edit above re-queued an upload op for p-f1 via the
+         gated idbAdd — clear again so the META op is the queue head */
+      localStorage.removeItem('wl_photo_ops__userA');
+      const m=JSON.parse(localStorage.getItem('wl_photomap')||'{}');
+      m['p-f2']='srv-p-f2';localStorage.setItem('wl_photomap',JSON.stringify(m));
+      state.pfSel=['p-f2'];renderProgressPhotos();
+      await new Promise(r=>setTimeout(r,300));
+      document.querySelector('[data-act="pftl:editdate"]').click();
+      await new Promise(r=>setTimeout(r,300));
+      const inp=document.getElementById('wl-pfdate');
+      inp.value='2026-06-25';
+      document.querySelector('[data-act="pfdate:save"]').click();
+      /* the dispatcher may have been mid-flight when the op queued; production
+         retries on every later queue/boot/dispatch — poll the same way */
+      for(let i=0;i<12;i++){
+        await new Promise(r=>setTimeout(r,300));
+        const ops=(typeof m10pOps==='function')?m10pOps():[];
+        if(!ops.some(o=>o.op==='meta'))break;
+        m10pDispatch();}
+      const rec=(await idbAll()).find(p=>p.id==='p-f2');
+      return {week:rec.week,date:rec.date,
+        pending:(typeof m10pOps==='function')?m10pOps().filter(o=>o.op==='meta').length:0};});
+    test('a mapped photo rides the journaled meta op: local applied AND server acked',()=>{
+      eq(q.week,'2026-06-21','week');eq(q.date,'2026-06-21','date');
+      eq(q.pending,0,'meta op still pending');});
+
+    /* re-standardize: solo review, no legacy-queue jump, normalization replaced */
+    const r2=await page.evaluate(async()=>{
+      state.pfSel=['p-f1'];renderProgressPhotos();
+      await new Promise(r=>setTimeout(r,300));
+      const before=(await idbAll()).find(p=>p.id==='p-f1');
+      document.querySelector('[data-act="pftl:restd"]').click();
+      await new Promise(r=>setTimeout(r,800));
+      const sheet=document.body.innerText;
+      const hasSkip=!!document.querySelector('[data-act="pf:skiplegacy"]');
+      const slider=document.querySelector('[data-pfadj="panY"]');
+      if(slider){slider.value='0.1';slider.dispatchEvent(new Event('input',{bubbles:true}));}
+      await new Promise(r=>setTimeout(r,300));
+      const use=document.querySelector('[data-act="pf:use"]');
+      if(use)use.click();
+      await new Promise(r=>setTimeout(r,800));
+      const after=(await idbAll()).find(p=>p.id==='p-f1');
+      const count=(await idbAll()).filter(p=>p.pose==='front').length;
+      return {opened:/Standardize/.test(sheet),toReview:/to review/.test(sheet),hasSkip:hasSkip,
+        changed:JSON.stringify(before.normalization||null)!==JSON.stringify(after.normalization||null),
+        mode:after.normalization&&after.normalization.mode,
+        count:count,reviewGone:!state.pfReview};});
+    test('Re-standardize opens a SOLO review — no queue count, no Skip',()=>{
+      ok(r2.opened,'review never opened');eq(r2.toReview,false,'says "to review"');
+      eq(r2.hasSkip,false,'legacy Skip offered');});
+    test('accepting replaces the normalization on the SAME record, no legacy jump',()=>{
+      ok(r2.changed,'normalization unchanged');eq(r2.mode,'manual');
+      ok(r2.reviewGone,'review did not close — legacy queue jump?');});
+    await page.evaluate(()=>{state.pfSel=[];state.pfDateEdit=null;renderProgressPhotos();});
     await page.waitForTimeout(200);
   }
 

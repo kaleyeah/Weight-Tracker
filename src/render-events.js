@@ -395,10 +395,12 @@ var lt=getLastSync();toast((syncLabel()||"Sync")+(lt?" \u00b7 "+fmtClock(lt):"")
          revalidated immediately before the write */
       idbAll().then(function(all){
         var rec=all.filter(function(p){return p.id===_pr.legacyId;})[0];
-        if(!rec){pfLegacyNext(_pr.cap);return;}
+        if(!rec){if(_pr.solo){toast("That photo is no longer on this device");if(state.view==="photos")renderProgressPhotos();return;}pfLegacyNext(_pr.cap);return;}
         if(!_ok()){toast("This device is no longer the active writer — nothing was changed");return;}
         rec.normalization=_norm;
-        idbAdd(rec).then(function(){pfLegacyNext(_pr.cap);})
+        idbAdd(rec).then(function(){
+          if(_pr.solo){toast("Framing updated");if(state.view==="photos")renderProgressPhotos();return;}
+          pfLegacyNext(_pr.cap);})
           .catch(function(){toast("Couldn’t save the framing");});
       }).catch(function(){toast("Couldn’t save the framing");});
       return;}
@@ -423,6 +425,58 @@ var lt=getLastSync();toast((syncLabel()||"Sync")+(lt?" \u00b7 "+fmtClock(lt):"")
     if(_cur&&_cur.id===_rid){delete _rp2[_pz];toast("Reference unpinned \u2014 ghost follows your latest photo");}
     else{_rp2[_pz]={id:_rid,week:el.getAttribute("data-week")||null};toast("Pinned \u2014 the camera ghost for this pose now always uses this photo");}
     pfRefSave(_rp2);renderProgressPhotos();return;}
+  if(a==="pftl:editdate"){state.pfDateEdit={id:el.getAttribute("data-id")};renderProgressPhotos();return;}
+  if(a==="pfdate:cancel"){state.pfDateEdit=null;renderProgressPhotos();return;}
+  if(a==="pfdate:save"){var _did=el.getAttribute("data-id");
+    var _din=document.getElementById("wl-pfdate");
+    var _dv=_din&&_din.value;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(_dv||"")){toast("Pick a date first");return;}
+    var _dwk=toISO(weekStartOf(_dv));
+    idbAll().then(function(all){
+      var rec=all.filter(function(p){return p.id===_did;})[0];
+      if(!rec){toast("That photo is no longer on this device");state.pfDateEdit=null;renderProgressPhotos();return;}
+      if((rec.week||rec.date)===_dwk){toast("Already filed under that week");state.pfDateEdit=null;renderProgressPhotos();return;}
+      var _sid=(pbPhotoMap()||{})[rec.id];
+      var _mk=function(wk){return {kind:rec.kind==="progress"?"progress":"food",
+        date:String(wk).slice(0,10),week:String(wk).slice(0,10),
+        pose:String(rec.pose||"").slice(0,20),meal:String(rec.meal||"").slice(0,20),ts:String(rec.ts||"")};};
+      if(syncOn()&&_sid&&!ownershipAmbiguous()){
+        /* the queue owns BOTH sides (S2), same as the meal relabel */
+        if(!m10pQueueMeta(_sid,rec.id,_mk(rec.week||rec.date),_mk(_dwk))){
+          toast("Couldn’t record the change — try again");return;}
+        state.pfDateEdit=null;
+        toast("Date updated — filing under the week of "+fmtShort(parseISO(_dwk)));
+        var _dpoll=0,_dtick=function(){
+          var still=(typeof m10pOps==="function")&&m10pOps().some(function(o){return o.localId===rec.id&&o.op==="meta";});
+          if(!still||_dpoll++>20){renderProgressPhotos();return;}
+          setTimeout(_dtick,300);};
+        _dtick();return;}
+      /* never uploaded — a plain gated local update */
+      rec.date=_dwk;rec.week=_dwk;
+      idbAdd(rec).then(function(){state.pfDateEdit=null;
+        toast("Date updated — filing under the week of "+fmtShort(parseISO(_dwk)));
+        renderProgressPhotos();})
+        .catch(function(){toast("Couldn’t save the date");});
+    }).catch(function(){toast("Couldn’t read that photo");});
+    return;}
+  if(a==="pftl:restd"){var _rsid=el.getAttribute("data-id");
+    idbAll().then(function(all){
+      var rec=all.filter(function(p){return p.id===_rsid;})[0];
+      if(!rec||!rec.blob){toast("That photo is no longer on this device");return;}
+      var url=URL.createObjectURL(rec.blob);var img=new Image();
+      img.onload=function(){
+        var base=pfAutoSuggest(img.width,img.height);
+        if(!base){URL.revokeObjectURL(url);toast("Couldn’t read that photo");return;}
+        state.pfReview={blob:rec.blob,pose:rec.pose,week:rec.week||rec.date,base:base,
+          revId:(typeof pfRevSeq!=="undefined")?++pfRevSeq:undefined,
+          adj:{panX:0,panY:0,zoom:1,rot:0},cap:(typeof m10Capture==="function")?m10Capture():null,
+          srcUrl:url,legacyId:rec.id,solo:true,
+          narrow:(img.width/img.height)<0.72};
+        render();pfReviewPreview();};
+      img.onerror=function(){URL.revokeObjectURL(url);toast("Couldn’t read that photo");};
+      img.src=url;
+    }).catch(function(){toast("Couldn’t read that photo");});
+    return;}
   if(a==="pftl:compare"){if((state.pfSel||[]).length===2){state.pfCompare=true;renderProgressPhotos();}return;}
   if(a==="pftl:clear"){state.pfSel=[];state.pfCompare=false;renderProgressPhotos();return;}
   if(a==="pfcmp:close"){state.pfCompare=false;renderProgressPhotos();return;}

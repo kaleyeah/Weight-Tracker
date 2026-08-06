@@ -933,7 +933,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
 .pfcam-ghostsrc:empty{display:none;}
 .pftl-badge{position:absolute;top:4px;right:4px;background:var(--accent);color:#1a1508;font-size:10px;font-weight:800;border-radius:999px;padding:2px 6px;}
 .wl-tladd{width:86px;aspect-ratio:3/4;border-radius:10px;border:1px dashed var(--line);background:var(--bg2);color:var(--muted);font-size:22px;}
-.wl-pftl-actions{display:flex;gap:8px;align-items:center;margin-top:10px;}
+.wl-pftl-actions{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap;}
 .wl-pftl-actions .wl-btn{min-height:38px;padding:0 16px;}
 .pfcmp-row{display:flex;gap:10px;}
 .pfcmp-row>div{flex:1;min-width:0;text-align:center;}
@@ -4087,8 +4087,11 @@ function calNoticeHTML(iso){var e=state.food[iso];if(!e)return "";
   var p=num(e.protein),c=num(e.carbs),f=num(e.fat);if(p==null&&c==null&&f==null)return "";
   var mt=Math.round((p||0)*4+(c||0)*4+(f||0)*9);var cal=num(e.calories);
   if(cal==null)return '<div class="wl-calnote"><span>Macros add up to <b>'+mt.toLocaleString()+' cal</b>.</span><span class="wl-calnote-actions"><button class="wl-calnote-btn" data-act="cal:overwrite">Use as calories</button></span></div>';
-  if(Math.abs(cal-mt)<=2||e.calDismiss)return "";
-  return '<div class="wl-calnote"><span>Macros total <b>'+mt.toLocaleString()+' cal</b>, but Calories says <b>'+Math.round(cal).toLocaleString()+'</b>.</span><span class="wl-calnote-actions"><button class="wl-calnote-btn" data-act="cal:overwrite">Overwrite</button><button class="wl-calnote-btn ghost" data-act="cal:ignore">Ignore</button></span></div>';}
+  /* Owner 2026-08-06: the macros-vs-calories mismatch warning is RETIRED
+     ("no point anymore") — his calories come from scale/import flows and the
+     nag was noise. The cal==null fill-in offer above stays: it feeds the
+     calAuto disclosure the muscle-preservation math relies on. */
+  return "";}
 function dayBarHTML(){
   var sel=state.selDate;var isToday=sel===todayISO();var open=state.calOpen;
   var h='';
@@ -7980,7 +7983,7 @@ function pfReviewHTML(){
              :"Adjustment out of bounds — reset a slider";
   var h='<div class="wl-confirm" style="z-index:2400"><div class="wl-confirm-card" style="max-height:86vh;overflow:auto;text-align:left">';
   h+='<div style="font-weight:800;font-size:16px;margin-bottom:2px">'+(r.legacyId?"Standardize existing photo":"Standardize this photo")+'</div>';
-  h+='<div class="wl-hint" style="margin-bottom:10px">'+esc(POSES.filter(function(x){return x[0]===r.pose;}).map(function(x){return x[1];})[0]||r.pose)+' · week of '+esc(fmtShort(parseISO(r.week)))+(r.legacyId?' · '+r.legacyLeft+' to review':'')+' · your original is kept untouched</div>';
+  h+='<div class="wl-hint" style="margin-bottom:10px">'+esc(POSES.filter(function(x){return x[0]===r.pose;}).map(function(x){return x[1];})[0]||r.pose)+' · week of '+esc(fmtShort(parseISO(r.week)))+(r.legacyId&&!r.solo?' · '+r.legacyLeft+' to review':'')+' · your original is kept untouched</div>';
   if(r.legacyId&&r.narrow)h+='<div class="wl-hint" style="margin-bottom:8px;color:var(--accent)">This photo was already cropped tall — the 3:4 frame can only show what’s still in it.</div>';
   h+='<div class="wl-pfrev-row"><div><div class="wl-pfrev-cap">Original</div><img class="wl-pfrev-src" src="'+srcUrl+'" alt="Original photo"></div>';
   h+='<div><div class="wl-pfrev-cap">Standardized 3:4</div><div id="wl-pfrev-std" class="wl-pfrev-std"><div class="wl-hint">Preparing…</div></div></div></div>';
@@ -7991,7 +7994,8 @@ function pfReviewHTML(){
     +sl("panX","Left / right",-0.5,0.5,0.005,r.adj.panX)+sl("rot","Level (°)",-7,7,0.1,r.adj.rot);
   h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" '+(n?'data-act="pf:use"':'disabled style="opacity:.4"')+'>Use this photo</button>';
   h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pf:reset">Reset to suggestion</button>';
-  h+=r.legacyId?'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pf:skiplegacy">Skip this photo</button>'
+  h+=r.solo?''
+    :r.legacyId?'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pf:skiplegacy">Skip this photo</button>'
     :'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pf:choose">'+(r.fromCam?"Retake":"Choose another")+'</button>';
   h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pf:cancel">Cancel</button>';
   return h+'</div></div>';}
@@ -8376,10 +8380,22 @@ function renderProgressPhotos(){clearPhotoURLs();var curWk=toISO(weekStartFor(0)
         var _tref=pfRefGet(pose);var refId=_tref?_tref.id:null;
         var _selRec=sel.length===1?items.filter(function(p){return p.id===sel[0];})[0]:null;
         html2+='<div class="wl-pftl-actions"><button class="wl-btn '+(sel.length===2?"wl-btn-primary":"wl-btn-ghost")+'" '+(sel.length===2?'data-act="pftl:compare"':'disabled style="opacity:.4"')+'>Compare</button>'
-          +(sel.length===1?'<button class="wl-btn wl-btn-ghost" data-act="pftl:pinref" data-id="'+sel[0]+'" data-week="'+esc((_selRec&&(_selRec.week||_selRec.date))||"")+'">'+(refId===sel[0]?"Unpin reference":"Pin as camera reference")+'</button>':"")
+          +(sel.length===1?'<button class="wl-btn wl-btn-ghost" data-act="pftl:pinref" data-id="'+sel[0]+'" data-week="'+esc((_selRec&&(_selRec.week||_selRec.date))||"")+'">'+(refId===sel[0]?"Unpin reference":"Pin as camera reference")+'</button>'
+            +'<button class="wl-btn wl-btn-ghost" data-act="pftl:editdate" data-id="'+sel[0]+'">Edit date</button>'
+            +'<button class="wl-btn wl-btn-ghost" data-act="pftl:restd" data-id="'+sel[0]+'">Re-standardize</button>':"")
           +(sel.length?'<button class="wl-btn wl-btn-ghost" data-act="pftl:clear">Clear</button>':"")
           +'<span class="wl-hint" style="margin-left:auto">Tap two dates to compare</span></div>';
       }
+      if(state.pfDateEdit){
+        var _der=items.filter(function(p){return p.id===state.pfDateEdit.id;})[0];
+        var _dcur=(_der&&(_der.week||_der.date))||toISO(weekStartFor(0));
+        html2+='<div class="wl-confirm" style="z-index:2400"><div class="wl-confirm-card" style="text-align:left">'
+          +'<div style="font-weight:800;font-size:16px;margin-bottom:2px">Edit photo date</div>'
+          +'<div class="wl-hint" style="margin-bottom:10px">Progress photos are filed by week — the date you pick snaps to the week it belongs to. Syncs to every device.</div>'
+          +'<label class="wl-field wl-field-full"><span>Date</span><input type="date" id="wl-pfdate" value="'+esc(_dcur)+'"></label>'
+          +'<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="pfdate:save" data-id="'+esc(state.pfDateEdit.id)+'">Save date</button>'
+          +'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pfdate:cancel">Cancel</button>'
+          +'</div></div>';}
       if(legacyN)html2+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="pfleg:start">Standardize existing photos ('+legacyN+')</button>'
         +'<div class="wl-hint" style="margin-top:6px">One at a time — accept, adjust, or skip. Originals are never changed.</div>';
       html2+='</div>';
@@ -10044,10 +10060,12 @@ var lt=getLastSync();toast((syncLabel()||"Sync")+(lt?" \u00b7 "+fmtClock(lt):"")
          revalidated immediately before the write */
       idbAll().then(function(all){
         var rec=all.filter(function(p){return p.id===_pr.legacyId;})[0];
-        if(!rec){pfLegacyNext(_pr.cap);return;}
+        if(!rec){if(_pr.solo){toast("That photo is no longer on this device");if(state.view==="photos")renderProgressPhotos();return;}pfLegacyNext(_pr.cap);return;}
         if(!_ok()){toast("This device is no longer the active writer — nothing was changed");return;}
         rec.normalization=_norm;
-        idbAdd(rec).then(function(){pfLegacyNext(_pr.cap);})
+        idbAdd(rec).then(function(){
+          if(_pr.solo){toast("Framing updated");if(state.view==="photos")renderProgressPhotos();return;}
+          pfLegacyNext(_pr.cap);})
           .catch(function(){toast("Couldn’t save the framing");});
       }).catch(function(){toast("Couldn’t save the framing");});
       return;}
@@ -10072,6 +10090,58 @@ var lt=getLastSync();toast((syncLabel()||"Sync")+(lt?" \u00b7 "+fmtClock(lt):"")
     if(_cur&&_cur.id===_rid){delete _rp2[_pz];toast("Reference unpinned \u2014 ghost follows your latest photo");}
     else{_rp2[_pz]={id:_rid,week:el.getAttribute("data-week")||null};toast("Pinned \u2014 the camera ghost for this pose now always uses this photo");}
     pfRefSave(_rp2);renderProgressPhotos();return;}
+  if(a==="pftl:editdate"){state.pfDateEdit={id:el.getAttribute("data-id")};renderProgressPhotos();return;}
+  if(a==="pfdate:cancel"){state.pfDateEdit=null;renderProgressPhotos();return;}
+  if(a==="pfdate:save"){var _did=el.getAttribute("data-id");
+    var _din=document.getElementById("wl-pfdate");
+    var _dv=_din&&_din.value;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(_dv||"")){toast("Pick a date first");return;}
+    var _dwk=toISO(weekStartOf(_dv));
+    idbAll().then(function(all){
+      var rec=all.filter(function(p){return p.id===_did;})[0];
+      if(!rec){toast("That photo is no longer on this device");state.pfDateEdit=null;renderProgressPhotos();return;}
+      if((rec.week||rec.date)===_dwk){toast("Already filed under that week");state.pfDateEdit=null;renderProgressPhotos();return;}
+      var _sid=(pbPhotoMap()||{})[rec.id];
+      var _mk=function(wk){return {kind:rec.kind==="progress"?"progress":"food",
+        date:String(wk).slice(0,10),week:String(wk).slice(0,10),
+        pose:String(rec.pose||"").slice(0,20),meal:String(rec.meal||"").slice(0,20),ts:String(rec.ts||"")};};
+      if(syncOn()&&_sid&&!ownershipAmbiguous()){
+        /* the queue owns BOTH sides (S2), same as the meal relabel */
+        if(!m10pQueueMeta(_sid,rec.id,_mk(rec.week||rec.date),_mk(_dwk))){
+          toast("Couldn’t record the change — try again");return;}
+        state.pfDateEdit=null;
+        toast("Date updated — filing under the week of "+fmtShort(parseISO(_dwk)));
+        var _dpoll=0,_dtick=function(){
+          var still=(typeof m10pOps==="function")&&m10pOps().some(function(o){return o.localId===rec.id&&o.op==="meta";});
+          if(!still||_dpoll++>20){renderProgressPhotos();return;}
+          setTimeout(_dtick,300);};
+        _dtick();return;}
+      /* never uploaded — a plain gated local update */
+      rec.date=_dwk;rec.week=_dwk;
+      idbAdd(rec).then(function(){state.pfDateEdit=null;
+        toast("Date updated — filing under the week of "+fmtShort(parseISO(_dwk)));
+        renderProgressPhotos();})
+        .catch(function(){toast("Couldn’t save the date");});
+    }).catch(function(){toast("Couldn’t read that photo");});
+    return;}
+  if(a==="pftl:restd"){var _rsid=el.getAttribute("data-id");
+    idbAll().then(function(all){
+      var rec=all.filter(function(p){return p.id===_rsid;})[0];
+      if(!rec||!rec.blob){toast("That photo is no longer on this device");return;}
+      var url=URL.createObjectURL(rec.blob);var img=new Image();
+      img.onload=function(){
+        var base=pfAutoSuggest(img.width,img.height);
+        if(!base){URL.revokeObjectURL(url);toast("Couldn’t read that photo");return;}
+        state.pfReview={blob:rec.blob,pose:rec.pose,week:rec.week||rec.date,base:base,
+          revId:(typeof pfRevSeq!=="undefined")?++pfRevSeq:undefined,
+          adj:{panX:0,panY:0,zoom:1,rot:0},cap:(typeof m10Capture==="function")?m10Capture():null,
+          srcUrl:url,legacyId:rec.id,solo:true,
+          narrow:(img.width/img.height)<0.72};
+        render();pfReviewPreview();};
+      img.onerror=function(){URL.revokeObjectURL(url);toast("Couldn’t read that photo");};
+      img.src=url;
+    }).catch(function(){toast("Couldn’t read that photo");});
+    return;}
   if(a==="pftl:compare"){if((state.pfSel||[]).length===2){state.pfCompare=true;renderProgressPhotos();}return;}
   if(a==="pftl:clear"){state.pfSel=[];state.pfCompare=false;renderProgressPhotos();return;}
   if(a==="pfcmp:close"){state.pfCompare=false;renderProgressPhotos();return;}
@@ -14191,14 +14261,20 @@ function m10pDispatch(done){
       idbGetLocal(en.localId).then(function(rec){
         if(!authOk()){fin(false);return;}
         if(!rec){setPhase({state:"unverified",unverifiedReason:"meta-local-missing"});fin(false);return;}
-        var want=en.newMeta.meal||"";
-        if((rec.meal||"")===want){setPhase({state:"local-applied"})&&next(true);return;}
-        rec.meal=want;
+        /* 2026-08-06 (Owner: in-app date fixes): apply EVERY relabelable
+           field carried by newMeta — meal, date, week, pose — not meal
+           alone. The server route always accepted them; the local phase
+           was the meal-only bottleneck. ts/kind are never applied. */
+        var _mflds=["meal","date","week","pose"];
+        var _mwant={};_mflds.forEach(function(k){if(k in en.newMeta)_mwant[k]=String(en.newMeta[k]||"");});
+        var _mok=function(r2){return _mflds.every(function(k){return !(k in _mwant)||String(r2[k]||"")===_mwant[k];});};
+        if(_mok(rec)){setPhase({state:"local-applied"})&&next(true);return;}
+        _mflds.forEach(function(k){if(k in _mwant)rec[k]=_mwant[k];});
         idbAddLocal(rec).then(function(){
           if(!authOk()){fin(false);return;}
           idbGetLocal(en.localId).then(function(back){
             if(!authOk()){fin(false);return;}
-            if(!back||(back.meal||"")!==want){fin(false);return;}   /* retry next pass */
+            if(!back||!_mok(back)){fin(false);return;}   /* retry next pass */
             setPhase({state:"local-applied"})&&next(true);
           }).catch(function(){fin(false);});
         }).catch(function(){fin(false);});
@@ -15407,7 +15483,22 @@ document.addEventListener("visibilitychange",function(){if(!document.hidden){che
   document.addEventListener("touchend",function(){
     if(!pulling)return;pulling=false;
     if(dist*0.5>=THRESH){var e=el();e.classList.add("spin");e.classList.remove("ready");e.style.transition="transform .2s ease";e.style.transform="translateX(-50%) translateY(48px)";e.style.opacity="1";
-      cloudPull(true,function(){setTimeout(function(){e.classList.remove("spin");move(0,false);},350);});}
+      /* Owner 2026-08-06: "the icon moves but the last sync time is still
+         old" — this called cloudPull directly, which never stamps. Mirror
+         autoSync: pull, push if dirty (the push journal stamps itself),
+         stamp+ok on clean, ride the coach-report fetch. Same lesson as the
+         2026-08-03 read-only-device fix, applied to the manual gesture. */
+      cloudPull(true,function(){
+        var fin=function(){setTimeout(function(){e.classList.remove("spin");move(0,false);},350);};
+        try{
+          var st=(typeof m10cState==="function")?m10cState():null;
+          if(st==="dirty"&&typeof m10cPush==="function"){
+            m10cPush(true,function(ok){if(ok)setSync("ok");try{render();}catch(_e){}fin();});return;}
+          if(st==="clean"){try{setLastSync();}catch(_e){}setSync("ok");}
+          try{fetchCoachReports(function(ch){if(ch)try{render();}catch(_e){}});}catch(_e){}
+          try{render();}catch(_e){}
+        }catch(ex){}
+        fin();});}
     else move(0,false);
     dist=0;
   });

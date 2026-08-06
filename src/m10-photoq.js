@@ -390,14 +390,20 @@ function m10pDispatch(done){
       idbGetLocal(en.localId).then(function(rec){
         if(!authOk()){fin(false);return;}
         if(!rec){setPhase({state:"unverified",unverifiedReason:"meta-local-missing"});fin(false);return;}
-        var want=en.newMeta.meal||"";
-        if((rec.meal||"")===want){setPhase({state:"local-applied"})&&next(true);return;}
-        rec.meal=want;
+        /* 2026-08-06 (Owner: in-app date fixes): apply EVERY relabelable
+           field carried by newMeta — meal, date, week, pose — not meal
+           alone. The server route always accepted them; the local phase
+           was the meal-only bottleneck. ts/kind are never applied. */
+        var _mflds=["meal","date","week","pose"];
+        var _mwant={};_mflds.forEach(function(k){if(k in en.newMeta)_mwant[k]=String(en.newMeta[k]||"");});
+        var _mok=function(r2){return _mflds.every(function(k){return !(k in _mwant)||String(r2[k]||"")===_mwant[k];});};
+        if(_mok(rec)){setPhase({state:"local-applied"})&&next(true);return;}
+        _mflds.forEach(function(k){if(k in _mwant)rec[k]=_mwant[k];});
         idbAddLocal(rec).then(function(){
           if(!authOk()){fin(false);return;}
           idbGetLocal(en.localId).then(function(back){
             if(!authOk()){fin(false);return;}
-            if(!back||(back.meal||"")!==want){fin(false);return;}   /* retry next pass */
+            if(!back||!_mok(back)){fin(false);return;}   /* retry next pass */
             setPhase({state:"local-applied"})&&next(true);
           }).catch(function(){fin(false);});
         }).catch(function(){fin(false);});
