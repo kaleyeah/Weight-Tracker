@@ -238,7 +238,8 @@ function view_weight(){
   var u=state.settings.units;var ctx=trendCtx();var off=state.trendOffset||0;var perLbl=ctx.gran==="month"?"/mo":"/day";
   var h='<div class="wl-stack">';h+=forecastCardHTML();h+=metabolismCardHTML();
   h+='<div class="wl-card"><button class="wl-btn wl-btn-primary wl-full" data-act="go" data-view="photos">'+I.camera+'Progress Photos</button><div class="wl-hint" style="margin-top:8px">Weekly Front, Left/Right Side, and Back photos \u2014 compare your change over time.</div></div>';
-  h+='<div class="wl-card"><div class="wl-seg wl-seg-wide">'+["W","M","6M"].map(function(m){return '<button class="'+(ctx.mode===m?"on":"")+'" data-act="trend:mode" data-mode="'+m+'">'+m+'</button>';}).join("")+'</div><div class="wl-hnav" style="justify-content:center;margin-top:10px"><button class="wl-hnav-arw" data-act="trend:prev">‹</button><button class="wl-hnav-lbl" data-act="trend:tocur"><span>'+ctx.label+'</span></button><button class="wl-hnav-arw'+((state.trendOffset||0)>0?'':' off')+'" '+((state.trendOffset||0)>0?'data-act="trend:next"':'disabled')+'>›</button></div></div>';
+  /* the page-level W/M/6M control is retired — the measurement component's
+     selector drives the whole page (Owner, 2026-08-06) */
   var sw=sortedWeights();var startISO=toISO(ctx.start),endISO=toISO(ctx.end);
   var goal=num(state.settings.goalWeight);
   function bcHas(m){return m&&Object.keys(m).length>0;}

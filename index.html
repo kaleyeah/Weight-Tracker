@@ -2102,14 +2102,15 @@ function tcChartSVG(cfg) {
          segment instead of above */
       var ly = y2 - 6;
       if (lastLbl && Math.abs(mid - lastLbl.x) < 34 && Math.abs(ly - lastLbl.y) < 12) ly = y2 + 12;
-      s += '<text x="' + mid + '" y="' + ly + '" fill="' + C.accent + '" font-size="9" font-weight="700" text-anchor="middle">' + tcNum(b.avg, cfg.dec) + "</text>";
+      /* Owner, 2026-08-06: month average reads WHITE and bold */
+      s += '<text x="' + mid + '" y="' + ly + '" fill="#FFFFFF" font-size="9.5" font-weight="800" text-anchor="middle">' + tcNum(b.avg, cfg.dec) + "</text>";
       lastLbl = { x: mid, y: ly };
       if (j > 0) {
         var d2 = b.avg - bks[j - 1].avg;
         var dy = (ly === y2 + 12) ? y2 + 23 : y2 + 13;
         /* Owner, 2026-08-06: the month-over-month amount reads in the SAME
            color as the average segments, not axis grey */
-        if (d2 !== 0) s += '<text x="' + mid + '" y="' + dy + '" fill="' + C.accent + '" font-size="9.5" font-weight="700" text-anchor="middle">' + (d2 > 0 ? "+" : "−") + tcNum(Math.abs(d2), cfg.dec) + "</text>";
+        if (d2 !== 0) s += '<text x="' + mid + '" y="' + dy + '" fill="#FFFFFF" font-size="9.5" font-weight="800" text-anchor="middle">' + (d2 > 0 ? "+" : "−") + tcNum(Math.abs(d2), cfg.dec) + "</text>";
       }
     });
   }
@@ -3063,11 +3064,16 @@ function fcCell(label,sub,fc,stalledMsg){
 }
 function addDays(d,n){var x=new Date(d);x.setHours(0,0,0,0);x.setDate(x.getDate()+n);return x;}
 function trendCtx(){
-  var mode=state.trendMode||"W",off=state.trendOffset||0;var start,end,gran,label;
-  if(mode==="W"){start=weekStartFor(-off);end=addDays(start,6);gran="day";label=fmtWkRange(start,end);}
-  else if(mode==="M"){var now=new Date();var mo=new Date(now.getFullYear(),now.getMonth()-off,1);start=new Date(mo.getFullYear(),mo.getMonth(),1);end=new Date(mo.getFullYear(),mo.getMonth()+1,0);gran="day";label=MONTHS[start.getMonth()]+" "+start.getFullYear();}
-  else{var n2=new Date();var em=new Date(n2.getFullYear(),n2.getMonth()-off*6,1);end=new Date(em.getFullYear(),em.getMonth()+1,0);start=new Date(em.getFullYear(),em.getMonth()-5,1);gran="month";label=MONTHS3[start.getMonth()]+" – "+MONTHS3[end.getMonth()]+" "+end.getFullYear();}
-  return {mode:mode,off:off,start:start,end:end,gran:gran,label:label};
+  /* ONE selector on the Progress page (Owner, 2026-08-06: 'redundant to have
+     two date range selectors'). The measurement component's W/M/6M control
+     now drives EVERYTHING — More stats, sleep, training history — with the
+     component's rolling-window semantics (7d / 30d / 6 calendar months
+     ending today, offset by whole periods). The old calendar-window control
+     and its trend:* actions are retired. */
+  var mode=state.t2Mode||"M",off=state.t2Off||0;
+  var p=tcPeriod(mode,off,todayISO());
+  return {mode:mode,off:off,start:parseISO(p.startISO),end:parseISO(p.endISO),
+    gran:(mode==="6M")?"month":"day",label:p.label};
 }
 function bucketValues(map,pendToday){var ctx=trendCtx();var out=[];
   /* pendToday (Owner rule, 2026-08-02): today's in-progress number must not
@@ -3077,7 +3083,8 @@ function bucketValues(map,pendToday){var ctx=trendCtx();var out=[];
   var _td=todayISO();var _tdPending=pendToday&&!dayRecap(_td);
   if(ctx.gran==="day"){for(var d=new Date(ctx.start);d<=ctx.end;d=addDays(d,1)){var _iso=toISO(d);
     out.push({value:num(map[_iso]),date:new Date(d),pending:(_tdPending&&_iso===_td)||undefined});}}
-  else{var m=new Date(ctx.start);for(var i=0;i<6;i++){var y=m.getFullYear(),mo=m.getMonth(),sum=0,cnt=0;
+  else{var m=new Date(ctx.start.getFullYear(),ctx.start.getMonth(),1);var guard=0;
+    while(m<=ctx.end&&guard++<8){var y=m.getFullYear(),mo=m.getMonth(),sum=0,cnt=0;
     Object.keys(map).forEach(function(k){if(_tdPending&&k===_td)return;var dt=parseISO(k);if(dt.getFullYear()===y&&dt.getMonth()===mo){var v=num(map[k]);if(v!=null){sum+=v;cnt++;}}});
     out.push({value:cnt?Math.round(sum/cnt):null,date:new Date(y,mo,1),month:true});m=new Date(y,mo+1,1);}}
   return out;
@@ -3986,7 +3993,8 @@ function view_weight(){
   var u=state.settings.units;var ctx=trendCtx();var off=state.trendOffset||0;var perLbl=ctx.gran==="month"?"/mo":"/day";
   var h='<div class="wl-stack">';h+=forecastCardHTML();h+=metabolismCardHTML();
   h+='<div class="wl-card"><button class="wl-btn wl-btn-primary wl-full" data-act="go" data-view="photos">'+I.camera+'Progress Photos</button><div class="wl-hint" style="margin-top:8px">Weekly Front, Left/Right Side, and Back photos \u2014 compare your change over time.</div></div>';
-  h+='<div class="wl-card"><div class="wl-seg wl-seg-wide">'+["W","M","6M"].map(function(m){return '<button class="'+(ctx.mode===m?"on":"")+'" data-act="trend:mode" data-mode="'+m+'">'+m+'</button>';}).join("")+'</div><div class="wl-hnav" style="justify-content:center;margin-top:10px"><button class="wl-hnav-arw" data-act="trend:prev">‹</button><button class="wl-hnav-lbl" data-act="trend:tocur"><span>'+ctx.label+'</span></button><button class="wl-hnav-arw'+((state.trendOffset||0)>0?'':' off')+'" '+((state.trendOffset||0)>0?'data-act="trend:next"':'disabled')+'>›</button></div></div>';
+  /* the page-level W/M/6M control is retired — the measurement component's
+     selector drives the whole page (Owner, 2026-08-06) */
   var sw=sortedWeights();var startISO=toISO(ctx.start),endISO=toISO(ctx.end);
   var goal=num(state.settings.goalWeight);
   function bcHas(m){return m&&Object.keys(m).length>0;}
@@ -9877,24 +9885,20 @@ document.addEventListener("click",function(e){
   if(a==="night:gen"){genNightly();return;}
   if(a==="tdee:apply"){var _ta=tdeeAnalysis();var _tp=_ta&&_ta.prop;if(!_tp){toast("Nothing to apply");render();return;}var _s=state.settings;_s.targetCalories=String(_tp.cal);_s.calTargetAuto=false;if(_tp.carbs!=null){_s.targetCarbs=String(_tp.carbs);_s.targetFat=String(_tp.fat);_s.macroAuto=false;}if(_tp.steps!=null)_s.stepsGoal=String(_tp.steps);if(_tp.cardio!=null)_s.cardioMinGoal=String(_tp.cardio);_s.tdeeApplied=todayISO();delete _s.tdeeSnooze;save();toast("Plan updated \u2014 targets adjusted");render();return;}
   if(a==="tdee:later"){state.settings.tdeeSnooze=todayISO();save();render();return;}
-  if(a==="trend:mode"){state.trendMode=el.getAttribute("data-mode");state.trendOffset=0;state.histMore=false;render();return;}
   if(a==="hist:tab"){state.histTab=el.getAttribute("data-tab");state.histMore=false;render();return;}
   if(a==="hist:more"){state.histMore=true;render();return;}
   if(a==="hist:day"){var hd=el.getAttribute("data-date");state.selDate=hd;var hp=parseISO(hd);state.calY=hp.getFullYear();state.calM=hp.getMonth();state.view="train";render();return;}
   if(a==="bc:tab"){state.bcTab=el.getAttribute("data-tab");render();return;}
   /* measurement trend component (Owner package 2026-08-06): metric switching
      (bc:tab above) deliberately PRESERVES t2Mode/t2Off per the spec */
-  if(a==="t2:mode"){state.t2Mode=el.getAttribute("data-mode");state.t2Off=0;state.t2Pt=null;render();return;}
-  if(a==="t2:prev"){state.t2Off=(state.t2Off||0)+1;state.t2Pt=null;render();return;}
-  if(a==="t2:next"){if((state.t2Off||0)>0){state.t2Off=state.t2Off-1;state.t2Pt=null;render();}return;}
+  if(a==="t2:mode"){state.t2Mode=el.getAttribute("data-mode");state.t2Off=0;state.t2Pt=null;state.histMore=false;render();return;}
+  if(a==="t2:prev"){state.t2Off=(state.t2Off||0)+1;state.t2Pt=null;state.histMore=false;render();return;}
+  if(a==="t2:next"){if((state.t2Off||0)>0){state.t2Off=state.t2Off-1;state.t2Pt=null;state.histMore=false;render();}return;}
   if(a==="t2:tocur"){state.t2Off=0;state.t2Pt=null;render();return;}
   if(a==="t2:pt"){state.t2Pt={tab:state.bcTab||"weight",date:el.getAttribute("data-date"),value:num(el.getAttribute("data-value"))};render();return;}
   if(a==="morestats"){state.moreStats=(state.moreStats===false);render();return;}
   if(a==="syncdot"){var _sr=syncIdleReason();if(_sr){toast("Sync: "+_sr);return;}
 var lt=getLastSync();toast((syncLabel()||"Sync")+(lt?" \u00b7 "+fmtClock(lt):"")+(syncState.msg?" \u2014 "+syncState.msg:""));return;}
-  if(a==="trend:tocur"){state.trendOffset=0;state.histMore=false;render();return;}
-  if(a==="trend:prev"){state.trendOffset=(state.trendOffset||0)+1;state.histMore=false;render();return;}
-  if(a==="trend:next"){state.trendOffset=Math.max(0,(state.trendOffset||0)-1);state.histMore=false;render();return;}
   if(a==="photo:add"){state.pendingMeal=el.getAttribute("data-meal")||"";state.pendingPose=null;document.getElementById("wl-photo-input").click();return;}
   if(a==="photo:resync"){
     toast("Downloading photos…");

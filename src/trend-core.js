@@ -268,14 +268,15 @@ function tcChartSVG(cfg) {
          segment instead of above */
       var ly = y2 - 6;
       if (lastLbl && Math.abs(mid - lastLbl.x) < 34 && Math.abs(ly - lastLbl.y) < 12) ly = y2 + 12;
-      s += '<text x="' + mid + '" y="' + ly + '" fill="' + C.accent + '" font-size="9" font-weight="700" text-anchor="middle">' + tcNum(b.avg, cfg.dec) + "</text>";
+      /* Owner, 2026-08-06: month average reads WHITE and bold */
+      s += '<text x="' + mid + '" y="' + ly + '" fill="#FFFFFF" font-size="9.5" font-weight="800" text-anchor="middle">' + tcNum(b.avg, cfg.dec) + "</text>";
       lastLbl = { x: mid, y: ly };
       if (j > 0) {
         var d2 = b.avg - bks[j - 1].avg;
         var dy = (ly === y2 + 12) ? y2 + 23 : y2 + 13;
         /* Owner, 2026-08-06: the month-over-month amount reads in the SAME
            color as the average segments, not axis grey */
-        if (d2 !== 0) s += '<text x="' + mid + '" y="' + dy + '" fill="' + C.accent + '" font-size="9.5" font-weight="700" text-anchor="middle">' + (d2 > 0 ? "+" : "−") + tcNum(Math.abs(d2), cfg.dec) + "</text>";
+        if (d2 !== 0) s += '<text x="' + mid + '" y="' + dy + '" fill="#FFFFFF" font-size="9.5" font-weight="800" text-anchor="middle">' + (d2 > 0 ? "+" : "−") + tcNum(Math.abs(d2), cfg.dec) + "</text>";
       }
     });
   }

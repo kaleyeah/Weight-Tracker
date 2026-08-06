@@ -201,8 +201,8 @@ function seedState(){
       pageSeg:!!document.querySelector('[data-act="trend:mode"]'),
       substats:document.querySelectorAll('.wl-substat').length,
       errs:0}));
-    test('the page-level trend control and More stats survive unchanged',()=>{
-      ok(s.pageSeg,'page trend control gone');ok(s.substats>=3,'substats: '+s.substats);});
+    test('ONE selector: the old page-level control is gone, More stats intact',()=>{
+      ok(!s.pageSeg,'the redundant page control still renders');ok(s.substats>=3,'substats: '+s.substats);});
   }
 
   test('no page errors across every interaction',()=>eq(errs.length,0,errs.join(';')));

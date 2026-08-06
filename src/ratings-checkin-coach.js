@@ -812,11 +812,16 @@ function fcCell(label,sub,fc,stalledMsg){
 }
 function addDays(d,n){var x=new Date(d);x.setHours(0,0,0,0);x.setDate(x.getDate()+n);return x;}
 function trendCtx(){
-  var mode=state.trendMode||"W",off=state.trendOffset||0;var start,end,gran,label;
-  if(mode==="W"){start=weekStartFor(-off);end=addDays(start,6);gran="day";label=fmtWkRange(start,end);}
-  else if(mode==="M"){var now=new Date();var mo=new Date(now.getFullYear(),now.getMonth()-off,1);start=new Date(mo.getFullYear(),mo.getMonth(),1);end=new Date(mo.getFullYear(),mo.getMonth()+1,0);gran="day";label=MONTHS[start.getMonth()]+" "+start.getFullYear();}
-  else{var n2=new Date();var em=new Date(n2.getFullYear(),n2.getMonth()-off*6,1);end=new Date(em.getFullYear(),em.getMonth()+1,0);start=new Date(em.getFullYear(),em.getMonth()-5,1);gran="month";label=MONTHS3[start.getMonth()]+" – "+MONTHS3[end.getMonth()]+" "+end.getFullYear();}
-  return {mode:mode,off:off,start:start,end:end,gran:gran,label:label};
+  /* ONE selector on the Progress page (Owner, 2026-08-06: 'redundant to have
+     two date range selectors'). The measurement component's W/M/6M control
+     now drives EVERYTHING — More stats, sleep, training history — with the
+     component's rolling-window semantics (7d / 30d / 6 calendar months
+     ending today, offset by whole periods). The old calendar-window control
+     and its trend:* actions are retired. */
+  var mode=state.t2Mode||"M",off=state.t2Off||0;
+  var p=tcPeriod(mode,off,todayISO());
+  return {mode:mode,off:off,start:parseISO(p.startISO),end:parseISO(p.endISO),
+    gran:(mode==="6M")?"month":"day",label:p.label};
 }
 function bucketValues(map,pendToday){var ctx=trendCtx();var out=[];
   /* pendToday (Owner rule, 2026-08-02): today's in-progress number must not
@@ -826,7 +831,8 @@ function bucketValues(map,pendToday){var ctx=trendCtx();var out=[];
   var _td=todayISO();var _tdPending=pendToday&&!dayRecap(_td);
   if(ctx.gran==="day"){for(var d=new Date(ctx.start);d<=ctx.end;d=addDays(d,1)){var _iso=toISO(d);
     out.push({value:num(map[_iso]),date:new Date(d),pending:(_tdPending&&_iso===_td)||undefined});}}
-  else{var m=new Date(ctx.start);for(var i=0;i<6;i++){var y=m.getFullYear(),mo=m.getMonth(),sum=0,cnt=0;
+  else{var m=new Date(ctx.start.getFullYear(),ctx.start.getMonth(),1);var guard=0;
+    while(m<=ctx.end&&guard++<8){var y=m.getFullYear(),mo=m.getMonth(),sum=0,cnt=0;
     Object.keys(map).forEach(function(k){if(_tdPending&&k===_td)return;var dt=parseISO(k);if(dt.getFullYear()===y&&dt.getMonth()===mo){var v=num(map[k]);if(v!=null){sum+=v;cnt++;}}});
     out.push({value:cnt?Math.round(sum/cnt):null,date:new Date(y,mo,1),month:true});m=new Date(y,mo+1,1);}}
   return out;
