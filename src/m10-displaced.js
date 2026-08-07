@@ -554,9 +554,16 @@ function m10cxViewHTML(){
   var h='<div class="wl-confirm"><div class="wl-confirm-card" style="max-height:82vh;overflow:auto;text-align:left">';
   h+='<div style="font-weight:800;font-size:17px;margin-bottom:6px">Two copies of your body data</div>';
   h+='<div class="wl-hint" style="margin-bottom:10px">Held since '+esc(fmtShort(new Date(v.enteredAt)))+'. Choosing replaces the ENTIRE body-data snapshot on the losing side — weights, food, steps, notes, sleep, settings, everything. Neither is treated as right until you choose.</div>';
+  /* Owner request 2026-08-05, from hitting this screen live: say WHEN each
+     side was last known good, so "which copy is stale" is answerable from
+     the screen instead of from memory. */
+  var _ls=(typeof getLastSync==="function")?getLastSync():null;
   h+='<div style="font-size:13px;line-height:1.6;margin-bottom:10px">';
-  h+='<b>This device:</b> '+esc(m10cxSummary(v.localData))+'<br>';
-  h+='<b>Server:</b> '+esc(m10cxSummary(v.serverData))+'</div>';
+  h+='<b>This device:</b> '+esc(m10cxSummary(v.localData))
+    +'<br><span class="wl-hint">last synced '+(_ls?esc(fmtShort(new Date(_ls))+" "+fmtClock(_ls)):"never on this device")+'</span><br>';
+  h+='<b>Server:</b> '+esc(m10cxSummary(v.serverData))
+    +'<br><span class="wl-hint">'+(v.coreRevSeen!=null?'server revision '+esc(String(v.coreRevSeen)):'revision unknown')
+    +' · captured '+esc(fmtShort(new Date(v.enteredAt))+" "+fmtClock(v.enteredAt))+'</span></div>';
   h+=m10cxAheadLine(v);
   if(!holder)h+='<div class="wl-hint" style="margin-bottom:6px">Another session is the active writer — you can still take the SERVER’s copy here; keeping this device’s copy needs the pen.</div>'
     +'<button class="wl-btn wl-btn-primary wl-full" data-act="m10cx:takeover">Take over on this device</button>';

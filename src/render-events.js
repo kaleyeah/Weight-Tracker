@@ -413,7 +413,23 @@ var lt=getLastSync();toast((syncLabel()||"Sync")+(lt?" \u00b7 "+fmtClock(lt):"")
     pfReviewClose();state.pendingPose=_pp.pose;state.pendingProgWeek=_pp.week;render();
     document.getElementById("wl-photo-input").click();return;}
   if(a==="pf:cancel"){pfReviewClose();render();toast("Nothing was saved");return;}
-  if(a==="pphoto:add"){state.pfChoose={pose:el.getAttribute("data-pose"),week:el.getAttribute("data-week")||toISO(weekStartFor(0))};state.pendingMeal=null;render();return;}
+  if(a==="pphoto:add"){
+    var _apose=el.getAttribute("data-pose"),_aweek=el.getAttribute("data-week")||toISO(weekStartFor(0));
+    state.pendingMeal=null;
+    /* P4 (Architect verdict, data-loss protection): a slot upload REPLACES
+       that week's photo — the X2 chain deletes the one standing there. The
+       Owner lost a photo to exactly this in Aug 2026. Resolve occupancy
+       BEFORE offering the sources so the sheet can say so plainly. */
+    state.pfChoose={pose:_apose,week:_aweek,existing:null};
+    render();
+    idbAll().then(function(all){
+      var pc=state.pfChoose;if(!pc||pc.pose!==_apose||pc.week!==_aweek)return;
+      var hit=all.filter(function(p){return p.kind==="progress"&&p.pose===_apose&&(p.week||p.date)===_aweek;})[0];
+      if(!hit)return;
+      pc.existing={id:hit.id,date:hit.week||hit.date};
+      render();
+    }).catch(function(){});
+    return;}
   if(a==="pftl:pose"){state.pfTlPose=el.getAttribute("data-pose");state.pfSel=[];state.pfCompare=false;renderProgressPhotos();return;}
   if(a==="pftl:sel"){var _id=el.getAttribute("data-id");var _s=state.pfSel||[];
     var _i=_s.indexOf(_id);

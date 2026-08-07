@@ -419,6 +419,42 @@ const eq=(a,b,m)=>{if(a!==b)throw new Error((m||'eq')+': '+JSON.stringify(a)+' !
       ok(/\(1\)/.test(t.legacyBtn),'legacy count after queue: '+t.legacyBtn);});
   }
 
+  /* ---- P4 (Architect, data-loss protection): a slot upload REPLACES that
+     week's photo — the Owner lost his Aug 3 front to exactly this. The
+     chooser must say so before offering any source. ---- */
+  {
+    const s=await page.evaluate(async()=>{
+      state.pfChoose=null;state.pfSel=[];renderProgressPhotos();
+      /* an OCCUPIED slot: p-f1's own pose+week */
+      const rec=(await idbAll()).find(p=>p.id==='p-f1');
+      const btn=document.createElement('button');
+      btn.setAttribute('data-act','pphoto:add');
+      btn.setAttribute('data-pose',rec.pose);btn.setAttribute('data-week',rec.week||rec.date);
+      document.body.appendChild(btn);btn.click();btn.remove();
+      await new Promise(r=>setTimeout(r,500));
+      const card=document.querySelector('.wl-confirm-card');
+      return {txt:card?card.textContent:'',existing:!!(state.pfChoose&&state.pfChoose.existing)};});
+    test('P4: an occupied slot warns that saving REPLACES the existing photo',()=>{
+      ok(s.existing,'occupancy not resolved');
+      ok(/REPLACES it/.test(s.txt),'no replace warning: '+s.txt.slice(0,140));
+      ok(/camera roll is untouched/.test(s.txt),'no reassurance about originals');
+      ok(/Edit date/.test(s.txt),'no pointer to the non-destructive alternative');});
+    const t=await page.evaluate(async()=>{
+      state.pfChoose=null;render();
+      const btn=document.createElement('button');
+      btn.setAttribute('data-act','pphoto:add');
+      btn.setAttribute('data-pose','left_side');btn.setAttribute('data-week','2030-01-06');
+      document.body.appendChild(btn);btn.click();btn.remove();
+      await new Promise(r=>setTimeout(r,500));
+      const card=document.querySelector('.wl-confirm-card');
+      return {txt:card?card.textContent:'',existing:!!(state.pfChoose&&state.pfChoose.existing)};});
+    test('P4: an EMPTY slot is unchanged — no scary copy where nothing is at risk',()=>{
+      eq(t.existing,false);
+      ok(!/REPLACES it/.test(t.txt),'warned on an empty slot');
+      ok(/Take guided photo/.test(t.txt),'chooser missing');});
+    await page.evaluate(()=>{state.pfChoose=null;render();});
+  }
+
   test('no page errors across timeline, compare and the legacy queue',()=>eq(errs.length,0,errs.join(';')));
 
   await ctx.close();await browser.close();server.close();

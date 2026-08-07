@@ -491,10 +491,14 @@ window.addEventListener("pagehide",function(){if(pfCam)pfCamStop();});
 function pfChooseHTML(){
   var pc=state.pfChoose;if(!pc)return "";
   var lbl=(POSES.filter(function(x){return x[0]===pc.pose;})[0]||["",pc.pose])[1];
+  var occ=pc.existing;
   return '<div class="wl-confirm" style="z-index:2400"><div class="wl-confirm-card">'
-    +'<div class="wl-confirm-msg">'+esc(lbl)+' — add this week\u2019s photo</div>'
-    +'<button class="wl-btn wl-btn-primary wl-full" data-act="pfsrc:cam">\ud83d\udcf7 Take guided photo</button>'
-    +'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pfsrc:upload">Upload existing photo</button>'
+    +'<div class="wl-confirm-msg">'+esc(lbl)+(occ?' \u2014 replace the photo for this week':' \u2014 add this week\u2019s photo')+'</div>'
+    +(occ?'<div class="wl-hint" style="margin-bottom:10px;color:var(--bad)">This slot already holds your '
+       +esc(fmtShort(parseISO(occ.date)))+' '+esc(lbl.toLowerCase())+' photo. Saving a new one REPLACES it \u2014 the old photo is removed from this device and the server. Your camera roll is untouched.</div>':'')
+    +'<button class="wl-btn wl-btn-primary wl-full" data-act="pfsrc:cam">\ud83d\udcf7 '+(occ?'Retake with the guided camera':'Take guided photo')+'</button>'
+    +'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pfsrc:upload">'+(occ?'Upload a replacement':'Upload existing photo')+'</button>'
+    +(occ?'<div class="wl-hint" style="margin-top:10px">Wrong date on the existing photo? Close this and use <b>Edit date</b> on the timeline instead \u2014 that moves it without replacing anything.</div>':'')
     +'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pfsrc:cancel">Cancel</button>'
     +'</div></div>';}
 

@@ -735,8 +735,13 @@ function m8ConflictViewHTML(){
   h+='<div style="font-weight:800;font-size:17px;margin-bottom:6px">Two copies of your training</div>';
   h+='<div class="wl-hint" style="margin-bottom:10px">Held since '+esc(fmtShort(new Date(cx.enteredAt)))+' ('+esc(cx.reason)+'). Neither is treated as right until you choose.</div>';
   h+='<div style="font-size:13px;line-height:1.6;margin-bottom:10px">';
-  h+='<b>This device:</b> '+d.L.dates.length+' session day'+(d.L.dates.length===1?'':'s')+' \u00b7 '+d.L.ex+' exercises \u00b7 '+d.L.rt+' routines<br>';
-  h+='<b>Server:</b> '+(d.S.absent?'no training recorded':(d.S.dates.length+' session day'+(d.S.dates.length===1?'':'s')+' \u00b7 '+d.S.ex+' exercises \u00b7 '+d.S.rt+' routines'))+'</div>';
+  /* Owner request 2026-08-05 (same as the body-data screen): when was each
+     side last known good? */
+  var _ls2=(typeof getLastSync==="function")?getLastSync():null;
+  h+='<b>This device:</b> '+d.L.dates.length+' session day'+(d.L.dates.length===1?'':'s')+' \u00b7 '+d.L.ex+' exercises \u00b7 '+d.L.rt+' routines'
+    +'<br><span class="wl-hint">last synced '+(_ls2?esc(fmtShort(new Date(_ls2))+" "+fmtClock(_ls2)):"never on this device")+'</span><br>';
+  h+='<b>Server:</b> '+(d.S.absent?'no training recorded':(d.S.dates.length+' session day'+(d.S.dates.length===1?'':'s')+' \u00b7 '+d.S.ex+' exercises \u00b7 '+d.S.rt+' routines'))
+    +'<br><span class="wl-hint">captured '+esc(fmtShort(new Date(cx.enteredAt))+" "+fmtClock(cx.enteredAt))+'</span></div>';
   if(d.lOnly.length)h+='<div class="wl-hint">Only on this device: '+d.lOnly.map(esc).join(", ")+'</div>';
   if(d.sOnly.length)h+='<div class="wl-hint">Only on the server: '+d.sOnly.map(esc).join(", ")+'</div>';
   if(d.differ.length)h+='<div class="wl-hint">Different on the two: '+d.differ.map(esc).join(", ")+'</div>';
