@@ -1,12 +1,24 @@
 {
-  "configSnapshotId": "cfg_v1_initial",
-  "configVersion": "1.0.0",
+  "configSnapshotId": "cfg_v1_1",
+  "configVersion": "1.1.0",
   "manifestVersion": "1.0.0",
   "confidenceThresholds": {
-    "high": { "min": 0.85, "max": 1.0 },
-    "moderate": { "min": 0.65, "max": 0.849 },
-    "low": { "min": 0.4, "max": 0.649 },
-    "insufficient_data": { "min": 0.0, "max": 0.399 }
+    "high": {
+      "min": 0.85,
+      "max": 1.0
+    },
+    "moderate": {
+      "min": 0.65,
+      "max": 0.849
+    },
+    "low": {
+      "min": 0.4,
+      "max": 0.649
+    },
+    "insufficient_data": {
+      "min": 0.0,
+      "max": 0.399
+    }
   },
   "measurementRecencyDays": {
     "weight": 3,
@@ -17,12 +29,31 @@
     "upperArm": 14,
     "thigh": 14
   },
-  "requiredPoses": ["front", "left_side", "right_side", "back"],
-  "requiredMeasurements": ["height", "weight", "waist"],
+  "requiredPoses": [
+    "front",
+    "left_side",
+    "right_side",
+    "back"
+  ],
+  "requiredMeasurements": [
+    "height",
+    "weight",
+    "waist"
+  ],
   "minimumAgeYears": 18,
-  "supportedEstimationSex": ["male", "female"],
-  "bodyFatBounds": { "min": 1, "max": 75 },
-  "goalProjectionTargets": [18, 15, 12],
+  "supportedEstimationSex": [
+    "male",
+    "female"
+  ],
+  "bodyFatBounds": {
+    "min": 1,
+    "max": 75
+  },
+  "goalProjectionTargets": [
+    18,
+    15,
+    12
+  ],
   "goalProjectionAssumption": "lean_mass_maintained",
   "retention": {
     "temporaryCopiesRetentionHours": 24,
@@ -37,8 +68,83 @@
     "visualObservationSchema": "1.0.0"
   },
   "providers": {
-    "vision": { "provider": "openai", "adapterVersion": "1.0.0", "trainingUsePolicy": "excluded_where_supported" },
-    "visualization": { "provider": "openai", "adapterVersion": "1.0.0" },
-    "animation": { "provider": "luma", "adapterVersion": "1.0.0" }
-  }
+    "vision": {
+      "provider": "openai",
+      "adapterVersion": "1.0.0",
+      "trainingUsePolicy": "excluded_where_supported"
+    },
+    "visualization": {
+      "provider": "openai",
+      "adapterVersion": "1.0.0"
+    },
+    "animation": {
+      "provider": "luma",
+      "adapterVersion": "1.0.0"
+    }
+  },
+  "photoQuality": {
+    "hardFailChecks": [
+      "personDetected",
+      "singlePerson",
+      "likelySameAthlete"
+    ],
+    "generatedCheck": "likelyGeneratedOrManipulated",
+    "acceptMinScore": 0.85,
+    "warnMinScore": 0.7,
+    "retakeMinScore": 0.5
+  },
+  "reconciliation": {
+    "method": "weighted_rule_based_v1",
+    "weights": {
+      "visual": 0.6,
+      "formula": 0.4
+    },
+    "agreementBandsPct": {
+      "strong": 2.0,
+      "moderate": 4.0,
+      "weak": 6.0
+    },
+    "minRangeWidthPct": 1.5
+  },
+  "confidenceFactors": {
+    "base": 0.5,
+    "positive": {
+      "four_usable_poses": 0.12,
+      "recent_waist_measurement": 0.08,
+      "visual_formula_agreement": 0.12,
+      "historical_trend_support": 0.08,
+      "formula_corroboration": 0.05
+    },
+    "negative": {
+      "lighting_inconsistent": 0.08,
+      "pose_inconsistent": 0.08,
+      "stale_measurements": 0.1,
+      "visual_formula_disagreement": 0.15,
+      "no_formula_available": 0.05,
+      "no_historical_context": 0.03
+    }
+  },
+  "formulas": {
+    "navy_body_fat": {
+      "formulaVersion": "1.0.0",
+      "units": "in",
+      "male": {
+        "needs": [
+          "height",
+          "waist",
+          "neck"
+        ]
+      },
+      "female": {
+        "needs": [
+          "height",
+          "waist",
+          "neck",
+          "hip"
+        ]
+      }
+    }
+  },
+  "providerTimeoutMs": 30000,
+  "medicalDisclaimerVersion": "fitness_estimate_disclaimer_1.0"
 }

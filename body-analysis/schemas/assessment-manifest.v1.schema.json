@@ -420,7 +420,8 @@
             "type": "boolean"
           },
           "skippedReason": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 120
           },
           "inputsUsed": {
             "type": "array",
@@ -446,6 +447,20 @@
             "items": {
               "type": "string"
             }
+          },
+          "normalizedInputs": {
+            "type": "object",
+            "description": "\u00a712: inputs after unit normalization, keyed by measurement",
+            "additionalProperties": {
+              "type": "number"
+            }
+          },
+          "normalizedUnit": {
+            "type": "string",
+            "enum": [
+              "in",
+              "cm"
+            ]
           }
         }
       }
