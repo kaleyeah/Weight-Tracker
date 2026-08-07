@@ -11,7 +11,7 @@
    fence replacement, and the destructive export/identity gate. */
 const path=require('path'),http=require('http'),fs=require('fs'),crypto=require('crypto');
 const {chromium}=require(path.join(process.env.HOME,'staging-cas','node_modules','playwright'));
-const SRC=process.env.CF_SRC||'/home/griffin/projects/Weight-Tracker/index.html';
+const SRC=process.env.CF_SRC||'/home/griffin/projects/compound-app/index.html';
 let passed=0;const failures=[];
 const test=(n,f)=>{try{f();passed++;console.log('  ✓ '+n);}catch(e){failures.push(n);console.log('  ✗ '+n+'\n      '+(e&&e.message));}};
 const ok=(v,m)=>{if(!v)throw new Error(m||'expected truthy');};
@@ -1100,19 +1100,39 @@ const ADD=`async function(id){
     return idbAdd({id:id,date:wk,week:wk,pose:pose,kind:'progress',blob:blob,ts:1});
   }`;
   const RETAKE=`async function(pose){
-    /* the REAL production entry point: the dispatcher branch for pphoto:add
-       sets pendingPose/pendingProgWeek and opens the picker (which is where
-       the delayed-boundary gate captures authority) */
+    /* the REAL production entry point. Since the guided-camera package
+       (2026-08-06) a slot tap opens the SOURCE CHOOSER first — camera or
+       upload — and it is the upload branch that stages
+       pendingPose/pendingProgWeek and opens the picker (where the
+       delayed-boundary gate captures authority). Driving pphoto:add alone
+       no longer stages anything; this suite was blind to the change while
+       it defaulted to the parked artifact (found 2026-08-07). */
     const b=document.createElement('button');
     b.setAttribute('data-act','pphoto:add');b.setAttribute('data-pose',pose);
     document.body.appendChild(b);
     b.click();
+    await new Promise(r=>setTimeout(r,60));
+    const up=document.querySelector('[data-act="pfsrc:upload"]');
+    if(!up)throw new Error('the source chooser did not open for pphoto:add');
+    up.click();
     const staged={pose:state.pendingPose,week:state.pendingProgWeek};
-    const bytes=new Uint8Array(300);for(let i=0;i<300;i++)bytes[i]=(i*13)%256;
+    /* the picker now DECODES the file and routes it through the
+       standardization review (M2, 2026-08-06) — synthetic bytes fail
+       img.onload, and nothing saves until the review is ACCEPTED. Feed a
+       real JPEG and drive the accept, which is what runs the X2
+       add-then-retire chain this case is about. */
+    const cv=document.createElement('canvas');cv.width=600;cv.height=800;
+    const g=cv.getContext('2d');g.fillStyle='#3a5f8a';g.fillRect(0,0,600,800);
+    const real=await new Promise(r=>cv.toBlob(r,'image/jpeg',0.9));
     const inp=document.getElementById('wl-photo-input');
-    const dt=new DataTransfer();dt.items.add(new File([bytes],'new.jpg',{type:'image/jpeg'}));
+    const dt=new DataTransfer();dt.items.add(new File([real],'new.jpg',{type:'image/jpeg'}));
     inp.files=dt.files;
     inp.dispatchEvent(new Event('change',{bubbles:true}));
+    for(let i=0;i<60;i++){
+      const use=document.querySelector('[data-act="pf:use"]:not([disabled])');
+      if(use){use.click();break;}
+      await new Promise(r=>setTimeout(r,50));
+    }
     return staged;
   }`;
   for(const arm of [

@@ -1417,12 +1417,28 @@ function softSeed(uid){
       await new Promise(r=>setTimeout(r,700));
       const r=m8Read('conflict');
       const gateAfter=r.st==='ok'&&!!(r.val.exports&&r.val.exports.localDone);
-      /* called DIRECTLY, so what refuses is the export gate itself and not the
-         click interceptor (m8:cx:local IS gated, and this device has no pen) */
+      /* called DIRECTLY, so what refuses is the action's OWN boundary and
+         not the click interceptor. Two distinct refusals live here and the
+         order matters (D1 round 1, finding 3): authority is checked FIRST
+         and offers takeover — a pen-less device must never hit a dead end —
+         and only a pen-HOLDING device reaches the export gate. Both are
+         asserted; before 2026-08-07 this case only knew about the second. */
+      /* the takeover offer IS the app's askConfirm sheet ("Take over") */
+      const sheetText=()=>((document.querySelector('.wl-confirm')||{}).textContent||'');
+      const sheetBefore=/Take over/.test(sheetText());
+      m8CxChooseLocal();                                  /* no pen */
+      await new Promise(r2=>setTimeout(r2,400));
+      const noPenOffersTakeover=/active writer/.test(sheetText())&&/Take over/.test(sheetText())&&!sheetBefore;
+      const cancel=document.querySelector('[data-act="confirm:no"]');if(cancel)cancel.click();
+      await new Promise(r2=>setTimeout(r2,150));
+      const toastsNoPen=toasts.slice();
+      /* now WITH the pen, so the export gate itself is what answers */
+      M10.holder=true;M10.uid=pbUid();M10.fence=1;M10.gen=(M10.gen||0);
+      M10.deadline=performance.now()+3600000;
       m8CxChooseLocal();
       await new Promise(r2=>setTimeout(r2,600));
       window.toast=t0;
-      return {toasts,gateAfter,same:snap(null)===before,
+      return {toasts,toastsNoPen,noPenOffersTakeover,gateAfter,same:snap(null)===before,
         st:m8Read('conflict').st,journal:m8Read('journal').st};
     },[EXPSNAP,CLICK]);
     test('T19b a cancelled export records nothing and does NOT satisfy the export gate',()=>{
@@ -1430,6 +1446,8 @@ function softSeed(uid){
       ok(!s.toasts.some(x=>/Both copies exported/.test(x)),'no false success claim');
       ok(!s.gateAfter,'the export gate is still closed');
       ok(s.same,'EVERY store, including the conflict record, is byte-identical');});
+    test('T19b a pen-less device is offered takeover, not a dead end',()=>{
+      ok(s.noPenOffersTakeover,'no takeover surface appeared: '+JSON.stringify(s.toastsNoPen));});
     test('T19b and the choice it guards still refuses at the export gate',()=>{
       ok(s.toasts.some(x=>/Export both copies first/.test(x)),JSON.stringify(s.toasts));
       eq(s.st,'ok','the conflict is still open and unresolved');
