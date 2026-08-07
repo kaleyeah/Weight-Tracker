@@ -241,7 +241,18 @@ function m10pDispatch(done){
           if(!authOk()){fin(false);return;}
           if(idn.hex!==en.blobSha256||idn.byteLength!==en.blobByteLength){
             setPhase({state:"void",voidReason:"blob-changed"});fin(false);return;}
-          m10pUploadRoute(en,rec.blob,{fence:entryFence}).then(function(r){
+          /* Architect ruling 2026-08-07 (P0, send-time metadata integrity):
+             the queue means "this photo needs to reach the server" — NOT
+             "with the labels it wore when queued". Identity and blob stay
+             bound to the op; the MUTABLE labels (date/week/pose/meal) are
+             read from the authoritative local record at transmission, so a
+             relabel while the op was wedged can never fork local vs server.
+             Known narrow edge, fails LOUD not silent: success-then-crash
+             followed by a relabel makes the idempotent replay mismatch its
+             requestHash and surface a reviewable block. */
+          var sendEn={};for(var ek in en)sendEn[ek]=en[ek];
+          sendEn.meta=m10pMetaOf(rec);
+          m10pUploadRoute(sendEn,rec.blob,{fence:entryFence}).then(function(r){
             if(!authOk()){fin(false);return;}
             if(r.status===200&&m10pValidUploadResult(r.body,en.blobSha256,en.blobByteLength)){
               /* phase: acked — the server id is DURABLE before anything else */

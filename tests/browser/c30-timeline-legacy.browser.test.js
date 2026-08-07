@@ -22,6 +22,7 @@ const eq=(a,b,m)=>{if(a!==b)throw new Error((m||'eq')+': '+JSON.stringify(a)+' !
   await new Promise(r=>server.listen(0,'127.0.0.1',r));
   const browser=await chromium.launch();
   const ctx=await browser.newContext({viewport:{width:390,height:844}});
+  const uploadCaptures=[];
   await ctx.route('**/api/**',r=>{
     const url=r.request().url();
     const reply=(st,b)=>r.fulfill({status:st,contentType:'application/json',body:JSON.stringify(b)});
@@ -29,6 +30,12 @@ const eq=(a,b,m)=>{if(a!==b)throw new Error((m||'eq')+': '+JSON.stringify(a)+' !
       const b=JSON.parse(r.request().postData()||'{}');
       return reply(200,{ok:true,exists:true,granted:true,fence:1,holderDeviceId:b.deviceId,
         deviceName:b.deviceName||'x',active:true,serverNow:Date.now(),ttlMs:86400000});}
+    if(/cf\/photos\/upload/.test(url)){
+      const buf=r.request().postDataBuffer();
+      const txt=buf?buf.toString('latin1'):'';
+      const field=(n)=>{const m=txt.match(new RegExp('name="'+n+'"\\r\\n\\r\\n([^\\r]*)'));return m?m[1]:null;};
+      uploadCaptures.push({week:field('week'),date:field('date'),pose:field('pose')});
+      return reply(200,{ok:false,error:'wedged for the test'});}   /* op stays queued */
     if(/cf\/photos\/update/.test(url)){
       const b=JSON.parse(r.request().postData()||'{}');
       return reply(200,{ok:true,recordId:b.serverId,applied:true,newMeta:b.newMeta});}
@@ -266,6 +273,37 @@ const eq=(a,b,m)=>{if(a!==b)throw new Error((m||'eq')+': '+JSON.stringify(a)+' !
       return {okI:okI,beforeN:beforeN,afterN:m10pOps(uid).length};});
     test('stranded add ops for mapped photos drain quietly — the wedge clears itself',()=>{
       ok(t.okI,'could not inject');eq(t.beforeN,2);eq(t.afterN,0,'ops left: '+t.afterN);});
+  }
+
+  /* ---- Architect P0 regression (verdict 2026-08-07): queue an add, wedge
+     it, RELABEL the record, resume — the server must receive the CURRENT
+     labels, not the queue-time snapshot that forked the Owner's dates ---- */
+  {
+    uploadCaptures.length=0;
+    const s=await page.evaluate(async()=>{
+      localStorage.removeItem('wl_photo_ops__userA');
+      const m=JSON.parse(localStorage.getItem('wl_photomap')||'{}');
+      delete m['p-f4'];localStorage.setItem('wl_photomap',JSON.stringify(m));
+      const mkB=()=>new Promise(res=>{const cv=document.createElement('canvas');cv.width=60;cv.height=80;
+        cv.getContext('2d').fillRect(0,0,60,80);cv.toBlob(res,'image/jpeg',0.8);});
+      /* 1. queue the add (the mocked upload route refuses -> simulated wedge) */
+      await idbAdd({id:'p-f4',date:'2026-07-27',week:'2026-07-27',pose:'front',kind:'progress',blob:await mkB(),ts:9});
+      await new Promise(r=>setTimeout(r,600));
+      /* 3. relabel while wedged (what the meta op's local phase does) */
+      const rec=await idbGetLocal('p-f4');rec.week='2026-02-09';rec.date='2026-02-09';
+      await idbAddLocal(rec);
+      /* 4. resume dispatch */
+      m10pDispatch();
+      await new Promise(r=>setTimeout(r,600));
+      return {ops:m10pOps().length};});
+    test('P0: a wedged upload sends the CURRENT labels after a relabel, not the snapshot',()=>{
+      ok(uploadCaptures.length>=2,'expected two upload attempts, got '+uploadCaptures.length);
+      const last=uploadCaptures[uploadCaptures.length-1];
+      eq(last.week,'2026-02-09','server received week: '+last.week);
+      eq(last.date,'2026-02-09','server received date: '+last.date);
+      ok(s.ops>=1,'op should still be queued (mock refuses uploads)');});
+    await page.evaluate(async()=>{localStorage.removeItem('wl_photo_ops__userA');
+      await idbDelete('p-f4').catch(()=>{});localStorage.removeItem('wl_photo_ops__userA');});
   }
 
   /* ---- M5: the queue, oldest first; narrow hint only when relevant ---- */
