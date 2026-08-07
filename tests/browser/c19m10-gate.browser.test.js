@@ -9,7 +9,7 @@
    The inventory itself (action → gate → test) is INCR5-ACTION-INVENTORY.md. */
 const path=require('path'),http=require('http'),fs=require('fs');
 const {chromium}=require(path.join(process.env.HOME,'staging-cas','node_modules','playwright'));
-const SRC=process.env.CF_SRC||'/home/griffin/projects/Weight-Tracker/index.html';
+const SRC=process.env.CF_SRC||'/home/griffin/projects/compound-app/index.html';
 let passed=0;const failures=[];
 const test=(n,f)=>{try{f();passed++;console.log('  ✓ '+n);}catch(e){failures.push(n);console.log('  ✗ '+n+'\n      '+(e&&e.message));}};
 const ok=(v,m)=>{if(!v)throw new Error(m||'expected truthy');};
@@ -125,7 +125,7 @@ function softSeed(uid){
     const s=await page.evaluate(()=>({gated:Object.keys(M10_GATED).length,
       hasCore:!!M10_GATED['weight:add']&&!!M10_GATED['wo:log']&&!!M10_GATED['wo:finish']&&!!M10_GATED['day:clear']
         &&!!M10_GATED['wo:start']&&!!M10_GATED['wo:startroutine']&&!!M10_GATED['wo:endrest']&&!!M10_GATED['wu:yes']
-        &&!!M10_GATED['wo:finishlater']&&!!M10_GATED['day:reopendo']&&!!M10_GATED['sync:pasteapply'],
+        &&!!M10_GATED['wo:finishlater']&&!!M10_GATED['day:reopendo'],   /* sync:pasteapply retired with multi-athlete */
       hasDeferred:!!M10_GATED['photo:add']&&!!M10_GATED['import']&&!!M10_GATED['reset:ask'],
       pureNotGated:!M10_GATED['nav:go']&&!M10_GATED['cal:sel'],
       photoViewOpen:!M10_GATED['photo:view'],
@@ -134,8 +134,13 @@ function softSeed(uid){
       ciViewOpen:!M10_GATED['ci:open']&&!M10_GATED['ci:close']&&!M10_GATED['ci:skipask']
         &&!M10_GATED['ci:skipcancel']&&!M10_GATED['dl:open'],
       recoveryExempt:!M10_GATED['lrec:restore']&&!M10_GATED['lrec:finish']&&!M10_GATED['adopt:yes']}));
-    test('T1 gate inventory loaded (132 actions; boot-recovery + read-only viewing deliberately excluded)',()=>{
-      eq(s.gated,132);ok(s.hasCore);ok(s.hasDeferred);ok(s.pureNotGated);
+    /* 128 since the multi-athlete retirement: conn:remove, invite:create,
+       invite:join and sync:pasteapply were REMOVED from the app entirely
+       (zero references in the artifact), so they cannot be gated. Verified
+       2026-08-07 by diffing the inventory against the Aug 4 artifact this
+       suite used to load by default. */
+    test('T1 gate inventory loaded (128 actions; boot-recovery + read-only viewing deliberately excluded)',()=>{
+      eq(s.gated,128);ok(s.hasCore);ok(s.hasDeferred);ok(s.pureNotGated);
       ok(s.hasFeelCi,'rat:set / ci:send / ci:skipyes / ci:unskip all persist and must be gated');
       ok(s.ciViewOpen,'opening, closing and the skip prompt persist nothing and stay open');
       ok(s.photoViewOpen,'read-only photo viewing stays open (STRICT allows reading)');
@@ -387,7 +392,7 @@ function softSeed(uid){
     const {ctx,page}=await boot(browser,server,st);
     const s=await page.evaluate(async()=>{
       const out={};
-      for(const a of ['wo:start','wo:startroutine','wo:endrest','wu:yes','wo:finishlater','day:reopendo','sync:pasteapply']){
+      for(const a of ['wo:start','wo:startroutine','wo:endrest','wu:yes','wo:finishlater','day:reopendo']){
         const b=document.createElement('button');b.setAttribute('data-act',a);document.body.appendChild(b);
         let reached=false;
         const probe=function(){reached=true;};

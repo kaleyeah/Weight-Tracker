@@ -8,7 +8,7 @@
    and lease-change; storage-failure injection; no destructive default. */
 const path=require('path'),http=require('http'),fs=require('fs');
 const {chromium}=require(path.join(process.env.HOME,'staging-cas','node_modules','playwright'));
-const SRC=process.env.CF_SRC||'/home/griffin/projects/Weight-Tracker/index.html';
+const SRC=process.env.CF_SRC||'/home/griffin/projects/compound-app/index.html';
 let passed=0;const failures=[];
 const test=(n,f)=>{try{f();passed++;console.log('  ✓ '+n);}catch(e){failures.push(n);console.log('  ✗ '+n+'\n      '+(e&&e.message));}};
 const ok=(v,m)=>{if(!v)throw new Error(m||'expected truthy');};
@@ -578,6 +578,32 @@ const doExport=async(page)=>page.evaluate(async()=>{
     });
     test('T17d malformed fresh-fetch revision: refused, envelope untouched, no journal',()=>{
       eq(s.state,'displaced');ok(s.envSame);eq(s.dx,'absent');eq(st.commits||0,0);});
+    await ctx.close();
+  }
+
+  /* T18: the comparison screen answers "which copy is stale?" on screen
+     (Owner request 2026-08-05, from hitting this screen during the canary:
+     "I suggest the last sync timestamp on the comparing the server copy
+     with phone copy. I just had to do that because i hit that screen") */
+  {
+    const st={rev:9,data:SERVER,ledger:{},hasRow:true,leaseHeld:true};
+    const {ctx,page}=await boot(browser,server,st,seedConflict());
+    const s=await page.evaluate(()=>{
+      localStorage.setItem('wl_lastsync',String(Date.parse('2026-08-05T14:32:00Z')));
+      m10cxOpen=true;render();
+      return {html:m10cxViewHTML()};});
+    test('T18 the comparison shows when THIS DEVICE last synced',()=>
+      ok(/last synced/.test(s.html),'no device stamp'));
+    test('T18 and when the SERVER copy was captured, with its revision',()=>{
+      ok(/captured/.test(s.html),'no server capture stamp');
+      ok(/server revision/.test(s.html),'no server revision');});
+    const t=await page.evaluate(()=>{
+      localStorage.removeItem('wl_lastsync');
+      m10cxOpen=true;render();
+      return {html:m10cxViewHTML()};});
+    test('T18 a device that never synced says so plainly, not a fake time',()=>{
+      ok(/never on this device/.test(t.html),'no never-synced wording');
+      ok(!/last synced (Jan|Dec) 1?1969/.test(t.html),'epoch leaked as a date');});
     await ctx.close();
   }
 

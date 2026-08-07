@@ -12,7 +12,7 @@
    recovery; server adoption cannot overwrite unresolved local dirty. */
 const path=require('path'),http=require('http'),fs=require('fs');
 const {chromium}=require(path.join(process.env.HOME,'staging-cas','node_modules','playwright'));
-const SRC=process.env.CF_SRC||'/home/griffin/projects/Weight-Tracker/index.html';
+const SRC=process.env.CF_SRC||'/home/griffin/projects/compound-app/index.html';
 let passed=0;const failures=[];
 const test=(n,f)=>{try{f();passed++;console.log('  ✓ '+n);}catch(e){failures.push(n);console.log('  ✗ '+n+'\n      '+(e&&e.message));}};
 const ok=(v,m)=>{if(!v)throw new Error(m||'expected truthy');};

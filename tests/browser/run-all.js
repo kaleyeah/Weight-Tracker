@@ -48,8 +48,17 @@ const lines = [];
    hanging fixture that spawns its own grandchild. */
 function runSuite(file, timeoutMs) {
   return new Promise((resolve) => {
+    /* PIN THE ARTIFACT UNDER TEST (2026-08-07). Six M10 suites defaulted to
+       `~/projects/Weight-Tracker/index.html` — the PARKED CAS candidate, not
+       what ships — and the runner never overrode it, so the release gate was
+       green while validating a file frozen on Aug 4. c18 then failed 12/72
+       the moment it was pointed at the real artifact (a test stale against
+       the guided-camera chooser, harmless in itself; the point is the gate
+       could not see it). The gate now names the artifact explicitly and any
+       suite may still be run by hand with CF_SRC. */
     const child = spawn(process.execPath, [file], {
-      stdio: ['ignore', 'pipe', 'pipe'], detached: true });
+      stdio: ['ignore', 'pipe', 'pipe'], detached: true,
+      env: { ...process.env, CF_SRC: process.env.CF_SRC || path.join(HERE, '..', '..', 'index.html') } });
     let out = '';
     child.stdout.on('data', (d) => { out += d; });
     child.stderr.on('data', (d) => { out += d; });
