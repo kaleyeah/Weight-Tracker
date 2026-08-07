@@ -31,6 +31,30 @@ const OPTIONAL_SUITES = {
     'needs a captured live .347 artifact (CF_LIVE347); pre-modular lineage',
 };
 
+/* ---- the gate NAMES the artifact under test (Architect Stage 2A preflight
+   item 7). It resolves the artifact once, prints path + build + sha256, and
+   passes both CF_SRC and CF_EXPECT_BUILD to every child so each suite proves
+   it loaded that exact file. A suite that loads anything else exits 3 and
+   fails the gate — the control the parked-artifact defect lacked. */
+const ARTIFACT = process.env.CF_SRC || path.join(HERE, '..', '..', 'index.html');
+let ARTIFACT_BUILD = 'UNKNOWN', ARTIFACT_SHA = 'UNKNOWN';
+try {
+  const buf = fs.readFileSync(ARTIFACT);
+  ARTIFACT_SHA = require('crypto').createHash('sha256').update(buf).digest('hex');
+  ARTIFACT_BUILD = ((buf.toString('utf8').match(/APP_BUILD="([^"]+)"/) || [])[1]) || 'UNKNOWN';
+} catch (e) {
+  console.error('ARTIFACT UNREADABLE: ' + ARTIFACT + ' — ' + e.message);
+  process.exit(2);
+}
+const EXPECT_BUILD = process.env.CF_EXPECT_BUILD || ARTIFACT_BUILD;
+console.log('ARTIFACT UNDER TEST');
+console.log('  path   ' + ARTIFACT);
+console.log('  build  ' + ARTIFACT_BUILD);
+console.log('  sha256 ' + ARTIFACT_SHA);
+if (EXPECT_BUILD !== ARTIFACT_BUILD)
+  console.log('  EXPECT ' + EXPECT_BUILD + '  (mismatch — suites will refuse)');
+console.log('');
+
 let failed = 0;
 let skippedOptional = 0;
 const lines = [];
@@ -58,7 +82,7 @@ function runSuite(file, timeoutMs) {
        suite may still be run by hand with CF_SRC. */
     const child = spawn(process.execPath, [file], {
       stdio: ['ignore', 'pipe', 'pipe'], detached: true,
-      env: { ...process.env, CF_SRC: process.env.CF_SRC || path.join(HERE, '..', '..', 'index.html') } });
+      env: { ...process.env, CF_SRC: ARTIFACT, CF_EXPECT_BUILD: EXPECT_BUILD } });
     let out = '';
     child.stdout.on('data', (d) => { out += d; });
     child.stderr.on('data', (d) => { out += d; });

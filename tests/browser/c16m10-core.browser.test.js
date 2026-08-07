@@ -13,6 +13,20 @@
 const path=require('path'),http=require('http'),fs=require('fs');
 const {chromium}=require(path.join(process.env.HOME,'staging-cas','node_modules','playwright'));
 const SRC=process.env.CF_SRC||'/home/griffin/projects/compound-app/index.html';
+/* ---- artifact self-verification (Architect Stage 2A preflight item 7,
+   2026-08-07): every M10 suite must PROVE which artifact it loaded. Prints
+   the resolved path, build id and sha256; when the runner supplies
+   CF_EXPECT_BUILD, a mismatch is a hard exit — this is the guard that would
+   have caught the parked-artifact defect on 2026-08-04. */
+const _SRCBUF=require('fs').readFileSync(SRC);
+const SRC_SHA=require('crypto').createHash('sha256').update(_SRCBUF).digest('hex');
+const SRC_BUILD=((_SRCBUF.toString('utf8').match(/APP_BUILD="([^"]+)"/)||[])[1])||'UNKNOWN';
+console.log('ARTIFACT '+SRC+'\n         build='+SRC_BUILD+' sha256='+SRC_SHA.slice(0,16));
+if(process.env.CF_EXPECT_BUILD&&SRC_BUILD!==process.env.CF_EXPECT_BUILD){
+  console.error('ARTIFACT MISMATCH: runner expected '+process.env.CF_EXPECT_BUILD+', suite loaded '+SRC_BUILD);
+  process.exit(3);
+}
+
 let passed=0;const failures=[];
 const test=(n,f)=>{try{f();passed++;console.log('  ✓ '+n);}catch(e){failures.push(n);console.log('  ✗ '+n+'\n      '+(e&&e.message));}};
 const ok=(v,m)=>{if(!v)throw new Error(m||'expected truthy');};
