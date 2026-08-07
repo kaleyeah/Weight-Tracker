@@ -14218,6 +14218,26 @@ function m10pDispatch(done){
               return;}
             if(r.status===409&&r.body&&/reused/.test((r.body.error||""))){
               m10cBlock("a photo request identity was reused");fin(false);return;}
+            /* P1 (Architect verdict 2026-08-07): a typed duplicate is
+               RECOVERABLE, not opaque failure — but "duplicate must NOT
+               automatically mean success". VERIFY the returned record is
+               ours and is the same logical photo (localId is the permanent
+               logical identity; the server id is only its representation)
+               before repairing the map and completing. A duplicate WITHOUT
+               a verifiable identity (foreign owner, or a mismatched
+               localId) parks for review instead of guessing. */
+            if(r.status===409&&r.body&&r.body.duplicateLocalId===true){
+              var okDup=r.body.localId===en.localId&&
+                typeof r.body.existingRecordId==="string"&&r.body.existingRecordId.length>0&&
+                !!r.body.existing;
+              if(!okDup){setPhase({state:"unverified",unverifiedReason:"duplicate-unverifiable"});fin(false);
+                try{render();}catch(ex){}return;}
+              if(!setPhase({state:"acked",resultRecordId:r.body.existingRecordId})){fin(false);return;}
+              if(!authOk()){fin(false);return;}
+              if(!mapWriteVerified(en.localId,r.body.existingRecordId)){
+                m10cBlock("could not record where a photo was saved");fin(false);return;}
+              if(!setPhase({state:"mapped"})){fin(false);return;}
+              clearEntry()&&next(true);return;}
             fin(false);
           }).catch(function(){fin(false);});
         }).catch(function(){fin(false);});

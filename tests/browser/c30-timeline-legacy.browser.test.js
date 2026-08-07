@@ -23,6 +23,9 @@ const eq=(a,b,m)=>{if(a!==b)throw new Error((m||'eq')+': '+JSON.stringify(a)+' !
   const browser=await chromium.launch();
   const ctx=await browser.newContext({viewport:{width:390,height:844}});
   const uploadCaptures=[];
+  const dupMode={on:false,body:(lid)=>({ok:false,error:'duplicateLocalId',duplicateLocalId:true,
+    localId:lid,existingRecordId:'srv-dup-'+lid,
+    existing:{kind:'progress',date:'2026-07-27',week:'2026-07-27',pose:'front',meal:'',ts:'9'}})};
   await ctx.route('**/api/**',r=>{
     const url=r.request().url();
     const reply=(st,b)=>r.fulfill({status:st,contentType:'application/json',body:JSON.stringify(b)});
@@ -34,7 +37,9 @@ const eq=(a,b,m)=>{if(a!==b)throw new Error((m||'eq')+': '+JSON.stringify(a)+' !
       const buf=r.request().postDataBuffer();
       const txt=buf?buf.toString('latin1'):'';
       const field=(n)=>{const m=txt.match(new RegExp('name="'+n+'"\\r\\n\\r\\n([^\\r]*)'));return m?m[1]:null;};
-      uploadCaptures.push({week:field('week'),date:field('date'),pose:field('pose')});
+      const lid=field('localId');
+      uploadCaptures.push({week:field('week'),date:field('date'),pose:field('pose'),localId:lid});
+      if(dupMode.on)return reply(409,dupMode.body(lid));
       return reply(200,{ok:false,error:'wedged for the test'});}   /* op stays queued */
     if(/cf\/photos\/update/.test(url)){
       const b=JSON.parse(r.request().postData()||'{}');
@@ -302,8 +307,58 @@ const eq=(a,b,m)=>{if(a!==b)throw new Error((m||'eq')+': '+JSON.stringify(a)+' !
       eq(last.week,'2026-02-09','server received week: '+last.week);
       eq(last.date,'2026-02-09','server received date: '+last.date);
       ok(s.ops>=1,'op should still be queued (mock refuses uploads)');});
-    await page.evaluate(async()=>{localStorage.removeItem('wl_photo_ops__userA');
-      await idbDelete('p-f4').catch(()=>{});localStorage.removeItem('wl_photo_ops__userA');});
+    await page.evaluate(()=>{localStorage.removeItem('wl_photo_ops__userA');});
+  }
+
+  /* ---- Architect P1: a TYPED duplicate is recoverable — but verified, never
+     assumed. A verifiable duplicate repairs the map and completes; an
+     unverifiable one parks for review instead of guessing. ---- */
+  {
+    const s=await page.evaluate(async()=>{
+      localStorage.removeItem('wl_photo_ops__userA');
+      const m=JSON.parse(localStorage.getItem('wl_photomap')||'{}');
+      delete m['p-f5'];localStorage.setItem('wl_photomap',JSON.stringify(m));
+      const mkB=()=>new Promise(res=>{const cv=document.createElement('canvas');cv.width=60;cv.height=80;
+        cv.getContext('2d').fillRect(0,0,60,80);cv.toBlob(res,'image/jpeg',0.8);});
+      window.__dupOn=true;
+      await idbAdd({id:'p-f5',date:'2026-07-27',week:'2026-07-27',pose:'front',kind:'progress',blob:await mkB(),ts:9});
+      return {};});
+    dupMode.on=true;
+    await page.evaluate(async()=>{for(let i=0;i<8;i++){m10pDispatch();await new Promise(r=>setTimeout(r,200));
+      if(!m10pOps().length)break;}});
+    const t=await page.evaluate(()=>({ops:m10pOps().length,
+      mapped:(JSON.parse(localStorage.getItem('wl_photomap')||'{}'))['p-f5']||null}));
+    test('P1: a VERIFIED duplicate repairs the map and completes the op',()=>{
+      eq(t.ops,0,'op still queued: '+t.ops);
+      eq(t.mapped,'srv-dup-p-f5','map not repaired: '+t.mapped);});
+
+    /* an UNVERIFIABLE duplicate (foreign/oblique: no identity) must park */
+    dupMode.body=(lid)=>({ok:false,error:'duplicateLocalId',duplicateLocalId:true,localId:lid});
+    const u=await page.evaluate(async()=>{
+      localStorage.removeItem('wl_photo_ops__userA');
+      const m=JSON.parse(localStorage.getItem('wl_photomap')||'{}');
+      delete m['p-f6'];localStorage.setItem('wl_photomap',JSON.stringify(m));
+      const mkB=()=>new Promise(res=>{const cv=document.createElement('canvas');cv.width=60;cv.height=80;
+        cv.getContext('2d').fillRect(0,0,60,80);cv.toBlob(res,'image/jpeg',0.8);});
+      await idbAdd({id:'p-f6',date:'2026-07-27',week:'2026-07-27',pose:'back',kind:'progress',blob:await mkB(),ts:9});
+      for(let i=0;i<8;i++){m10pDispatch();await new Promise(r=>setTimeout(r,200));}
+      const ops=m10pOps();
+      return {states:ops.map(o=>o.state+':'+(o.unverifiedReason||'')),
+        mapped:(JSON.parse(localStorage.getItem('wl_photomap')||'{}'))['p-f6']||null};});
+    test('P1: an UNVERIFIABLE duplicate parks for review, never assumed success',()=>{
+      ok(u.states.some(x=>/^unverified:duplicate-unverifiable/.test(x)),'states: '+u.states.join(','));
+      eq(u.mapped,null,'map written on an unverifiable duplicate');});
+    dupMode.on=false;
+    /* leave the store exactly as the earlier arms expect: the p-f4/5/6 probes
+       are mine, and idbDelete is the GATED wrapper (it queues a tombstone) —
+       use the raw local delete and clear the queue after */
+    await page.evaluate(async()=>{
+      for(const id of ['p-f4','p-f5','p-f6'])await idbDeleteLocal(id).catch(()=>{});
+      localStorage.removeItem('wl_photo_ops__userA');
+      const m=JSON.parse(localStorage.getItem('wl_photomap')||'{}');
+      delete m['p-f5'];delete m['p-f6'];localStorage.setItem('wl_photomap',JSON.stringify(m));
+      state.pfSel=[];state.pfDateEdit=null;renderProgressPhotos();});
+    await page.waitForTimeout(300);
   }
 
   /* ---- M5: the queue, oldest first; narrow hint only when relevant ---- */
