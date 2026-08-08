@@ -96,36 +96,54 @@ const eq=(a,b,m)=>{if(a!==b)throw new Error((m||'eq')+': '+JSON.stringify(a)+' !
     test('a day with no dose shows no dose chip',()=>eq(u.chips,0));
   }
 
-  /* ---- 2. yellow markers on the WEIGHT chart ---- */
+  /* ---- 2. dose days on the DOSE BANDS timeline (Owner correction
+     2026-08-08: "the dose lines were meant to go on the weight timeline
+     with dose bands chart. Not the normal weight one.") ---- */
   {
     const s=await page.evaluate(()=>{
+      state.view='glptimeline';render();
+      const svg=document.querySelector('.wl-chart');
+      const html=svg?svg.outerHTML:'';
+      return {hasChart:!!svg,
+        bands:(html.match(/fill="#A855F7"/g)||[]).length,
+        doseLines:(html.match(/stroke="#FFE066"/g)||[]).length,
+        dashed:(html.match(/stroke="#FFE066"[^>]*stroke-dasharray/g)||[]).length,
+        /* the amber weight line must still be the foreground data */
+        weightLine:/stroke="#F5B544" stroke-width="2.6"/.test(html),
+        /* the weight trend's OWN stroke, read from the rendered path */
+        weightColour:(html.match(/<path[^>]*stroke="(#[0-9A-Fa-f]{6})" stroke-width="2.6"/)||[])[1]||null};});
+    test('the dose-bands timeline draws a line on each dose day',()=>{
+      ok(s.hasChart,'no timeline chart rendered');
+      ok(s.doseLines>=3,'dose markers drawn: '+s.doseLines);});
+    test('a skipped dose is dashed and dimmer, not an injection',()=>
+      eq(s.dashed,1,'dashed markers: '+s.dashed));
+    test('dose days read distinctly from the amber weight line and the bands',()=>{
+      ok(s.weightLine,'the weight line is gone');
+      ok(s.doseLines>0,'no dose markers');
+      ok(s.bands>0,'the dose-level bands are gone');
+      /* the markers must NOT reuse the weight line's amber, or the two read
+         as one thing on a chart whose trend line is already amber */
+      ok(s.weightColour,'could not read the weight line colour');
+      ok(s.weightColour.toUpperCase()!=='#FFE066',
+        'dose markers and the weight line render the SAME colour ('+s.weightColour+')');});
+
+    const t=await page.evaluate(()=>{
       state.view='weight';state.bcTab='weight';state.t2Mode='M';state.t2Off=0;render();
       const bc=[...document.querySelectorAll('.wl-card')].find(c=>/Body composition/.test(c.textContent));
       const svg=bc?bc.querySelector('.wl-chart'):null;
       const html=svg?svg.outerHTML:'';
-      const doseLines=(html.match(/stroke="#F5B544"/g)||[]).length;
-      const dashed=(html.match(/stroke="#F5B544"[^>]*stroke-dasharray/g)||[]).length;
-      return {hasChart:!!svg,doseLines,dashed};});
-    test('the weight chart draws a yellow line on each dose day in view',()=>{
-      ok(s.hasChart,'no chart rendered');
-      ok(s.doseLines>=3,'dose markers drawn: '+s.doseLines);});
-    test('a skipped dose is drawn dashed, distinct from a dose taken',()=>
-      eq(s.dashed,1,'dashed markers: '+s.dashed));
-
-    const t=await page.evaluate(()=>{
-      state.bcTab='bodyfat';render();
-      const bc=[...document.querySelectorAll('.wl-card')].find(c=>/Body composition/.test(c.textContent));
-      const svg=bc?bc.querySelector('.wl-chart'):null;
-      return {marks:svg?(svg.outerHTML.match(/stroke="#F5B544"/g)||[]).length:0,hadChart:!!svg};});
-    test('other measures stay uncluttered — markers are weight-only',()=>eq(t.marks,0));
+      return {hasChart:!!svg,
+        doseMarks:(html.match(/stroke="#FFE066"/g)||[]).length};});
+    test('the ORDINARY weight chart carries no dose lines (Owner: "not the normal weight one")',()=>{
+      ok(t.hasChart,'body-composition chart missing');
+      eq(t.doseMarks,0,'dose markers leaked onto the normal weight chart');});
 
     const u=await page.evaluate(()=>{
-      state.bcTab='weight';state.glp.doses=[];save();render();
-      const bc=[...document.querySelectorAll('.wl-card')].find(c=>/Body composition/.test(c.textContent));
-      const svg=bc?bc.querySelector('.wl-chart'):null;
-      return {marks:svg?(svg.outerHTML.match(/stroke="#F5B544"/g)||[]).length:-1,hasChart:!!svg};});
-    test('no doses logged = no markers, and the chart still renders',()=>{
-      ok(u.hasChart,'chart disappeared without doses');eq(u.marks,0);});
+      state.glp.doses=[];save();state.view='glptimeline';render();
+      const svg=document.querySelector('.wl-chart');
+      return {marks:svg?(svg.outerHTML.match(/stroke="#FFE066"/g)||[]).length:-1,hasChart:!!svg};});
+    test('no doses logged = no markers, and the timeline still renders',()=>{
+      ok(u.hasChart,'timeline disappeared without doses');eq(u.marks,0);});
   }
 
   test('no page errors',()=>eq(errs.length,0,errs.join(';')));

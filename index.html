@@ -1857,6 +1857,18 @@ function view_glptimeline(){
     s+='<rect x="'+x0+'" y="'+bandTop+'" width="'+(x1-x0)+'" height="'+(bandBot-bandTop)+'" fill="#A855F7" opacity="'+op.toFixed(3)+'"/>';
     if(p.inProgress)s+='<rect x="'+x0+'" y="'+bandTop+'" width="'+(x1-x0)+'" height="'+(bandBot-bandTop)+'" fill="none" stroke="'+CH.avg+'" stroke-width="1.2" stroke-dasharray="4 3" opacity=".85"/>';
     s+='<text x="'+((x0+x1)/2)+'" y="'+(bandTop-6)+'" text-anchor="middle" font-size="9.5" style="font-family:var(--mono)" fill="'+(p.inProgress?CH.avg:"#C9A6F0")+'">'+r1(p.dose)+'</text>';});
+  /* INDIVIDUAL DOSE DAYS (Owner, 2026-08-08: "the dose lines were meant to
+     go on the weight timeline with dose bands chart"). The purple bands say
+     which STRENGTH he was on; these say which DAYS he actually injected.
+     Drawn over the bands but UNDER the weight line, in a brighter yellow
+     than the amber trend so the two never read as the same thing. A skipped
+     dose is dashed and dimmer — it is not an injection. */
+  (state.glp.doses||[]).forEach(function(d){
+    if(d.takenAt==null)return;
+    if(d.takenAt<xMin||d.takenAt>xMax)return;
+    var X=sx(d.takenAt);
+    s+='<line x1="'+X+'" y1="'+bandTop+'" x2="'+X+'" y2="'+bandBot+'" stroke="#FFE066" stroke-width="1.2" opacity="'
+      +(d.skipped?".38":".8")+'"'+(d.skipped?' stroke-dasharray="3 3"':'')+'/>';});
   /* dividers at level changes */
   periods.forEach(function(p,i){if(i===0)return;var X=sx(p.start);s+='<line x1="'+X+'" y1="'+bandTop+'" x2="'+X+'" y2="'+bandBot+'" stroke="'+CH.axis+'" stroke-width=".8" opacity=".55"/>';});
   /* gridlines + y labels */
@@ -2087,20 +2099,6 @@ function tcChartSVG(cfg) {
     s += '<line x1="' + padL + '" y1="' + y + '" x2="' + (W2 - padR) + '" y2="' + y + '" stroke="' + C.grid + '" stroke-dasharray="2 4"/>';
     s += '<text x="' + (padL - 5) + '" y="' + (y + 3) + '" fill="' + C.axis + '" font-size="9" text-anchor="end">' + tcNum(yv, cfg.dec >= 1 && (yMax - yMin) < 8 ? 1 : 0) + "</text>";
   }
-  /* DOSE MARKERS (Owner, 2026-08-08: "we could even mark them on a weight
-     loss chart where we show the dose periods. Yellow lines on the day").
-     Drawn after the grid and BEFORE the series, so the data line always sits
-     on top. cfg.doseDays is an array of ISO dates; anything outside the
-     visible window is skipped. A skipped dose is dimmer and dashed — it is
-     not the same event as a dose taken. */
-  (cfg.doseDays || []).forEach(function (d) {
-    var iso = d.date || d, t = tcParse(iso).getTime();
-    if (!(t >= xMin && t <= xMax)) return;
-    var x = sx(iso);
-    s += '<line x1="' + x + '" y1="' + padT + '" x2="' + x + '" y2="' + (H2 - padB) +
-      '" stroke="' + (C.dose || "#F5B544") + '" stroke-width="1.2" opacity="' +
-      (d.skipped ? 0.35 : 0.75) + '"' + (d.skipped ? ' stroke-dasharray="3 3"' : "") + '/>';
-  });
   /* x labels */
   var xlabs = [];
   if (cfg.mode === "W") {
@@ -4114,10 +4112,7 @@ function t2InnerHTML(tab,u){
       /* Owner 2026-08-05: the data layer reads BLUE like the approved reference
       — the existing CH.reg token, so no new palette; amber stays on the app
       chrome (tabs, buttons, badges) */
-      colors:{axis:CH.axis,grid:CH.grid,line:CH.reg,accent:CH.reg,fill:"rgba(124,147,245,0.10)",pointFill:"#10151E",dose:"#F5B544"},
-      /* Owner 2026-08-08: dose days marked on the WEIGHT chart, so the dose
-         cadence reads against the trend. Other measures stay uncluttered. */
-      doseDays:(tab==="weight")?glpDoseDays(p.startISO,p.endISO):null,
+      colors:{axis:CH.axis,grid:CH.grid,line:CH.reg,accent:CH.reg,fill:"rgba(124,147,245,0.10)",pointFill:"#10151E"},
       ariaLabel:esc(cfg.label)+" trend, "+cur.count+" measurement"+(cur.count===1?"":"s")+", average "+tcNum(cur.avg,cfg.dec)+" "+esc(cfg.unit)});
     /* text alternative + tapped-point details */
     var pt=state.t2Pt;

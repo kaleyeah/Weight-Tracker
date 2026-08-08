@@ -211,10 +211,7 @@ function t2InnerHTML(tab,u){
       /* Owner 2026-08-05: the data layer reads BLUE like the approved reference
       — the existing CH.reg token, so no new palette; amber stays on the app
       chrome (tabs, buttons, badges) */
-      colors:{axis:CH.axis,grid:CH.grid,line:CH.reg,accent:CH.reg,fill:"rgba(124,147,245,0.10)",pointFill:"#10151E",dose:"#F5B544"},
-      /* Owner 2026-08-08: dose days marked on the WEIGHT chart, so the dose
-         cadence reads against the trend. Other measures stay uncluttered. */
-      doseDays:(tab==="weight")?glpDoseDays(p.startISO,p.endISO):null,
+      colors:{axis:CH.axis,grid:CH.grid,line:CH.reg,accent:CH.reg,fill:"rgba(124,147,245,0.10)",pointFill:"#10151E"},
       ariaLabel:esc(cfg.label)+" trend, "+cur.count+" measurement"+(cur.count===1?"":"s")+", average "+tcNum(cur.avg,cfg.dec)+" "+esc(cfg.unit)});
     /* text alternative + tapped-point details */
     var pt=state.t2Pt;

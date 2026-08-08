@@ -739,6 +739,18 @@ function view_glptimeline(){
     s+='<rect x="'+x0+'" y="'+bandTop+'" width="'+(x1-x0)+'" height="'+(bandBot-bandTop)+'" fill="#A855F7" opacity="'+op.toFixed(3)+'"/>';
     if(p.inProgress)s+='<rect x="'+x0+'" y="'+bandTop+'" width="'+(x1-x0)+'" height="'+(bandBot-bandTop)+'" fill="none" stroke="'+CH.avg+'" stroke-width="1.2" stroke-dasharray="4 3" opacity=".85"/>';
     s+='<text x="'+((x0+x1)/2)+'" y="'+(bandTop-6)+'" text-anchor="middle" font-size="9.5" style="font-family:var(--mono)" fill="'+(p.inProgress?CH.avg:"#C9A6F0")+'">'+r1(p.dose)+'</text>';});
+  /* INDIVIDUAL DOSE DAYS (Owner, 2026-08-08: "the dose lines were meant to
+     go on the weight timeline with dose bands chart"). The purple bands say
+     which STRENGTH he was on; these say which DAYS he actually injected.
+     Drawn over the bands but UNDER the weight line, in a brighter yellow
+     than the amber trend so the two never read as the same thing. A skipped
+     dose is dashed and dimmer — it is not an injection. */
+  (state.glp.doses||[]).forEach(function(d){
+    if(d.takenAt==null)return;
+    if(d.takenAt<xMin||d.takenAt>xMax)return;
+    var X=sx(d.takenAt);
+    s+='<line x1="'+X+'" y1="'+bandTop+'" x2="'+X+'" y2="'+bandBot+'" stroke="#FFE066" stroke-width="1.2" opacity="'
+      +(d.skipped?".38":".8")+'"'+(d.skipped?' stroke-dasharray="3 3"':'')+'/>';});
   /* dividers at level changes */
   periods.forEach(function(p,i){if(i===0)return;var X=sx(p.start);s+='<line x1="'+X+'" y1="'+bandTop+'" x2="'+X+'" y2="'+bandBot+'" stroke="'+CH.axis+'" stroke-width=".8" opacity=".55"/>';});
   /* gridlines + y labels */

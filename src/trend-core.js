@@ -195,20 +195,6 @@ function tcChartSVG(cfg) {
     s += '<line x1="' + padL + '" y1="' + y + '" x2="' + (W2 - padR) + '" y2="' + y + '" stroke="' + C.grid + '" stroke-dasharray="2 4"/>';
     s += '<text x="' + (padL - 5) + '" y="' + (y + 3) + '" fill="' + C.axis + '" font-size="9" text-anchor="end">' + tcNum(yv, cfg.dec >= 1 && (yMax - yMin) < 8 ? 1 : 0) + "</text>";
   }
-  /* DOSE MARKERS (Owner, 2026-08-08: "we could even mark them on a weight
-     loss chart where we show the dose periods. Yellow lines on the day").
-     Drawn after the grid and BEFORE the series, so the data line always sits
-     on top. cfg.doseDays is an array of ISO dates; anything outside the
-     visible window is skipped. A skipped dose is dimmer and dashed — it is
-     not the same event as a dose taken. */
-  (cfg.doseDays || []).forEach(function (d) {
-    var iso = d.date || d, t = tcParse(iso).getTime();
-    if (!(t >= xMin && t <= xMax)) return;
-    var x = sx(iso);
-    s += '<line x1="' + x + '" y1="' + padT + '" x2="' + x + '" y2="' + (H2 - padB) +
-      '" stroke="' + (C.dose || "#F5B544") + '" stroke-width="1.2" opacity="' +
-      (d.skipped ? 0.35 : 0.75) + '"' + (d.skipped ? ' stroke-dasharray="3 3"' : "") + '/>';
-  });
   /* x labels */
   var xlabs = [];
   if (cfg.mode === "W") {
