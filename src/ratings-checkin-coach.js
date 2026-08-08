@@ -665,8 +665,18 @@ function activitySummaryHTML(sel){
   (((state.training.sessions||{})[sel])||[]).forEach(function(s){if(s.kind==="cardio")_al("cardio",s.type||"Cardio");});
   (((state.training.liftSessions||{})[sel])||[]).forEach(function(s){_al("lifting",s.name||"Weight training");});
   normActs(sel).forEach(function(a){if(a.cat!=="cardio"&&a.cat!=="lifting")_al(a.cat,a.name);});
+  /* Owner 2026-08-08: "why don't my doses show up in activity? I want to
+     keep track of those too." A dose is a logged event of the day like any
+     other — it belongs on this card. Rendered as its own amber chip, with
+     the amount when one was recorded, and marked when it was a SKIP. */
+  var doses=(typeof glpDosesOn==="function")?glpDosesOn(sel):[];
   var h='<div class="wl-card"><div class="wl-card-head"><span>Activity</span><button class="wl-link" data-act="go" data-view="train">Activity tab →</button></div>';
-  if(log.length){h+='<div class="wl-preset-list" style="padding-top:2px">';log.forEach(function(a){h+='<span class="wl-achip-ro '+a.cat+'">'+esc(a.name||CATLABEL[a.cat])+'</span>';});h+='</div>';}
+  if(log.length||doses.length){h+='<div class="wl-preset-list" style="padding-top:2px">';
+    doses.forEach(function(d){
+      var amt=(d.dose!==""&&d.dose!=null)?(d.dose+" "+(d.unit||"mg")):"";
+      var lbl=d.skipped?("Dose skipped"+(amt?" · "+amt:"")):("Dose"+(amt?" "+amt:""));
+      h+='<span class="wl-achip-ro glp'+(d.skipped?" skipped":"")+'">◉ '+esc(lbl)+'</span>';});
+    log.forEach(function(a){h+='<span class="wl-achip-ro '+a.cat+'">'+esc(a.name||CATLABEL[a.cat])+'</span>';});h+='</div>';}
   else h+='<div class="wl-hint">No activity logged. Add cardio, lifting, or recovery from the Activity tab.</div>';
   return h+'</div>';
 }

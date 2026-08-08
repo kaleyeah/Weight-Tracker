@@ -64,6 +64,29 @@ function glpToLocalInput(ms){var d=new Date(ms);function p(n){return (n<10?"0":"
 function glpFromLocalInput(s){if(!s)return null;var m=/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(s);if(!m)return null;return new Date(+m[1],+m[2]-1,+m[3],+m[4],+m[5]).getTime();}
 function glpFmtWhen(ms){var d=new Date(ms);var t=d.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"});return fmtLong(d)+" · "+t;}
 /* rolling due date + overdue, computed at render time (nothing is scheduled) */
+/* Dose days for the charts and the Activity card (Owner, 2026-08-08:
+   "why don't my doses show up in activity... mark them on a weight loss
+   chart"). Doses are stored with a `takenAt` TIMESTAMP; everything that
+   wants them by day needs this local-date projection. */
+function glpDoseISO(ms){var d=new Date(ms);var m=d.getMonth()+1,dd=d.getDate();
+  return d.getFullYear()+"-"+(m<10?"0":"")+m+"-"+(dd<10?"0":"")+dd;}
+function glpDoseDays(startISO,endISO){
+  var g=state.glp;if(!g||!g.doses||!g.doses.length)return null;
+  var out=[],seen={};
+  g.doses.forEach(function(d){
+    if(d.takenAt==null)return;
+    var iso=glpDoseISO(d.takenAt);
+    if(startISO&&iso<startISO)return;
+    if(endISO&&iso>endISO)return;
+    var k=iso+"|"+(d.skipped?"s":"d");
+    if(seen[k])return;seen[k]=1;
+    out.push({date:iso,skipped:!!d.skipped});});
+  return out.length?out:null;}
+/* every dose logged ON a given day, newest first */
+function glpDosesOn(iso){
+  var g=state.glp;if(!g||!g.doses)return [];
+  return g.doses.filter(function(d){return d.takenAt!=null&&glpDoseISO(d.takenAt)===iso;})
+    .sort(function(a,b){return b.takenAt-a.takenAt;});}
 function glpDueInfo(){var g=state.glp;if(!g||!g.compound)return null;var cad=parseInt(g.compound.cadenceDays,10)||7;var doses=g.doses||[];var lastReal=null,lastAny=null;doses.forEach(function(d){if(d.takenAt==null)return;if(!lastAny||d.takenAt>lastAny.takenAt)lastAny=d;if(!d.skipped&&(!lastReal||d.takenAt>lastReal.takenAt))lastReal=d;});if(!lastAny)return {lastReal:null,due:null,cad:cad,overdue:false};/* anchor the schedule on the most recent event (dose OR skip) so a skip rolls the next due forward one cadence and a later miss can nag again */var due=lastAny.takenAt+cad*86400000;var overdue=(Date.now()>due);return {lastReal:lastReal,due:due,cad:cad,overdue:overdue};}
 /* least-recently-used site (never-used ranks oldest); 2 most-recent distinct = "recent"; mutually exclusive */
 function glpSiteSuggestion(){var used=(state.glp.doses||[]).filter(function(d){return !d.skipped&&d.siteId;}).slice().sort(function(a,b){return b.takenAt-a.takenAt;});var recent=[];for(var i=0;i<used.length&&recent.length<2;i++){if(recent.indexOf(used[i].siteId)<0)recent.push(used[i].siteId);}var lastUsed={};used.forEach(function(d){if(lastUsed[d.siteId]==null)lastUsed[d.siteId]=d.takenAt;});var ids=GLP_SITES.map(function(s){return s[0];});var pool=ids.filter(function(id){return recent.indexOf(id)<0;});if(!pool.length)pool=ids.slice();var best=pool[0],bestT=(lastUsed[pool[0]]!=null?lastUsed[pool[0]]:-Infinity);pool.forEach(function(id){var t=(lastUsed[id]!=null?lastUsed[id]:-Infinity);if(t<bestT){bestT=t;best=id;}});if(!used.length)best="l_abdomen";return {suggested:best,recent:recent};}
