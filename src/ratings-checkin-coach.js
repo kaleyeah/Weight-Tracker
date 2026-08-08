@@ -576,17 +576,47 @@ function fetchCoachReports(cb){
       state.coachRpt={weekly:w,nightly:n,tdee:t};coachRptSave();cb&&cb(true);})
     .catch(function(){cb&&cb(false);});}
 function coachWeekly(){var w=state.coachRpt&&state.coachRpt.weekly;if(w&&w.text)return w;return state.weeklySummary;}
-function coachNightly(iso){var n=state.coachRpt&&state.coachRpt.nightly&&state.coachRpt.nightly[iso];if(n&&n.text)return n;
-  var l=(state.nightlyLog||{})[iso];if(l&&l.text)return l;var ns=state.nightlySummary;return (ns&&ns.date===iso&&ns.text)?ns:null;}
+/* Reopening a day (Owner, 2026-08-08: "I can't reopen today. I do it and I
+   confirm it. But it won't allow me to import from Apple health").
+   reopenDay() cleared only the two LOCAL recap stores. The coach-report
+   cache is a MIRROR OF THE SERVER — it survived, dayRecap() still reported
+   the day Completed, so both "Complete today" and the Health import stayed
+   hidden; and deleting it locally would not have helped, because
+   fetchCoachReports() replaces that cache wholesale on the next sync.
+   So the reopen is a STAMP in synced settings, and a recap counts only if
+   it was generated AFTER the stamp. Re-completing yields a newer recap
+   (genNightly polls for generated !== prevGen), so this self-clears. */
+function dayReopenedAt(iso){var r=state.settings&&state.settings.reopened;var v=r&&r[iso];return v?+v:0;}
+function recapStamp(rep,tsField){
+  if(!rep)return 0;
+  var g=tsField?rep[tsField]:rep.generated;
+  if(g==null)return 0;
+  return typeof g==="number"?g:(Date.parse(g)||0);}
+function recapLive(rep,iso,tsField){
+  var ra=dayReopenedAt(iso);
+  if(!ra)return true;
+  var t=recapStamp(rep,tsField);
+  return !!(t&&t>ra);}
+function coachNightly(iso){var n=state.coachRpt&&state.coachRpt.nightly&&state.coachRpt.nightly[iso];if(n&&n.text&&recapLive(n,iso))return n;
+  var l=(state.nightlyLog||{})[iso];if(l&&l.text&&recapLive(l,iso,"ts"))return l;var ns=state.nightlySummary;return (ns&&ns.date===iso&&ns.text&&recapLive(ns,iso,"ts"))?ns:null;}
 function coachNightlyLatest(){var n=(state.coachRpt&&state.coachRpt.nightly)||{};var ks=Object.keys(n).sort();
   for(var i=ks.length-1;i>=0;i--){if(n[ks[i]]&&n[ks[i]].text)return n[ks[i]];}
   return state.nightlySummary;}
 function dayRecap(iso){return coachNightly(iso);}
 /* Reopen a completed day: drop its recap from both stores so the day reverts to
    not-completed (Complete today + Health import return). Destructive by design. */
-function reopenDay(iso){var lg=state.nightlyLog||{};if(lg[iso])delete lg[iso];state.nightlyLog=lg;
+function reopenDay(iso){
+  /* stamp FIRST, from the recap actually standing there: the coach's
+     `generated` is NAS time while Date.now() is device time, so a skewed
+     device could otherwise stamp behind the recap it means to retire. */
+  var cur=coachNightly(iso);
+  var stamp=Date.now();
+  if(cur){var g=recapStamp(cur)||recapStamp(cur,"ts");if(g&&g>=stamp)stamp=g+1000;}
+  var lg=state.nightlyLog||{};if(lg[iso])delete lg[iso];state.nightlyLog=lg;
   var ns=state.nightlySummary;if(ns&&ns.date===iso)state.nightlySummary=null;
   if(state.settings&&state.settings.seenNightly===iso)state.settings.seenNightly=null;
+  if(!state.settings.reopened)state.settings.reopened={};
+  state.settings.reopened[iso]=stamp;
   state.reopenAsk=null;save();render();toast("Day reopened");}
 function completeBtnHTML(sel){var selToday=sel===todayISO();if(state.nightBusy)return '<div class="wl-hint" style="margin-top:12px;text-align:center">⏳ Completing… generating your recap.</div>';var hasRecap=!!dayRecap(sel);if(hasRecap)return '';/* regenerate moved into the recap card header (wl-recaplink) */return '<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="night:gen">Complete '+(selToday?"today":"this day")+'</button>';}
 function hkButtonHTML(sel){

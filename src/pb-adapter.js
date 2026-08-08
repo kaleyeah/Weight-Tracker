@@ -71,6 +71,9 @@ function genNightly(){
   }).then(function(d){
     state.nightBusy=false;
     if(d){
+      /* the day is completed again — retire its reopen stamp so the map
+         cannot grow without bound (the fresh recap already outranks it) */
+      if(state.settings.reopened&&state.settings.reopened[sel]!=null)delete state.settings.reopened[sel];
       state.settings.seenNightly=sel;save();
       state.nightOpen=true;
       toast((sel===todayISO()?"Today":"That day")+"’s recap is ready");
