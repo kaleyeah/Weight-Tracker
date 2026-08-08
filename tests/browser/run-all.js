@@ -26,6 +26,18 @@ const suites = args.length
 /* Suites that are allowed to SKIP, each with the reason. Anything else that
    prints SKIPPED is a FAILURE — a required suite whose fixture is missing is
    a broken gate, not a pass (Architect ruling, D1 round 1). */
+/* Suites that test a DIFFERENT artifact on purpose, and must therefore keep
+   their own CF_SRC default. Pinning the shipping artifact for every suite
+   (2026-08-07) broke this one: its header says "CF_SRC must be the recovery
+   file" and it exercises the standalone sync-safe recovery build, not the
+   app. The pin is right for the M10 suites and wrong here — so the exception
+   is NAMED rather than implicit, and an explicit CF_SRC from the caller
+   still wins for everything. */
+const OWN_ARTIFACT_SUITES = {
+  'c11m8-recovery.browser.test.js':
+    'tests the standalone recovery build (M8-sync-rework/recovery/index-recovery-syncsafe.html)',
+};
+
 const OPTIONAL_SUITES = {
   'cache-sw.browser.test.js':
     'needs a captured live .347 artifact (CF_LIVE347); pre-modular lineage',
@@ -71,6 +83,7 @@ const lines = [];
    tests/runner-timeout-self.test.js proves this fires, with a deliberately
    hanging fixture that spawns its own grandchild. */
 function runSuite(file, timeoutMs) {
+  const ownArtifact = !!OWN_ARTIFACT_SUITES[path.basename(file)] && !process.env.CF_SRC;
   return new Promise((resolve) => {
     /* PIN THE ARTIFACT UNDER TEST (2026-08-07). Six M10 suites defaulted to
        `~/projects/Weight-Tracker/index.html` — the PARKED CAS candidate, not
@@ -82,7 +95,9 @@ function runSuite(file, timeoutMs) {
        suite may still be run by hand with CF_SRC. */
     const child = spawn(process.execPath, [file], {
       stdio: ['ignore', 'pipe', 'pipe'], detached: true,
-      env: { ...process.env, CF_SRC: ARTIFACT, CF_EXPECT_BUILD: EXPECT_BUILD } });
+      env: ownArtifact
+        ? { ...process.env }                      /* suite picks its own artifact */
+        : { ...process.env, CF_SRC: ARTIFACT, CF_EXPECT_BUILD: EXPECT_BUILD } });
     let out = '';
     child.stdout.on('data', (d) => { out += d; });
     child.stderr.on('data', (d) => { out += d; });
