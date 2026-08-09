@@ -1,4 +1,3 @@
-
 /* The MP document view (MPCSS … mpReportHTML) was retired 2026-07 in favour of
    the simple coach report; git history holds it. The MP-CALC engine above stays. */
 
@@ -748,9 +747,51 @@ function themeGrid(){var cur=state.settings.theme||"dark";
 function zoneFromHR(hr,mx){if(hr==null||mx==null||mx<=0)return null;var p=hr/mx;if(p<0.60)return 1;if(p<0.70)return 2;if(p<0.80)return 3;if(p<0.90)return 4;return 5;}
 function estMaxHR(){var age=num(state.settings.age);if(age==null)return null;return Math.round(208-0.7*age);}
 function effMaxHR(){var m=num(state.settings.maxHR);return m!=null?m:estMaxHR();}
-function zoneAreaHTML(cf,pfx){pfx=pfx||"cf";var mx=effMaxHR();var hr=num(cf.hr);
-  if(mx!=null&&hr!=null){var z=zoneFromHR(hr,mx);return '<div class="wl-cf-label">Zone</div><div class="wl-hint">From your avg HR: <b>Zone '+z+'</b> ('+Math.round(hr/mx*100)+'% of max '+mx+' bpm) — set automatically.</div>';}
-  var label=mx!=null?'Zone <em>enter avg HR above to auto-detect</em>':'Zone';
+/* Where the zone lines sit. Three ways, in order of authority:
+   manual (a lab test or a watch's own table beats any formula), Karvonen —
+   effort measured above RESTING heart rate, which needs a resting HR — and
+   plain percent of max, which is what the app has always used and stays the
+   answer for anyone who has not entered one. The fractions are the same in
+   every method, so nobody's zones shift until they add resting HR themselves. */
+var ZONE_FRACTIONS=[0.60,0.70,0.80,0.90];   /* lower bound of zones 2,3,4,5 */
+function restHR(){var r=num(state.settings.restingHR);return (r!=null&&r>0)?r:null;}
+function manualZoneBounds(){var out=[],i,v;
+  for(i=2;i<=5;i++){v=num(state.settings["zoneB"+i]);if(v==null||v<=0)return null;out.push(Math.round(v));}
+  for(i=1;i<out.length;i++){if(out[i]<=out[i-1])return null;}   /* must ascend, or it is not a table */
+  return out;}
+function zoneModel(){
+  var wantManual=state.settings.zoneMethod==="manual";
+  if(wantManual){var mb=manualZoneBounds();if(mb)return {method:"manual",bounds:mb,max:effMaxHR(),rest:restHR()};}
+  var mx=effMaxHR();if(mx==null)return null;
+  var rest=restHR();
+  /* Bounds stay unrounded: rounding them would move zone edges by a beat for
+     some athletes, which would silently change what counts as zone 2. */
+  if(rest!=null&&rest<mx){var res=mx-rest;
+    return {method:"hrr",max:mx,rest:rest,reserve:res,incomplete:wantManual,
+      bounds:ZONE_FRACTIONS.map(function(f){return rest+f*res;})};}
+  return {method:"pctmax",max:mx,rest:rest,incomplete:wantManual,
+    bounds:ZONE_FRACTIONS.map(function(f){return f*mx;})};}
+function zoneForHR(hr){var h=num(hr);if(h==null)return null;var m=zoneModel();if(!m)return null;
+  var z=1;for(var i=0;i<m.bounds.length;i++){if(h>=m.bounds[i])z=i+2;}return z;}
+function zoneBasisText(hr,m){
+  if(m.method==="manual")return "your own zone table";
+  if(m.method==="hrr")return Math.max(0,Math.round((hr-m.rest)/m.reserve*100))+"% of heart-rate reserve";
+  return Math.round(hr/m.max*100)+"% of max "+Math.round(m.max)+" bpm";}
+function zoneTableHTML(){var m=zoneModel();
+  if(!m)return "Add your age or max heart rate to place the zones.";
+  var b=m.bounds.map(function(x){return Math.round(x);});
+  var basis=m.method==="manual"?"Your own zone table."
+    :m.method==="hrr"?("Karvonen — heart-rate reserve of "+Math.round(m.reserve)+" bpm ("+Math.round(m.max)+" max − "+Math.round(m.rest)+" resting).")
+    :("Percent of max heart rate ("+Math.round(m.max)+" bpm). Add a resting heart rate above and these move to heart-rate reserve.");
+  var rows=[["Zone 1","under "+b[0]],["Zone 2",b[0]+"–"+(b[1]-1)],["Zone 3",b[1]+"–"+(b[2]-1)],
+            ["Zone 4",b[2]+"–"+(b[3]-1)],["Zone 5",b[3]+"+"]];
+  var h=(m.incomplete?'<b>Manual is on but the table is incomplete</b> — the four numbers must ascend. Showing the automatic zones until they do.<br>':'')+basis;
+  h+='<div style="display:grid;grid-template-columns:auto 1fr;gap:3px 14px;margin-top:8px">';
+  rows.forEach(function(r){h+='<span>'+r[0]+'</span><span style="font-family:'+"var(--mono)"+';color:var(--text)">'+r[1]+' bpm</span>';});
+  return h+'</div>';}
+function zoneAreaHTML(cf,pfx){pfx=pfx||"cf";var m=zoneModel();var hr=num(cf.hr);
+  if(m&&hr!=null){var z=zoneForHR(hr);return '<div class="wl-cf-label">Zone</div><div class="wl-hint">From your avg HR: <b>Zone '+z+'</b> ('+zoneBasisText(hr,m)+') — set automatically.</div>';}
+  var label=m?'Zone <em>enter avg HR above to auto-detect</em>':'Zone';
   return '<div class="wl-cf-label">'+label+'</div><div class="wl-seg wl-seg-wide">'+[1,2,3,4,5].map(function(z){return '<button class="'+(cf.zone===z?"on":"")+'" data-act="'+pfx+':zone" data-zone="'+z+'">'+z+'</button>';}).join("")+'</div>';}
 function weekTrainingStats(ws){var out={cardioSessions:0,cardioZ2Sessions:0,cardioMins:0,cardioZ2Mins:0,liftSessions:0,liftMins:0,totalMins:0};
   for(var i=0;i<7;i++){var iso=toISO(addDays(ws,i));
@@ -1807,6 +1848,15 @@ function view_settings(){
     h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Starting weight ('+u+')</span><input class="wl-num" type="text" inputmode="decimal" data-set="startingWeight" value="'+esc(f.startingWeight)+'" placeholder="—"></label><label class="wl-field"><span>Start date</span><input type="date" data-set="startDate" max="'+todayISO()+'" value="'+esc(f.startDate)+'"></label></div>';
     h+='<label class="wl-field wl-field-full" style="margin-top:12px"><span>Max heart rate <em>bpm, optional</em></span><input class="wl-num" data-int="1" type="text" inputmode="numeric" data-set="maxHR" value="'+esc(f.maxHR||"")+'" placeholder="'+(estMaxHR()!=null?estMaxHR():"e.g. 185")+'"></label>';
     h+='<div class="wl-hint">'+(estMaxHR()!=null?"Estimated ~"+estMaxHR()+" bpm from your age (208 − 0.7 × age).":"Add your age above to estimate this.")+' Auto-assigns cardio zones from avg HR.</div>';
+    h+='<label class="wl-field wl-field-full" style="margin-top:12px"><span>Resting heart rate <em>bpm, optional</em></span><input class="wl-num" data-int="1" type="text" inputmode="numeric" data-set="restingHR" value="'+esc(f.restingHR||"")+'" placeholder="e.g. 58"></label>';
+    h+='<div class="wl-hint">Taken lying still, before you get up. With a max and a resting heart rate the zones are placed by heart-rate reserve (Karvonen) — effort above rest, not above zero.</div>';
+    var zmManual=f.zoneMethod==="manual";
+    h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:16px 0 8px">Cardio zones</div>';
+    h+='<div class="wl-seg wl-seg-wide">'+[["auto","Automatic"],["manual","Manual"]].map(function(x){return '<button class="'+(zmManual===(x[0]==="manual")?"on":"")+'" data-act="set:zonemethod" data-zm="'+x[0]+'">'+x[1]+'</button>';}).join("")+'</div>';
+    if(zmManual){
+      h+='<div class="wl-hint" style="margin-top:8px">The lowest heart rate that counts as each zone. Read them off your watch or your test.</div>';
+      h+='<div class="wl-row" style="margin-top:8px">'+[2,3,4,5].map(function(z){return '<label class="wl-field"><span>Zone '+z+'</span><input class="wl-num" data-int="1" type="text" inputmode="numeric" data-set="zoneB'+z+'" value="'+esc(f["zoneB"+z]||"")+'" placeholder="bpm"></label>';}).join("")+'</div>';}
+    h+='<div class="wl-hint" id="wl-zoneread" style="margin-top:10px">'+zoneTableHTML()+'</div>';
     h+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:16px 0 8px">Weekly check-in day</div><div class="wl-daypick">'+WEEKDAYS.map(function(dn,i){return '<button class="wl-day'+((parseInt(f.weekStart,10)||0)===i?" on":"")+'" data-act="set:weekstart" data-day="'+i+'">'+dn+'</button>';}).join("")+'</div><div class="wl-hint">Your week runs '+DAYFULL[parseInt(f.weekStart,10)||0]+' through '+DAYFULL[((parseInt(f.weekStart,10)||0)+6)%7]+'.</div>';
     h+='</div>';}
   h+='</div>';

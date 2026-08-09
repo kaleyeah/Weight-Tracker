@@ -240,7 +240,7 @@ document.addEventListener("click",function(e){
   if(a==="wo:exnote"){var w=state.workout;var en=w&&w.entries[+el.getAttribute("data-ei")];if(!en)return;state.routineId=w.routineId;state.noteEdit={iid:en.itemId,nid:null,text:"",pinned:false,woEi:+el.getAttribute("data-ei")};state.exMenu=null;render();return;}
   if(a==="wo:hist"){var w=state.workout;var en=w&&w.entries[+el.getAttribute("data-ei")];if(en)openHistory(en.exerciseId,en.name);return;}
   if(a==="wo:histclose"){state.histView=null;render();return;}
-  if(a==="wo:savesession"){var w=state.workout;if(!w)return;var b=woBuckets();var ff=w.finishForm||{};var mxh=effMaxHR(),hrv=num(ff.hr);var zone=(hrv!=null&&mxh!=null)?zoneFromHR(hrv,mxh):(ff.zone||null);
+  if(a==="wo:savesession"){var w=state.workout;if(!w)return;var b=woBuckets();var ff=w.finishForm||{};var hrv=num(ff.hr);var zone=zoneForHR(hrv);if(zone==null)zone=(ff.zone||null);
     /* Persist the scheme the session was actually trained under, not just a single
        rep range. Reverse pyramid prescribes a different range per set, so dropping
        setRanges here left every report judging a 12-rep third set against 6-8.
@@ -298,7 +298,7 @@ document.addEventListener("click",function(e){
   if(a==="lf:zone"){if(state.liftForm)state.liftForm.zone=+el.getAttribute("data-zone");render();return;}
   if(a==="lift:cancel"){state.liftForm=null;state.view="rlaunch";render();return;}
   if(a==="lift:save"){var lf=state.liftForm;if(!lf)return;var mins=num(lf.mins);if(mins==null||mins<=0){toast("Enter a duration in minutes");return;}
-    var rt=getRoutine(lf.routineId);var d=lf.date||todayISO();var mxh=effMaxHR(),hrv=num(lf.hr);var zone=(hrv!=null&&mxh!=null)?zoneFromHR(hrv,mxh):(lf.zone||null);
+    var rt=getRoutine(lf.routineId);var d=lf.date||todayISO();var hrv=num(lf.hr);var zone=zoneForHR(hrv);if(zone==null)zone=(lf.zone||null);
     var sess={id:lf.id||("l-"+Date.now()+"-"+Math.random().toString(36).slice(2,6)),routineId:lf.routineId,name:(rt&&rt.name)||"Weight training",mode:"quick",mins:Math.round(mins),hr:num(lf.hr),hrMax:num(lf.hrMax),zone:zone,cal:num(lf.cal),rpe:num(lf.rpe),notes:(lf.notes||"").trim(),ts:Date.now()};
     state.training.liftSessions=state.training.liftSessions||{};var list=(state.training.liftSessions[d]||[]).slice();list.push(sess);state.training.liftSessions[d]=list;
     syncLiftTags(d);saveTraining();save();state.liftForm=null;state.view="train";toast("Workout logged");render();return;}
@@ -350,7 +350,7 @@ document.addEventListener("click",function(e){
   if(a==="cardio:save"){var cf=state.cardioForm;if(!cf)return;var mins=num(cf.mins);
     if(!cf.type){toast("Pick a cardio type");return;}if(mins==null||mins<=0){toast("Enter a duration in minutes");return;}
     var d=state.selDate;var list=((state.training.sessions[d])||[]).slice();
-    var mxh=effMaxHR(),hrv=num(cf.hr);var zone=(hrv!=null&&mxh!=null)?zoneFromHR(hrv,mxh):(cf.zone||null);
+    var hrv=num(cf.hr);var zone=zoneForHR(hrv);if(zone==null)zone=(cf.zone||null);
     var sess={id:cf.id||("c-"+Date.now()+"-"+Math.random().toString(36).slice(2,6)),kind:"cardio",type:cf.type,mins:Math.round(mins),zone:zone,rpe:num(cf.rpe),cal:num(cf.cal),hr:num(cf.hr),hrMax:num(cf.hrMax),notes:(cf.notes||"").trim(),ts:Date.now()};
     if(cf.id){for(var i=0;i<list.length;i++){if(list[i].id===cf.id){list[i]=sess;break;}}}else list.push(sess);
     state.training.sessions[d]=list;syncCardioTags(d);saveTraining();save();state.cardioForm=null;state.view="train";toast("Cardio logged");render();return;}
@@ -616,6 +616,12 @@ var lt=getLastSync();toast((syncLabel()||"Sync")+(lt?" \u00b7 "+fmtClock(lt):"")
     state.settings.units=nu;save();render();return;}
   if(a==="set:sex"){state.settings.sex=el.getAttribute("data-sex");save();render();return;}
   if(a==="set:weekstart"){state.settings.weekStart=el.getAttribute("data-day");save();render();return;}
+  if(a==="set:zonemethod"){var zm=el.getAttribute("data-zm")==="manual"?"manual":"auto";
+    /* Switching to Manual seeds the fields with the zones he already had, so
+       he edits four real numbers instead of facing four empty boxes. */
+    if(zm==="manual"&&!manualZoneBounds()){var zm0=zoneModel();
+      if(zm0)zm0.bounds.forEach(function(v,i){state.settings["zoneB"+(i+2)]=String(Math.round(v));});}
+    state.settings.zoneMethod=zm;save();render();return;}
   if(a==="macro:suggest"){state.settings.macroAuto=true;delete state.settings.macroDismiss;applyAutoMacros();save();render();return;}
   if(a==="macro:keep"){state.settings.macroDismiss=true;save();var mn=document.getElementById("wl-macronotice");if(mn)mn.innerHTML="";return;}
   if(a==="set:strategy"){var _ns=el.getAttribute("data-strat");state.settings.strategy=_ns;state.settings.targetValue=(_ns==="gain"?"0.5":_ns==="maintain"?"0":"1");if(!state.settings.targetType)state.settings.targetType="lbs_per_week";state.settings.calTargetAuto=true;state.settings.macroAuto=true;state.obMacrosDone=false;if(maintenanceCals()!=null)applyAutoMacros();save();render();return;}
@@ -757,12 +763,16 @@ function sanityWarn(el){
   else if(ds==="targetProtein"){if(v>400)toast("That protein target looks high \u2014 double-check.");}
   else if(ds==="cardioMinGoal"){if(v>1200)toast("That cardio goal looks high (minutes/week) \u2014 double-check.");}
   else if(ds==="maxHR"){if(v<120||v>230)toast("That max heart rate looks off ("+v+") \u2014 double-check.");}
+  else if(ds==="restingHR"){var _mx=effMaxHR();
+    if(v<30||v>110)toast("That resting heart rate looks off ("+v+") \u2014 double-check.");
+    else if(_mx!=null&&v>=_mx)toast("Resting heart rate is at or above your max ("+Math.round(_mx)+") \u2014 zones stay on percent of max until that is fixed.");}
+  else if(/^zoneB[2-5]$/.test(ds)){if(v<60||v>230)toast("That zone boundary looks off ("+v+" bpm) \u2014 double-check.");}
 }
 
 document.addEventListener("change",function(e){var el=e.target;sanityWarn(el);
   if(el.classList&&el.classList.contains("wl-status-start")){state.statusForm=state.statusForm||{};state.statusForm.start=el.value;return;}
   if(el.classList&&el.classList.contains("wl-status-end")){state.statusForm=state.statusForm||{};state.statusForm.end=el.value;return;}
-  if(el&&el.hasAttribute&&el.hasAttribute("data-set")){state.settings[el.getAttribute("data-set")]=el.value;save();var ce=document.getElementById("wl-calread");if(ce)ce.innerHTML=calSummaryHTML();var mp=document.getElementById("wl-macropct");if(mp)mp.innerHTML=macroPctHTML();}
+  if(el&&el.hasAttribute&&el.hasAttribute("data-set")){state.settings[el.getAttribute("data-set")]=el.value;save();var ce=document.getElementById("wl-calread");if(ce)ce.innerHTML=calSummaryHTML();var mp=document.getElementById("wl-macropct");if(mp)mp.innerHTML=macroPctHTML();var ze=document.getElementById("wl-zoneread");if(ze)ze.innerHTML=zoneTableHTML();}
 });
 document.getElementById("wl-import").addEventListener("change",function(e){
   var file=e.target.files[0];if(!file)return;var rd=new FileReader();
