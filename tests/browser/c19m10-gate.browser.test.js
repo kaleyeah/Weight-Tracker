@@ -152,9 +152,12 @@ function softSeed(uid){
        invite:join and sync:pasteapply were REMOVED from the app entirely
        (zero references in the artifact), so they cannot be gated. Verified
        2026-08-07 by diffing the inventory against the Aug 4 artifact this
-       suite used to load by default. */
-    test('T1 gate inventory loaded (128 actions; boot-recovery + read-only viewing deliberately excluded)',()=>{
-      eq(s.gated,128);ok(s.hasCore);ok(s.hasDeferred);ok(s.pureNotGated);
+       suite used to load by default.
+       129 since 2026-08-10: exp:go added (build 476). The export buttons now
+       ask CSV-or-HTML first; the original sum:export* acts open the chooser
+       and exp:go performs the share, so it needs the same gating they had. */
+    test('T1 gate inventory loaded (129 actions; boot-recovery + read-only viewing deliberately excluded)',()=>{
+      eq(s.gated,129);ok(s.hasCore);ok(s.hasDeferred);ok(s.pureNotGated);
       ok(s.hasFeelCi,'rat:set / ci:send / ci:skipyes / ci:unskip all persist and must be gated');
       ok(s.ciViewOpen,'opening, closing and the skip prompt persist nothing and stay open');
       ok(s.photoViewOpen,'read-only photo viewing stays open (STRICT allows reading)');
