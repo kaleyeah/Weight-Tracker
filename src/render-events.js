@@ -84,7 +84,7 @@ document.addEventListener("click",function(e){
   if(a==="glp:sheetclose"){state.glpSheet=null;render();return;}
   if(a==="glp:prog:mode"){state.glpProgMode=el.getAttribute("data-mode");render();return;}
   if(a==="glp:timeline"){if(!glpProgEnabled())return;state.view="glptimeline";render();return;}
-  if(a==="go"){var _gv=el.getAttribute("data-view");if(_gv==="exlib"&&state.view!=="exlib")state.exlibFrom=state.view;if(_gv==="settings"){if(state.view==="settings"){_gv=state.setFrom||"overview";}else{state.setFrom=state.view;state.setPage=null;}}state.view=_gv;if(state.view==="diary")state.diaryWeeks=1;if(state.view==="settings"){state.open={};state.manageOpen=false;}state.alertDismissed=false;state.confirmReset=false;state.pasteOpen=false;state.syncPasteOpen=false;state.inviteCode=null;state.joinOpen=false;render();return;}
+  if(a==="go"){var _gv=el.getAttribute("data-view");if(_gv==="exlib"&&state.view!=="exlib")state.exlibFrom=state.view;if(_gv==="settings"){if(state.view==="settings"){_gv=state.setFrom||"overview";}else{state.setFrom=state.view;state.setPage=null;}}state.view=_gv;if(state.view==="diary")state.diaryWeeks=1;if(state.view==="settings"){state.open={};state.manageOpen=false;}state.alertDismissed=false;state.confirmReset=false;state.exportAsk=null;state.pasteOpen=false;state.syncPasteOpen=false;state.inviteCode=null;state.joinOpen=false;render();return;}
   if(a==="confirm:yes"){var pc=state.pendingConfirm;state.pendingConfirm=null;if(pc&&pc.fn)pc.fn();render();return;}
   if(a==="confirm:no"){state.pendingConfirm=null;render();return;}
   if(a==="alert:dismiss"){state.alertDismissed=true;render();return;}
@@ -651,13 +651,22 @@ var lt=getLastSync();toast((syncLabel()||"Sync")+(lt?" \u00b7 "+fmtClock(lt):"")
   if(a==="sync:paste"){state.syncPasteOpen=!state.syncPasteOpen;render();return;}
   if(a==="sync:pastecancel"){state.syncPasteOpen=false;render();return;}
   if(a==="app:update"){updateApp();return;}
-  if(a==="sum:tocur"){state.weekOffset=0;render();return;}
-  if(a==="sum:prev"){state.weekOffset--;render();return;}
-  if(a==="sum:next"){if(state.weekOffset<0){state.weekOffset++;render();}return;}
+  /* changing the displayed week closes an open format chooser — the export
+     must be for the week that was on screen when Export was tapped */
+  if(a==="sum:tocur"){state.weekOffset=0;state.exportAsk=null;render();return;}
+  if(a==="sum:prev"){state.weekOffset--;state.exportAsk=null;render();return;}
+  if(a==="sum:next"){if(state.weekOffset<0){state.weekOffset++;state.exportAsk=null;render();}return;}
   if(a==="sum:day"){var sdd=el.getAttribute("data-date");state.selDate=sdd;var sp=parseISO(sdd);state.calY=sp.getFullYear();state.calM=sp.getMonth();state.view="overview";render();return;}
-  if(a==="sum:exportweek"){exportWeekFiles();return;}
-  if(a==="sum:coachreport"){srExport();return;}
-  if(a==="sum:exportall"){exportAllFiles();return;}
+  /* Exports ask first (Owner, 2026-08-10). The original act names open the
+     chooser — keeping them means the M10 gate refuses the same first tap it
+     always did — and exp:go (also gated) does the actual build-and-share. */
+  if(a==="sum:exportweek"){state.exportAsk=(state.exportAsk==="week")?null:"week";render();return;}
+  if(a==="sum:coachreport"){state.exportAsk=(state.exportAsk==="coach")?null:"coach";render();return;}
+  if(a==="sum:exportall"){state.exportAsk=(state.exportAsk==="all")?null:"all";render();return;}
+  if(a==="exp:cancel"){state.exportAsk=null;render();return;}
+  if(a==="exp:go"){var _ek=el.getAttribute("data-kind"),_ef=el.getAttribute("data-fmt");state.exportAsk=null;
+    if(_ek==="week")exportWeekFiles(_ef);else if(_ek==="coach")srExport(_ef);else if(_ek==="all")exportAllFiles(_ef);
+    render();return;}
   if(a==="reset:ask"){state.confirmReset=true;render();return;}
   if(a==="reset:cancel"){state.confirmReset=false;render();return;}
   if(a==="reset:do"){state.settings=Object.assign({},DEFAULT_SETTINGS);state.weights=[];state.food={};state.workouts={};state.steps={};state.notes={};state.sleep={};state.bodyfat={};state.waist={};state.leanmass={};state.weeklySummary=null;state.nightlySummary=null;state.nightlyLog={};state.presets=DEFAULT_PRESETS.slice();state.confirmReset=false;state.view="overview";idbClearAll();save();render();toast("All data erased");return;}

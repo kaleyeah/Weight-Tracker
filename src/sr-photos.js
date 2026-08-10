@@ -268,18 +268,20 @@ function srPhotoInput(offset){
   }).map(function(ps){return ps[1].toLowerCase();});
   if(missing.length)cap.push(missing.join(", ")+" not taken this week");
   return {count:count,slots:slots,empty:false,caption:cap.join(" · ")};}
-/* one tap: build the displayed week's report and hand it straight to the share sheet */
-function srExport(){
-  /* Coach export = the report AND the week's CSV in one share sheet — the CSV's
-     Cardio / Weight Training / Activity Notes columns exist for the coach too.
-     Everything here is synchronous on purpose (see the prefetch note above). */
+/* build the displayed week's report and hand it to the share sheet; fmt is
+   "csv" or "html" (Owner, 2026-08-10: the button asks first), no fmt = both */
+function srExport(fmt){
+  /* Everything here is synchronous on purpose (see the prefetch note above). */
   var files;
   try{
     var off=state.weekOffset||0;var base=toISO(weekStartFor(off));
-    files=[{name:"progress-report-"+base+".html",
-      mime:"text/html;charset=utf-8",text:srReportHTML(srInput(off))},
-      {name:"weight-summary-"+base+".csv",
-      mime:"text/csv",text:csvFor(weekDays(off).map(dayRow),"Weekly")}];
+    files=[];
+    if(fmt!=="csv")files.push({name:"progress-report-"+base+".html",
+      mime:"text/html;charset=utf-8",text:srReportHTML(srInput(off))});
+    /* the CSV's Cardio / Weight Training / Activity Notes columns exist for
+       the coach too */
+    if(fmt!=="html")files.push({name:"weight-summary-"+base+".csv",
+      mime:"text/csv",text:csvFor(weekDays(off).map(dayRow),"Weekly")});
   }catch(e){toast("Couldn’t build the report");return;}
   shareOrDownloadMulti(files);}
 

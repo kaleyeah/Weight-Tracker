@@ -90,7 +90,9 @@ function srBodyCompHTML(inp){
     var chg;
     if(r.chg!=null&&r.chg!==0){
       var good=r.goodUp?(r.chg>0):(r.chg<0);
-      chg='<span class="bc-chg '+(good?"good":"bad")+'">'+(r.chg>0?"&#8593;":"&#8595;")+' '+srR1(Math.abs(r.chg))+'</span>';
+      /* the unit rides on the change too (Owner, 2026-08-10: "Is it percent?
+         There's no label") — ↓ 1.8 alone made lbs look like it might be % */
+      chg='<span class="bc-chg '+(good?"good":"bad")+'">'+(r.chg>0?"&#8593;":"&#8595;")+' '+srR1(Math.abs(r.chg))+' '+srEsc(r.unit)+'</span>';
     }else if(r.chg===0)chg='<span class="bc-chg flat">&mdash;</span>';
     /* an empty cell, never an absent one: the column must hold its width or the
        rows below stop lining up (Owner, 2026-08-03) */

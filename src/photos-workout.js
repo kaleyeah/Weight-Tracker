@@ -1940,7 +1940,7 @@ function view_settings(){
   h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="theme"><span>Appearance</span><span class="wl-chevron'+(op.theme?" open":"")+'">›</span></button>'+(op.theme?('<div class="wl-collapse-body"><div class="wl-theme-grid">'+themeGrid()+'</div></div>'):'')+'</div>';
   }
   if(pg==="data"){
-  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="exportdata"><span>Export data</span><span class="wl-chevron'+(op.exportdata?" open":"")+'">›</span></button>'+(op.exportdata?('<div class="wl-collapse-body"><button class="wl-btn wl-btn-primary wl-full" data-act="sum:exportall">Export all data</button><div class="wl-hint" style="margin-top:8px">Two files: a readable progress report covering your full history, plus the CSV — every logged metric, training, and notes.</div></div>'):'')+'</div>';
+  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="exportdata"><span>Export data</span><span class="wl-chevron'+(op.exportdata?" open":"")+'">›</span></button>'+(op.exportdata?('<div class="wl-collapse-body">'+expBtnHTML("all","primary","Export all data",'Your full history. CSV is the data — every logged metric, training, and notes. HTML is a readable report.',true)+'</div>'):'')+'</div>';
   }
   var sc=syncCfg();
   if(pg==="sync"){

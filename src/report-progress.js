@@ -442,20 +442,25 @@ function repHTML(days,opts){
   h+=repGlanceHTML(m)+'\n'+repWeightHTML(m)+'\n'+repNutritionHTML(m)+'\n'+repTrainingHTML(m)+'\n'+repDaysHTML(m)+'\n';
   h+=repCloseHTML(m)+'\n'+repFootHTML(m)+'\n</div>\n</body>\n</html>\n';
   return h;}
-/* Both export buttons now emit TWO files: the machine-readable CSV (unchanged) and
-   a human-readable standalone HTML report. The CSV is the archive; the report is
-   the thing you actually read on your phone. */
-function exportWeekFiles(){var days=weekDays(state.weekOffset).map(dayRow);var ws=weekStartFor(state.weekOffset);var base="weight-summary-"+toISO(ws);
-  shareOrDownloadMulti([{name:base+".csv",mime:"text/csv",text:csvFor(days,"Weekly")},
-    {name:base+".html",mime:"text/html;charset=utf-8",text:repHTML(days,{mode:"week",weekOffset:state.weekOffset,ws:ws})}]);}
-function exportAllFiles(){var set={};state.weights.forEach(function(x){set[x.date]=1;});Object.keys(state.food).forEach(function(k){set[k]=1;});Object.keys(state.steps).forEach(function(k){set[k]=1;});Object.keys(state.sleep).forEach(function(k){set[k]=1;});Object.keys(state.workouts).forEach(function(k){set[k]=1;});
+/* Every export button now ASKS which format first (Owner, 2026-08-10: "When I
+   export ask me if I want csv or html") — fmt is "csv" or "html" and exactly
+   one file is built and shared. Omitting fmt keeps the old both-files bundle,
+   so any caller without an opinion still gets what it always got. */
+function exportWeekFiles(fmt){var days=weekDays(state.weekOffset).map(dayRow);var ws=weekStartFor(state.weekOffset);var base="weight-summary-"+toISO(ws);
+  var files=[];
+  if(fmt!=="html")files.push({name:base+".csv",mime:"text/csv",text:csvFor(days,"Weekly")});
+  if(fmt!=="csv")files.push({name:base+".html",mime:"text/html;charset=utf-8",text:repHTML(days,{mode:"week",weekOffset:state.weekOffset,ws:ws})});
+  shareOrDownloadMulti(files);}
+function exportAllFiles(fmt){var set={};state.weights.forEach(function(x){set[x.date]=1;});Object.keys(state.food).forEach(function(k){set[k]=1;});Object.keys(state.steps).forEach(function(k){set[k]=1;});Object.keys(state.sleep).forEach(function(k){set[k]=1;});Object.keys(state.workouts).forEach(function(k){set[k]=1;});
   /* training-only days must appear too, now that cardio/lifting are exported */
   Object.keys(((state.training||{}).sessions)||{}).forEach(function(k){set[k]=1;});Object.keys(((state.training||{}).liftSessions)||{}).forEach(function(k){set[k]=1;});
   var days=Object.keys(set).sort().map(function(iso){return dayRow(parseISO(iso));});
   if(!days.length){toast("No data to export");return;}
   var base="weight-history-"+todayISO();
-  shareOrDownloadMulti([{name:base+".csv",mime:"text/csv",text:csvFor(days,"Period")},
-    {name:base+".html",mime:"text/html;charset=utf-8",text:repHTML(days,{mode:"all"})}]);}
+  var files=[];
+  if(fmt!=="html")files.push({name:base+".csv",mime:"text/csv",text:csvFor(days,"Period")});
+  if(fmt!=="csv")files.push({name:base+".html",mime:"text/html;charset=utf-8",text:repHTML(days,{mode:"all"})});
+  shareOrDownloadMulti(files);}
 /* One share sheet for the WHOLE bundle. iOS grants navigator.share exactly one call
    per user gesture, so calling it once per file silently drops everything after the
    first; passing both files to a single share is the only reliable sequencing. */

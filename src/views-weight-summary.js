@@ -485,10 +485,31 @@ function view_summary(){
       cl(mv(ff,function(v){return v;}),(tFat!=null&&ff!=null)?((ff>tFat&&calOverD)?"bad":"good"):"")+
       cl(mv(cc,function(v){return v;}),(tCarb!=null&&cc!=null)?((cc>tCarb&&calOverD)?"bad":"good"):"")+
       '</tr>';});
-  h+='</tbody></table><button class="wl-btn wl-btn-primary wl-full" style="margin-top:14px" data-act="sum:exportweek">Export this week</button><div class="wl-hint" style="margin-top:8px">Two files: a readable progress report you can open on your phone, plus the CSV — every logged metric, training, and notes.</div>';
-  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:14px" data-act="sum:coachreport">Export progress report</button><div class="wl-hint" style="margin-top:8px">Your whole week in one file — photos, summary, and every workout — plus the CSV, in one share. It stays with you; the coach never receives your photos.</div></div>';
+  h+='</tbody></table>'+expBtnHTML("week","primary","Export this week",
+    'CSV is the data — every logged metric, training, and notes. HTML is a readable report you can open on your phone.');
+  h+=expBtnHTML("coach","ghost","Export progress report",
+    'Your whole week in one file — photos, summary, and every workout — or the same week as CSV data. It stays with you; the coach never receives your photos.')+'</div>';
   h+='<div class="wl-card"><button class="wl-btn wl-btn-primary wl-full" data-act="go" data-view="diary">'+I.camera+'Food Diary</button><div class="wl-hint" style="margin-top:8px">A visual collage of your meal photos by day, with each day\u2019s calories and macros.</div></div>';
   return h+'</div>';}
+/* Export buttons ask CSV-or-HTML in place before building anything (Owner,
+   2026-08-10: "When I export ask me if I want csv or html") — the same
+   swap-in-place idiom as the Erase confirm, no overlay. The chooser's tap is
+   a fresh user gesture, so the iOS one-share-per-gesture rule stays satisfied.
+   The ask keeps the ORIGINAL gated action names (sum:exportweek etc.), so a
+   device the M10 gate refuses is refused at the same tap it always was. */
+var EXP_ASK_ACT={week:"sum:exportweek",coach:"sum:coachreport",all:"sum:exportall"};
+function expBtnHTML(kind,style,label,hint,tight){
+  var h,mt=tight?"0":"14px";
+  if(state.exportAsk===kind){
+    h='<div class="wl-hint" style="margin-top:'+mt+'"><b>'+label+'</b> — which format?</div>'+
+      '<div class="wl-row" style="margin-top:8px"><button class="wl-btn wl-btn-primary wl-full" data-act="exp:go" data-fmt="html" data-kind="'+kind+'">HTML report</button>'+
+      '<button class="wl-btn wl-btn-primary wl-full" data-act="exp:go" data-fmt="csv" data-kind="'+kind+'">CSV data</button></div>'+
+      '<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="exp:cancel">Cancel</button>';
+  }else{
+    h='<button class="wl-btn wl-btn-'+style+' wl-full" style="margin-top:'+mt+'" data-act="'+EXP_ASK_ACT[kind]+'">'+label+'</button>';
+  }
+  return h+'<div class="wl-hint" style="margin-top:8px">'+hint+'</div>';
+}
 function csvCell(v){v=(v==null?"":String(v));return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
 function mdyy(iso){var d=parseISO(iso);return (d.getMonth()+1)+"/"+d.getDate()+"/"+String(d.getFullYear()).slice(-2);}
 /* A second block a few lines below the daily rows: macro totals vs goals over the SAME
