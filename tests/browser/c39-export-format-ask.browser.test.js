@@ -58,7 +58,7 @@ const eq=(a,b,m)=>{if(a!==b)throw new Error((m||'eq')+': '+JSON.stringify(a)+' !
 
   await run(()=>{
     window.__shared=[];
-    window.shareOrDownloadMulti=function(list){window.__shared.push(list.map(f=>({name:f.name,mime:f.mime,len:(f.text||'').length})));};
+    window.shareOrDownloadMulti=function(list){window.__shared.push(list.map(f=>({name:f.name,mime:f.mime,len:(f.text||'').length,head:(f.text||'').slice(0,400)})));};
   });
 
   /* ---- Summary: Export this week ---------------------------------------- */
@@ -94,10 +94,13 @@ const eq=(a,b,m)=>{if(a!==b)throw new Error((m||'eq')+': '+JSON.stringify(a)+' !
     document.querySelector('[data-act="exp:go"][data-fmt="html"][data-kind="week"]').click();
     return window.__shared.slice();
   });
-  test('choosing HTML shares exactly one HTML file',()=>{
+  test('choosing HTML shares exactly one HTML file — and it IS the progress report',()=>{
     eq(htmlPick.length,1,'share calls');eq(htmlPick[0].length,1,'files');
-    ok(/\.html$/.test(htmlPick[0][0].name),htmlPick[0][0].name);
+    /* Owner, 2026-08-10: the week's HTML is the progress report, not the old
+       repHTML week document. Pinned by filename AND by the document's title. */
+    ok(/^progress-report-.*\.html$/.test(htmlPick[0][0].name),htmlPick[0][0].name);
     ok(/^text\/html/.test(htmlPick[0][0].mime),htmlPick[0][0].mime);
+    ok(/Compound — Progress report/.test(htmlPick[0][0].head),'document head was: '+htmlPick[0][0].head.slice(0,120));
   });
 
   /* ---- Summary: Export progress report ----------------------------------- */

@@ -449,7 +449,14 @@ function repHTML(days,opts){
 function exportWeekFiles(fmt){var days=weekDays(state.weekOffset).map(dayRow);var ws=weekStartFor(state.weekOffset);var base="weight-summary-"+toISO(ws);
   var files=[];
   if(fmt!=="html")files.push({name:base+".csv",mime:"text/csv",text:csvFor(days,"Weekly")});
-  if(fmt!=="csv")files.push({name:base+".html",mime:"text/html;charset=utf-8",text:repHTML(days,{mode:"week",weekOffset:state.weekOffset,ws:ws})});
+  /* The HTML for a week is THE progress report (Owner, 2026-08-10: "It's
+     supposed to be the progress report HTML and what you gave me was an old
+     one") — srReportHTML, the same document the Export-progress-report button
+     builds. The older repHTML week document no longer ships from here; repHTML
+     itself stays for the full-history export, which is a different document. */
+  if(fmt!=="csv"){
+    var rep;try{rep=srReportHTML(srInput(state.weekOffset));}catch(e){toast("Couldn’t build the report");return;}
+    files.push({name:"progress-report-"+toISO(ws)+".html",mime:"text/html;charset=utf-8",text:rep});}
   shareOrDownloadMulti(files);}
 function exportAllFiles(fmt){var set={};state.weights.forEach(function(x){set[x.date]=1;});Object.keys(state.food).forEach(function(k){set[k]=1;});Object.keys(state.steps).forEach(function(k){set[k]=1;});Object.keys(state.sleep).forEach(function(k){set[k]=1;});Object.keys(state.workouts).forEach(function(k){set[k]=1;});
   /* training-only days must appear too, now that cardio/lifting are exported */

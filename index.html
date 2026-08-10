@@ -1051,7 +1051,7 @@ input[type=range][data-pfadj]{width:100%;accent-color:var(--accent);min-height:2
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-10.476-export-format-ask";
+var APP_BUILD="2026-08-10.477-week-html-is-the-report";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -4889,7 +4889,14 @@ function repHTML(days,opts){
 function exportWeekFiles(fmt){var days=weekDays(state.weekOffset).map(dayRow);var ws=weekStartFor(state.weekOffset);var base="weight-summary-"+toISO(ws);
   var files=[];
   if(fmt!=="html")files.push({name:base+".csv",mime:"text/csv",text:csvFor(days,"Weekly")});
-  if(fmt!=="csv")files.push({name:base+".html",mime:"text/html;charset=utf-8",text:repHTML(days,{mode:"week",weekOffset:state.weekOffset,ws:ws})});
+  /* The HTML for a week is THE progress report (Owner, 2026-08-10: "It's
+     supposed to be the progress report HTML and what you gave me was an old
+     one") — srReportHTML, the same document the Export-progress-report button
+     builds. The older repHTML week document no longer ships from here; repHTML
+     itself stays for the full-history export, which is a different document. */
+  if(fmt!=="csv"){
+    var rep;try{rep=srReportHTML(srInput(state.weekOffset));}catch(e){toast("Couldn’t build the report");return;}
+    files.push({name:"progress-report-"+toISO(ws)+".html",mime:"text/html;charset=utf-8",text:rep});}
   shareOrDownloadMulti(files);}
 function exportAllFiles(fmt){var set={};state.weights.forEach(function(x){set[x.date]=1;});Object.keys(state.food).forEach(function(k){set[k]=1;});Object.keys(state.steps).forEach(function(k){set[k]=1;});Object.keys(state.sleep).forEach(function(k){set[k]=1;});Object.keys(state.workouts).forEach(function(k){set[k]=1;});
   /* training-only days must appear too, now that cardio/lifting are exported */
