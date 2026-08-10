@@ -107,8 +107,9 @@ function srBodyCompHTML(inp){
 function srLbmHTML(inp){
   var L=inp.lbm;if(!L||!L.series.length)return "";
   var u=srEsc(inp.units);
+  var win=L.win||{points:[]};
   var h='<div class="wl-card"><div class="wl-card-head"><span>Lean body mass</span>'+
-    '<span class="wl-count">'+L.series.length+' reading'+(L.series.length===1?'':'s')+'</span></div>';
+    '<span class="wl-count">'+win.points.length+' reading'+(win.points.length===1?'':'s')+' this week</span></div>';
   if(L.cur.avg!=null){
     var chg="";
     if(L.chg!=null&&L.chg!==0)chg=' <span class="bc-chg '+(L.chg>0?"good":"bad")+'">'+(L.chg>0?"&#8593;":"&#8595;")+' '+srR1(Math.abs(L.chg))+' '+u+' vs last week</span>';
@@ -116,11 +117,14 @@ function srLbmHTML(inp){
     h+='<div class="bc-row"><span class="bc-k">This week avg</span><span class="bc-v">'+srR1(L.cur.avg)+'<em> '+u+'</em></span>'+chg+'<span class="bc-d">'+L.cur.n+' reading'+(L.cur.n===1?'':'s')+(L.cur.derived?' ('+L.cur.derived+' calculated)':'')+'</span></div>';
     if(L.prev.avg!=null)h+='<div class="bc-row"><span class="bc-k">Last week avg</span><span class="bc-v">'+srR1(L.prev.avg)+'<em> '+u+'</em></span><span class="bc-chg"></span><span class="bc-d">'+L.prev.n+' reading'+(L.prev.n===1?'':'s')+'</span></div>';
   }else h+='<div class="wl-hint">No lean-mass readings this week yet.</div>';
-  var first=L.series[0].date,last=L.series[L.series.length-1].date;
-  h+='<div class="spark">'+tcChartSVG({mode:"M",startISO:first,endISO:last,
-    points:L.series,avg:null,dec:1,unit:inp.units,
-    colors:{axis:"#5A6474",grid:"#252D3A",line:"#F5B944",accent:"#F5B944",fill:"rgba(245,181,68,0.08)",pointFill:"#10151E"},
-    ariaLabel:"Lean body mass history"})+'</div>';
+  /* W mode, so the axis is labelled by day like the app's own weekly chart.
+     One reading draws a lone point and no line — that is the honest picture of
+     a week with one measurement, and it is not padded out with earlier days. */
+  if(win.points.length)
+    h+='<div class="spark">'+tcChartSVG({mode:"W",startISO:win.startISO,endISO:win.endISO,
+      points:win.points,avg:null,dec:1,unit:inp.units,
+      colors:{axis:"#5A6474",grid:"#252D3A",line:"#F5B944",accent:"#F5B944",fill:"rgba(245,181,68,0.08)",pointFill:"#10151E"},
+      ariaLabel:"Lean body mass, "+(inp.range||"this week")})+'</div>';
   h+='<div class="wl-hint">Held or rising lean mass while weight falls means the loss is FAT and muscle is being kept — the whole point. Calculated readings come from that day\u2019s weight and body-fat pair; scale readings are used as logged.</div>';
   return h+'</div>';}
 
@@ -136,6 +140,37 @@ function srHeroHTML(inp){
   h+='</div>';
   if(he.prev!=null)h+='<div class="wl-hero-sub">vs last week&rsquo;s average of '+srR1(he.prev)+' '+u+'</div>';
   else h+='<div class="wl-hero-sub">no weigh-ins last week to compare</div>';
+  return h+'</div>';}
+/* The week's weight chart, drawn by the SAME tcChartSVG in the SAME W-mode
+   dress as the Progress tab (blue line, open day-labelled points) — the report
+   never gets its own chart dialect. Colors are the dark-theme CH tokens,
+   hard-coded because the exported document has no THEMES to read. */
+function srWeightChartHTML(inp){
+  var W=inp.weightChart;if(!W||!W.points.length)return "";
+  var h='<div class="wl-card"><div class="wl-card-head"><span>Weight</span>'+
+    '<span class="wl-count">'+srInt(W.points.length)+' weigh-in'+(W.points.length===1?'':'s')+'</span></div>';
+  h+='<div class="spark">'+tcChartSVG({mode:"W",startISO:W.startISO,endISO:W.endISO,
+    points:W.points,avg:null,dec:1,unit:inp.units,
+    colors:{axis:"#5A6474",grid:"#252D3A",line:"#7C93F5",accent:"#7C93F5",fill:"rgba(124,147,245,0.10)",pointFill:"#10151E"},
+    ariaLabel:"Weight, "+(inp.range||"this week")})+'</div>';
+  return h+'</div>';}
+/* The How-you've-felt grid, carried over from the Progress tab so the coach
+   reads the same picture the athlete does: six strands down, the week across,
+   5 best and 1 worst. An unanswered day is a dash, never a low score. */
+function srFeelHTML(inp){
+  var F=inp.feel;if(!F||!F.rows.length)return "";
+  var h='<div class="wl-card"><div class="wl-card-head"><span>How the week felt</span>'+
+    '<span class="wl-count">'+srInt(F.answered)+' of '+srInt(F.of)+' days answered</span></div>';
+  h+='<div class="fgrid"><span></span><div class="fdow">'+
+    F.dow.map(function(d){return '<span>'+srEsc(d)+'</span>';}).join("")+'</div>';
+  F.rows.forEach(function(r){
+    var cells='';
+    r.cells.forEach(function(c){
+      cells+=(c.g==null)
+        ? '<div class="fcell na">&ndash;</div>'
+        : '<div class="fcell" style="background:'+srEsc(c.color)+'" title="'+srEsc(c.label||"")+'">'+c.g+'</div>';});
+    h+='<span class="fk">'+srEsc(r.label)+'</span><div class="fcells">'+cells+'</div>';});
+  h+='</div><div class="wl-hint">5 is best, 1 is worst. &ldquo;&ndash;&rdquo; means the day wasn&rsquo;t answered &mdash; a gap is never read as a bad day.</div>';
   return h+'</div>';}
 function srChipsHTML(inp){
   var h='<div class="wl-card"><div class="wl-card-head"><span>Completed Check-ins</span></div><div class="wl-cichips">';
@@ -305,6 +340,13 @@ var SRCSS=[
 ".wl-byday-grid td.warn{color:var(--accent)}",
 ".wl-byday-grid td.bad{color:var(--bad)}",
 ".mut{color:var(--faint)}",
+".fgrid{display:grid;grid-template-columns:74px 1fr;gap:6px 8px;align-items:center}",
+".fgrid .fk{font-size:11.5px;font-weight:700;color:var(--muted)}",
+".fdow{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}",
+".fdow span{text-align:center;font-size:9.5px;font-weight:700;color:var(--faint);letter-spacing:.4px}",
+".fcells{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}",
+".fcell{height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;font-weight:800;color:#0F1218}",
+".fcell.na{background:var(--bg2);color:var(--faint);font-weight:600}",
 ".sess-meta{font-size:12.5px;color:var(--muted);margin:-6px 0 4px;font-family:var(--mono);font-variant-numeric:tabular-nums}",
 ".ex{margin-top:14px}",
 ".ex:first-of-type{margin-top:8px}",
@@ -348,9 +390,11 @@ function srReportHTML(inp){
     '</div></div>\n';
   h+=srPhotosHTML(inp.photos)+"\n";
   h+=srHeroHTML(inp)+"\n";
+  h+=srWeightChartHTML(inp)+"\n";
   h+=srBodyCompHTML(inp)+"\n";
   h+=srLbmHTML(inp)+"\n";
   h+=srChipsHTML(inp)+"\n";
+  h+=srFeelHTML(inp)+"\n";
   h+=srTotalsHTML(inp)+"\n";
   h+=srMacrosHTML(inp)+"\n";
   h+=srAvgsHTML(inp)+"\n";

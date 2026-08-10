@@ -81,6 +81,8 @@ function srInput(offset){
     macros:{note:((_elapsed>0&&_elapsed<7)?(_elapsed+" of 7 days so far"):"7 of 7 days"),rows:macRows},
     averages:averages,activity:activity,
     daily:{label:fmtShort(M.ws)+" – "+fmtShort(M.we),rows:dailyRows},
+    weightChart:srWeightInput(offset),
+    feel:srFeelInput(offset),
     bodycomp:srBodyCompInput(offset),
     lbm:srLbmInput(offset),
     cardio:srCardioInput(offset),
@@ -106,8 +108,46 @@ function srLbmInput(offset){
     return {n:pts.length,derived:pts.filter(function(o){return o.derived;}).length,
       avg:pts.length?sum/pts.length:null};};
   var cur=wk(offset),prev=wk(offset-1);
-  return {series:series,cur:cur,prev:prev,
+  /* The chart is windowed to the SAME week as the rest of the report (Owner,
+     2026-08-10). It used to span the whole series, so a report exported for a
+     past week drew a line running through days that week never contained —
+     the one card in the document that disagreed with its own header. */
+  var ds=weekDays(offset).map(function(d){return toISO(d);});
+  var win={startISO:ds[0],endISO:ds[ds.length-1],
+    points:series.filter(function(o){return o.date>=ds[0]&&o.date<=ds[ds.length-1];})};
+  return {series:series,win:win,cur:cur,prev:prev,
     chg:(cur.avg!=null&&prev.avg!=null)?Math.round((cur.avg-prev.avg)*10)/10:null};}
+/* The week's WEIGHT chart (Owner, 2026-08-10: "Show last week weight chart of
+   Monday through Sunday. Just like it looks on the app. But with M-Sunday
+   range."). Same renderer, same W-mode look as the Progress tab's weekly
+   weight chart — the only difference is the axis: the app's W is a rolling
+   7 days ending today; the report's is the check-in week it covers. */
+function srWeightInput(offset){
+  var ds=weekDays(offset).map(function(d){return toISO(d);});
+  var pts=(state.weights||[]).map(function(x){return {date:x.date,value:num(x.weight)};})
+    .filter(function(o){return o.value!=null&&o.date>=ds[0]&&o.date<=ds[6];})
+    .sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:0;});
+  return {startISO:ds[0],endISO:ds[6],points:pts};}
+/* How the week FELT, day by day (Owner, 2026-08-10: "I also want the chart
+   showing how I feel on there"). Same grid the Progress tab draws, scored by
+   the same ratGood/feelColor rules, but pinned to the report's week instead of
+   the current one so an exported past week shows the days it actually covers.
+   A day the athlete did not answer stays blank — never read as a bad day. */
+function srFeelInput(offset){
+  var days=weekDays(offset).map(function(d){return toISO(d);});
+  var today=todayISO(),answered=0,any=false;
+  var rows=RATINGS.map(function(q){
+    var cells=days.map(function(iso){
+      var g=(iso<=today)?feelGoodOn(q[0],iso):null;
+      if(g!=null)any=true;
+      return {g:g,color:(g!=null?feelColor(g):null),
+        label:(g!=null?ratLabel(q[0],ratFor(iso)[q[0]]):null),future:iso>today};});
+    return {key:q[0],label:q[1],cells:cells};});
+  days.forEach(function(iso){if(iso<=today&&ratCount(iso))answered++;});
+  if(!any)return null;
+  var dow=["S","M","T","W","T","F","S"];
+  return {dow:days.map(function(iso){return dow[parseISO(iso).getDay()];}),
+    rows:rows,answered:answered,of:days.filter(function(iso){return iso<=today;}).length};}
 function srBodyCompInput(offset){
   var days=weekDays(offset).map(function(d){return toISO(d);});
   var startISO=days[0],u=state.settings.units;
