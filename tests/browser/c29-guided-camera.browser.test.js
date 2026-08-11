@@ -260,13 +260,20 @@ const eq=(a,b,m)=>{if(a!==b)throw new Error((m||'eq')+': '+JSON.stringify(a)+' !
         const x2=c2.getContext('2d');x2.drawImage(im,0,0);
         res(Array.from(x2.getImageData(Math.round(im.width/2),Math.round(im.height/2),1,1).data.slice(0,3)));};
         im.src=du;});
-      return {sheet:/Standardize this photo/.test(document.body.innerText),
+      return {sheet:/Keep this photo\?/.test(document.body.innerText),
+        adjusters:document.querySelectorAll('[data-pfadj]').length,
         fromCam:!!r.fromCam,pose:r.pose,
         camStillOpen:!!document.getElementById('pf-cam'),
         streamLive:pfCam.stream.getTracks().every(t=>t.readyState==='live'),
         centerPx:px,retakeLabel:/Retake/.test((document.querySelector('[data-act="pf:choose"]')||{}).textContent||'')};});
-    test('the shutter feeds the SAME standardization review',()=>{
+    /* Owner, 2026-08-11: straight from the shutter this sheet is a yes/no on
+       the shot — "Keep this photo?" — not the Standardize workbench. It is
+       still the SAME review machinery (state.pfReview, pf:use, pf:choose);
+       only the framing sliders moved to the deliberate edit pass. C45 owns
+       that split in full. */
+    test('the shutter feeds the SAME review, as a keep-or-retake',()=>{
       ok(s.sheet,'no review');ok(s.fromCam);eq(s.pose,'front');});
+    test('and it does not hand him framing sliders mid-shoot',()=>eq(s.adjusters,0));
     test('the stream stays alive beneath the review (one grant, one session)',()=>{
       ok(s.camStillOpen,'camera closed');ok(s.streamLive,'tracks stopped');});
     test('the ghost overlay is NOT composited into the capture',()=>{

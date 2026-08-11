@@ -186,28 +186,47 @@ function pfReviewHTML(){
      revoked once at close. */
   var srcUrl=r.srcUrl;
   var n=pfReviewNorm();
-  var status=n?(r.base.confidence>=0.5?"Ready":"Suggested frame — adjust if it looks off")
+  /* straight from the shutter there are no sliders to send him to, so the copy
+     must not point at controls that are not on screen */
+  var status=n?(r.fromCam?"Keep this one and move to the next pose, or retake it. You can adjust the framing later."
+                        :(r.base.confidence>=0.5?"Ready":"Suggested frame — adjust if it looks off"))
              :"Adjustment out of bounds — reset a slider";
   var h='<div class="wl-confirm" style="z-index:2400"><div class="wl-confirm-card" style="max-height:86vh;overflow:auto;text-align:left">';
-  h+='<div style="font-weight:800;font-size:16px;margin-bottom:2px">'+(r.legacyId?"Standardize existing photo":"Standardize this photo")+'</div>';
-  h+='<div class="wl-hint" style="margin-bottom:10px">'+esc(POSES.filter(function(x){return x[0]===r.pose;}).map(function(x){return x[1];})[0]||r.pose)+' · week of '+esc(fmtShort(parseISO(r.week)))+(r.legacyId&&!r.solo?' · '+r.legacyLeft+' to review':'')+' · your original is kept untouched</div>';
+  /* Straight from the shutter this is a yes/no on the shot, so it says so and
+     stays short — both buttons should be reachable without scrolling in the
+     middle of a four-pose run. "Standardize", the original-vs-standardized
+     comparison and the untouched-original reassurance all belong to the edit
+     pass, where the athlete is deliberately reframing an existing photo. */
+  h+='<div style="font-weight:800;font-size:16px;margin-bottom:2px">'+(r.fromCam?"Keep this photo?":(r.legacyId?"Standardize existing photo":"Standardize this photo"))+'</div>';
+  h+='<div class="wl-hint" style="margin-bottom:10px">'+esc(POSES.filter(function(x){return x[0]===r.pose;}).map(function(x){return x[1];})[0]||r.pose)+' · week of '+esc(fmtShort(parseISO(r.week)))+(r.legacyId&&!r.solo?' · '+r.legacyLeft+' to review':'')+(r.fromCam?'':' · your original is kept untouched')+'</div>';
   if(r.legacyId&&r.narrow)h+='<div class="wl-hint" style="margin-bottom:8px;color:var(--accent)">This photo was already cropped tall — the 3:4 frame can only show what’s still in it.</div>';
   /* Owner 2026-08-06: 'so small it's hard to see when editing' — the
      Standardized pane is the work surface (the ghost lives on it); it gets
      the full sheet width, the original becomes a small reference thumb. */
-  h+='<div class="wl-pfrev-origrow"><img class="wl-pfrev-srcsm" src="'+srcUrl+'" alt="Original photo"><span class="wl-pfrev-cap">Original · untouched</span></div>';
-  h+='<div class="wl-pfrev-cap" style="margin-top:8px">Standardized 3:4</div><div id="wl-pfrev-std" class="wl-pfrev-std"><div class="wl-hint">Preparing…</div></div>';
+  if(!r.fromCam){
+    h+='<div class="wl-pfrev-origrow"><img class="wl-pfrev-srcsm" src="'+srcUrl+'" alt="Original photo"><span class="wl-pfrev-cap">Original · untouched</span></div>';
+    h+='<div class="wl-pfrev-cap" style="margin-top:8px">Standardized 3:4</div>';}
+  h+='<div id="wl-pfrev-std" class="wl-pfrev-std"><div class="wl-hint">Preparing…</div></div>';
   var _gp=pfOvPrefs();
   h+='<div class="wl-pfrev-ghostrow"><button class="pfcam-ovtgl'+(_gp.on?" on":"")+'" data-act="pfrev:ghost" aria-pressed="'+(_gp.on?"true":"false")+'">Ghost</button>'
     +'<input type="range" data-pfrevov="strength" min="10" max="75" step="1" value="'+_gp.strength+'" aria-label="Ghost strength"'+(_gp.on?"":" disabled")+'>'
     +'<span id="wl-pfrev-ovval" class="pfcam-ovval">'+_gp.strength+'%</span>'
     +'<span id="wl-pfrev-ghostlbl"></span></div>';
   h+='<div class="wl-hint" style="margin:8px 0 2px">'+esc(status)+'</div>';
-  var sl=function(k,lbl,min,max,step,val){return '<label class="wl-field wl-field-full" style="margin-top:8px"><span>'+lbl+'</span><input type="range" data-pfadj="'+k+'" min="'+min+'" max="'+max+'" step="'+step+'" value="'+val+'" aria-label="'+lbl+'"></label>';};
-  h+=sl("zoom","Zoom",1,3,0.01,r.adj.zoom)+sl("panY","Up / down",-0.5,0.5,0.005,r.adj.panY)
-    +sl("panX","Left / right",-0.5,0.5,0.005,r.adj.panX)+sl("rot","Level (°)",-7,7,0.1,r.adj.rot);
+  /* Owner, 2026-08-11: "while we are taking the photo we don't need to move it
+     up and down or left and right. That's only for after we go back and edit."
+     Straight after the shutter this sheet is a yes/no on the shot itself — keep
+     it or retake — and four sliders in the middle of a four-pose run is a
+     stop-and-fiddle he does not want. They stay for the edit pass, where the
+     photo is already taken and framing IS the task. Nothing is lost either way:
+     the auto-suggested frame is saved as the normalization and can be adjusted
+     later from the photo. */
+  if(!r.fromCam){
+    var sl=function(k,lbl,min,max,step,val){return '<label class="wl-field wl-field-full" style="margin-top:8px"><span>'+lbl+'</span><input type="range" data-pfadj="'+k+'" min="'+min+'" max="'+max+'" step="'+step+'" value="'+val+'" aria-label="'+lbl+'"></label>';};
+    h+=sl("zoom","Zoom",1,3,0.01,r.adj.zoom)+sl("panY","Up / down",-0.5,0.5,0.005,r.adj.panY)
+      +sl("panX","Left / right",-0.5,0.5,0.005,r.adj.panX)+sl("rot","Level (°)",-7,7,0.1,r.adj.rot);}
   h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" '+(n?'data-act="pf:use"':'disabled style="opacity:.4"')+'>Use this photo</button>';
-  h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pf:reset">Reset to suggestion</button>';
+  if(!r.fromCam)h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pf:reset">Reset to suggestion</button>';
   h+=r.solo?''
     :r.legacyId?'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pf:skiplegacy">Skip this photo</button>'
     :'<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="pf:choose">'+(r.fromCam?"Retake":"Choose another")+'</button>';
@@ -324,11 +343,31 @@ function pfCamStop(){
 function pfCamFallback(pose,week){
   state.pendingPose=pose;state.pendingProgWeek=week;
   var el=document.getElementById("wl-photo-input");if(el)el.click();}
+/* THE VIEWFINDER IS A 3:4 CROP OF WHATEVER THE TRACK GIVES US, and asking
+   only for a size lets the device choose the shape. (Owner, 2026-08-11: "the
+   photo option when taking body pics seems to be set at a zoom.")
+
+   pfCamShot centre-crops the frame to 3:4 before saving, and the preview does
+   the same with object-fit:cover, so what he sees is honest — but a phone that
+   answers 1440x1920 with a 16:9 mode (1080x1920) loses a QUARTER of its height
+   to that crop, top and bottom. On a full-body photo that is exactly the head
+   and the feet, against guides labelled "top of head" and "feet". It reads as
+   zoom because it IS one: a 25% vertical crop of the sensor's frame.
+
+   So ask for the SHAPE, not just the size. iPhone cameras deliver 4:3 natively
+   — the same frame the iOS Camera app shows in photo mode — and aspectRatio is
+   what selects it. The centre-crop stays as the safety net for any device that
+   cannot honour the hint; pfCamCropNote() then says so on screen rather than
+   leaving him to wonder why it looks tight. */
+var PF_CAM_VIDEO={facingMode:null,aspectRatio:{ideal:3/4},width:{ideal:1440},height:{ideal:1920}};
+function pfCamConstraints(facing){
+  var v={};for(var k in PF_CAM_VIDEO)if(k!=="facingMode")v[k]=PF_CAM_VIDEO[k];
+  v.facingMode=facing;return {video:v,audio:false};}
 function pfCamOpen(pose,week,cap){
   if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)){
     toast("No camera here — choose a file instead");pfCamFallback(pose,week);return;}
   var facing=pfOvPrefs().facing;
-  navigator.mediaDevices.getUserMedia({video:{facingMode:facing,width:{ideal:1440},height:{ideal:1920}},audio:false})
+  navigator.mediaDevices.getUserMedia(pfCamConstraints(facing))
   .then(function(stream){
     if(pfCam)pfCamStop();
     pfCam={stream:stream,pose:pose,week:week,cap:cap,facing:facing,
@@ -346,7 +385,7 @@ function pfCamOpen(pose,week,cap){
 function pfCamFlip(){
   var c=pfCam;if(!c)return;
   var want=c.facing==="user"?"environment":"user";
-  navigator.mediaDevices.getUserMedia({video:{facingMode:want,width:{ideal:1440},height:{ideal:1920}},audio:false})
+  navigator.mediaDevices.getUserMedia(pfCamConstraints(want))
   .then(function(stream){
     var c2=pfCam;if(!c2){try{stream.getTracks().forEach(function(t){t.stop();});}catch(e){}return;}
     try{c2.stream.getTracks().forEach(function(t){t.stop();});}catch(e){}
@@ -402,12 +441,17 @@ function pfCamRender(){
     +'<div class="pfcam-timerrow"><span class="pfcam-timerlbl">Timer</span>'+[0,3,5,10].map(function(t){
       return '<button class="pfcam-timerchip'+(prefs.timer===t?" on":"")+'" data-act="pfcam:timer" data-t="'+t+'">'+(t===0?"Off":t+"s")+'</button>';}).join("")+'</div>'
     +'<div id="pfcam-ghostsrc" class="pfcam-ghostsrc"></div>'
+    +'<div id="pfcam-crop" class="pfcam-crop"></div>'
     +'<div class="pfcam-tip">'+esc(PF_POSE_TIPS[c.pose]||"")+'</div>'
     +'<div class="pfcam-foot"><button class="pfcam-shutter" data-act="pfcam:shot" aria-label="Take photo"></button></div>'
     +'</div>';
   var v=document.getElementById("pfcam-video");
   try{v.srcObject=c.stream;}catch(e){}
-  c.video=v;}
+  c.video=v;
+  /* videoWidth is 0 until the first frame arrives, so the note is written when
+     the metadata lands — and again now, for a re-render of a running stream */
+  try{v.addEventListener("loadedmetadata",pfCamCropNote);}catch(e){}
+  pfCamCropNote();}
 function pfCamPrev(){
   var c=pfCam;if(!c)return;
   idbAll().then(function(all){
@@ -473,6 +517,28 @@ function pfCamShot(){
       img.onerror=function(){URL.revokeObjectURL(url);toast("Capture failed — try again");};
       img.src=url;});
   },"image/jpeg",0.92);}
+/* What the camera ACTUALLY gave us, said out loud — but only when it costs him
+   something. If the 3:4 request was honoured there is no crop and this stays
+   silent; if the device answered with a different shape, the line names the
+   frame and how much of it the 3:4 crop is taking. That way a future "it looks
+   zoomed" is a reading off the screen instead of a guess about his phone. */
+function pfCamCropPct(vw,vh){
+  if(!vw||!vh)return 0;
+  var ar=3/4;
+  /* the same arithmetic pfCamShot uses, expressed as what is LOST */
+  if(vw/vh>ar)return Math.round((1-(vh*ar)/vw)*100);   /* sides trimmed */
+  return Math.round((1-(vw/ar)/vh)*100);               /* top and bottom trimmed */
+}
+function pfCamCropNote(){
+  var c=pfCam,el=document.getElementById("pfcam-crop");
+  if(!el)return;
+  var v=c&&c.video;
+  if(!v||!v.videoWidth){el.textContent="";return;}
+  var vw=v.videoWidth,vh=v.videoHeight,pct=pfCamCropPct(vw,vh);
+  if(pct<2){el.textContent="";return;}               /* rounding, not a real crop */
+  var side=(vw/vh>3/4)?"the sides":"the top and bottom";
+  el.textContent="This camera gives "+vw+"×"+vh+", so the 3:4 frame trims "
+    +pct+"% off "+side+".";}
 function pfCamAdvance(donePose){
   var c=pfCam;if(!c)return;
   c.shots[donePose]=true;
