@@ -307,6 +307,10 @@ function m10cCanonEmpty(canon){
   var t;try{t=JSON.parse(canon);}catch(e){return false;}
   if(!t||typeof t!=="object")return false;
   return coreStateEmpty(t);}
+/* the destructive transition, stated once so the push gate and the dispatch
+   choke point cannot drift apart: content becoming nothing */
+function coreCanonWouldEmpty(priorCanon,nextCanon){
+  return m10cCanonEmpty(nextCanon)&&!m10cCanonEmpty(priorCanon);}
 var M10C_KINDS={dirty:"wl_core_dirty__",base:"wl_core_base__",journal:"wl_core_ack_journal__"};
 function m10cKey(kind,uid){return M10C_KINDS[kind]+(uid||m8Uid());}
 var m10cHardBlocked=false,m10cUnprovenBlocked=false,m10cBlockReason="";
@@ -557,7 +561,7 @@ function m10cPush(manual,done){
      "erase everything" is ever added, it mints an intent record the way
      saveTraining does and this grows a proof argument; until then the simpler
      rule is the honest one. */
-  if(coreStateEmpty(payload())&&!m10cCanonEmpty(b.val.body)){
+  if(coreCanonWouldEmpty(b.val.body,pc.canon)){
     m10cBlock("this device has no logged data but your account does — nothing was uploaded");
     fin(false);return;}
   var rid=m10cRequestId();
@@ -575,6 +579,23 @@ function m10cPush(manual,done){
 
 function m10cDispatch(j,payloadObj,cb,ctx){
   var e=j.expect;
+  /* THE CORE CHOKE POINT (Architect ruling 8). The refusal in m10cPush only
+     covers a NEW push; a journal that survived a reload replays through
+     m10cRecover straight into this function, going around it — the same
+     bypass that made the training guard incomplete one layer up, and I made
+     it here too.
+
+     Judged on the JOURNAL's own captured documents, not on live state:
+     oldBaseCanon is what this request was written to replace, pushedCanon is
+     what it would replace it with. That is the evidence as it stood when the
+     request originated, which is the only evidence a replay may use.
+
+     Unconditional, as core has no delete-everything command to authorise. A
+     legacy core journal in this shape is left exactly where it is — not
+     advanced, not ended, not quarantined — and surfaces as a typed block. */
+  if(coreCanonWouldEmpty(e.oldBaseCanon,e.pushedCanon)){
+    m10cBlock("a stored upload would have emptied your logged data — nothing was sent");
+    cb&&cb(false);return;}
   var body={subsystem:"core",expectedRev:e.expectedRev,idempotencyKey:e.requestId,
     payload:payloadObj,clientBuild:(typeof APP_BUILD==="string"?APP_BUILD:"")};
   /* D1/F5: the journal captures the fence at ENQUEUE and this dispatcher used

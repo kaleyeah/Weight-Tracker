@@ -36,17 +36,24 @@ and 14 cardio sessions — replaced by an empty training object.
 **What was NOT touched:** the core `data` blob. 22 weights, latest 2026-08-10
 at 183 lbs, verified intact before and after the restore. Photos untouched.
 
-## 2. Mechanism
+## 2. A defect capable of producing this — NOT a determination of what did
+
+**The historical trigger is unknown and this section does not claim otherwise.**
+What follows is a defect that was present, that is sufficient to produce exactly
+the ledger row in §1, and that has been removed. It is not evidence that it is
+what happened on the day.
 
 `loadTraining()` wrapped its whole body in `try{…}catch(e){}`. A throwing
 `localStorage`, truncated bytes, unparseable JSON and an absent key were all
 indistinguishable from success, and all left `state.training` at its empty
-default. Boot continued. `m8Push` then compared empty-local against a base
-holding his training, found a difference, and classified it as an ordinary
+default. Boot would continue, and `m8Push` would compare empty-local against a
+base holding his training, find a difference, and classify it as an ordinary
 edit.
 
-Nothing in the pipeline malfunctioned. Every layer did what it was told, on a
-premise nobody had checked.
+Nothing in the pipeline would have malfunctioned in doing so. Every layer would
+have done what it was told, on a premise nobody had checked. That is the
+property that made the defect worth removing regardless of whether it fired
+here.
 
 ### Ruled out
 
@@ -65,7 +72,10 @@ distinguishable.
 - some other path that constructed an empty training state.
 
 The guards are written to cover **all** of them rather than to bet on one
-(Architect ruling 1).
+(Architect ruling 1). Since build 484 the question is also no longer load-bearing:
+an empty training is refused over a non-empty server **whatever** produced it,
+so a future recurrence of any of these — or of a cause not on this list — is
+stopped without needing to be identified first.
 
 ## 3. Recovery — what was actually done to live data
 

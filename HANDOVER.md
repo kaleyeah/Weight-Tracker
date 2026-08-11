@@ -196,16 +196,31 @@ the commit route throw on every request during an earlier round.
 | `fix/export-charset-utf8`, `fix/setaside-above-login`, `fix/client-manual-gate` | superseded — already merged into the working branch | historical |
 | `main` | far behind | not used |
 
-### What is deployed (updated 2026-07-30)
+### What is deployed (updated 2026-08-11)
 
+> **This section contradicted the banner at the top of this file for eleven
+> days** — it still said production ran `.347-pb` while the banner said
+> `.460-cleanup`, byte-verified. Found 2026-08-11 during an Architect review
+> that flagged "the mandated current-state source contradicts itself". The
+> banner was right and this was stale. **A build number stated here is a claim
+> about a live system: update it in the same commit that changes what is
+> deployed, or delete it rather than let it rot.**
+
+- **Deployed to production:** `2026-08-11.478-tailnet-pb-base`
+  (`198da64`), on `main` at `kaleyeah/Weight-Tracker` → GitHub Pages.
+- **Built, gated, NOT pushed:** `479` through `484`. 479 the check-in on the
+  progress report and the Progress week window; 480/481/484 the destructive-
+  write refusals after the 2026-08-10 training loss
+  (`docs/INCIDENT-2026-08-10-training-loss.md`); 482 the camera framing.
+  Held pending Architect review of the sync changes.
 - **Production PocketBase runs the CAS server kit + HOTFIX-001** (hotfix
   deployed and verified 2026-07-29; record in
   `server/PRODUCTION_CUTOVER_RESULTS.md`).
-- **The client release candidate exists but is NOT deployed:** build
-  `2026-07-29.348-pb-c10`, sha `9e45a225…`, produced only by
-  `deployment-path/build-release.mjs` and consumed only via
-  `select-artifact.mjs`. Branch: `integration/commit10-lineage-a`.
-- Production clients run `2026-07-28.347-pb` (Lineage A, frozen).
+- **Historical, for the Lineage A lineage only:** build
+  `2026-07-29.348-pb-c10`, sha `9e45a225…`, produced by
+  `deployment-path/build-release.mjs` and consumed via `select-artifact.mjs`,
+  on `integration/commit10-lineage-a`. Never deployed. See §0 for why two
+  lineages exist.
 
 ### Test suites
 

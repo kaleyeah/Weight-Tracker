@@ -183,7 +183,10 @@ const settle=(page)=>page.waitForTimeout(400);
     });
     test('the server copy is preserved and offered, not overwritten',()=>{
       ok(r.conflict,'a conflict should have been recorded');
-      eq(r.conflict.reason,'local-training-unloaded');
+      /* the reason carries the load state, so a later reader can tell whether
+         this device had read its own store — it no longer DECIDES anything,
+         but it is still the honest answer to "why" */
+      eq(r.conflict.reason,'training-not-loaded-unknown');
       eq(r.conflict.serverRev,36);
       ok(/Full Body Day 3/.test(r.conflict.serverAtEntry||''),'the routines must be held in the conflict record');
     });
@@ -221,45 +224,46 @@ const settle=(page)=>page.waitForTimeout(400);
     await b.ctx.close();
   }
 
-  /* ---- 3. THE OTHER HALF: a real delete-everything must still go ----
-     Without this the "fix" is just a wall, and the suite above would pass on a
-     guard that refuses every empty push forever. */
+  /* ---- 3. EVEN A REAL DELETE-EVERYTHING IS REFUSED ----
+     Owner, 2026-08-11, asked directly whether he ever clears out all his
+     training: "No, never." So the app does not have to tell a genuine delete
+     from a failed load — it refuses the transition outright, which is the
+     stronger rule and needs no intent record, no confirmation dialog and no
+     hashing. He is not blocked: the refusal raises the conflict banner, which
+     shows both copies, makes him export them, and then takes his choice. That
+     is the clean slate, and it is a better one than a silent sync. */
   {
     const b=await boot(browser,origin,'normal');
     const r=await b.page.evaluate((bt)=>{
       m10AuthNow=function(){return {ok:true,local:true};};
       m8StorageBlocked=false;m8HardBlocked=false;m8UnprovenBlocked=false;
       const uid=pbUid();
-      m8Remove('conflict',uid);m8Remove('emptyproof',uid);
+      m8Remove('conflict',uid);
       /* the base records what the server holds, BEFORE he deletes anything */
       m8Write('base',{canon:M8_CANON_VER,body:m8Canon(bt).canon,rev:36},uid);
-      /* he loaded fine, then deleted every routine, exercise and session — and
-         this goes through saveTraining(), the path a real delete takes, which
-         is the only place the intent record is minted */
+      /* he loaded fine, then deleted every routine, exercise and session,
+         through saveTraining() — the path a real delete actually takes */
       state.training={cardioTypes:['Peloton'],exercises:[],routines:[],sessions:{},liftSessions:{}};
       saveTraining();
-      const proof=m8Read('emptyproof',uid);
       m8Push();
-      return {trainingLoaded:trainingLoaded,loadState:trainingLoadState,localEmpty:m8LocalTrainingEmpty(),
-              proof:(proof.st==='ok'?{intent:proof.val.intent,priorRev:proof.val.priorRev,gen:proof.val.gen}:null),
-              conflict:(m8Read('conflict',uid).st==='ok')};
+      const c=m8Read('conflict',uid);
+      return {loadState:trainingLoadState,localEmpty:m8LocalTrainingEmpty(),
+              conflict:(c.st==='ok'?c.val.reason:null),
+              serverHeld:(c.st==='ok'?c.val.serverAtEntry:null)};
     },TRAINING);await settle(b.page);
 
-    test('a device that DID read its store knows it is empty',()=>{
-      eq(r.trainingLoaded,true);eq(r.localEmpty,true);
+    test('the device knows perfectly well that it is empty',()=>{
+      eq(r.loadState,'ok');eq(r.localEmpty,true);
     });
-    test('the delete itself records a durable intent, at the moment it happened',()=>{
-      ok(r.proof,'saveTraining should have minted a delete-all record');
-      eq(r.proof.intent,'delete-all');
-      eq(r.proof.priorRev,36,'bound to the revision it is destroying');
+    test('and it STILL does not upload emptiness over his training',()=>{
+      eq(b.commits.filter(c=>c&&c.subsystem==='training').length,0);
     });
-    test('deleting everything still reaches the server — his data, his call',()=>{
-      const t=b.commits.filter(c=>c&&c.subsystem==='training');
-      eq(t.length,1,'expected exactly one training commit, got '+t.length);
-      eq(JSON.stringify(t[0].payload.routines),'[]');
-      eq(t[0].expectedRev,36);
+    test('the refusal is named for what it is, not for a failed load',()=>{
+      eq(r.conflict,'training-empty-refused');
     });
-    test('and it is NOT diverted into a conflict',()=>notOk(r.conflict));
+    test('and his training is held, in full, for him to choose',()=>{
+      ok(/Full Body Day 3/.test(r.serverHeld||''),'the server copy must be in the conflict record');
+    });
     await b.ctx.close();
   }
 
@@ -350,59 +354,50 @@ const settle=(page)=>page.waitForTimeout(400);
       m10AuthNow=function(){return {ok:true,local:true};};
       m8StorageBlocked=false;m8HardBlocked=false;m8UnprovenBlocked=false;
       const uid=pbUid();
-      m8Remove('conflict',uid);m8Remove('emptyproof',uid);
+      m8Remove('conflict',uid);
       const baseCanon=m8Canon(bt).canon;
       m8Write('base',{canon:M8_CANON_VER,body:baseCanon,rev:36},uid);
       const empty={cardioTypes:['Peloton'],exercises:[],routines:[],sessions:{},liftSessions:{}};
-      const emptyCanon=m8Canon(empty).canon;
+      const oneRoutine={cardioTypes:['Peloton'],exercises:[],routines:[{id:'r-9',name:'Legs',items:[]}],
+                        sessions:{},liftSessions:{}};
       let n=0;
-      const call=(proof,gen,rev)=>new Promise(res=>
-        m8CasCommit(rev===undefined?36:rev,empty,'k-'+(++n),r=>res(r.st),proof,gen===undefined?7:gen));
-
-      const good={v:1,intent:'delete-all',subsystem:'training',
-        deviceId:(typeof m10DeviceId==='function')?m10DeviceId():null,
-        priorCanonHash:wlCanonHash(baseCanon),priorRev:36,
-        resultCanonHash:wlCanonHash(emptyCanon),gen:7,opId:'x',at:Date.now()};
-      const bend=(o)=>Object.assign({},good,o);
+      const call=(payload,prior)=>new Promise(res=>
+        m8CasCommit(36,payload,'k-'+(++n),r=>res(r.st),prior));
 
       return {
-        noProof:      await call(null),
-        valid:        await call(good),
-        wrongDevice:  await call(bend({deviceId:'someone-elses-phone'})),
-        wrongPrior:   await call(bend({priorCanonHash:wlCanonHash('{"different":1}')})),
-        wrongResult:  await call(bend({resultCanonHash:wlCanonHash('{"other":1}')})),
-        wrongGen:     await call(bend({gen:8})),
-        rolledBackRev:await call(good,7,35),
-        forwardRev:   await call(good,7,37),
-        notDelete:    await call(bend({intent:'sync'})),
-        oldVersion:   await call(bend({v:99})),
+        emptyOverFull:   await call(empty),
+        emptyOverEmpty:  await call(empty,m8Canon(empty).canon),
+        emptyNoBase:     await call(empty,null),
+        contentOverFull: await call(oneRoutine),
+        /* the conflict path's prior is the captured SERVER copy, not the base */
+        emptyOverServer: await call(empty,baseCanon),
       };
     },TRAINING);await settle(b.page);
 
-    test('the choke point refuses an emptying commit with NO proof',()=>eq(r.noProof,'emptyUnproven'));
-    test('and accepts the one the delete actually authorised',()=>eq(r.valid,'ok'));
-    test('a proof from another DEVICE is not this one to spend',()=>eq(r.wrongDevice,'emptyUnproven'));
-    test('a proof minted against different PRIOR content is rejected',()=>eq(r.wrongPrior,'emptyUnproven'));
-    test('a proof for a different RESULT is rejected',()=>eq(r.wrongResult,'emptyUnproven'));
-    test('a proof for a different GENERATION is rejected — one delete, one push',()=>eq(r.wrongGen,'emptyUnproven'));
-    test('a REVISION behind the recorded one is rejected',()=>eq(r.rolledBackRev,'emptyUnproven'));
-    test('but a no-op revision bump still replays — same content, moved forward',()=>eq(r.forwardRev,'ok'));
-    test('an intent that is not delete-all is rejected',()=>eq(r.notDelete,'emptyUnproven'));
-    test('an unknown proof version is rejected, never assumed compatible',()=>eq(r.oldVersion,'emptyUnproven'));
+    test('the choke point refuses emptiness over content',()=>eq(r.emptyOverFull,'emptyRefused'));
+    test('empty over an already-empty prior is not a destruction',()=>eq(r.emptyOverEmpty,'ok'));
+    test('and neither is empty with no prior at all — that is bootstrap',()=>eq(r.emptyNoBase,'ok'));
+    test('ordinary content passes untouched',()=>eq(r.contentOverFull,'ok'));
+    test('a caller-supplied prior is honoured — the conflict path checks the SERVER copy',()=>
+      eq(r.emptyOverServer,'emptyRefused'));
     await b.ctx.close();
   }
 
-  /* ---- 7. A LEGACY EMPTYING JOURNAL (rulings 7 and 8) ----
-     Written before proofs existed, so it carries none. Authority is never
-     inferred retroactively from the fact that a journal is old: it must not
-     dispatch, and it must not be silently dropped. */
+  /* ---- 7. A STORED EMPTYING JOURNAL (Architect rulings 9 and 10) ----
+     A journal written before this guard existed, or by any future caller, must
+     not be dispatched. Ruling 9 requires ONE named disposition and evidence for
+     it — not "preserved or quarantined, either is fine", which is what the
+     previous version of this test accepted and which proved neither.
+
+     The disposition chosen: the journal stays at its own key, byte-identical,
+     and the disagreement surfaces as a conflict. Asserted exactly. */
   {
     const b=await boot(browser,origin,'normal');
-    const r=await b.page.evaluate((bt)=>{
+    const seeded=await b.page.evaluate((bt)=>{
       m10AuthNow=function(){return {ok:true,local:true};};
       m8StorageBlocked=false;m8HardBlocked=false;m8UnprovenBlocked=false;
       const uid=pbUid();
-      m8Remove('conflict',uid);m8Remove('emptyproof',uid);
+      m8Remove('conflict',uid);
       const baseCanon=m8Canon(bt).canon;
       const empty={cardioTypes:['Peloton'],exercises:[],routines:[],sessions:{},liftSessions:{}};
       m8Write('base',{canon:M8_CANON_VER,body:baseCanon,rev:36},uid);
@@ -410,28 +405,34 @@ const settle=(page)=>page.waitForTimeout(400);
         expect:{oldBaseCanon:baseCanon,expectedRev:36,pushedCanon:m8Canon(empty).canon,
                 gen:3,requestId:'legacy-req-1'}};
       m8Write('journal',legacy,uid);
-      return {validatorSays:m8ValidateJournal(legacy)};
+      return {key:m8Key('journal',uid),
+              bytes:localStorage.getItem(m8Key('journal',uid)),
+              validator:m8ValidateJournal(m8Read('journal',uid).val)};
     },TRAINING);
 
-    test('the validator names an emptying journal that carries no intent',()=>{
-      eq(r.validatorSays,'emptying ack without recorded intent');
+    test('such a journal is VALID — it is refused at dispatch, not by shape',()=>{
+      eq(seeded.validator,null,'validation must not preempt the dispatch refusal (ruling 10)');
     });
 
-    const after=await b.page.evaluate(()=>{
+    const after=await b.page.evaluate((k)=>{
       m8Push();
-      const uid=pbUid();
-      let quarantined=false;
-      for(let i=0;i<localStorage.length;i++){
-        const k=localStorage.key(i);
-        if(k&&k.indexOf('wl_training_corrupt__')===0)quarantined=true;}
-      return {stillThere:localStorage.getItem(m8Key('journal',uid))!==null,quarantined:quarantined};
-    });await settle(b.page);
+      return {bytes:localStorage.getItem(k),
+              conflict:(m8Read('conflict',pbUid()).st==='ok'
+                ? m8Read('conflict',pbUid()).val.reason : null),
+              quarantined:(function(){for(let i=0;i<localStorage.length;i++){
+                const kk=localStorage.key(i);
+                if(kk&&kk.indexOf('wl_training_corrupt__')===0)return kk;}return null;})()};
+    },seeded.key);await settle(b.page);
 
     test('it is NOT dispatched — nothing reaches the server',()=>{
       eq(b.commits.filter(c=>c&&c.subsystem==='training').length,0);
     });
-    test('and the bytes are preserved, not dropped',()=>{
-      ok(after.stillThere||after.quarantined,'the journal must still exist somewhere');
+    test('it stays at its OWN key, byte-for-byte — not moved, not quarantined',()=>{
+      eq(after.bytes,seeded.bytes,'the journal bytes must be untouched');
+      eq(after.quarantined,null,'nothing should have been quarantined');
+    });
+    test('and the refusal is visible to him, as a conflict he can resolve',()=>{
+      eq(after.conflict,'training-empty-refused-replay');
     });
     await b.ctx.close();
   }
@@ -473,6 +474,76 @@ const settle=(page)=>page.waitForTimeout(400);
     test('an unloaded core presents as empty against a server that has data',()=>{
       ok(st.baseNonEmpty,'the base must hold content for this to matter');
       ok(st.localEmpty,'and this boot must look empty');
+    });
+
+    /* THE BYPASS (Architect ruling 8). The first version of this fix put the
+       core refusal only in m10cPush — but a journal that survived a reload
+       replays through m10cRecover straight into m10cDispatch, going around it.
+       Exactly the gap that made the training guard incomplete one layer up,
+       repeated. m10cDispatch is driven directly here, with no m10cPush, which
+       is the only way to show the second layer exists. */
+    const dispatched=await b.page.evaluate(async()=>{
+      const full=m10cCanon({settings:{units:'lbs'},weights:[{date:'2026-08-09',weight:184}],
+        food:{},workouts:{},steps:{},notes:{},ratings:{},checkins:{},sleep:{},bodyfat:{},
+        waist:{},leanmass:{},statuses:[],presets:[],skips:{},glp:{},scriptVer:{}}).canon;
+      const emptyObj={settings:{units:'lbs'},weights:[],food:{},workouts:{},steps:{},notes:{},
+        ratings:{},checkins:{},sleep:{},bodyfat:{},waist:{},leanmass:{},statuses:[],
+        presets:[],skips:{},glp:{},scriptVer:{}};
+      const emptyCanon=m10cCanon(emptyObj).canon;
+      const j={op:'core-ack',phase:'intent',startedAt:Date.now()-1000,
+        expect:{oldBaseCanon:full,expectedRev:12,pushedCanon:emptyCanon,
+                gen:2,fence:1,requestId:'core-legacy-1'}};
+      const ok=await new Promise(res=>m10cDispatch(j,emptyObj,res,m10cCtx()));
+      return {ok:ok,
+              predicate:coreCanonWouldEmpty(full,emptyCanon),
+              notADestruction:coreCanonWouldEmpty(emptyCanon,emptyCanon)};
+    });await settle(b.page);
+
+    test('the core transition predicate names content-becoming-nothing',()=>{
+      eq(dispatched.predicate,true);
+      eq(dispatched.notADestruction,false,'empty over empty is not a destruction');
+    });
+    test('a stored core upload that would empty the account is refused at DISPATCH',()=>{
+      eq(dispatched.ok,false,'m10cDispatch must refuse, not just m10cPush');
+      eq(b.commits.filter(c=>c&&c.subsystem==='core').length,0,'nothing may reach the server');
+    });
+
+    /* and the early half, driven through m10cPush itself — otherwise disabling
+       that guard changes no test, which is the vacuous-coverage trap this
+       project keeps finding */
+    const pushed=await b.page.evaluate(async()=>{
+      const uid=m8Uid();
+      const full=m10cCanon({settings:{units:'lbs'},weights:[{date:'2026-08-09',weight:184}],
+        food:{},workouts:{},steps:{},notes:{},ratings:{},checkins:{},sleep:{},bodyfat:{},
+        waist:{},leanmass:{},statuses:[],presets:[],skips:{},glp:{},scriptVer:{}}).canon;
+      /* the server holds an account; this boot has nothing logged */
+      state.weights=[];state.food={};state.steps={};state.notes={};state.sleep={};
+      state.bodyfat={};state.waist={};state.leanmass={};state.statuses=[];
+      state.ratings={};state.checkins={};state.nightlyLog={};state.workouts={};state.skips={};
+      m10cWrite('base',{canon:1,rev:12,body:full},uid);
+      m10cWrite('dirty',{gen:4,persistedGen:4,ts:Date.now()},uid);
+      m10cRemove&&m10cRemove('journal',uid);
+      try{localStorage.removeItem('wl_core_ack_journal__'+uid);}catch(e){}
+      /* hold the pen so the STRICT gate above is not what refuses */
+      M10.booted=true;M10.holder=true;M10.uid=uid;M10.fence=1;
+      M10.deadline=performance.now()+600000;
+      m10cPushing=false;
+      m10cHardBlocked=false;m10cBlockReason='';
+      const ok=await new Promise(res=>m10cPush(false,res));
+      return {ok:ok,reason:m10cBlockReason,
+              /* the early guard returns BEFORE m10cJournalWrite; the dispatch
+                 layer only refuses after a journal exists. That difference is
+                 what makes this test specific to the push layer rather than
+                 passing on the layer beneath it. */
+              journal:localStorage.getItem('wl_core_ack_journal__'+uid)};
+    });await settle(b.page);
+
+    test('and m10cPush refuses it too, before a request is ever built',()=>{
+      eq(pushed.ok,false,'m10cPush must refuse an empty core over a non-empty base');
+      eq(b.commits.filter(c=>c&&c.subsystem==='core').length,0);
+      eq(pushed.reason,'this device has no logged data but your account does — nothing was uploaded',
+         'the PUSH-layer message, not the dispatch one — otherwise this passes on the layer below');
+      eq(pushed.journal,null,'no journal may be written for a push refused this early');
     });
     await b.ctx.close();
   }
