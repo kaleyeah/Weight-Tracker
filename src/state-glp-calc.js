@@ -222,7 +222,31 @@ function saveTrainingLocal(){if(localWritesFrozen())return false;
   try{localStorage.setItem(TKEY,ser);}catch(e){return false;}
   var back;try{back=localStorage.getItem(TKEY);}catch(e){return false;}
   return back===ser;}
-function loadTraining(){try{var t=JSON.parse(localStorage.getItem(TKEY));if(t&&typeof t==="object"){state.training={cardioTypes:(Array.isArray(t.cardioTypes)&&t.cardioTypes.length)?t.cardioTypes:DEFAULT_CARDIO_TYPES.slice(),sessions:t.sessions||{},exercises:t.exercises||[],routines:t.routines||[],liftSessions:t.liftSessions||{}};}}catch(e){}}
+/* Did this boot actually READ the training store? (Owner incident 2026-08-10.)
+   loadTraining() has always swallowed every failure into `catch(e){}`, so a
+   throwing localStorage, a truncated value or unparseable JSON left
+   state.training at its empty default and said nothing. Boot then continued,
+   the sync layer compared empty-local against a base holding 3 routines, 25
+   exercises and 23 sessions, called the difference an EDIT, and pushed the
+   empty object over it — rev 36 → 37, fileByteLength 0, 200 OK. The athlete's
+   training was gone and every layer believed it had done its job.
+
+   The missing fact was never "is training empty" — it is "do we KNOW it is
+   empty". These two states are identical in the data and opposite in meaning:
+       loaded, and genuinely empty  → a real state; pushing it is correct
+       never loaded, so empty       → an absence of knowledge; pushing it destroys
+   m8Push consults this before it will originate a push that empties the
+   server (m8-sync.js). */
+var trainingLoaded=false;
+function loadTraining(){
+  var raw;
+  try{raw=localStorage.getItem(TKEY);}
+  catch(e){return;}                     /* storage itself refused: we know nothing */
+  if(raw==null){trainingLoaded=true;return;}  /* no store yet is a KNOWN state: a fresh device */
+  var t;try{t=JSON.parse(raw);}catch(e){return;}   /* unreadable bytes: we know nothing */
+  if(!t||typeof t!=="object")return;
+  state.training={cardioTypes:(Array.isArray(t.cardioTypes)&&t.cardioTypes.length)?t.cardioTypes:DEFAULT_CARDIO_TYPES.slice(),sessions:t.sessions||{},exercises:t.exercises||[],routines:t.routines||[],liftSessions:t.liftSessions||{}};
+  trainingLoaded=true;}
 function syncCardioTags(date){var kept=normActs(date).filter(function(a){return !(a.cat==="cardio"&&a.auto);});
   var types={};((state.training.sessions||{})[date]||[]).forEach(function(s){if(s.kind==="cardio"&&s.type)types[s.type]=1;});
   Object.keys(types).forEach(function(t){if(!kept.some(function(a){return a.cat==="cardio"&&a.name===t;}))kept.push({cat:"cardio",name:t,auto:true});});

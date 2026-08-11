@@ -269,8 +269,47 @@ function m8CasCommit(expectedRev,trainingObj,requestId,cb){
       cb({st:"transport"});});})
   .catch(function(){cb({st:"transport"});});}
 /* ---- §1 state derivation ---- */
-function m8LocalTrainingEmpty(){var t=state.training||{};
+/* "Empty" is the absence of all four training stores. cardioTypes is excluded
+   deliberately: it is a defaulted picker list, present on a device that has
+   never recorded anything. */
+function m8TrainingEmpty(t){t=t||{};
   return !((t.exercises||[]).length||(t.routines||[]).length||Object.keys(t.sessions||{}).length||Object.keys(t.liftSessions||{}).length);}
+function m8LocalTrainingEmpty(){return m8TrainingEmpty(state.training);}
+/* the same predicate over a stored canon string. Unreadable bytes count as
+   CONTENT, never as empty — the refusal below must fail toward preserving. */
+function m8CanonEmpty(canon){
+  if(canon==null)return true;
+  var t;try{t=JSON.parse(canon);}catch(e){return false;}
+  if(!t||typeof t!=="object")return false;
+  return m8TrainingEmpty(t);}
+/* THE EMPTYING REFUSAL (Owner incident 2026-08-10).
+   A push that replaces a base holding content with nothing is either the
+   athlete deleting every routine, exercise and session he has — or it is this
+   device having failed to load its own store and mistaking that for a delete.
+   The bytes are identical; only `trainingLoaded` tells them apart.
+
+   What actually happened: during the .478 update reload the training store did
+   not load, boot continued, and the push path saw empty-vs-base as an ordinary
+   edit. The commit went out at 07:17:49.493Z with fileByteLength 0 and came
+   back 200 OK. Nothing in the pipeline was broken — every layer did exactly
+   what it was told, on a premise nobody had checked.
+
+   Storage itself was working. A store whose reads THROW is already refused on
+   m8Push's first line: the boot capture cannot secure the pre-sync bytes,
+   recoveryState goes "blocked", and trainingQuarantined() stops everything.
+   That gate cannot have been the one that let this through, so the store read
+   cleanly and produced nothing — unparseable bytes, or a push that ran before
+   loadTraining() did. C44 covers both, and asserts the quarantine still owns
+   the throwing case so the two layers stay distinguishable.
+
+   So this refuses only the case it can prove is wrong. A device that DID read
+   its store and genuinely holds nothing still pushes; deleting everything
+   remains the athlete's to do. A device that never read it does not get to
+   speak for him, and the disagreement goes to the conflict banner — which
+   shows both copies and lets him choose — rather than to a silent overwrite or
+   a hard block he cannot clear. */
+function m8WouldEmptyServer(baseCanon){
+  return m8LocalTrainingEmpty()&&!trainingLoaded&&!m8CanonEmpty(baseCanon);}
 function m8State(){
   if(m8StorageBlocked)return "blocked";
   var uid=m8Uid();if(!uid)return "signedout";
@@ -446,6 +485,14 @@ function m8Push(){
        disk equalling base is not evidence the edit reached disk */
     if(d0.st==="ok"&&d0.val.gen===m8Gen&&d0.val.persistedGen===d0.val.gen)m8Remove("dirty");
     try{setSync("ok");}catch(e){}return;}
+  /* the emptying refusal, placed BEFORE a request identity is minted and a
+     journal written — so a device that never loaded its store leaves no
+     half-finished transition behind, exactly like the STRICT gate above. The
+     server copy is preserved and offered; nothing is decided for him. */
+  if(m8WouldEmptyServer(b.val.body)){
+    var srvObj=null;try{srvObj=JSON.parse(b.val.body);}catch(e){}
+    m8EnterConflict(srvObj,b.val.rev,"local-training-unloaded");
+    return;}
   var reqId=m8NewRequestId();
   if(!reqId){m8Block("could not generate a request identity");return;}
   var j=m8JournalStart("ack",{oldBaseCanon:b.val.body,expectedRev:b.val.rev,pushedCanon:pc.canon,gen:gen,requestId:reqId});
