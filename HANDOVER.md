@@ -367,6 +367,35 @@ missing `conflict:true`. Instrument before concluding.
 `idempotency.py`. A test can assert exactly the right contract and still be
 blind to the defect if its data cannot express the failure.
 
+**A swallowed read failure becomes a factual claim.** 2026-08-10, and it cost
+the Owner his training data. `loadTraining()` was
+`try{ … }catch(e){}` around its whole body, so a storage failure, unparseable
+bytes and a genuinely empty store were the same outcome: `state.training` at
+its empty default, and nothing recorded about which had happened. The sync
+layer then compared empty-local against a base holding 3 routines, 25
+exercises and 23 sessions, correctly identified a difference, and pushed the
+emptiness over it — 200 OK, `fileByteLength: 0`.
+
+  The bug was not in the sync layer. Every gate there did its job on the
+  premise it was handed. **The question a loader must answer is not "what is
+  the data" but "do I KNOW what the data is",** and one boolean is usually too
+  few: the contract is now three-state — a document was read / the key is
+  absent / we know nothing — because "absent" reads as fact on a new device and
+  as ignorance on an evicted one.
+
+  Full write-up, including what was done to live data during the restore:
+  `docs/INCIDENT-2026-08-10-training-loss.md`.
+
+**Authority that a reload forgets.** The first fix used a process-lifetime flag
+("did this boot read the store") as permission to destroy. It is the right
+question at the moment of the edit and the wrong one at every later dispatch —
+a journal replayed after a reload would be judged on a flag belonging to a
+different boot. **Destructive authority has to be durable and bound to the
+operation**: recorded when the athlete's own action makes the data empty, and
+bound to device, prior content, resulting content, generation and revision, so
+it authorises exactly one push and cannot be minted by the code that wants to
+use it.
+
 ---
 
 ## 7. Useful commands

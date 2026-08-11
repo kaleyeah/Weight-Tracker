@@ -299,6 +299,14 @@ function m10cCanon(v){
   var r=m10cCanonWalk(v,"$",[]);
   if(!r.ok)return r;
   return {ok:true,canon:m8CanonSerialize(r.out)};}
+/* coreStateEmpty over a stored canon string. Unreadable bytes count as
+   CONTENT, never as empty — the refusal must fail toward preserving, exactly
+   as m8CanonEmpty does for training. */
+function m10cCanonEmpty(canon){
+  if(canon==null)return true;
+  var t;try{t=JSON.parse(canon);}catch(e){return false;}
+  if(!t||typeof t!=="object")return false;
+  return coreStateEmpty(t);}
 var M10C_KINDS={dirty:"wl_core_dirty__",base:"wl_core_base__",journal:"wl_core_ack_journal__"};
 function m10cKey(kind,uid){return M10C_KINDS[kind]+(uid||m8Uid());}
 var m10cHardBlocked=false,m10cUnprovenBlocked=false,m10cBlockReason="";
@@ -534,6 +542,24 @@ function m10cPush(manual,done){
   var b=m10cRead("base");if(b.st!=="ok"){fin(false);return;}
   var pc=m10cCanon(payload());
   if(!pc.ok){m10cBlock("core data failed validation ("+pc.error+")");fin(false);return;}
+  /* THE SAME REFUSAL AS TRAINING (Architect ruling 9, 2026-08-11: "this is not
+     training-specific until proven otherwise"). It is not: load() had the
+     identical one-try/catch-swallows-everything shape as loadTraining, and
+     payload() is built straight from the state load() fills. So a core store
+     that failed to read would present as an athlete with no weights, no food,
+     no ratings and no check-ins, and this push would carry that over a base
+     holding all of it.
+
+     Core has no delete-all gesture — there is no button that clears every
+     weigh-in and every logged day — so unlike training there is nothing here
+     to prove intent FOR. A core payload that is empty against a non-empty base
+     is therefore always a failure to load, and is always refused. If a real
+     "erase everything" is ever added, it mints an intent record the way
+     saveTraining does and this grows a proof argument; until then the simpler
+     rule is the honest one. */
+  if(coreStateEmpty(payload())&&!m10cCanonEmpty(b.val.body)){
+    m10cBlock("this device has no logged data but your account does — nothing was uploaded");
+    fin(false);return;}
   var rid=m10cRequestId();
   if(!rid){fin(false);return;}
   var fence=(M10.holder&&M10.uid===uid&&performance.now()<M10.deadline)?M10.fence:null;

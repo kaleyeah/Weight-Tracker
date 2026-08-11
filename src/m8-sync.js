@@ -113,7 +113,11 @@ function m8Quarantine(kind,uid){
 var M8_J_PHASES={ack:["intent","net-done","k1","k2","k3","done"],
   adopt:["intent","k1","k2"],"adopt-fresh":["intent","k1","k2"],
   "bootstrap-base":["intent"],"choose-server":["intent","k1","k2","k3","k4"]};
-var M8_J_OUTCOMES=["conflict","auth","not-applied"];
+/* "fenceStale" was written as a terminal outcome (m8AckOutcome) but never
+   listed, so a done-record that outlived its own m8JournalEnd would validate
+   as "bad terminal outcome" and be quarantined — a latent hole found while
+   adding emptyUnproven beside it. Both are listed now. */
+var M8_J_OUTCOMES=["conflict","auth","not-applied","fenceStale","emptyUnproven"];
 function m8JNat(v){return typeof v==="number"&&isFinite(v)&&v>=0&&Math.floor(v)===v;}
 function m8JCanonStr(v,allowNull){
   if(v===null)return !!allowNull;
@@ -136,6 +140,17 @@ function m8ValidateJournal(j){
     if(!m8JNat(e.gen))return "bad gen";
     if(typeof e.requestId!=="string"||!e.requestId||e.requestId.length>96)return "bad requestId";
     if(j.phase!=="intent"&&j.phase!=="done"&&!m8JNat(e.newRev))return "missing newRev";
+    /* An ack that would empty a non-empty base must carry its authority in the
+       journal itself (ruling 8), so the record is self-describing and a replay
+       never has to consult the current process. The shape is checked here; the
+       BINDING (device, content hashes, generation, revision) is checked at
+       dispatch by m8EmptyProofCheck, which is where refusal is actionable.
+       A pre-proof legacy journal fails this and is preserved, not erased. */
+    if(m8CanonEmpty(e.pushedCanon)&&!m8CanonEmpty(e.oldBaseCanon)){
+      var ep=e.emptyProof;
+      if(!ep||typeof ep!=="object")return "emptying ack without recorded intent";
+      if(ep.intent!=="delete-all")return "emptying ack with a non-delete intent";
+      if(typeof ep.priorCanonHash!=="string"||typeof ep.resultCanonHash!=="string")return "emptying ack with an unusable intent record";}
     /* a done record is ALWAYS a terminal outcome — no successful-ack path
        creates one, so newRev never substitutes for the outcome (R16-2) */
     if(j.phase==="done"&&M8_J_OUTCOMES.indexOf(e.outcome)<0)return "bad terminal outcome";
@@ -249,9 +264,48 @@ function m8CommitFence(body){
   if(!dev)return false;                            /* holder with an unreadable id: refuse (F1c) */
   body.fence=a.fence;body.deviceId=dev;
   return true;}
-function m8CasCommit(expectedRev,trainingObj,requestId,cb){
+/* THE DESTRUCTIVE-EMPTY INVARIANT (Architect ruling 5).
+   The emptiness refusal in m8Push stops a NEW push being born. It cannot stop
+   a journal replay, a conflict-resolution commit, or any caller written later
+   — and m8CommitFence, the file's own wire invariant, is at this choke point
+   precisely because "new push and journal replay alike" is the standard. This
+   is the second, unconditional layer, and it is the one that has to be right.
+
+   It refuses any payload that would replace a known non-empty base with
+   nothing, unless handed proof that matches this exact destruction. proof is
+   passed in by the caller — read fresh when originating, taken from the
+   journal when replaying (ruling 8) — never read from storage here, because a
+   replay must be judged on the evidence captured when it originated and not on
+   whatever this boot happens to find.
+
+   Fails CLOSED: a legacy journal from before proofs existed carries none, and
+   is refused rather than retroactively authorised (ruling 7). */
+/* priorCanon is WHAT THIS COMMIT WOULD DESTROY, and it is not always the base.
+   A conflict resolution pushes over the server copy captured at entry
+   (cx.serverAtEntry at cx.serverRev), which can differ from base entirely —
+   checking the base there would ask the wrong question and could clear a
+   destruction of content the base never held. Callers that know better pass
+   it; everyone else gets the base, which is the right answer for an ordinary
+   push and for a replay. */
+function m8CommitEmptyAllowed(trainingObj,expectedRev,proof,gen,priorCanon){
+  if(!m8TrainingEmpty(trainingObj))return true;      /* not a destruction */
+  if(priorCanon===undefined){
+    var b=m8Read("base");
+    if(b.st!=="ok")return true;                      /* no base: bootstrap owns this */
+    priorCanon=b.val.body;}
+  if(m8CanonEmpty(priorCanon))return true;           /* nothing to destroy */
+  var pc=m8Canon(trainingObj);
+  if(!pc.ok)return false;
+  return !!m8EmptyProofCheck(proof,priorCanon,expectedRev,pc.canon,gen);}
+function m8CasCommit(expectedRev,trainingObj,requestId,cb,proof,gen,priorCanon){
   var base;try{base=pbBase();}catch(e){cb({st:"transport"});return;}
-  var body={subsystem:"training",expectedRev:expectedRev,idempotencyKey:requestId,payload:trainingObj};
+  if(!m8CommitEmptyAllowed(trainingObj,expectedRev,proof,gen,priorCanon)){cb({st:"emptyUnproven"});return;}
+  var body={subsystem:"training",expectedRev:expectedRev,idempotencyKey:requestId,payload:trainingObj,
+    /* ruling 10: the training route was the only commit path that never said
+       which build sent it, which is why the write that wiped him logged
+       clientBuild "" while every neighbour said .478. Forensic metadata, not a
+       safety control — it identifies, it does not authorise. */
+    clientBuild:(typeof APP_BUILD==="string"?APP_BUILD:"")};
   if(!m8CommitFence(body)){cb({st:"fenceStale",fence:null});return;}
   fetch(base+"/api/cf/appdata/commit",{method:"POST",headers:pbHeaders(true),
     body:JSON.stringify(body)})
@@ -326,6 +380,62 @@ function m8WouldEmptyServer(baseCanon){
   return m8LocalTrainingEmpty()&&
          trainingLoadState!==TRAINING_LOAD_OK&&
          !m8CanonEmpty(baseCanon);}
+
+/* ======== DURABLE DELETE-ALL INTENT (Architect ruling 4) ========
+   trainingLoadState answers "did THIS process read the store", which is the
+   right question at the moment of the edit and the wrong one everywhere else.
+   It is process-lifetime: a reload forgets it, and a journal written before
+   that reload would be judged on a flag belonging to a different boot (ruling
+   8). So the authority to destroy is written down, once, at the only moment it
+   is actually known — the save that took training from content to nothing —
+   and every later dispatch is checked against that record, not the live flag.
+
+   Minted ONLY in saveTraining, never at dispatch. That placement is the whole
+   point of ruling 4: "normal editing code should not be able to manufacture
+   this proof merely by observing an empty object." A guard that minted its own
+   proof when it found local empty would be the 481 behaviour wearing a
+   different hat.
+
+   Bound to: the account (m8Read enforces owner), the device, the exact prior
+   content (canonical hash, so a proof minted against a different base is
+   rejected), the exact resulting content, and the generation — so one delete
+   authorises exactly one push and cannot be reused by a later, different
+   emptying. expectedRev may only move FORWARD of the revision recorded at
+   intent: a no-op revision bump under identical content is a legitimate retry,
+   a rolled-back revision is not. */
+var M8_EMPTY_PROOF_V=1;
+function m8EmptyProofMint(baseCanon,baseRev,resultCanon,gen){
+  var dev=(typeof m10DeviceId==="function")?m10DeviceId():null;
+  var prev=m8Read("emptyproof");
+  /* one intent, even if he keeps editing an already-empty training: keep the
+     original timestamp and operation id so the ledger shows one decision */
+  var keep=(prev.st==="ok"&&prev.val.priorCanonHash===wlCanonHash(baseCanon))?prev.val:null;
+  return m8Write("emptyproof",{
+    v:M8_EMPTY_PROOF_V,intent:"delete-all",subsystem:"training",
+    deviceId:dev,
+    priorCanonHash:wlCanonHash(baseCanon),priorRev:baseRev,
+    resultCanonHash:wlCanonHash(resultCanon),
+    gen:gen,
+    opId:(keep?keep.opId:("del-"+gen+"-"+Date.now())),
+    at:(keep?keep.at:Date.now())});}
+/* the record as EVIDENCE, with no reference to the current process. Returns
+   the proof object when it authorises this exact destruction, else null. */
+function m8EmptyProofCheck(proof,baseCanon,expectedRev,resultCanon,gen){
+  if(!proof||typeof proof!=="object")return null;
+  if(proof.v!==M8_EMPTY_PROOF_V)return null;
+  if(proof.intent!=="delete-all"||proof.subsystem!=="training")return null;
+  var dev=(typeof m10DeviceId==="function")?m10DeviceId():null;
+  /* a proof minted on another installation is not this device's to spend */
+  if(proof.deviceId!==dev)return null;
+  if(proof.priorCanonHash!==wlCanonHash(baseCanon))return null;
+  if(proof.resultCanonHash!==wlCanonHash(resultCanon))return null;
+  if(proof.gen!==gen)return null;
+  if(!(typeof proof.priorRev==="number"&&typeof expectedRev==="number"&&expectedRev>=proof.priorRev))return null;
+  return proof;}
+/* the stored proof, read fresh. Used when ORIGINATING a push; a replay uses
+   the copy captured in its journal instead (ruling 8). */
+function m8EmptyProofRead(){var p=m8Read("emptyproof");return p.st==="ok"?p.val:null;}
+function m8EmptyProofClear(){m8Remove("emptyproof");}
 function m8State(){
   if(m8StorageBlocked)return "blocked";
   var uid=m8Uid();if(!uid)return "signedout";
@@ -509,14 +619,29 @@ function m8Push(){
     var srvObj=null;try{srvObj=JSON.parse(b.val.body);}catch(e){}
     m8EnterConflict(srvObj,b.val.rev,"local-training-unloaded");
     return;}
+  /* An emptying push carries its authority INTO the journal (ruling 8). The
+     replay months later must judge on what was true when the athlete deleted
+     his routines, not on whatever this or a later boot can see — and a journal
+     with no proof is refused at dispatch rather than trusted for its age. */
+  var emptying=m8TrainingEmpty(copy)&&!m8CanonEmpty(b.val.body);
+  var proof=emptying?m8EmptyProofCheck(m8EmptyProofRead(),b.val.body,b.val.rev,pc.canon,gen):null;
+  if(emptying&&!proof){
+    /* local is empty, the store DID load, and yet no intent was recorded for
+       this generation — the two facts do not add up, so nothing is sent and
+       both copies go to him. */
+    var srvObj2=null;try{srvObj2=JSON.parse(b.val.body);}catch(e){}
+    m8EnterConflict(srvObj2,b.val.rev,"delete-all-unproven");
+    return;}
   var reqId=m8NewRequestId();
   if(!reqId){m8Block("could not generate a request identity");return;}
-  var j=m8JournalStart("ack",{oldBaseCanon:b.val.body,expectedRev:b.val.rev,pushedCanon:pc.canon,gen:gen,requestId:reqId});
+  var jexp={oldBaseCanon:b.val.body,expectedRev:b.val.rev,pushedCanon:pc.canon,gen:gen,requestId:reqId};
+  if(proof)jexp.emptyProof=proof;
+  var j=m8JournalStart("ack",jexp);
   if(!j){m8Block("could not journal the push");return;}
   m8Pushing=true;try{setSync("syncing");}catch(e){}
   m8CasCommit(b.val.rev,copy,reqId,function(res){
     m8Pushing=false;
-    m8AckOutcome(j,copy,pc.canon,gen,res,0);});}
+    m8AckOutcome(j,copy,pc.canon,gen,res,0);},proof,gen);}
 
 /* ---- ONE phase-aware transition finisher (R10): executes the remaining
    phases of an ack journal at/after net-done, idempotently, each phase
@@ -524,6 +649,12 @@ function m8Push(){
    the live callback AND journal recovery — there is no second path. ---- */
 function m8FinishAck(j){
   var e=j.expect;
+  /* A spent intent is not a standing licence. The generation binding already
+     stops a later, different emptying from reusing it, but leaving the record
+     behind would mean a delete-all he has already synced still sits on the
+     device claiming authority. Cleared once its push is acknowledged; the
+     journal is what carries the evidence from here on. */
+  if(e.emptyProof)m8EmptyProofClear();
   /* k1: base carries the pushed copy at the acknowledged revision */
   var b=m8Read("base");
   var baseOk=(b.st==="ok"&&b.val.rev===e.newRev&&b.val.body===e.pushedCanon);
@@ -578,8 +709,13 @@ function m8AckOutcome(j,copy,pushedCanon,gen,res,retried,opts){
         /* stale-rev race with no actual writer (A11): retry once with the fresh
            revision — a NEW logical request, so a NEW idempotency key */
         var reqId2=m8NewRequestId();
+        /* the retry is the SAME destruction at a moved revision — the proof
+           travels with it, and the forward-only revision rule in
+           m8EmptyProofCheck is what makes a no-op bump replayable while a
+           rollback is not */
         if(reqId2&&m8JournalAdvance(j,"intent",{expectedRev:res.serverRev,requestId:reqId2})){
-          m8CasCommit(res.serverRev,copy,reqId2,function(r2){m8AckOutcome(j,copy,pushedCanon,gen,r2,1,opts);});return;}
+          m8CasCommit(res.serverRev,copy,reqId2,function(r2){m8AckOutcome(j,copy,pushedCanon,gen,r2,1,opts);},
+            (j.expect||{}).emptyProof||null,gen);return;}
       }}
     if(m8EnterConflict(res.payload,res.serverRev,"push-conflict")){
       if(!m8JournalAdvance(j,"done",{outcome:"conflict"})){
@@ -599,6 +735,23 @@ function m8AckOutcome(j,copy,pushedCanon,gen,res,retried,opts){
       m8Block("could not record the outcome");return;}
     if(!m8JournalEnd()){/* boot: cleanup-only */}
     try{setSync("error","another device is the active writer — take over to upload these changes");}catch(e){}
+    return;}
+  if(res.st==="emptyUnproven"){
+    /* Ruling 7: its own result, never folded into conflict/fenceStale/auth/
+       transport — those carry different execution and retry meanings, and a
+       destruction refused for want of proof must not inherit any of them.
+       Refused BEFORE the request left this device, so it is a definite
+       non-execution: the journal ends, the base and the dirty marker stay, and
+       the server copy is offered rather than silently dropped. Never m8Block —
+       he must be able to clear this himself. */
+    if(!m8JournalAdvance(j,"done",{outcome:"emptyUnproven"})){
+      m8Block("could not record the outcome");return;}
+    if(!m8JournalEnd()){/* boot: cleanup-only */}
+    var bE=m8Read("base");
+    if(bE.st==="ok"){
+      var sE=null;try{sE=JSON.parse(bE.val.body);}catch(e){}
+      m8EnterConflict(sE,bE.val.rev,"delete-all-unproven");}
+    else{try{setSync("error","training sync paused — an emptying push had no recorded intent");}catch(e){}}
     return;}
   if(res.st==="keyReused"){
     /* F4 hard stop: same key, different identity. Journal preserved. */
@@ -650,6 +803,19 @@ function m8ResolveJournal(j,cb){
     var body;try{body=JSON.parse(j.expect.pushedCanon);}catch(e){body=null;}
     if(!body){fetchCompare();return;}
     m8CasCommit(j.expect.expectedRev,body,j.expect.requestId,function(res){
+      if(res.st==="emptyUnproven"){
+        /* Ruling 7/8: an emptying journal whose captured proof does not
+           authorise this destruction — most likely a legacy journal written
+           before proofs existed. It is PRESERVED byte-for-byte, never
+           dispatched and never deleted, and the disagreement is surfaced.
+           Authorisation is never inferred retroactively from the fact that the
+           journal is old. */
+        var bR=m8Read("base");
+        if(bR.st==="ok"){
+          var sR=null;try{sR=JSON.parse(bR.val.body);}catch(e){}
+          m8EnterConflict(sR,bR.val.rev,"delete-all-unproven-replay");}
+        else{try{setSync("error","training sync paused — a stored emptying push had no recorded intent");}catch(e){}}
+        finish();return;}
       if(res.st==="ok"||res.st==="replay"){
         if(res.st==="replay"&&!res.applied){
           if(!m8JournalAdvance(j,"done",{outcome:"not-applied"})){
@@ -666,7 +832,9 @@ function m8ResolveJournal(j,cb){
       if(res.st==="keyReused"){m8Block("sync integrity error — request key reused");finish();return;}
       if(res.st==="auth"){try{setSync("error","session expired — log in again");}catch(e){}finish();return;}
       /* transport again: remain unresolved (F4) */
-      try{setSync("offline","unsynced training will retry");}catch(e){}finish();});
+      try{setSync("offline","unsynced training will retry");}catch(e){}finish();},
+      /* the journal's OWN captured evidence, not this boot's (ruling 8) */
+      (j.expect||{}).emptyProof||null,j.expect.gen);
     return;}
   fetchCompare();}
 
@@ -746,6 +914,20 @@ var wlOfflineToasted=false;
 try{window.addEventListener("online",function(){wlOfflineToasted=false;});}catch(e){}
 function saveTraining(){
   m8MarkDirty();
+  /* THE MOMENT OF INTENT (ruling 4). This save has just taken training from
+     content to nothing on a device that read its own store — the one instant
+     where "he deleted everything" is a fact rather than an inference. Record
+     it now, before the bytes go to disk and before any push exists, because
+     afterwards the difference between a delete and a failed load is gone.
+     m8MarkDirty above has already advanced m8Gen, so the proof binds to the
+     generation this edit will be pushed as. */
+  try{
+    var _b=m8Read("base");
+    if(trainingLoadState===TRAINING_LOAD_OK&&m8LocalTrainingEmpty()&&
+       _b.st==="ok"&&!m8CanonEmpty(_b.val.body)){
+      var _lc=m8Canon(state.training);
+      if(_lc.ok)m8EmptyProofMint(_b.val.body,_b.val.rev,_lc.canon,m8Gen);}
+  }catch(e){/* the push refuses without a proof; never break the local save */}
   /* Owner-approved 2026-08-02: first save of an offline stretch reassures
      that the data is safe locally; resets when the connection returns */
   if(!navigator.onLine&&!wlOfflineToasted&&syncOn()){wlOfflineToasted=true;toast("Saved on this phone \u2014 will sync when you\u2019re back online");}
@@ -868,7 +1050,23 @@ function m8CxChooseLocal(){
   var pc=m8Canon(copy);if(!pc.ok){m8Block("training failed validation");return;}
   var gen=m8Gen,reqId=m8NewRequestId();
   if(!reqId){m8Block("could not generate a request identity");return;}
-  var j=m8JournalStart("ack",{oldBaseCanon:cx.serverAtEntry,expectedRev:cx.serverRev,pushedCanon:pc.canon,gen:gen,requestId:reqId,finalPhases:["conflict"]});
+  /* Ruling 7: "Explicit conflict-resolution deletion: proceed only when that
+     decision itself supplied the durable destructive proof." Choosing to keep
+     an EMPTY local copy over a server copy that holds his training is the most
+     deliberate destruction the app offers — he is looking at a summary of both
+     and has already been made to export them — so the click is the intent, and
+     it is recorded here, bound to the server copy it would replace. It is a
+     separate mint from the delete-all one: different prior content, different
+     revision, and this one cannot be manufactured by editing. */
+  var cxEmptying=m8TrainingEmpty(copy)&&!m8CanonEmpty(cx.serverAtEntry);
+  var cxProof=null;
+  if(cxEmptying){
+    m8EmptyProofMint(cx.serverAtEntry,cx.serverRev,pc.canon,gen);
+    cxProof=m8EmptyProofCheck(m8EmptyProofRead(),cx.serverAtEntry,cx.serverRev,pc.canon,gen);
+    if(!cxProof){m8Block("could not record the intent to replace the server copy with an empty one");return;}}
+  var jexpCx={oldBaseCanon:cx.serverAtEntry,expectedRev:cx.serverRev,pushedCanon:pc.canon,gen:gen,requestId:reqId,finalPhases:["conflict"]};
+  if(cxProof)jexpCx.emptyProof=cxProof;
+  var j=m8JournalStart("ack",jexpCx);
   if(!j)return;
   m8CasCommit(cx.serverRev,copy,reqId,function(res){
     /* the shared acknowledgement protocol; the journal itself records the
@@ -879,7 +1077,7 @@ function m8CxChooseLocal(){
     if(stNow==="clean")toast("Kept this device\u2019s copy");
     else if(stNow==="conflict")toast("The server changed again \u2014 review the new copy");
     else if(res.st==="transport")toast("Couldn\u2019t reach the server \u2014 will retry; nothing changed");
-    m8Rerender();});}
+    m8Rerender();},cxProof,gen,cx.serverAtEntry);}
 function m8CxChooseServer(){
   var r=m8Read("conflict");if(r.st!=="ok")return;
   var cx=r.val;

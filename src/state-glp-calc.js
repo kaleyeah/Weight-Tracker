@@ -310,13 +310,50 @@ var state={settings:Object.assign({},DEFAULT_SETTINGS),weights:[],food:{},workou
   training:{cardioTypes:DEFAULT_CARDIO_TYPES.slice(),sessions:{},exercises:[],routines:[],liftSessions:{}},cardioForm:null,manageOpen:false,actAddCat:null,actPick:null,exForm:null,routineId:null,riPickOpen:false,noteEdit:null,liftForm:null,workout:null,setMenu:null,woPrompt:false,bwEdit:false,histView:null,exMenu:null,woReplaceEi:null,woReplSave:null,liftViewId:null,liftViewDate:null,woResume:false,liftEdit:null,quickEntry:null,
   selDate:todayISO(),foodDate:todayISO(),alertDismissed:false,confirmReset:false,skips:{},glp:glpDefault(),glpDraft:null,glpSheet:null,reopenAsk:null};
 
+/* The SAME three-state contract as loadTraining, for the same reason
+   (Architect ruling 9, 2026-08-11: "this is not training-specific until proven
+   otherwise"). load() had the identical shape — one try/catch around
+   everything, and `if(raw)` treating an absent or empty value as nothing to do
+   — so a core store that failed to read left state at its defaults and said
+   nothing, exactly as the training store did before 480.
+
+   Core holds his weights, food, ratings, check-ins and settings. It is pushed
+   by m10cPush from payload(), which is built from that same state. So the same
+   question has to be answerable there: is this emptiness a fact, or is it this
+   boot knowing nothing? */
+var CORE_LOAD_UNKNOWN="unknown",CORE_LOAD_ABSENT="absent",CORE_LOAD_OK="ok";
+var coreLoadState=CORE_LOAD_UNKNOWN;
+/* "Empty" for core is the absence of every LOGGED series. settings are
+   excluded deliberately: they are defaulted on a device that has recorded
+   nothing, so counting them would make every fresh install look non-empty. */
+function coreStateEmpty(p){
+  p=p||{};
+  var maps=["food","workouts","steps","notes","sleep","bodyfat","waist","leanmass","ratings","checkins","nightlyLog","skips"];
+  for(var i=0;i<maps.length;i++){var m=p[maps[i]];if(m&&typeof m==="object"&&Object.keys(m).length)return false;}
+  if((p.weights||[]).length)return false;
+  if((p.statuses||[]).length)return false;
+  return true;}
 function load(){
-  try{var raw=localStorage.getItem(KEY);if(raw){var d=JSON.parse(raw);
+  coreLoadState=CORE_LOAD_UNKNOWN;
+  var _raw;
+  try{_raw=localStorage.getItem(KEY);}
+  catch(e){_loadTail();return;}                  /* storage refused */
+  if(_raw==null||_raw===""){coreLoadState=CORE_LOAD_ABSENT;_loadTail();return;}
+  var _ok=false;
+  try{var raw=_raw;if(raw){var d=JSON.parse(raw);
+    if(!d||typeof d!=="object")throw new Error("not an object");
     state.settings=Object.assign({},DEFAULT_SETTINGS,d.settings||{});
     state.weights=Array.isArray(d.weights)?d.weights:[];
     state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.bodyfat=d.bodyfat||{};state.waist=d.waist||{};state.leanmass=d.leanmass||{};state.statuses=d.statuses||[];state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;state.nightlyLog=d.nightlyLog||{};state.scriptVer=d.scriptVer||{};coachRptLoad();if(migrateCoachSeen())save();
     state.presets=(Array.isArray(d.presets)&&d.presets.length)?d.presets:DEFAULT_PRESETS.slice();state.skips=d.skips||{};state.glp=d.glp||glpDefault();state.ratings=(d.ratings&&typeof d.ratings==="object")?d.ratings:{};state.checkins=(d.checkins&&typeof d.checkins==="object")?d.checkins:{};
+    _ok=true;
   }}catch(e){}
+  if(_ok)coreLoadState=CORE_LOAD_OK;
+  _loadTail();}
+/* everything load() does REGARDLESS of whether the store read — normalisation,
+   defaults and the two view flags. Split out so the early returns above cannot
+   skip it and change behaviour beyond the new load state. */
+function _loadTail(){
   glpNormalize();
   if(state.settings.macroAuto===undefined&&(num(state.settings.targetProtein)!=null||num(state.settings.targetCarbs)!=null||num(state.settings.targetFat)!=null))state.settings.macroAuto=false;
   if(state.settings.calTargetAuto===undefined&&num(state.settings.targetCalories)!=null)state.settings.calTargetAuto=false;

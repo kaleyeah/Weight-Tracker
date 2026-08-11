@@ -1,12 +1,24 @@
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-11.482-camera-framing";
+var APP_BUILD="2026-08-11.483-destructive-write-proof";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
 var deferredPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredPrompt=e;});
 var photoURLs=[],photoMap={},photoDB=null;
+/* Content identity for durable integrity records — NOT security.
+   FNV-1a over the string, printed with the byte length: two payloads that
+   collide on the 32-bit hash would also have to match in length, which is
+   enough to bind "this proof was minted against THAT exact content" without
+   storing a second copy of a 40 KB training document in localStorage.
+   Used by the destructive-write proofs in m8-sync.js / m10-lease-core.js. */
+function wlCanonHash(s){
+  if(s==null)return null;
+  s=String(s);
+  var h=2166136261;
+  for(var i=0;i<s.length;i++){h^=s.charCodeAt(i);h=(h*16777619)>>>0;}
+  return ("00000000"+h.toString(16)).slice(-8)+"."+s.length;}
 function pad(n){return String(n).padStart(2,"0");}
 function hmToMin(s){if(s==null||s==="")return null;var p=(""+s).split(":");var h=parseInt(p[0],10);if(isNaN(h))return null;var m=parseInt(p[1]||"0",10);return h*60+(isNaN(m)?0:m);}
 function minToHM(min){if(min==null)return "—";var h=Math.floor(min/60),m=Math.round(min%60);return h+":"+pad(m);}

@@ -230,20 +230,28 @@ const settle=(page)=>page.waitForTimeout(400);
       m10AuthNow=function(){return {ok:true,local:true};};
       m8StorageBlocked=false;m8HardBlocked=false;m8UnprovenBlocked=false;
       const uid=pbUid();
-      m8Remove('conflict',uid);
-      /* he loaded fine, then deleted every routine, exercise and session */
-      state.training={cardioTypes:['Peloton'],exercises:[],routines:[],sessions:{},liftSessions:{}};
-      saveTrainingLocal();
+      m8Remove('conflict',uid);m8Remove('emptyproof',uid);
+      /* the base records what the server holds, BEFORE he deletes anything */
       m8Write('base',{canon:M8_CANON_VER,body:m8Canon(bt).canon,rev:36},uid);
-      m8Write('dirty',{gen:1,persistedGen:1},uid);
-      m8Gen=1;
+      /* he loaded fine, then deleted every routine, exercise and session — and
+         this goes through saveTraining(), the path a real delete takes, which
+         is the only place the intent record is minted */
+      state.training={cardioTypes:['Peloton'],exercises:[],routines:[],sessions:{},liftSessions:{}};
+      saveTraining();
+      const proof=m8Read('emptyproof',uid);
       m8Push();
       return {trainingLoaded:trainingLoaded,loadState:trainingLoadState,localEmpty:m8LocalTrainingEmpty(),
+              proof:(proof.st==='ok'?{intent:proof.val.intent,priorRev:proof.val.priorRev,gen:proof.val.gen}:null),
               conflict:(m8Read('conflict',uid).st==='ok')};
     },TRAINING);await settle(b.page);
 
     test('a device that DID read its store knows it is empty',()=>{
       eq(r.trainingLoaded,true);eq(r.localEmpty,true);
+    });
+    test('the delete itself records a durable intent, at the moment it happened',()=>{
+      ok(r.proof,'saveTraining should have minted a delete-all record');
+      eq(r.proof.intent,'delete-all');
+      eq(r.proof.priorRev,36,'bound to the revision it is destroying');
     });
     test('deleting everything still reaches the server — his data, his call',()=>{
       const t=b.commits.filter(c=>c&&c.subsystem==='training');
@@ -326,6 +334,145 @@ const settle=(page)=>page.waitForTimeout(400);
       eq(r.loadState,'unknown');
       eq(b.commits.filter(c=>c&&c.subsystem==='training').length,0);
       ok(r.conflict);
+    });
+    await b.ctx.close();
+  }
+
+  /* ---- 6. THE CHOKE POINT (Architect ruling 5) ----
+     The refusal in m8Push only guards a push being BORN. m8CasCommit is what
+     every commit passes — new push, journal replay, conflict resolution — and
+     m8CommitFence, the file's own wire invariant, lives there for exactly that
+     reason. These drive the choke point directly, with no journal and no
+     m8Push, which is the only way to show the second layer exists at all. */
+  {
+    const b=await boot(browser,origin,'normal');
+    const r=await b.page.evaluate(async(bt)=>{
+      m10AuthNow=function(){return {ok:true,local:true};};
+      m8StorageBlocked=false;m8HardBlocked=false;m8UnprovenBlocked=false;
+      const uid=pbUid();
+      m8Remove('conflict',uid);m8Remove('emptyproof',uid);
+      const baseCanon=m8Canon(bt).canon;
+      m8Write('base',{canon:M8_CANON_VER,body:baseCanon,rev:36},uid);
+      const empty={cardioTypes:['Peloton'],exercises:[],routines:[],sessions:{},liftSessions:{}};
+      const emptyCanon=m8Canon(empty).canon;
+      let n=0;
+      const call=(proof,gen,rev)=>new Promise(res=>
+        m8CasCommit(rev===undefined?36:rev,empty,'k-'+(++n),r=>res(r.st),proof,gen===undefined?7:gen));
+
+      const good={v:1,intent:'delete-all',subsystem:'training',
+        deviceId:(typeof m10DeviceId==='function')?m10DeviceId():null,
+        priorCanonHash:wlCanonHash(baseCanon),priorRev:36,
+        resultCanonHash:wlCanonHash(emptyCanon),gen:7,opId:'x',at:Date.now()};
+      const bend=(o)=>Object.assign({},good,o);
+
+      return {
+        noProof:      await call(null),
+        valid:        await call(good),
+        wrongDevice:  await call(bend({deviceId:'someone-elses-phone'})),
+        wrongPrior:   await call(bend({priorCanonHash:wlCanonHash('{"different":1}')})),
+        wrongResult:  await call(bend({resultCanonHash:wlCanonHash('{"other":1}')})),
+        wrongGen:     await call(bend({gen:8})),
+        rolledBackRev:await call(good,7,35),
+        forwardRev:   await call(good,7,37),
+        notDelete:    await call(bend({intent:'sync'})),
+        oldVersion:   await call(bend({v:99})),
+      };
+    },TRAINING);await settle(b.page);
+
+    test('the choke point refuses an emptying commit with NO proof',()=>eq(r.noProof,'emptyUnproven'));
+    test('and accepts the one the delete actually authorised',()=>eq(r.valid,'ok'));
+    test('a proof from another DEVICE is not this one to spend',()=>eq(r.wrongDevice,'emptyUnproven'));
+    test('a proof minted against different PRIOR content is rejected',()=>eq(r.wrongPrior,'emptyUnproven'));
+    test('a proof for a different RESULT is rejected',()=>eq(r.wrongResult,'emptyUnproven'));
+    test('a proof for a different GENERATION is rejected — one delete, one push',()=>eq(r.wrongGen,'emptyUnproven'));
+    test('a REVISION behind the recorded one is rejected',()=>eq(r.rolledBackRev,'emptyUnproven'));
+    test('but a no-op revision bump still replays — same content, moved forward',()=>eq(r.forwardRev,'ok'));
+    test('an intent that is not delete-all is rejected',()=>eq(r.notDelete,'emptyUnproven'));
+    test('an unknown proof version is rejected, never assumed compatible',()=>eq(r.oldVersion,'emptyUnproven'));
+    await b.ctx.close();
+  }
+
+  /* ---- 7. A LEGACY EMPTYING JOURNAL (rulings 7 and 8) ----
+     Written before proofs existed, so it carries none. Authority is never
+     inferred retroactively from the fact that a journal is old: it must not
+     dispatch, and it must not be silently dropped. */
+  {
+    const b=await boot(browser,origin,'normal');
+    const r=await b.page.evaluate((bt)=>{
+      m10AuthNow=function(){return {ok:true,local:true};};
+      m8StorageBlocked=false;m8HardBlocked=false;m8UnprovenBlocked=false;
+      const uid=pbUid();
+      m8Remove('conflict',uid);m8Remove('emptyproof',uid);
+      const baseCanon=m8Canon(bt).canon;
+      const empty={cardioTypes:['Peloton'],exercises:[],routines:[],sessions:{},liftSessions:{}};
+      m8Write('base',{canon:M8_CANON_VER,body:baseCanon,rev:36},uid);
+      const legacy={op:'ack',phase:'intent',startedAt:Date.now()-1000,
+        expect:{oldBaseCanon:baseCanon,expectedRev:36,pushedCanon:m8Canon(empty).canon,
+                gen:3,requestId:'legacy-req-1'}};
+      m8Write('journal',legacy,uid);
+      return {validatorSays:m8ValidateJournal(legacy)};
+    },TRAINING);
+
+    test('the validator names an emptying journal that carries no intent',()=>{
+      eq(r.validatorSays,'emptying ack without recorded intent');
+    });
+
+    const after=await b.page.evaluate(()=>{
+      m8Push();
+      const uid=pbUid();
+      let quarantined=false;
+      for(let i=0;i<localStorage.length;i++){
+        const k=localStorage.key(i);
+        if(k&&k.indexOf('wl_training_corrupt__')===0)quarantined=true;}
+      return {stillThere:localStorage.getItem(m8Key('journal',uid))!==null,quarantined:quarantined};
+    });await settle(b.page);
+
+    test('it is NOT dispatched — nothing reaches the server',()=>{
+      eq(b.commits.filter(c=>c&&c.subsystem==='training').length,0);
+    });
+    test('and the bytes are preserved, not dropped',()=>{
+      ok(after.stillThere||after.quarantined,'the journal must still exist somewhere');
+    });
+    await b.ctx.close();
+  }
+
+  /* ---- 8. THE CORE SUBSYSTEM (Architect ruling 9) ----
+     "This is not training-specific until proven otherwise." It was not:
+     load() had the identical swallow-everything shape, and payload() is built
+     from the state it fills. */
+  {
+    const b=await boot(browser,origin,'normal');
+    const r=await b.page.evaluate(()=>({
+      /* settings must NOT count as content, or a fresh install with default
+         settings looks non-empty and could never adopt from the server */
+      emptyWithSettings:coreStateEmpty({settings:{units:'lbs',onboarded:true}}),
+      oneWeighIn:coreStateEmpty({settings:{},weights:[{date:'2026-08-10',weight:183}]}),
+      oneFoodDay:coreStateEmpty({settings:{},food:{'2026-08-10':{calories:2100}}}),
+      oneCheckin:coreStateEmpty({settings:{},checkins:{'2026-08-10':{status:'sent'}}}),
+      canonUnreadable:m10cCanonEmpty('{not json'),
+      canonNull:m10cCanonEmpty(null),
+    }));
+    test('core emptiness ignores settings, which every device has',()=>eq(r.emptyWithSettings,true));
+    test('a single weigh-in, food day or check-in is content',()=>{
+      eq(r.oneWeighIn,false);eq(r.oneFoodDay,false);eq(r.oneCheckin,false);});
+    test('unreadable core bytes count as CONTENT — it fails toward keeping',()=>
+      eq(r.canonUnreadable,false));
+    test('a null core canon is genuinely nothing',()=>eq(r.canonNull,true));
+
+    const st=await b.page.evaluate(()=>{
+      /* the shape the guard exists for: the server holds an account, this boot
+         loaded nothing */
+      const full=m10cCanon({settings:{units:'lbs'},weights:[{date:'2026-08-09',weight:184}],
+        food:{},workouts:{},steps:{},notes:{},ratings:{},checkins:{},sleep:{},bodyfat:{},
+        waist:{},leanmass:{},statuses:[],presets:[],skips:{},glp:{},scriptVer:{}}).canon;
+      state.weights=[];state.food={};state.steps={};state.notes={};state.sleep={};
+      state.bodyfat={};state.waist={};state.leanmass={};state.statuses=[];
+      state.ratings={};state.checkins={};state.nightlyLog={};state.workouts={};state.skips={};
+      return {baseNonEmpty:!m10cCanonEmpty(full),localEmpty:coreStateEmpty(payload())};
+    });
+    test('an unloaded core presents as empty against a server that has data',()=>{
+      ok(st.baseNonEmpty,'the base must hold content for this to matter');
+      ok(st.localEmpty,'and this boot must look empty');
     });
     await b.ctx.close();
   }
