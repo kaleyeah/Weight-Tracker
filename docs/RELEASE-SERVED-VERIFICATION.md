@@ -1,4 +1,10 @@
-# Served-byte verification — build 485
+# Served-byte verification — Compound releases
+
+Newest last. One section per release.
+
+---
+
+# Build 485
 
 Standing ruling 1: no production record may claim verification until the served
 artifact is compared byte-for-byte with the committed artifact. This file is
@@ -46,3 +52,26 @@ against. Publication is real, not merely pushed.
 cached artifact for an arbitrary period. Confirming that every active writing
 installation reports 485 or later is a separate check — Architect ruling 12,
 round 4 — still OPEN, and it needs the Owner's devices.
+
+---
+
+# Build 486 — `2026-08-11.486-recovery-shows-the-server`
+
+| field | value |
+|---|---|
+| captured (UTC) | `2026-08-11T21:24:50Z` |
+| live URL | `https://kaleyeah.github.io/Weight-Tracker/index.html` |
+| HTTP status | `200` |
+| served byte count | `1416756` |
+| served `APP_BUILD` | `2026-08-11.486-recovery-shows-the-server` |
+| served sha256 | `6a767874a84e53e857c1c658b4c98c8a7a0947c04b526ac4231b51a3e4188021` |
+| committed sha256 | `6a767874a84e53e857c1c658b4c98c8a7a0947c04b526ac4231b51a3e4188021` |
+| working-tree sha256 | `6a767874a84e53e857c1c658b4c98c8a7a0947c04b526ac4231b51a3e4188021` |
+| release commit | `de2c69aa816ac397cb2734c0470ed867aa90ada0` |
+| gated artifact sha256 (45/45) | `6a767874a84e53e857c1c658b4c98c8a7a0947c04b526ac4231b51a3e4188021` |
+| `cmp served committed` | identical |
+
+**Result:** **PASS** — served == committed == working tree == the gated artifact.
+
+Same capture method and the same caveat as above: this proves publication, not
+client adoption.

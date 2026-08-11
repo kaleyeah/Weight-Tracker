@@ -206,18 +206,22 @@ the commit route throw on every request during an earlier round.
 > about a live system: update it in the same commit that changes what is
 > deployed, or delete it rather than let it rot.**
 
-- **Deployed to production:** **`2026-08-11.485-journal-prior-explicit`**,
-  release commit `e7c2ffe`, on `main` at `kaleyeah/Weight-Tracker` → GitHub
+- **Deployed to production:** **`2026-08-11.486-recovery-shows-the-server`**,
+  release commit `de2c69a`, on `main` at `kaleyeah/Weight-Tracker` → GitHub
   Pages. Owner-authorized 2026-08-11. Served-byte verification (standing ruling
-  1) recorded in `docs/RELEASE-485-SERVED-VERIFICATION.md`: committed artifact
-  and served artifact both sha256 `ed089cc6…b2477`.
+  1) recorded in `docs/RELEASE-SERVED-VERIFICATION.md`: committed and served
+  artifacts both sha256 `6a767874…88021`, `cmp` identical.
+- **Publication is not adoption.** A verified serve proves the bytes left the
+  origin; a PWA can run a cached artifact for an arbitrary period. Confirming
+  every active writing installation reports the current build is a SEPARATE
+  check (Architect ruling 12) and needs the Owner's devices.
 - **Owner-authorized exception on this release.** The Architect had asked for
   the correction to be returned *unpushed* for review. The Owner was told 485
   had not been back through review and chose to deploy and review after. That
   is his authority, but this release is an **exception**, not an ordinary
   reviewed completion, and is recorded as one.
 - **Superseded:** `.478-tailnet-pb-base` (`198da64`) was production until
-  2026-08-11. `483` was **rejected in review and never deployed** — see the
+  2026-08-11; `.485` was live for roughly an hour the same evening. `483` was **rejected in review and never deployed** — see the
   incident record.
 - **Production PocketBase runs the CAS server kit + HOTFIX-001** (hotfix
   deployed and verified 2026-07-29; record in
