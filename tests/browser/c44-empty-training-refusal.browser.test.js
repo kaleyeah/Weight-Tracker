@@ -54,9 +54,12 @@ const eq=(a,b,m)=>{if(a!==b)throw new Error((m||'eq')+': '+JSON.stringify(a)+' !
 
 /* Boot a page whose training store is seeded, then broken in the chosen way
    BEFORE the app's own scripts run — the same ordering as the real reload. */
-async function boot(browser,origin,mode){
+async function boot(browser,origin,mode,server){
   const ctx=await browser.newContext();
   const commits=[];
+  /* `server` lets a case control what pbGetRecord finds, which is what the
+     recovery path must show him. {record:…} serves it; {fail:true} makes the
+     fetch fail so the no-honest-stand-in branch can be exercised. */
   await ctx.route('**/api/**',route=>{
     const req=route.request(),url=req.url();
     if(/\/api\/cf\/appdata\/commit/.test(url)){
@@ -64,6 +67,11 @@ async function boot(browser,origin,mode){
       commits.push(body);
       return route.fulfill({status:200,contentType:'application/json',
         body:JSON.stringify({ok:true,newRev:(body&&body.expectedRev|0)+1})});
+    }
+    if(server&&/collections\/appdata\/records/.test(url)){
+      if(server.fail)return route.fulfill({status:500,contentType:'application/json',body:'{}'});
+      return route.fulfill({status:200,contentType:'application/json',
+        body:JSON.stringify({items:server.record?[server.record]:[]})});
     }
     return route.fulfill({status:200,contentType:'application/json',
       body:JSON.stringify({items:[],token:'tok',record:{id:'userA'}})});
@@ -365,7 +373,7 @@ const settle=(page)=>page.waitForTimeout(400);
         m8CasCommit(36,payload,'k-'+(++n),r=>res(r.st),prior));
 
       return {
-        emptyOverFull:   await call(empty),
+        emptyOverFull:   await call(empty,baseCanon),
         emptyOverEmpty:  await call(empty,m8Canon(empty).canon),
         emptyNoBase:     await call(empty,null),
         contentOverFull: await call(oneRoutine,baseCanon),
@@ -385,8 +393,8 @@ const settle=(page)=>page.waitForTimeout(400);
       /* the default this replaces was a live bug: m8ResolveJournal dispatched
          without a prior, so a stored request was judged against the CURRENT
          base rather than the one it was written to replace */
-      eq(r.contentNoPrior,'emptyRefused','even a harmless payload must declare its prior');
-      eq(r.emptyNoPrior,'emptyRefused');
+      eq(r.contentNoPrior,'priorMissing','even a harmless payload must declare its prior');
+      eq(r.emptyNoPrior,'priorMissing','and a missing argument is never dressed as a data conflict');
     });
     test('a caller-supplied prior is honoured — the conflict path checks the SERVER copy',()=>
       eq(r.emptyOverServer,'emptyRefused'));
@@ -402,7 +410,11 @@ const settle=(page)=>page.waitForTimeout(400);
      The disposition chosen: the journal stays at its own key, byte-identical,
      and the disagreement surfaces as a conflict. Asserted exactly. */
   {
-    const b=await boot(browser,origin,'normal');
+    const b=await boot(browser,origin,'normal',{record:{id:'rec1',trainingRev:36,
+      training:{cardioTypes:['Peloton','Rowing'],
+        exercises:[{id:'e1',name:'Squat',muscle:'legs',movement:'compound'}],
+        routines:[{id:'r-1',name:'Full Body Day 3',items:[]}],
+        sessions:{},liftSessions:{}}}});
     const seeded=await b.page.evaluate((bt)=>{
       m10AuthNow=function(){return {ok:true,local:true};};
       m8StorageBlocked=false;m8HardBlocked=false;m8UnprovenBlocked=false;
@@ -424,15 +436,19 @@ const settle=(page)=>page.waitForTimeout(400);
       eq(seeded.validator,null,'validation must not preempt the dispatch refusal (ruling 10)');
     });
 
+    /* the conflict is raised only AFTER the server copy is fetched, so the
+       read has to happen once that has settled — reading it synchronously
+       after m8Push() sees the state before the fetch returns */
+    await b.page.evaluate(()=>m8Push());
+    await b.page.waitForTimeout(700);
     const after=await b.page.evaluate((k)=>{
-      m8Push();
+      const c=m8Read('conflict',pbUid());
       return {bytes:localStorage.getItem(k),
-              conflict:(m8Read('conflict',pbUid()).st==='ok'
-                ? m8Read('conflict',pbUid()).val.reason : null),
+              conflict:(c.st==='ok'?c.val.reason:null),
               quarantined:(function(){for(let i=0;i<localStorage.length;i++){
                 const kk=localStorage.key(i);
                 if(kk&&kk.indexOf('wl_training_corrupt__')===0)return kk;}return null;})()};
-    },seeded.key);await settle(b.page);
+    },seeded.key);
 
     test('it is NOT dispatched — nothing reaches the server',()=>{
       eq(b.commits.filter(c=>c&&c.subsystem==='training').length,0);
@@ -529,6 +545,141 @@ const settle=(page)=>page.waitForTimeout(400);
     test('a harmless stored request still reaches the server',()=>{
       const t=b.commits.filter(c=>c&&c.subsystem==='training'&&c.idempotencyKey==='replay-should-go-1');
       eq(t.length,1,'the replay must dispatch — it destroys nothing');
+    });
+    await b.ctx.close();
+  }
+
+  /* ---- 7d. THE COPY HE IS SHOWN MUST BE THE SERVER'S (rulings 3, 4, 5) ----
+     A refused destruction has to show what is being protected. The first
+     version built that from the CURRENT BASE, immediately after judging the
+     request against the JOURNAL's prior — so when the two differ, the guard
+     protects one document while the banner offers another as "the server's
+     copy". Here they are all three different on purpose:
+
+         journal prior : the full training the request was written to replace
+         current base  : EMPTY, and nothing like it
+         server        : a third, distinct document
+
+     The conflict must carry the SERVER's, and must never present the empty
+     current base as the protected non-empty copy. */
+  {
+    const SERVER_REC={id:'rec1',trainingRev:41,
+      training:{cardioTypes:['Peloton'],exercises:[{id:'e9',name:'Server Only Lift'}],
+                routines:[{id:'r-server',name:'Server Side Routine',items:[]}],
+                sessions:{},liftSessions:{}}};
+    const b=await boot(browser,origin,'normal',{record:SERVER_REC});
+    const seeded=await b.page.evaluate((bt)=>{
+      m10AuthNow=function(){return {ok:true,local:true};};
+      m8StorageBlocked=false;m8HardBlocked=false;m8UnprovenBlocked=false;
+      const uid=pbUid();
+      m8Remove('conflict',uid);
+      const fullCanon=m8Canon(bt).canon;
+      const empty={cardioTypes:['Peloton'],exercises:[],routines:[],sessions:{},liftSessions:{}};
+      const emptyCanon=m8Canon(empty).canon;
+      /* base is EMPTY and differs from what the journal says it replaced */
+      m8Write('base',{canon:M8_CANON_VER,body:emptyCanon,rev:36},uid);
+      m8Write('journal',{op:'ack',phase:'intent',startedAt:Date.now()-1000,
+        expect:{oldBaseCanon:fullCanon,expectedRev:36,pushedCanon:emptyCanon,
+                gen:3,requestId:'recovery-src-1'}},uid);
+      return {key:m8Key('journal',uid),bytes:localStorage.getItem(m8Key('journal',uid))};
+    },TRAINING);
+
+    await b.page.evaluate(()=>m8Push());
+    await b.page.waitForTimeout(700);
+    const after=await b.page.evaluate((k)=>{
+      const c=m8Read('conflict',pbUid());
+      return {bytes:localStorage.getItem(k),
+              conflict:(c.st==='ok'?{reason:c.val.reason,rev:c.val.serverRev,
+                                     copy:c.val.serverAtEntry}:null)};
+    },seeded.key);
+
+    test('the refused replay dispatches nothing',()=>{
+      eq(b.commits.filter(c=>c&&c.subsystem==='training').length,0);
+    });
+    test('its journal is preserved byte-for-byte',()=>{
+      eq(after.bytes,seeded.bytes);
+    });
+    test('the protected copy shown is the SERVER\'s, fetched — not a local record',()=>{
+      ok(after.conflict,'a conflict should have been raised');
+      ok(/Server Side Routine/.test(after.conflict.copy||''),
+         'the conflict must carry what the server actually holds: '+after.conflict.copy);
+      eq(after.conflict.rev,41,'and the server\'s revision, not the local base\'s 36');
+    });
+    test('and the EMPTY current base is never offered as the protected copy',()=>{
+      const c=after.conflict.copy||'';
+      ok(!/"routines":\[\]/.test(c),'the empty base must not be presented as the server copy: '+c);
+    });
+    await b.ctx.close();
+  }
+
+  /* ---- 7e. NO HONEST STAND-IN (ruling 4) ----
+     If the server cannot be reached, there is no local record that can
+     truthfully be labelled "the server's copy". The journal stays and the
+     state is typed and retryable rather than fabricated. */
+  {
+    const b=await boot(browser,origin,'normal',{fail:true});
+    const seeded=await b.page.evaluate((bt)=>{
+      m10AuthNow=function(){return {ok:true,local:true};};
+      m8StorageBlocked=false;m8HardBlocked=false;m8UnprovenBlocked=false;
+      const uid=pbUid();
+      m8Remove('conflict',uid);
+      const fullCanon=m8Canon(bt).canon;
+      const empty={cardioTypes:['Peloton'],exercises:[],routines:[],sessions:{},liftSessions:{}};
+      m8Write('base',{canon:M8_CANON_VER,body:m8Canon(empty).canon,rev:36},uid);
+      m8Write('journal',{op:'ack',phase:'intent',startedAt:Date.now()-1000,
+        expect:{oldBaseCanon:fullCanon,expectedRev:36,pushedCanon:m8Canon(empty).canon,
+                gen:3,requestId:'recovery-src-2'}},uid);
+      return {key:m8Key('journal',uid),bytes:localStorage.getItem(m8Key('journal',uid))};
+    },TRAINING);
+
+    await b.page.evaluate(()=>m8Push());
+    await b.page.waitForTimeout(700);
+    const after=await b.page.evaluate((k)=>({
+      bytes:localStorage.getItem(k),
+      state:m8State(),blocked:m8StorageBlocked,reason:m8StorageBlockReason,
+      quarantined:(function(){for(let i=0;i<localStorage.length;i++){const kk=localStorage.key(i);
+        if(kk&&kk.indexOf('wl_training_corrupt__')===0)return kk;}return null;})(),
+      conflict:m8Read('conflict',pbUid()).st==='ok'}),seeded.key);
+
+    test('an unreachable server invents no copy at all',()=>{
+      notOk(after.conflict,'no conflict may be manufactured from a local record');
+    });
+    test('and the journal is still there, unchanged, to retry',()=>{
+      eq(after.bytes,seeded.bytes);
+      eq(b.commits.filter(c=>c&&c.subsystem==='training').length,0);
+    });
+    await b.ctx.close();
+  }
+
+  /* ---- 7f. A MISSING PRIOR IS OUR BUG, NOT HIS DISAGREEMENT (rulings 8, 9)
+     emptyRefused asks him to choose between two copies. A caller that forgot
+     to say what it replaces gives him nothing to choose between, so it must
+     not wear the same result. */
+  {
+    const b=await boot(browser,origin,'normal');
+    const r=await b.page.evaluate(async(bt)=>{
+      m10AuthNow=function(){return {ok:true,local:true};};
+      m8StorageBlocked=false;m8HardBlocked=false;m8UnprovenBlocked=false;
+      const uid=pbUid();
+      m8Remove('conflict',uid);
+      m8Write('base',{canon:M8_CANON_VER,body:m8Canon(bt).canon,rev:36},uid);
+      const empty={cardioTypes:['Peloton'],exercises:[],routines:[],sessions:{},liftSessions:{}};
+      const one={cardioTypes:['Peloton'],exercises:[],routines:[{id:'r-1',name:'X',items:[]}],
+                 sessions:{},liftSessions:{}};
+      const call=(payload,prior)=>new Promise(res=>
+        m8CasCommit(36,payload,'pm-'+Math.random(),r=>res(r.st),prior));
+      return {harmlessNoPrior:await call(one),
+              emptyNoPrior:await call(empty),
+              emptyWithPrior:await call(empty,m8Canon(bt).canon)};
+    },TRAINING);
+
+    test('a missing prior is its OWN result, whatever the payload',()=>{
+      eq(r.harmlessNoPrior,'priorMissing');
+      eq(r.emptyNoPrior,'priorMissing','even an emptying payload — the defect is the missing argument');
+    });
+    test('and it is NOT the same result as a real destructive refusal',()=>{
+      eq(r.emptyWithPrior,'emptyRefused');
+      ok(r.emptyNoPrior!==r.emptyWithPrior,'the two must be distinguishable');
     });
     await b.ctx.close();
   }

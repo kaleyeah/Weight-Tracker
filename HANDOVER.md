@@ -206,20 +206,19 @@ the commit route throw on every request during an earlier round.
 > about a live system: update it in the same commit that changes what is
 > deployed, or delete it rather than let it rot.**
 
-- **Deployed to production:** `2026-08-11.478-tailnet-pb-base`
-  (`198da64`), on `main` at `kaleyeah/Weight-Tracker` → GitHub Pages.
-- **Built, gated, NOT pushed:** `479` through `485`. 479 the check-in on the
-  progress report and the Progress week window; 480/481/484/485 the
-  destructive-write refusals after the 2026-08-10 training loss
-  (`docs/INCIDENT-2026-08-10-training-loss.md`; 483 was rejected in review and
-  is history); 482 the camera framing. Held pending Architect review of the
-  sync changes.
-- **Compound has no supported delete-all-training operation.** An empty
-  training is never uploaded over a non-empty server — not through sync, and
-  not through the conflict banner, which refuses an empty local copy for the
-  same reason. Owner ruling 2026-08-11 ("No, never") plus Architect approval.
-  If it is ever wanted it is a new destructive feature with its own reviewed
-  command and server contract.
+- **Deployed to production:** **`2026-08-11.485-journal-prior-explicit`**,
+  release commit `e7c2ffe`, on `main` at `kaleyeah/Weight-Tracker` → GitHub
+  Pages. Owner-authorized 2026-08-11. Served-byte verification (standing ruling
+  1) recorded in `docs/RELEASE-485-SERVED-VERIFICATION.md`: committed artifact
+  and served artifact both sha256 `ed089cc6…b2477`.
+- **Owner-authorized exception on this release.** The Architect had asked for
+  the correction to be returned *unpushed* for review. The Owner was told 485
+  had not been back through review and chose to deploy and review after. That
+  is his authority, but this release is an **exception**, not an ordinary
+  reviewed completion, and is recorded as one.
+- **Superseded:** `.478-tailnet-pb-base` (`198da64`) was production until
+  2026-08-11. `483` was **rejected in review and never deployed** — see the
+  incident record.
 - **Production PocketBase runs the CAS server kit + HOTFIX-001** (hotfix
   deployed and verified 2026-07-29; record in
   `server/PRODUCTION_CUTOVER_RESULTS.md`).

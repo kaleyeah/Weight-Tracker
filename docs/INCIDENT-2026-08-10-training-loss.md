@@ -2,8 +2,8 @@
 
 **Severity:** data loss, recovered. **Subsystem:** M8 training sync.
 **Reported by:** the Owner ("My routines have disappeared").
-**Fixes:** builds 480, 481, **484** (483 was rejected in review — see §4).
-**Architect review:** three rounds, 2026-08-11. This record answers ruling 13
+**Fixes:** builds 480, 481, **484 / 485 / 486** (483 was rejected in review —
+see §4). **Architect review:** four rounds, 2026-08-11. This record answers ruling 13
 of round 0 and rulings 11/16 of the later rounds.
 
 Written because "PATCHed back" is a live-data mutation and must not survive as
@@ -123,7 +123,7 @@ prevent, one level up. Its content hash was also wrong on its own terms
 UTF-8 byte length, no `Math.imul`), so any non-ASCII exercise name would have
 made a future server disagree. **Never deployed.**
 
-**484 — the current candidate.** The Owner was asked what scenario the
+**484 / 485 / 486 — the shipped fix.** The Owner was asked what scenario the
 machinery served, and answered that he never clears out all his training. So
 the app does not need to tell a genuine delete from a failed load:
 
@@ -154,6 +154,16 @@ the app does not need to tell a genuine delete from a failed load:
 - **Three-state load contract** (`ok` / `absent` / `unknown`) on both
   `loadTraining` and `load()`. It no longer decides anything; it is the honest
   answer to "why", carried in the conflict record.
+- **485** — `priorCanon` made mandatory after the Architect found that a replay
+  was judged against the *current* base rather than the content the stored
+  request was written to replace. Every caller now declares its prior.
+- **486** — a refused replay used to build the conflict banner from the current
+  base, so the guard protected one document while the UI offered another as
+  "the server's copy". It now fetches what the server actually holds; if that
+  fetch fails, no local record is substituted and the state is typed and
+  retryable. And a missing `priorCanon` returns `priorMissing`, not
+  `emptyRefused` — a programming defect must not reach the athlete dressed as a
+  disagreement about his data.
 
 ## 5. Evidence
 

@@ -308,8 +308,13 @@ function m8CasCommit(expectedRev,trainingObj,requestId,cb,priorCanon){
      the fixture left the two equal, which is the fixture-shape-hides-the-bug
      class exactly. There is no default any more: a caller that does not say
      what it is replacing cannot commit at all, so a future caller cannot
-     weaken the invariant by omission. */
-  if(priorCanon===undefined){cb({st:"emptyRefused"});return;}
+     weaken the invariant by omission.
+
+     Its own result, NOT emptyRefused (Architect ruling 8): a missing argument
+     is a programming defect and must not reach the athlete dressed as a
+     disagreement about his data. emptyRefused raises a conflict he is asked to
+     resolve; there is nothing here for him to resolve. */
+  if(priorCanon===undefined){cb({st:"priorMissing"});return;}
   if(!m8CommitEmptyAllowed(trainingObj,priorCanon)){cb({st:"emptyRefused"});return;}
   var body={subsystem:"training",expectedRev:expectedRev,idempotencyKey:requestId,payload:trainingObj,
     /* ruling 10: the training route was the only commit path that never said
@@ -676,11 +681,14 @@ function m8AckOutcome(j,copy,pushedCanon,gen,res,retried,opts){
     if(!m8JournalAdvance(j,"done",{outcome:"emptyRefused"})){
       m8Block("could not record the outcome");return;}
     if(!m8JournalEnd()){/* boot: cleanup-only */}
-    var bE=m8Read("base");
-    if(bE.st==="ok"){
-      var sE=null;try{sE=JSON.parse(bE.val.body);}catch(e){}
-      m8EnterConflict(sE,bE.val.rev,"training-empty-refused");}
-    else{try{setSync("error","training sync paused — an emptying push was refused");}catch(e){}}
+    m8OfferServerCopy("training-empty-refused");
+    return;}
+  if(res.st==="priorMissing"){
+    /* a caller reached the choke point without saying what it replaces. That
+       is OUR defect, not a disagreement about his data, so it hard-stops with
+       a diagnostic and the journal is preserved for inspection — no conflict,
+       nothing for him to choose between (ruling 9). */
+    m8Block("sync integrity error — a commit was attempted without its prior state");
     return;}
   if(res.st==="keyReused"){
     /* F4 hard stop: same key, different identity. Journal preserved. */
@@ -693,6 +701,27 @@ function m8AckOutcome(j,copy,pushedCanon,gen,res,retried,opts){
     try{setSync("error","session expired — log in again");}catch(e){}return;}
   /* transport: AMBIGUOUS (E2) — journal survives at its current phase */
   try{setSync("offline","unsynced training will retry");}catch(e){}}
+
+/* THE PROTECTED COPY MUST BE THE REAL ONE (Architect rulings 3 and 4).
+   A refused destruction has to show him what is being protected — and the
+   first version of this built that from the CURRENT BASE, right after judging
+   the request against the JOURNAL's prior. If the two differ, the guard
+   protects one document while the banner offers a different one as "the
+   server's copy". Nothing is lost (the journal survives) but the
+   representation is a lie, and it is the third time in this work I reached for
+   the current base where a specific document was required.
+
+   So: fetch what the server ACTUALLY holds and build the conflict from that.
+   If the fetch fails we do not substitute a local record — there is no honest
+   stand-in — and the state is typed and retryable instead. The journal is
+   untouched either way. */
+function m8OfferServerCopy(reason){
+  pbGetRecord(function(rec,err){
+    if(err||!rec){
+      try{setSync("error","training sync paused — couldn\u2019t reach your server to show both copies; will retry");}catch(e){}
+      return;}
+    var srv=(rec.training&&typeof rec.training==="object")?rec.training:null;
+    m8EnterConflict(srv,(rec.trainingRev|0),reason);});}
 
 /* ---- E2/F3-F5: resolve a surviving ack journal ---- */
 var M8_LEDGER_MS=30*24*3600*1000;
@@ -739,11 +768,10 @@ function m8ResolveJournal(j,cb){
            disagreement is surfaced instead. Ruling 9 requires ONE named
            disposition rather than "somewhere"; this is it, and C44 asserts the
            key and byte-equality. */
-        var bR=m8Read("base");
-        if(bR.st==="ok"){
-          var sR=null;try{sR=JSON.parse(bR.val.body);}catch(e){}
-          m8EnterConflict(sR,bR.val.rev,"training-empty-refused-replay");}
-        else{try{setSync("error","training sync paused — a stored emptying push was refused");}catch(e){}}
+        /* the journal stays exactly as written; the copy he is shown is the
+           one the SERVER actually holds, not whatever the local base has
+           drifted to since (rulings 3 and 4) */
+        m8OfferServerCopy("training-empty-refused-replay");
         finish();return;}
       if(res.st==="ok"||res.st==="replay"){
         if(res.st==="replay"&&!res.applied){
