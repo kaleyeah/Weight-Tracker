@@ -179,7 +179,7 @@ function t2Obs(tab){
 function t2InnerHTML(tab,u){
   var cfg=t2Cfg(tab,u);
   var mode=state.t2Mode||"M";var off=state.t2Off||0;
-  var p=tcPeriod(mode,off,todayISO());
+  var p=tcPeriod(mode,off,todayISO(),weekStartDow());
   var obs=t2Obs(tab);
   var cur=tcWindow(obs,p.startISO,p.endISO);
   var prev=tcWindow(obs,p.prevStartISO,p.prevEndISO);
@@ -356,7 +356,13 @@ function quickEntryHTML(){
   h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:16px" data-act="qe:close">Done</button>';
   return h+'</div></div>';
 }
-function weekStartFor(offset){var ws=parseInt(state.settings.weekStart,10)||0;var d=new Date();d.setHours(0,0,0,0);var diff=(d.getDay()-ws+7)%7;d.setDate(d.getDate()-diff+offset*7);return d;}
+/* The athlete's check-in day, as a day-of-week index. This ONE anchor defines
+   every weekly window in the app — the Summary week, the progress report, the
+   check-in's covered range, and (since 2026-08-11) the Progress trend's W
+   period. Read it from here rather than re-parsing the setting, so a week can
+   never mean two different things on two different screens. */
+function weekStartDow(){return parseInt(state.settings.weekStart,10)||0;}
+function weekStartFor(offset){var ws=weekStartDow();var d=new Date();d.setHours(0,0,0,0);var diff=(d.getDay()-ws+7)%7;d.setDate(d.getDate()-diff+offset*7);return d;}
 function weekDays(offset){var s=weekStartFor(offset),arr=[];for(var i=0;i<7;i++){var dd=new Date(s);dd.setDate(s.getDate()+i);arr.push(dd);}return arr;}
 function dayRow(d){var iso=toISO(d);var w=null;for(var i=0;i<state.weights.length;i++){if(state.weights[i].date===iso){w=state.weights[i].weight;break;}}
   var f=state.food[iso]||{};return {date:iso,dow:d.toLocaleDateString(undefined,{weekday:"long"}),d:d,weight:w,steps:num(state.steps[iso]),sleep:num(state.sleep[iso]),

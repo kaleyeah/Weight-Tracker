@@ -1051,7 +1051,7 @@ input[type=range][data-pfadj]{width:100%;accent-color:var(--accent);min-height:2
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-11.478-tailnet-pb-base";
+var APP_BUILD="2026-08-11.479-checkin-on-report";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -2070,10 +2070,21 @@ function view_glptimeline(){
    Period semantics are the PACKAGE'S, deliberately different from the page
    trendCtx() calendar windows (which continue to drive steps/calories/sleep/
    training history, untouched):
-     W  — 7 consecutive local dates ending on the selected end date
+     W  — the athlete's check-in week: the check-in day plus 6 days
      M  — 30 consecutive local dates ending on the selected end date
      6M — a rolling six-CALENDAR-month window ending on the selected end date
    "Previous" moves back exactly one matching period.
+
+   W was a ROLLING seven days ending today until 2026-08-11. The Owner reported
+   it on Aug 10 reading "August 4–10" when the week he had just lived was Aug
+   3–9, and gave the rule himself: "The logic is check in day plus 6 days."
+   A rolling window cannot agree with the Summary tab, the progress report or a
+   check-in — all three are anchored to the check-in day — so the same seven
+   days carried three different labels depending on which screen you were on.
+   tcPeriod now aligns W to the check-in day when the caller passes weekStartDow
+   (0=Sun … 6=Sat, the app's `settings.weekStart`). Omitting it keeps the old
+   rolling behaviour, which is what the pure unit tests exercise and what any
+   caller with no athlete context still gets.
 
    Canonical rules honored here: one observation per date (enforced by every
    writer in the app), no zero-fill, no interpolation, no fabricated points;
@@ -2100,14 +2111,25 @@ function tcFmt(iso) { var d = tcParse(iso); return TC_MON[d.getMonth()] + " " + 
 
 /* {startISO,endISO,prevStartISO,prevEndISO,label} for mode at offset periods
    back from todayISO. Offset 0 ends on today; navigation never goes forward
-   of offset 0 (the view enforces the disabled Next). */
-function tcPeriod(mode, offset, todayISO) {
+   of offset 0 (the view enforces the disabled Next).
+
+   weekStartDow (optional, 0=Sun … 6=Sat) aligns W to the athlete's check-in
+   day. With it, offset 0 is the week in progress — so it runs THROUGH days
+   that have not happened yet, exactly as the Summary tab's week does. Those
+   days simply hold no observations; nothing is invented for them. */
+function tcPeriod(mode, offset, todayISO, weekStartDow) {
   var end, start, pEnd, pStart;
   if (mode === "6M") {
     end = tcAddMonths(todayISO, -6 * offset);
     start = tcAddDays(tcAddMonths(end, -6), 1);
     pEnd = tcAddDays(start, -1);
     pStart = tcAddDays(tcAddMonths(pEnd, -6), 1);
+  } else if (mode === "W" && weekStartDow != null) {
+    var back = (tcParse(todayISO).getDay() - (weekStartDow | 0) + 7) % 7;
+    start = tcAddDays(todayISO, -back - 7 * offset);
+    end = tcAddDays(start, 6);
+    pStart = tcAddDays(start, -7);
+    pEnd = tcAddDays(start, -1);
   } else {
     var len = mode === "W" ? 7 : 30;
     end = tcAddDays(todayISO, -len * offset);
@@ -3372,11 +3394,16 @@ function trendCtx(){
   /* ONE selector on the Progress page (Owner, 2026-08-06: 'redundant to have
      two date range selectors'). The measurement component's W/M/6M control
      now drives EVERYTHING — More stats, sleep, training history — with the
-     component's rolling-window semantics (7d / 30d / 6 calendar months
-     ending today, offset by whole periods). The old calendar-window control
-     and its trend:* actions are retired. */
+     component's window semantics. The old calendar-window control and its
+     trend:* actions are retired.
+
+     W is the check-in week (check-in day + 6 days) since 2026-08-11; M and 6M
+     stay rolling (30 days / 6 calendar months ending today). Passing
+     weekStartDow() here is what makes every W-mode panel on this page — sleep,
+     steps, calories, training history — cover the same seven days the Summary
+     tab and the progress report call that week. */
   var mode=state.t2Mode||"M",off=state.t2Off||0;
-  var p=tcPeriod(mode,off,todayISO());
+  var p=tcPeriod(mode,off,todayISO(),weekStartDow());
   return {mode:mode,off:off,start:parseISO(p.startISO),end:parseISO(p.endISO),
     gran:(mode==="6M")?"month":"day",label:p.label};
 }
@@ -4239,7 +4266,7 @@ function t2Obs(tab){
 function t2InnerHTML(tab,u){
   var cfg=t2Cfg(tab,u);
   var mode=state.t2Mode||"M";var off=state.t2Off||0;
-  var p=tcPeriod(mode,off,todayISO());
+  var p=tcPeriod(mode,off,todayISO(),weekStartDow());
   var obs=t2Obs(tab);
   var cur=tcWindow(obs,p.startISO,p.endISO);
   var prev=tcWindow(obs,p.prevStartISO,p.prevEndISO);
@@ -4416,7 +4443,13 @@ function quickEntryHTML(){
   h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:16px" data-act="qe:close">Done</button>';
   return h+'</div></div>';
 }
-function weekStartFor(offset){var ws=parseInt(state.settings.weekStart,10)||0;var d=new Date();d.setHours(0,0,0,0);var diff=(d.getDay()-ws+7)%7;d.setDate(d.getDate()-diff+offset*7);return d;}
+/* The athlete's check-in day, as a day-of-week index. This ONE anchor defines
+   every weekly window in the app — the Summary week, the progress report, the
+   check-in's covered range, and (since 2026-08-11) the Progress trend's W
+   period. Read it from here rather than re-parsing the setting, so a week can
+   never mean two different things on two different screens. */
+function weekStartDow(){return parseInt(state.settings.weekStart,10)||0;}
+function weekStartFor(offset){var ws=weekStartDow();var d=new Date();d.setHours(0,0,0,0);var diff=(d.getDay()-ws+7)%7;d.setDate(d.getDate()-diff+offset*7);return d;}
 function weekDays(offset){var s=weekStartFor(offset),arr=[];for(var i=0;i<7;i++){var dd=new Date(s);dd.setDate(s.getDate()+i);arr.push(dd);}return arr;}
 function dayRow(d){var iso=toISO(d);var w=null;for(var i=0;i<state.weights.length;i++){if(state.weights[i].date===iso){w=state.weights[i].weight;break;}}
   var f=state.food[iso]||{};return {date:iso,dow:d.toLocaleDateString(undefined,{weekday:"long"}),d:d,weight:w,steps:num(state.steps[iso]),sleep:num(state.sleep[iso]),
@@ -5597,6 +5630,40 @@ function srWeightChartHTML(inp){
     colors:{axis:"#5A6474",grid:"#252D3A",line:"#7C93F5",accent:"#7C93F5",fill:"rgba(124,147,245,0.10)",pointFill:"#10151E"},
     ariaLabel:"Weight, "+(inp.range||"this week")})+'</div>';
   return h+'</div>';}
+/* The athlete's own words about the week — the part of the report the coach
+   reads first, and the only part the numbers cannot supply.
+
+   Matched to the week the check-in COVERS, not the day it was submitted, so a
+   check-in filled in late still lands on the right report (Owner, 2026-08-11).
+   The submission date is shown when it was written after the check-in day,
+   because "biggest win this week" reads differently written the morning after
+   than written nine days later — and hiding that would be dishonest to a coach
+   who is trying to judge how fresh the account is. */
+function srCheckinHTML(inp){
+  var c=inp.checkin;
+  if(!c)return "";
+  var h='<div class="wl-card"><div class="wl-card-head"><span>In his own words</span>'+
+    '<span class="wl-count">'+srEsc(c.covers)+'</span></div>';
+
+  if(c.status==="skipped"){
+    return h+'<div class="wl-hint" style="margin-top:0">Check-in skipped for this week.</div></div>';}
+
+  if(!c.answers.length){
+    return h+'<div class="wl-hint" style="margin-top:0">Check-in started but no questions answered.</div></div>';}
+
+  c.answers.forEach(function(a){
+    h+='<div class="ci-q">'+srEsc(a.label)+'</div>'+
+       '<div class="ci-a">'+srEsc(a.text)+'</div>';});
+
+  var meta=c.answered+' of '+c.of+' answered';
+  if(c.lateDays>0&&c.submittedLabel)
+    meta+=' · written '+srEsc(c.submittedLabel)+', '+
+      (c.lateDays===1?'a day':c.lateDays+' days')+' after the week closed';
+  else if(c.submittedLabel)
+    meta+=' · '+srEsc(c.submittedLabel);
+  h+='<div class="wl-hint">'+meta+'</div>';
+  return h+'</div>';}
+
 /* The How-you've-felt grid, carried over from the Progress tab so the coach
    reads the same picture the athlete does: six strands down, the week across,
    5 best and 1 worst. An unanswered day is a dash, never a low score. */
@@ -5783,6 +5850,9 @@ var SRCSS=[
 ".wl-byday-grid td.warn{color:var(--accent)}",
 ".wl-byday-grid td.bad{color:var(--bad)}",
 ".mut{color:var(--faint)}",
+".ci-q{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);margin-top:14px}",
+".ci-q:first-of-type{margin-top:2px}",
+".ci-a{font-size:14.5px;line-height:1.5;color:var(--text);margin-top:5px;white-space:pre-wrap;overflow-wrap:anywhere}",
 ".fgrid{display:grid;grid-template-columns:74px 1fr;gap:6px 8px;align-items:center}",
 ".fgrid .fk{font-size:11.5px;font-weight:700;color:var(--muted)}",
 ".fdow{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}",
@@ -5834,6 +5904,7 @@ function srReportHTML(inp){
   h+=srPhotosHTML(inp.photos)+"\n";
   h+=srHeroHTML(inp)+"\n";
   h+=srWeightChartHTML(inp)+"\n";
+  h+=srCheckinHTML(inp)+"\n";
   h+=srBodyCompHTML(inp)+"\n";
   h+=srLbmHTML(inp)+"\n";
   h+=srChipsHTML(inp)+"\n";
@@ -5935,6 +6006,7 @@ function srInput(offset){
     averages:averages,activity:activity,
     daily:{label:fmtShort(M.ws)+" – "+fmtShort(M.we),rows:dailyRows},
     weightChart:srWeightInput(offset),
+    checkin:srCheckinInput(offset),
     feel:srFeelInput(offset),
     bodycomp:srBodyCompInput(offset),
     lbm:srLbmInput(offset),
@@ -5970,6 +6042,45 @@ function srLbmInput(offset){
     points:series.filter(function(o){return o.date>=ds[0]&&o.date<=ds[ds.length-1];})};
   return {series:series,win:win,cur:cur,prev:prev,
     chg:(cur.avg!=null&&prev.avg!=null)?Math.round((cur.avg-prev.avg)*10)/10:null};}
+/* The athlete's own words, on the report for the week they describe.
+   (Owner, 2026-08-11: "The questions I fill out on weekly checking need to go
+   with the previous week progress report. Even if it's late. I just filled it
+   out for last week. That is the end of the week report my coach sees.")
+
+   The matching is by WHAT THE CHECK-IN COVERS, never by when it was submitted.
+   A check-in is keyed by its own day and reports on the week that just closed
+   (ciCovered), so the report for the week starting S reads the check-in keyed
+   S+7. Filling it in days late changes nothing about which week it belongs to —
+   which is the whole point of the request.
+
+   When it was actually submitted is still carried, because a coach reading
+   "biggest win this week" should be able to tell whether it was written the
+   morning after or a week later. */
+function srCheckinInput(offset){
+  var ws=weekStartFor(offset);
+  var key=toISO(addDays(ws,7));            /* the check-in day that reports on this week */
+  var r=ciRec(key);
+  if(!r)return null;
+  var answers=[];
+  CI_TEXT.forEach(function(q){
+    var v=((r.answers||{})[q[0]]||"").trim();
+    if(v)answers.push({label:q[1],text:v});
+  });
+  var ts=r.updated||r.ts||null;
+  var submitted=ts?new Date(ts):null;
+  /* "late" means written after the check-in day itself, not after the week */
+  var lateDays=submitted?Math.max(0,Math.round((submitted-parseISO(key))/86400000)):0;
+  return {
+    covers:ciCoveredLabel(key),
+    status:r.status||null,
+    answered:answers.length,
+    of:CI_TEXT.length,
+    answers:answers,
+    submittedISO:submitted?toISO(submitted):null,
+    submittedLabel:submitted?fmtShort(submitted):null,
+    lateDays:lateDays,
+  };}
+
 /* The week's WEIGHT chart (Owner, 2026-08-10: "Show last week weight chart of
    Monday through Sunday. Just like it looks on the app. But with M-Sunday
    range."). Same renderer, same W-mode look as the Progress tab's weekly

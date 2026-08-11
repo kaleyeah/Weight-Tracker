@@ -21,6 +21,55 @@ test("W offset 1 is the immediately preceding non-overlapping week", () => {
   const p = T.tcPeriod("W", 1, "2026-08-05");
   eq(p.startISO, "2026-07-23"); eq(p.endISO, "2026-07-29");
 });
+
+/* ---- W aligned to the check-in day (Owner, 2026-08-11: "the logic is check
+   in day plus 6 days"). The reported symptom is the first case below: on Mon
+   Aug 10 the rolling window called itself Aug 4–10, and the week he had just
+   finished — the one the check-in and the report both call a week — was
+   Aug 3–9. It is now one offset back, and it is labelled correctly. */
+test("W aligned: offset 0 is the week in progress, starting on the check-in day", () => {
+  const p = T.tcPeriod("W", 0, "2026-08-10", 1);   /* Mon Aug 10, weeks start Mon */
+  eq(p.startISO, "2026-08-10"); eq(p.endISO, "2026-08-16");
+  eq(p.prevStartISO, "2026-08-03"); eq(p.prevEndISO, "2026-08-09");
+});
+test("W aligned: the week the Owner reported missing is offset 1", () => {
+  const p = T.tcPeriod("W", 1, "2026-08-10", 1);
+  eq(p.startISO, "2026-08-03"); eq(p.endISO, "2026-08-09");
+  ok(/Aug 3 – Aug 9/.test(p.label), "label reads Aug 3 – Aug 9, got " + p.label);
+});
+test("W aligned: mid-week reaches back to the check-in day, not back 7 days", () => {
+  const p = T.tcPeriod("W", 0, "2026-08-13", 1);   /* Thu */
+  eq(p.startISO, "2026-08-10"); eq(p.endISO, "2026-08-16");
+});
+test("W aligned: on the check-in day itself the week has just opened", () => {
+  const p = T.tcPeriod("W", 0, "2026-08-03", 1);
+  eq(p.startISO, "2026-08-03"); eq(p.endISO, "2026-08-09");
+});
+test("W aligned: a Sunday-start athlete gets Sunday-start weeks", () => {
+  const p = T.tcPeriod("W", 0, "2026-08-13", 0);   /* Thu, weeks start Sun */
+  eq(p.startISO, "2026-08-09"); eq(p.endISO, "2026-08-15");
+});
+test("W aligned: weekStartDow 0 aligns — it is a day index, not a missing arg", () => {
+  /* the bug a falsy check would introduce: Sunday is 0, and `if(weekStartDow)`
+     would silently drop every Sunday-start athlete back to rolling windows */
+  const rolling = T.tcPeriod("W", 0, "2026-08-13");
+  const aligned = T.tcPeriod("W", 0, "2026-08-13", 0);
+  ok(rolling.startISO !== aligned.startISO, "0 must not be read as absent");
+  eq(rolling.startISO, "2026-08-07");
+});
+test("W aligned: previous is the previous WEEK, still aligned", () => {
+  const p = T.tcPeriod("W", 0, "2026-08-13", 1);
+  eq(p.prevStartISO, "2026-08-03"); eq(p.prevEndISO, "2026-08-09");
+  eq(T.tcAddDays(p.prevEndISO, 1), p.startISO, "the two windows must abut");
+});
+test("W aligned: across a year boundary", () => {
+  const p = T.tcPeriod("W", 0, "2026-01-02", 1);   /* Fri Jan 2 2026 */
+  eq(p.startISO, "2025-12-29"); eq(p.endISO, "2026-01-04");
+});
+test("M and 6M are unchanged by the anchor — only W aligns", () => {
+  eq(T.tcPeriod("M", 0, "2026-08-13", 1).startISO, T.tcPeriod("M", 0, "2026-08-13").startISO);
+  eq(T.tcPeriod("6M", 0, "2026-08-13", 1).startISO, T.tcPeriod("6M", 0, "2026-08-13").startISO);
+});
 test("M: exactly 30 dates ending on the end date (Jul 7 – Aug 5)", () => {
   const p = T.tcPeriod("M", 0, "2026-08-05");
   eq(p.startISO, "2026-07-07"); eq(p.endISO, "2026-08-05");

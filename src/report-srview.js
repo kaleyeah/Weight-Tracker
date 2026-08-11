@@ -156,6 +156,40 @@ function srWeightChartHTML(inp){
     colors:{axis:"#5A6474",grid:"#252D3A",line:"#7C93F5",accent:"#7C93F5",fill:"rgba(124,147,245,0.10)",pointFill:"#10151E"},
     ariaLabel:"Weight, "+(inp.range||"this week")})+'</div>';
   return h+'</div>';}
+/* The athlete's own words about the week — the part of the report the coach
+   reads first, and the only part the numbers cannot supply.
+
+   Matched to the week the check-in COVERS, not the day it was submitted, so a
+   check-in filled in late still lands on the right report (Owner, 2026-08-11).
+   The submission date is shown when it was written after the check-in day,
+   because "biggest win this week" reads differently written the morning after
+   than written nine days later — and hiding that would be dishonest to a coach
+   who is trying to judge how fresh the account is. */
+function srCheckinHTML(inp){
+  var c=inp.checkin;
+  if(!c)return "";
+  var h='<div class="wl-card"><div class="wl-card-head"><span>In his own words</span>'+
+    '<span class="wl-count">'+srEsc(c.covers)+'</span></div>';
+
+  if(c.status==="skipped"){
+    return h+'<div class="wl-hint" style="margin-top:0">Check-in skipped for this week.</div></div>';}
+
+  if(!c.answers.length){
+    return h+'<div class="wl-hint" style="margin-top:0">Check-in started but no questions answered.</div></div>';}
+
+  c.answers.forEach(function(a){
+    h+='<div class="ci-q">'+srEsc(a.label)+'</div>'+
+       '<div class="ci-a">'+srEsc(a.text)+'</div>';});
+
+  var meta=c.answered+' of '+c.of+' answered';
+  if(c.lateDays>0&&c.submittedLabel)
+    meta+=' · written '+srEsc(c.submittedLabel)+', '+
+      (c.lateDays===1?'a day':c.lateDays+' days')+' after the week closed';
+  else if(c.submittedLabel)
+    meta+=' · '+srEsc(c.submittedLabel);
+  h+='<div class="wl-hint">'+meta+'</div>';
+  return h+'</div>';}
+
 /* The How-you've-felt grid, carried over from the Progress tab so the coach
    reads the same picture the athlete does: six strands down, the week across,
    5 best and 1 worst. An unanswered day is a dash, never a low score. */
@@ -342,6 +376,9 @@ var SRCSS=[
 ".wl-byday-grid td.warn{color:var(--accent)}",
 ".wl-byday-grid td.bad{color:var(--bad)}",
 ".mut{color:var(--faint)}",
+".ci-q{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);margin-top:14px}",
+".ci-q:first-of-type{margin-top:2px}",
+".ci-a{font-size:14.5px;line-height:1.5;color:var(--text);margin-top:5px;white-space:pre-wrap;overflow-wrap:anywhere}",
 ".fgrid{display:grid;grid-template-columns:74px 1fr;gap:6px 8px;align-items:center}",
 ".fgrid .fk{font-size:11.5px;font-weight:700;color:var(--muted)}",
 ".fdow{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}",
@@ -393,6 +430,7 @@ function srReportHTML(inp){
   h+=srPhotosHTML(inp.photos)+"\n";
   h+=srHeroHTML(inp)+"\n";
   h+=srWeightChartHTML(inp)+"\n";
+  h+=srCheckinHTML(inp)+"\n";
   h+=srBodyCompHTML(inp)+"\n";
   h+=srLbmHTML(inp)+"\n";
   h+=srChipsHTML(inp)+"\n";

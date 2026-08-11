@@ -891,11 +891,16 @@ function trendCtx(){
   /* ONE selector on the Progress page (Owner, 2026-08-06: 'redundant to have
      two date range selectors'). The measurement component's W/M/6M control
      now drives EVERYTHING — More stats, sleep, training history — with the
-     component's rolling-window semantics (7d / 30d / 6 calendar months
-     ending today, offset by whole periods). The old calendar-window control
-     and its trend:* actions are retired. */
+     component's window semantics. The old calendar-window control and its
+     trend:* actions are retired.
+
+     W is the check-in week (check-in day + 6 days) since 2026-08-11; M and 6M
+     stay rolling (30 days / 6 calendar months ending today). Passing
+     weekStartDow() here is what makes every W-mode panel on this page — sleep,
+     steps, calories, training history — cover the same seven days the Summary
+     tab and the progress report call that week. */
   var mode=state.t2Mode||"M",off=state.t2Off||0;
-  var p=tcPeriod(mode,off,todayISO());
+  var p=tcPeriod(mode,off,todayISO(),weekStartDow());
   return {mode:mode,off:off,start:parseISO(p.startISO),end:parseISO(p.endISO),
     gran:(mode==="6M")?"month":"day",label:p.label};
 }

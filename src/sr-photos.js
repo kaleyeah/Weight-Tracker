@@ -82,6 +82,7 @@ function srInput(offset){
     averages:averages,activity:activity,
     daily:{label:fmtShort(M.ws)+" – "+fmtShort(M.we),rows:dailyRows},
     weightChart:srWeightInput(offset),
+    checkin:srCheckinInput(offset),
     feel:srFeelInput(offset),
     bodycomp:srBodyCompInput(offset),
     lbm:srLbmInput(offset),
@@ -117,6 +118,45 @@ function srLbmInput(offset){
     points:series.filter(function(o){return o.date>=ds[0]&&o.date<=ds[ds.length-1];})};
   return {series:series,win:win,cur:cur,prev:prev,
     chg:(cur.avg!=null&&prev.avg!=null)?Math.round((cur.avg-prev.avg)*10)/10:null};}
+/* The athlete's own words, on the report for the week they describe.
+   (Owner, 2026-08-11: "The questions I fill out on weekly checking need to go
+   with the previous week progress report. Even if it's late. I just filled it
+   out for last week. That is the end of the week report my coach sees.")
+
+   The matching is by WHAT THE CHECK-IN COVERS, never by when it was submitted.
+   A check-in is keyed by its own day and reports on the week that just closed
+   (ciCovered), so the report for the week starting S reads the check-in keyed
+   S+7. Filling it in days late changes nothing about which week it belongs to —
+   which is the whole point of the request.
+
+   When it was actually submitted is still carried, because a coach reading
+   "biggest win this week" should be able to tell whether it was written the
+   morning after or a week later. */
+function srCheckinInput(offset){
+  var ws=weekStartFor(offset);
+  var key=toISO(addDays(ws,7));            /* the check-in day that reports on this week */
+  var r=ciRec(key);
+  if(!r)return null;
+  var answers=[];
+  CI_TEXT.forEach(function(q){
+    var v=((r.answers||{})[q[0]]||"").trim();
+    if(v)answers.push({label:q[1],text:v});
+  });
+  var ts=r.updated||r.ts||null;
+  var submitted=ts?new Date(ts):null;
+  /* "late" means written after the check-in day itself, not after the week */
+  var lateDays=submitted?Math.max(0,Math.round((submitted-parseISO(key))/86400000)):0;
+  return {
+    covers:ciCoveredLabel(key),
+    status:r.status||null,
+    answered:answers.length,
+    of:CI_TEXT.length,
+    answers:answers,
+    submittedISO:submitted?toISO(submitted):null,
+    submittedLabel:submitted?fmtShort(submitted):null,
+    lateDays:lateDays,
+  };}
+
 /* The week's WEIGHT chart (Owner, 2026-08-10: "Show last week weight chart of
    Monday through Sunday. Just like it looks on the app. But with M-Sunday
    range."). Same renderer, same W-mode look as the Progress tab's weekly

@@ -7,10 +7,21 @@
    Period semantics are the PACKAGE'S, deliberately different from the page
    trendCtx() calendar windows (which continue to drive steps/calories/sleep/
    training history, untouched):
-     W  — 7 consecutive local dates ending on the selected end date
+     W  — the athlete's check-in week: the check-in day plus 6 days
      M  — 30 consecutive local dates ending on the selected end date
      6M — a rolling six-CALENDAR-month window ending on the selected end date
    "Previous" moves back exactly one matching period.
+
+   W was a ROLLING seven days ending today until 2026-08-11. The Owner reported
+   it on Aug 10 reading "August 4–10" when the week he had just lived was Aug
+   3–9, and gave the rule himself: "The logic is check in day plus 6 days."
+   A rolling window cannot agree with the Summary tab, the progress report or a
+   check-in — all three are anchored to the check-in day — so the same seven
+   days carried three different labels depending on which screen you were on.
+   tcPeriod now aligns W to the check-in day when the caller passes weekStartDow
+   (0=Sun … 6=Sat, the app's `settings.weekStart`). Omitting it keeps the old
+   rolling behaviour, which is what the pure unit tests exercise and what any
+   caller with no athlete context still gets.
 
    Canonical rules honored here: one observation per date (enforced by every
    writer in the app), no zero-fill, no interpolation, no fabricated points;
@@ -37,14 +48,25 @@ function tcFmt(iso) { var d = tcParse(iso); return TC_MON[d.getMonth()] + " " + 
 
 /* {startISO,endISO,prevStartISO,prevEndISO,label} for mode at offset periods
    back from todayISO. Offset 0 ends on today; navigation never goes forward
-   of offset 0 (the view enforces the disabled Next). */
-function tcPeriod(mode, offset, todayISO) {
+   of offset 0 (the view enforces the disabled Next).
+
+   weekStartDow (optional, 0=Sun … 6=Sat) aligns W to the athlete's check-in
+   day. With it, offset 0 is the week in progress — so it runs THROUGH days
+   that have not happened yet, exactly as the Summary tab's week does. Those
+   days simply hold no observations; nothing is invented for them. */
+function tcPeriod(mode, offset, todayISO, weekStartDow) {
   var end, start, pEnd, pStart;
   if (mode === "6M") {
     end = tcAddMonths(todayISO, -6 * offset);
     start = tcAddDays(tcAddMonths(end, -6), 1);
     pEnd = tcAddDays(start, -1);
     pStart = tcAddDays(tcAddMonths(pEnd, -6), 1);
+  } else if (mode === "W" && weekStartDow != null) {
+    var back = (tcParse(todayISO).getDay() - (weekStartDow | 0) + 7) % 7;
+    start = tcAddDays(todayISO, -back - 7 * offset);
+    end = tcAddDays(start, 6);
+    pStart = tcAddDays(start, -7);
+    pEnd = tcAddDays(start, -1);
   } else {
     var len = mode === "W" ? 7 : 30;
     end = tcAddDays(todayISO, -len * offset);
