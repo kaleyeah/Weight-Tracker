@@ -211,10 +211,12 @@ the commit route throw on every request during an earlier round.
   Pages. Owner-authorized 2026-08-11. Served-byte verification (standing ruling
   1) recorded in `docs/RELEASE-SERVED-VERIFICATION.md`: committed and served
   artifacts both sha256 `6a767874…88021`, `cmp` identical.
-- **Publication is not adoption.** A verified serve proves the bytes left the
-  origin; a PWA can run a cached artifact for an arbitrary period. Confirming
-  every active writing installation reports the current build is a SEPARATE
-  check (Architect ruling 12) and needs the Owner's devices.
+- **Publication is not adoption**, and the two are checked separately. A
+  verified serve proves the bytes left the origin; a PWA can run a cached
+  artifact for an arbitrary period. Owner confirmed on-device 2026-08-11: his
+  app reports `486-recovery-shows-the-server`. **The way to check is to have
+  the app say what it is** (Settings shows `APP_BUILD`) and read it back —
+  never to infer it from the origin.
 - **Owner-authorized exception on this release.** The Architect had asked for
   the correction to be returned *unpushed* for review. The Owner was told 485
   had not been back through review and chose to deploy and review after. That

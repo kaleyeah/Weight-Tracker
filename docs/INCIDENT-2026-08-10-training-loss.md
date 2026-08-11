@@ -92,8 +92,18 @@ stopped without needing to be identified first.
 | core `data` blob | **not written**; confirmed unchanged (22 weights, latest Aug 10, 183 lbs) |
 | photos | **not written** |
 
-**Outstanding from this:** the superuser token used for the restore has not been
-revoked. That is an Owner action and is listed in §6.
+**Closed, by verification rather than by assertion:** the superuser token used
+for the restore **expired at 2026-08-11T08:05:18Z**, about three minutes after
+the Owner sent it — confirmed by decoding the `exp` claim, not by asking. It is
+a `type=auth` token on the `_superusers` collection and is dead. Nothing needs
+rotating.
+
+This was carried as an open "active material risk" through four Architect
+rounds because neither the Architect nor I checked the expiry; the Owner said
+"I don't see I have token still useable" and was right. **A credential's own
+claims are checkable — read them before escalating.** The token does persist in
+this session's transcript on disk (`~/.claude/projects/…/*.jsonl`), which is
+where a pasted secret lands regardless of lifetime.
 
 **Not captured, and it should have been:** a pre-restore export of the record as
 it stood immediately before the `PATCH`. The snapshot is the authoritative
@@ -205,6 +215,8 @@ Full browser gate green on the shipping artifact.
    revision at the server. This is a wire and schema change against live data
    and needs a compatibility plan, disposable-server tests, a rollback and
    **explicit Owner authorisation**. Not started.
-2. **Revoke the superuser token** used for the restore.
+2. ~~Revoke the superuser token used for the restore.~~ **CLOSED** — it expired
+   2026-08-11T08:05:18Z, ~3 minutes after issue. Verified from the token's own
+   `exp` claim.
 3. **Backups.** The recovery depended on a Synology snapshot that happened to
    exist. Nothing in the app or the deployment guarantees one.
