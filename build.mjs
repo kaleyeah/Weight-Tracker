@@ -66,6 +66,7 @@ const MODULES = [
   { name: "report-srview.js" },
   { name: "icons.js" },
   { name: "app-core.js" },
+  { name: "macro-core.js" },
   { name: "state-glp-calc.js" },
   { name: "trend-core.js" },
   { name: "photo-frame.js" },

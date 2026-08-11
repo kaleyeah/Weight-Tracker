@@ -467,29 +467,24 @@ function currentWeightAvg(){var w=null;var pc=prepChart();
   return w;}
 function currentWeightKg(){var w=currentWeightAvg();if(w==null)return null;return state.settings.units==="kg"?w:w*0.45359237;}
 function bmr(){var s=state.settings;
-  if(s.sex!=="male"&&s.sex!=="female")return null;
-  var age=num(s.age);if(age==null)return null;
-  var ft=num(s.heightFt);if(ft==null)return null;
-  var inch=num(s.heightIn)||0;var H=(ft*12+inch)*2.54;
-  var wKg=currentWeightKg();if(wKg==null)return null;
-  return Math.round(10*wKg+6.25*H-5*age+(s.sex==="male"?5:-161));}
+  /* The arithmetic lives in MacroCore so the phone, the coach report and the
+     codex cannot disagree. This stays as the adapter that knows about state. */
+  return MacroCore.bmr({sex:s.sex,ageYears:num(s.age),heightFt:num(s.heightFt),
+    heightIn:num(s.heightIn)||0,weightKg:currentWeightKg()});}
 function bmrText(){var b=bmr();return b!=null?(b.toLocaleString()+" cal/day"):"—";}
-var ACTIVITY={bmr:1,sedentary:1.2,light:1.375,moderate:1.4625,active:1.55,intense:1.725,physical:1.9};
+var ACTIVITY=MacroCore.ACTIVITY;
 var ALEVELS=[["bmr","Basal Metabolic Rate (BMR)"],["sedentary","Little or no exercise"],["light","Exercise 1–3 times/week"],["moderate","Exercise 4–5 times/week"],["active","Daily exercise or intense 3–4×/week"],["intense","Intense exercise 6–7 times/week"],["physical","Very intense daily, or physical job"]];
 function alLabel(k){for(var i=0;i<ALEVELS.length;i++)if(ALEVELS[i][0]===k)return ALEVELS[i][1];return "Not set";}
 function profileComplete(){var s=state.settings;return !!(s.sex&&num(s.age)!=null&&num(s.heightFt)!=null&&num(s.startingWeight)!=null&&s.activityLevel);}
-function activityMult(){return ACTIVITY[state.settings.activityLevel]||null;}
-function maintenanceCals(){var b=bmr();var m=activityMult();return (b!=null&&m!=null)?Math.round(b*m):null;}
-function dailyDeficit(){var s=state.settings;var tv=num(s.targetValue);if(tv==null||tv<=0)return 0;
-  var weekly;
-  if(s.targetType==="percent_bw_per_week"){var cw=currentWeightAvg();if(cw==null)return 0;weekly=(tv/100)*cw;}
-  else weekly=tv;
-  var weeklyLbs=s.units==="kg"?weekly*2.20462:weekly;
-  return weeklyLbs*500;}
+function activityMult(){return MacroCore.activityMult(state.settings.activityLevel);}
+function maintenanceCals(){return MacroCore.maintenance({bmrValue:bmr(),activityLevel:state.settings.activityLevel});}
+function dailyDeficit(){var s=state.settings;
+  return MacroCore.dailyDeficit({targetType:s.targetType,targetValue:num(s.targetValue),
+    units:s.units,currentWeight:currentWeightAvg()});}
 function strategyMode(){return state.settings.strategy||"lose";}
 function dailyDelta(){var m=strategyMode();if(m==="maintain")return 0;var mag=dailyDeficit();return m==="gain"?mag:-mag;}
 function targetIntake(){var m=maintenanceCals();if(m==null)return null;return Math.round(m+dailyDelta());}
-function suggestedProteinG(){var gw=num(state.settings.goalWeight);if(gw==null)return null;var lbs=state.settings.units==="kg"?gw*2.20462:gw;return Math.round(lbs);}
+function suggestedProteinG(){return MacroCore.suggestedProteinG({goalWeight:num(state.settings.goalWeight),units:state.settings.units});}
 function stratLabel(){var m=strategyMode();return m==="gain"?"To gain":m==="maintain"?"Maintain at":"To lose";}
 function calSummaryHTML(){var b=bmr();if(b==null)return "Add sex, age &amp; height above to calculate.";
   var m=maintenanceCals(),t=targetIntake();
@@ -497,7 +492,8 @@ function calSummaryHTML(){var b=bmr();if(b==null)return "Add sex, age &amp; heig
   if(t!=null){s+=' · '+stratLabel()+' <b>'+t.toLocaleString()+'</b>';if(t<1200)s+=' <span style="color:var(--bad)">(under ~1200/day — consider a gentler goal)</span>';}
   var sp=suggestedProteinG();if(sp!=null)s+=' · protein target <b>'+sp+'g</b> (1g/lb of target weight)';
   return s+' cal/day';}
-function suggestedMacros(){var cal=num(state.settings.targetCalories);if(cal==null)cal=targetIntake();if(cal==null)return null;var pro;if(state.settings.proteinAuto===false){pro=num(state.settings.targetProtein);}else{pro=suggestedProteinG();}if(pro==null)return null;var fat=Math.round(cal*0.20/9);if(fat<40)fat=40;var carb=Math.round(Math.max(0,cal-pro*4-fat*9)/4);return {protein:pro,carbs:carb,fat:fat,cal:cal};}
+function suggestedMacros(){var cal=num(state.settings.targetCalories);if(cal==null)cal=targetIntake();var pro=(state.settings.proteinAuto===false)?num(state.settings.targetProtein):suggestedProteinG();
+  return MacroCore.suggestedMacros({calories:cal,proteinG:pro});}
 function applyAutoCalTarget(){if(state.settings.calTargetAuto===false)return false;var t=targetIntake();if(t==null)return false;state.settings.targetCalories=String(t);return true;}
 function applyAutoMacros(){applyAutoCalTarget();if(state.settings.macroAuto===false)return false;var sm=suggestedMacros();if(!sm)return false;if(state.settings.proteinAuto!==false)state.settings.targetProtein=String(sm.protein);state.settings.targetCarbs=String(sm.carbs);state.settings.targetFat=String(sm.fat);return true;}
 function syncMacroInputs(){["targetCalories","targetProtein","targetCarbs","targetFat"].forEach(function(k){var el=document.querySelector('[data-set="'+k+'"]');if(el&&document.activeElement!==el)el.value=state.settings[k]||"";});}

@@ -3,7 +3,23 @@
    Replaces the GitHub Contents API sync with a self-hosted
    PocketBase backend: real accounts, hard per-user isolation.
    ============================================================ */
-var PB_DEFAULT_BASE="https://rack.tail6fa16c.ts.net";
+var PB_DEFAULT_BASE="https://rack.tail8b20e0.ts.net";
+/* The tailnet was moved on 2026-08-10 and its MagicDNS suffix changed, so the
+   old hostname stops resolving everywhere at once. Changing the default alone
+   would not have fixed a single existing device: every account that has ever
+   logged in has the old base STORED in its wl_pb record, and pbBase() prefers
+   the stored value. So retired hosts are remapped at read time.
+
+   Deliberately not persisted. Rewriting the record would need write authority,
+   which the M10 lease refuses on a device that is not the writer — and this has
+   to work on every device, not just the holder. Mapping on read is idempotent,
+   costs nothing, and leaves the stored value alone as a record of what it was. */
+var PB_RETIRED_HOSTS={"rack.tail6fa16c.ts.net":"rack.tail8b20e0.ts.net"};
+function pbMigrateBase(u){
+  var s=String(u||"");
+  for(var old in PB_RETIRED_HOSTS){
+    if(s.indexOf(old)>=0)return s.split(old).join(PB_RETIRED_HOSTS[old]);}
+  return s;}
 var PB_KEY="wl_pb";
 /* "Remember me" decides WHERE the session lives, not whether one exists:
    localStorage survives closing the app; sessionStorage dies with the tab. Reads
@@ -16,7 +32,7 @@ function setPbCfg(c){
     if(c&&c.remember===false){sessionStorage.setItem(PB_KEY,JSON.stringify(c));localStorage.removeItem(PB_KEY);}
     else{localStorage.setItem(PB_KEY,JSON.stringify(c));try{sessionStorage.removeItem(PB_KEY);}catch(e){}}
   }catch(e){}}
-function pbBase(){var c=pbCfg();return String(c.base||PB_DEFAULT_BASE).replace(/\/+$/,"");}
+function pbBase(){var c=pbCfg();return pbMigrateBase(String(c.base||PB_DEFAULT_BASE)).replace(/\/+$/,"");}
 function pbTok(){return pbCfg().token||"";}
 function pbUid(){return pbCfg().uid||"";}
 function pbEmail(){return pbCfg().email||"";}

@@ -153,7 +153,7 @@ function pbLoginHTML(){
         '<button type="submit" class="wl-btn wl-btn-primary wl-full wl-login-go"'+(pbLoginState.busy?' disabled':'')+'>'+(pbLoginState.busy?"Signing in…":"Log in")+'</button>'+
       '</form>'+
       '<button class="wl-login-adv" data-act="pb:adv">'+(pbLoginState.advanced?"Hide server settings":"Server settings")+'</button>'+
-      (pbLoginState.advanced?('<label class="wl-field wl-field-full"><span>Server URL</span><input type="url" id="wl-pb-base" value="'+esc(c.base||PB_DEFAULT_BASE)+'" autocapitalize="off" autocorrect="off" spellcheck="false"></label>'+
+      (pbLoginState.advanced?('<label class="wl-field wl-field-full"><span>Server URL</span><input type="url" id="wl-pb-base" value="'+esc(pbMigrateBase(c.base||PB_DEFAULT_BASE))+'" autocapitalize="off" autocorrect="off" spellcheck="false"></label>'+
         '<div class="wl-hint" style="margin-top:8px">Your device must be on the same Tailscale network as the server.</div>'):'')+
     '</div>'+
   '</div>';}
