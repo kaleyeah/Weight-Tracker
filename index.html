@@ -1054,7 +1054,7 @@ input[type=range][data-pfadj]{width:100%;accent-color:var(--accent);min-height:2
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-11.484-empty-never-syncs";
+var APP_BUILD="2026-08-11.485-journal-prior-explicit";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -12546,10 +12546,18 @@ function m8CommitFence(body){
    refused. The Architect ruled the identical shape "correct product behaviour,
    stronger not weaker" for core; it is stronger here for the same reason.
 
-   Nothing is lost. A genuine clean slate still exists: the refusal raises the
-   conflict banner, which shows both copies, requires exporting both, and then
-   takes his choice. That IS the confirmation — informed, deliberate, and with
-   the data off the device first — and it was already built.
+   SAY THE CONSEQUENCE PLAINLY (Architect ruling 2): **Compound has no
+   supported delete-all-training operation.** I first wrote that the conflict
+   banner still offers a clean slate — export both copies, keep this device's —
+   and that is FALSE. m8CxChooseLocal passes the non-empty server copy as the
+   prior, so an empty local copy is refused there too and the conflict simply
+   re-forms. The refusal is genuinely unconditional, and the honest statement
+   is that the operation does not exist rather than that it exists by another
+   route. The banner still does its real job: both copies are preserved, both
+   are exportable, and a non-empty local copy can be kept.
+
+   If the Owner ever wants full deletion it is a new destructive feature with
+   its own reviewed command and server contract — not a hole left open here.
 
    This sits at the choke point every commit passes, beside m8CommitFence and
    for the same stated reason: "new push and journal replay alike". The earlier
@@ -12564,13 +12572,19 @@ function m8CommitFence(body){
    and for a replay. */
 function m8CommitEmptyAllowed(trainingObj,priorCanon){
   if(!m8TrainingEmpty(trainingObj))return true;      /* not a destruction */
-  if(priorCanon===undefined){
-    var b=m8Read("base");
-    if(b.st!=="ok")return true;                      /* no base: bootstrap owns this */
-    priorCanon=b.val.body;}
   return m8CanonEmpty(priorCanon);}                  /* nothing to destroy */
 function m8CasCommit(expectedRev,trainingObj,requestId,cb,priorCanon){
   var base;try{base=pbBase();}catch(e){cb({st:"transport"});return;}
+  /* priorCanon is REQUIRED (Architect ruling 6). It used to default to a fresh
+     read of the base, and that default was a live bug: m8ResolveJournal
+     dispatched a stored request without passing it, so a replay was judged
+     against whatever the base holds NOW rather than against oldBaseCanon — the
+     content the request was actually written to replace. C44 missed it because
+     the fixture left the two equal, which is the fixture-shape-hides-the-bug
+     class exactly. There is no default any more: a caller that does not say
+     what it is replacing cannot commit at all, so a future caller cannot
+     weaken the invariant by omission. */
+  if(priorCanon===undefined){cb({st:"emptyRefused"});return;}
   if(!m8CommitEmptyAllowed(trainingObj,priorCanon)){cb({st:"emptyRefused"});return;}
   var body={subsystem:"training",expectedRev:expectedRev,idempotencyKey:requestId,payload:trainingObj,
     /* ruling 10: the training route was the only commit path that never said
@@ -12838,7 +12852,7 @@ function m8Push(){
   m8Pushing=true;try{setSync("syncing");}catch(e){}
   m8CasCommit(b.val.rev,copy,reqId,function(res){
     m8Pushing=false;
-    m8AckOutcome(j,copy,pc.canon,gen,res,0);});}
+    m8AckOutcome(j,copy,pc.canon,gen,res,0);},b.val.body);}
 
 /* ---- ONE phase-aware transition finisher (R10): executes the remaining
    phases of an ack journal at/after net-done, idempotently, each phase
@@ -12901,7 +12915,11 @@ function m8AckOutcome(j,copy,pushedCanon,gen,res,retried,opts){
            revision — a NEW logical request, so a NEW idempotency key */
         var reqId2=m8NewRequestId();
         if(reqId2&&m8JournalAdvance(j,"intent",{expectedRev:res.serverRev,requestId:reqId2})){
-          m8CasCommit(res.serverRev,copy,reqId2,function(r2){m8AckOutcome(j,copy,pushedCanon,gen,r2,1,opts);});return;}
+          /* the retry's prior is the content the comparison just PROVED the
+             server holds — rc.canon === b2.val.body — not an implicit reread
+             that could change the subject of the destructive check (ruling 5) */
+          m8CasCommit(res.serverRev,copy,reqId2,function(r2){m8AckOutcome(j,copy,pushedCanon,gen,r2,1,opts);},
+            b2.val.body);return;}
       }}
     if(m8EnterConflict(res.payload,res.serverRev,"push-conflict")){
       if(!m8JournalAdvance(j,"done",{outcome:"conflict"})){
@@ -13018,7 +13036,11 @@ function m8ResolveJournal(j,cb){
       if(res.st==="keyReused"){m8Block("sync integrity error — request key reused");finish();return;}
       if(res.st==="auth"){try{setSync("error","session expired — log in again");}catch(e){}finish();return;}
       /* transport again: remain unresolved (F4) */
-      try{setSync("offline","unsynced training will retry");}catch(e){}finish();});
+      try{setSync("offline","unsynced training will retry");}catch(e){}finish();},
+      /* the journal's OWN record of what this request was written to replace —
+         never a fresh read, which would judge an old request against new
+         circumstances (ruling 4) */
+      j.expect.oldBaseCanon);
     return;}
   fetchCompare();}
 

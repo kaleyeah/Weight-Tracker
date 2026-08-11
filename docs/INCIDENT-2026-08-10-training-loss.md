@@ -2,8 +2,9 @@
 
 **Severity:** data loss, recovered. **Subsystem:** M8 training sync.
 **Reported by:** the Owner ("My routines have disappeared").
-**Fixes:** builds 480, 481, 483. **Architect review:** round 0, 2026-08-11,
-14 numbered rulings; this record answers ruling 13.
+**Fixes:** builds 480, 481, **484** (483 was rejected in review — see §4).
+**Architect review:** three rounds, 2026-08-11. This record answers ruling 13
+of round 0 and rulings 11/16 of the later rounds.
 
 Written because "PATCHed back" is a live-data mutation and must not survive as
 an informal note in a chat log. Anything below stated as fact was read off a
@@ -28,7 +29,7 @@ Every neighbouring commit in the ledger carries `clientBuild: "…478…"`. This
 carries nothing, because the training route — `m8CasCommit` — was the only
 commit path in the app that never sent the field. That absence is what
 identified the route within minutes, and it is why ruling 10 requires the field
-be sent from now on (done in 483).
+be sent from now on (done in 484).
 
 **What was lost:** 3 routines, 25 exercises, 9 lift sessions (latest 2026-08-08)
 and 14 cardio sessions — replaced by an empty training object.
@@ -66,7 +67,7 @@ distinguishable.
 
 ### Still hypotheses — not proven, and deliberately not chosen between
 
-- a push that ran before `loadTraining()` did, during the .478 update reload;
+- a push that ran before `loadTraining()` did;
 - unparseable or truncated stored bytes;
 - an absent/evicted key;
 - some other path that constructed an empty training state.
@@ -111,31 +112,48 @@ to the existing conflict banner rather than blocking hard.
 only `ok` authorises emptying. First-run is unaffected: with no base,
 `m8State` is `fresh`/`bootstrap` and the refusal is never reached.
 
-**483** — the completed contract:
+**483 — REJECTED IN REVIEW, kept here as history.** It replaced the boolean
+with a durable "delete-all intent" record minted in `saveTraining`. The
+Architect found the hole: `saveTraining` runs *after* state has changed and
+compares the result against the base, so it observes a **state**, not a
+**command** — any bug that emptied training and then called the generic save
+would have minted its own authority. The same defect the design existed to
+prevent, one level up. Its content hash was also wrong on its own terms
+(FNV-1a over UTF-16 code units, `String.length` appended while documented as
+UTF-8 byte length, no `Math.imul`), so any non-ASCII exercise name would have
+made a future server disagree. **Never deployed.**
 
-- **Durable delete-all intent.** Minted only in `saveTraining`, at the moment
-  the athlete's own edit takes training from content to nothing, bound to the
-  device, the prior content hash, the resulting content hash, the generation
-  and the revision. Never minted at dispatch — that is the difference between
-  proof and a rubber stamp.
-- **The invariant at the choke point.** `m8CasCommit` refuses any commit that
-  would replace a known non-empty prior with nothing, unless handed a proof
-  that matches that exact destruction. Covers new push, journal replay and
-  conflict resolution alike, which is the standard `m8CommitFence` already set.
-- **`emptyUnproven`** as its own result, never folded into
-  `conflict`/`fenceStale`/`auth`/`transport`, whose execution and retry
-  meanings differ.
-- **Replay judges on journal-time evidence.** The proof travels inside the ack
-  journal; a legacy journal from before proofs existed carries none, is refused,
-  and is preserved rather than deleted or retroactively authorised.
-- **Core subsystem.** `load()` had the identical defect. It now carries the same
-  three-state contract, and `m10cPush` refuses to upload an empty core over a
-  non-empty base. Core has no delete-everything gesture, so there is nothing to
-  prove intent for and the refusal is unconditional.
-- **`clientBuild`** on training commits.
-- **`fenceStale`** added to the journal's terminal-outcome list — it was written
-  but never listed, so a done-record outliving its own cleanup would have been
-  quarantined as malformed. Found while adding `emptyUnproven` beside it.
+**484 — the current candidate.** The Owner was asked what scenario the
+machinery served, and answered that he never clears out all his training. So
+the app does not need to tell a genuine delete from a failed load:
+
+- **An empty training is never uploaded over a non-empty server.**
+  Unconditional, for training as for core. The intent records, hashing, journal
+  proof schema, command boundary and confirmation dialog are all deleted — 201
+  lines out of the sync layer, 100 in.
+- **Stated plainly, because it is the consequence:** Compound has **no
+  supported delete-all-training operation**. Not through sync, and not through
+  the conflict banner, which refuses an empty local copy for the same reason.
+  If that is ever wanted it is a new destructive feature with its own reviewed
+  command and server contract.
+- **The invariant sits at the dispatch choke point** for both subsystems —
+  `m8CasCommit` and `m10cDispatch` — so a journal replay cannot route around
+  it. The core refusal was initially in `m10cPush` only, which a replay through
+  `m10cRecover` bypassed; that gap is closed.
+- **`priorCanon` is mandatory** at the training choke point. It used to default
+  to a fresh read of the base, and that default was a live bug: a replay was
+  judged against whatever the base holds *now* rather than the content the
+  request was written to replace. Every caller now declares its prior, and a
+  caller that does not cannot commit at all.
+- **`emptyRefused`** is its own result, never folded into
+  `conflict`/`fenceStale`/`auth`/`transport`.
+- **A refused stored request is left exactly where it is** — same key, byte
+  identical, not quarantined — and surfaces as a conflict.
+- **`clientBuild`** on training commits, and `fenceStale` added to the
+  journal's terminal-outcome list where it was written but never listed.
+- **Three-state load contract** (`ok` / `absent` / `unknown`) on both
+  `loadTraining` and `load()`. It no longer decides anything; it is the honest
+  answer to "why", carried in the conflict record.
 
 ## 5. Evidence
 
@@ -151,12 +169,22 @@ confirmed the suite fails, restored:
 
 | mutation | result |
 |---|---|
-| the original 480 guard forced `false` | 3 fail; output is the destructive commit itself, `routines: []` at rev 36 |
-| absent counted as `ok` (the 481 hole) | 1 fail — the eviction case, exactly |
-| choke-point invariant disabled | 8 fail |
-| device binding removed | 1 fail |
-| generation binding removed | 1 fail |
-| journal emptying-validation disabled | 1 fail |
+| the m8 choke-point invariant disabled | 4 fail |
+| the m8 early refusal in `m8Push` disabled | 1 fail |
+| `priorCanon` no longer mandatory | 2 fail |
+| replay drops the journal's prior and reads the current base | 1 fail |
+| the core DISPATCH refusal disabled | 1 fail |
+| the core PUSH refusal disabled | 1 fail |
+| the journal-preservation disposition changed | 1 fail |
+
+Two of those exist because the first attempts at them were vacuous. The core
+push mutant initially survived — both core guards were in place, so the
+dispatch layer caught the same case and the assertion could not tell which had
+acted; it now asserts the push-layer block reason and that no journal was
+written. The replay mutant initially survived for the mirror reason — the test
+asserted refusal, which the mandatory-`priorCanon` rule produces on its own, so
+a case was added where the stored request is HARMLESS and must actually
+dispatch.
 
 Full browser gate green on the shipping artifact.
 

@@ -7,31 +7,31 @@
        expectedRev: 36 -> resultingRev: 37   fileByteLength: 0   status: 200
 
    Every neighbouring commit says .478; this one says nothing, because the
-   training route is the one push path that never sent clientBuild. Sometime in
-   the .478 update reload the app pushed an EMPTY training over a base holding
-   3 routines, 25 exercises, 9 lift sessions and 14 cardio sessions, and got a
-   200. Recovered from a Synology snapshot.
+   training route was the one push path that never sent clientBuild. An empty
+   training replaced 3 routines, 25 exercises, 9 lift sessions and 14 cardio
+   sessions, and the server returned 200. Recovered from a Synology snapshot.
 
-   WHAT THE EVIDENCE RULES OUT. A store whose reads THROW does not produce this
-   record: boot's recovery capture fails to secure the pre-sync bytes,
-   recoveryState goes "blocked", and m8Push returns on its very first line
-   (trainingQuarantined). That path was already safe, and the throwing case
-   below asserts that it is — by that gate, not this one. The commit therefore
-   went out on a device where storage was working and loadTraining() still
-   produced nothing: unparseable stored bytes, or a push that ran before
-   loadTraining() had.
+   **THE HISTORICAL TRIGGER IS UNKNOWN, and this suite does not assert one.**
+   An earlier version of this header narrowed it to two causes and placed it
+   "in the .478 update reload"; the evidence does not support that and the
+   incident record says so. What is established: a loader that swallowed every
+   failure was present, and is sufficient to produce that row. What is ruled
+   out: the throwing-read boot path, because recoveryState blocks it before
+   m8Push ever runs — asserted below so the two layers stay distinguishable.
+   Everything else remains hypothesis: a push before the store loaded, corrupt
+   or wrong-shaped bytes, an evicted key, or a path nobody has thought of.
 
-   Both leave state.training at its empty default, and the old
-   `catch(e){}` said nothing about either. The distinction this suite pins is
-   not "is training empty" but "do we KNOW it is empty" — identical bytes,
-   opposite meaning:
+   Since build 484 the question is no longer load-bearing. The Owner was asked
+   whether he ever clears out all his training and said "No, never", so an
+   empty training is refused over a non-empty server WHATEVER produced it. The
+   consequence, stated plainly because it is the honest one: **Compound has no
+   supported delete-all-training operation** — not through the sync path and
+   not through the conflict banner, which refuses an empty local copy for the
+   same reason.
 
-       loaded, and genuinely empty  -> a real state; pushing it is correct
-       never loaded, so empty       -> ignorance; pushing it destroys
-
-   So the two halves below matter equally. A guard that refused every empty
-   push would also stop the athlete deleting his own routines, and would pass a
-   test that only checked the first half.
+   What the three-state load contract still buys is the ANSWER to "why", which
+   the conflict record carries so a later reader can tell a device that read
+   its own store from one that could not.
 
        CF_SRC=<file> node tests/browser/c44-empty-training-refusal.browser.test.js */
 const path=require('path'),http=require('http'),fs=require('fs');
@@ -368,7 +368,10 @@ const settle=(page)=>page.waitForTimeout(400);
         emptyOverFull:   await call(empty),
         emptyOverEmpty:  await call(empty,m8Canon(empty).canon),
         emptyNoBase:     await call(empty,null),
-        contentOverFull: await call(oneRoutine),
+        contentOverFull: await call(oneRoutine,baseCanon),
+        /* ruling 6: no caller may commit without saying what it replaces */
+        contentNoPrior:  await call(oneRoutine),
+        emptyNoPrior:    await call(empty),
         /* the conflict path's prior is the captured SERVER copy, not the base */
         emptyOverServer: await call(empty,baseCanon),
       };
@@ -378,6 +381,13 @@ const settle=(page)=>page.waitForTimeout(400);
     test('empty over an already-empty prior is not a destruction',()=>eq(r.emptyOverEmpty,'ok'));
     test('and neither is empty with no prior at all — that is bootstrap',()=>eq(r.emptyNoBase,'ok'));
     test('ordinary content passes untouched',()=>eq(r.contentOverFull,'ok'));
+    test('a caller that does not say what it replaces cannot commit at all',()=>{
+      /* the default this replaces was a live bug: m8ResolveJournal dispatched
+         without a prior, so a stored request was judged against the CURRENT
+         base rather than the one it was written to replace */
+      eq(r.contentNoPrior,'emptyRefused','even a harmless payload must declare its prior');
+      eq(r.emptyNoPrior,'emptyRefused');
+    });
     test('a caller-supplied prior is honoured — the conflict path checks the SERVER copy',()=>
       eq(r.emptyOverServer,'emptyRefused'));
     await b.ctx.close();
@@ -433,6 +443,92 @@ const settle=(page)=>page.waitForTimeout(400);
     });
     test('and the refusal is visible to him, as a conflict he can resolve',()=>{
       eq(after.conflict,'training-empty-refused-replay');
+    });
+    await b.ctx.close();
+  }
+
+  /* ---- 7b. THE JOURNAL'S PRIOR, NOT THE CURRENT ONE (Architect rulings 4-7)
+     The previous version of this suite left the current base equal to the
+     journal's oldBaseCanon, so it could not tell the two apart — and a real
+     bug hid in that gap: m8ResolveJournal dispatched without passing a prior
+     at all, and the choke point silently read the current base. A stored
+     request must be judged against what it was WRITTEN to replace.
+
+     Here the two deliberately disagree. */
+  {
+    const b=await boot(browser,origin,'normal');
+    const r=await b.page.evaluate(async(bt)=>{
+      m10AuthNow=function(){return {ok:true,local:true};};
+      m8StorageBlocked=false;m8HardBlocked=false;m8UnprovenBlocked=false;
+      const uid=pbUid();
+      m8Remove('conflict',uid);
+      const fullCanon=m8Canon(bt).canon;
+      const empty={cardioTypes:['Peloton'],exercises:[],routines:[],sessions:{},liftSessions:{}};
+      const emptyCanon=m8Canon(empty).canon;
+      let n=0;
+      const call=(payload,prior)=>new Promise(res=>
+        m8CasCommit(36,payload,'jb-'+(++n),r=>res(r.st),prior));
+
+      /* the base NOW is empty; the journal says this request was written to
+         replace a FULL document. Judged on the journal, it is a destruction. */
+      m8Write('base',{canon:M8_CANON_VER,body:emptyCanon,rev:36},uid);
+      const journalSaysDestructive=await call(empty,fullCanon);
+      const wouldHavePassedOnCurrentBase=await call(empty,emptyCanon);
+
+      /* and the reverse: the base NOW is full, the journal says empty->empty.
+         The destructive check follows the journal; the server's own CAS on
+         expectedRev is what still protects the current state. */
+      m8Write('base',{canon:M8_CANON_VER,body:fullCanon,rev:36},uid);
+      const journalSaysHarmless=await call(empty,emptyCanon);
+      return {journalSaysDestructive,wouldHavePassedOnCurrentBase,journalSaysHarmless};
+    },TRAINING);await settle(b.page);
+
+    test('a stored request is refused on ITS OWN prior, though the base is now empty',()=>{
+      eq(r.journalSaysDestructive,'emptyRefused');
+      eq(r.wouldHavePassedOnCurrentBase,'ok',
+         'proof the two really disagree — reading the current base would have let it through');
+    });
+    test('and an empty->empty journal is not reclassified by a base that has since filled',()=>{
+      eq(r.journalSaysHarmless,'ok','the captured transition decides, not today\'s base');
+    });
+    test('no commit escaped during any of it',()=>{
+      /* the two 'ok' results above are choke-point verdicts; the fetch that
+         follows is stubbed, so what matters is that the refused one sent
+         nothing */
+      ok(b.commits.filter(c=>c&&c.subsystem==='training'&&
+         JSON.stringify(c.payload.routines)==='[]'&&c.expectedRev===36).length<=2);
+    });
+    await b.ctx.close();
+  }
+
+  /* ---- 7c. A REPLAY THAT SHOULD GO, MUST GO ----
+     The discriminating case. Sections 7 and 7b both assert REFUSAL, which the
+     mandatory-prior rule produces on its own — so dropping the journal's prior
+     from the replay call passed both. Here the journal's captured transition is
+     harmless (empty -> content) while the current base is FULL. Correct code
+     passes oldBaseCanon and the request goes out; code that omits it is refused
+     by the mandatory rule and sends nothing. */
+  {
+    const b=await boot(browser,origin,'normal');
+    await b.page.evaluate((bt)=>{
+      m10AuthNow=function(){return {ok:true,local:true};};
+      m8StorageBlocked=false;m8HardBlocked=false;m8UnprovenBlocked=false;
+      const uid=pbUid();
+      m8Remove('conflict',uid);
+      const empty={cardioTypes:['Peloton'],exercises:[],routines:[],sessions:{},liftSessions:{}};
+      const emptyCanon=m8Canon(empty).canon;
+      const fullCanon=m8Canon(bt).canon;
+      /* base NOW is full; the stored request was written when it was empty */
+      m8Write('base',{canon:M8_CANON_VER,body:fullCanon,rev:36},uid);
+      m8Write('journal',{op:'ack',phase:'intent',startedAt:Date.now()-1000,
+        expect:{oldBaseCanon:emptyCanon,expectedRev:36,pushedCanon:fullCanon,
+                gen:3,requestId:'replay-should-go-1'}},uid);
+      m8Push();
+    },TRAINING);await settle(b.page);
+
+    test('a harmless stored request still reaches the server',()=>{
+      const t=b.commits.filter(c=>c&&c.subsystem==='training'&&c.idempotencyKey==='replay-should-go-1');
+      eq(t.length,1,'the replay must dispatch — it destroys nothing');
     });
     await b.ctx.close();
   }
