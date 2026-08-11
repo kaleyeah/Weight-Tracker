@@ -1051,7 +1051,7 @@ input[type=range][data-pfadj]{width:100%;accent-color:var(--accent);min-height:2
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-11.480-empty-training-refusal";
+var APP_BUILD="2026-08-11.481-absent-is-not-empty";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -1503,31 +1503,53 @@ function saveTrainingLocal(){if(localWritesFrozen())return false;
   try{localStorage.setItem(TKEY,ser);}catch(e){return false;}
   var back;try{back=localStorage.getItem(TKEY);}catch(e){return false;}
   return back===ser;}
-/* Did this boot actually READ the training store? (Owner incident 2026-08-10.)
+/* What did this boot actually LEARN about the training store?
+   (Owner incident 2026-08-10.)
+
    loadTraining() has always swallowed every failure into `catch(e){}`, so a
    throwing localStorage, a truncated value or unparseable JSON left
    state.training at its empty default and said nothing. Boot then continued,
-   the sync layer compared empty-local against a base holding 3 routines, 25
-   exercises and 23 sessions, called the difference an EDIT, and pushed the
-   empty object over it — rev 36 → 37, fileByteLength 0, 200 OK. The athlete's
-   training was gone and every layer believed it had done its job.
+   the sync layer compared empty-local against a base holding his training,
+   called the difference an EDIT, and pushed the empty object over it —
+   rev 36 → 37, fileByteLength 0, 200 OK. The athlete's training was gone and
+   every layer believed it had done its job.
 
-   The missing fact was never "is training empty" — it is "do we KNOW it is
-   empty". These two states are identical in the data and opposite in meaning:
-       loaded, and genuinely empty  → a real state; pushing it is correct
-       never loaded, so empty       → an absence of knowledge; pushing it destroys
-   m8Push consults this before it will originate a push that empties the
-   server (m8-sync.js). */
+   The missing fact was never "is training empty" — it is "what do we KNOW
+   about it". Three states, not two (Architect ruling 2, 2026-08-11):
+
+     "ok"       a valid document was read. Ordinary evidence: if it is empty,
+                that is a real fact about the athlete.
+     "absent"   the key is not there. On a fresh install that is fine and
+                bootstrap adopts the server. It is NOT authority to destroy a
+                non-empty base — an evicted key looks exactly like a new device,
+                and the base record survives eviction of this one.
+     "unknown"  storage refused, or the bytes did not parse, or they parsed to
+                something that is not an object. We know nothing.
+
+   Build 480 collapsed "absent" into "ok" on the reasoning that first-run must
+   not be blocked. That was wrong twice over: first-run never reaches the guard
+   (no base yet means m8State is "fresh"/"bootstrap", not "dirty"), so nothing
+   was bought — and it left eviction able to erase the server. Only "ok" now
+   authorises emptying a non-empty base (m8-sync.js).
+
+   `trainingLoaded` is kept as the boot diagnostic it always was. It is NOT
+   sufficient as destructive authority — it is process-lifetime, and a reload
+   forgets the difference between a deliberate delete-everything and a store
+   that failed to load. Durable per-operation proof is the Architect's ruling 4
+   and is designed next round; this is containment, not the finished contract. */
+var TRAINING_LOAD_UNKNOWN="unknown",TRAINING_LOAD_ABSENT="absent",TRAINING_LOAD_OK="ok";
+var trainingLoadState=TRAINING_LOAD_UNKNOWN;
 var trainingLoaded=false;
 function loadTraining(){
+  trainingLoadState=TRAINING_LOAD_UNKNOWN;trainingLoaded=false;
   var raw;
   try{raw=localStorage.getItem(TKEY);}
-  catch(e){return;}                     /* storage itself refused: we know nothing */
-  if(raw==null){trainingLoaded=true;return;}  /* no store yet is a KNOWN state: a fresh device */
-  var t;try{t=JSON.parse(raw);}catch(e){return;}   /* unreadable bytes: we know nothing */
-  if(!t||typeof t!=="object")return;
+  catch(e){return;}                                /* storage refused */
+  if(raw==null){trainingLoadState=TRAINING_LOAD_ABSENT;return;}
+  var t;try{t=JSON.parse(raw);}catch(e){return;}   /* unreadable bytes */
+  if(!t||typeof t!=="object")return;               /* parseable, wrong shape */
   state.training={cardioTypes:(Array.isArray(t.cardioTypes)&&t.cardioTypes.length)?t.cardioTypes:DEFAULT_CARDIO_TYPES.slice(),sessions:t.sessions||{},exercises:t.exercises||[],routines:t.routines||[],liftSessions:t.liftSessions||{}};
-  trainingLoaded=true;}
+  trainingLoadState=TRAINING_LOAD_OK;trainingLoaded=true;}
 function syncCardioTags(date){var kept=normActs(date).filter(function(a){return !(a.cat==="cardio"&&a.auto);});
   var types={};((state.training.sessions||{})[date]||[]).forEach(function(s){if(s.kind==="cardio"&&s.type)types[s.type]=1;});
   Object.keys(types).forEach(function(t){if(!kept.some(function(a){return a.cat==="cardio"&&a.name===t;}))kept.push({cat:"cardio",name:t,auto:true});});
@@ -12433,30 +12455,46 @@ function m8CanonEmpty(canon){
    A push that replaces a base holding content with nothing is either the
    athlete deleting every routine, exercise and session he has — or it is this
    device having failed to load its own store and mistaking that for a delete.
-   The bytes are identical; only `trainingLoaded` tells them apart.
+   The bytes are identical; the load state is what separates them.
 
-   What actually happened: during the .478 update reload the training store did
-   not load, boot continued, and the push path saw empty-vs-base as an ordinary
-   edit. The commit went out at 07:17:49.493Z with fileByteLength 0 and came
-   back 200 OK. Nothing in the pipeline was broken — every layer did exactly
-   what it was told, on a premise nobody had checked.
+   WHAT IS ESTABLISHED, and what is only supposed (Architect ruling 1):
+     established — the training route committed an empty payload at rev 36→37,
+       fileByteLength 0, 200 OK, 07:17:49.493Z.
+     ruled out   — the throwing-read boot path specifically. A store whose reads
+       throw is already refused on m8Push's first line: the boot capture cannot
+       secure the pre-sync bytes, recoveryState goes "blocked", and
+       trainingQuarantined() stops everything. C44 asserts that still holds, so
+       the two layers stay distinguishable.
+     hypotheses  — a push that ran before loadTraining() did; unparseable or
+       wrong-shaped bytes; an absent key; some other path that constructed an
+       empty state. NONE of these is proven, and the guard is deliberately
+       written to cover all of them rather than to bet on one.
 
-   Storage itself was working. A store whose reads THROW is already refused on
-   m8Push's first line: the boot capture cannot secure the pre-sync bytes,
-   recoveryState goes "blocked", and trainingQuarantined() stops everything.
-   That gate cannot have been the one that let this through, so the store read
-   cleanly and produced nothing — unparseable bytes, or a push that ran before
-   loadTraining() did. C44 covers both, and asserts the quarantine still owns
-   the throwing case so the two layers stay distinguishable.
+   So only a READ document authorises emptying a non-empty base. A device that
+   read its store and genuinely holds nothing still pushes; deleting everything
+   remains the athlete's to do. Every other load state — absent, refused,
+   unparseable, wrong-shaped — is an absence of knowledge, and the disagreement
+   goes to the conflict banner, which shows both copies and lets him choose,
+   rather than to a silent overwrite or a hard block he cannot clear.
 
-   So this refuses only the case it can prove is wrong. A device that DID read
-   its store and genuinely holds nothing still pushes; deleting everything
-   remains the athlete's to do. A device that never read it does not get to
-   speak for him, and the disagreement goes to the conflict banner — which
-   shows both copies and lets him choose — rather than to a silent overwrite or
-   a hard block he cannot clear. */
+   ABSENT is refused too (Architect ruling 2). 480 first treated a missing key
+   as a known-empty device so first-run would not be blocked. First-run is not
+   blocked either way — with no base yet, m8State is "fresh"/"bootstrap" and
+   this line is never reached, and bootstrap adopts the server copy. What that
+   exemption DID buy was a hole: the base record survives eviction of the
+   training key, so an evicted store looked exactly like a new device and could
+   still erase the server. Nothing was gained and something real was lost.
+
+   This is containment, not the finished contract. Destructive authority should
+   be durable and tied to the operation (a delete-all records its intent, the
+   prior canonical hash and the expected revision BEFORE the local data goes
+   empty), and the invariant should also sit at the dispatch choke point so
+   journal replay and conflict resolution cannot route around it. Both are
+   Architect rulings 4/5 and are designed next round with the Owner. */
 function m8WouldEmptyServer(baseCanon){
-  return m8LocalTrainingEmpty()&&!trainingLoaded&&!m8CanonEmpty(baseCanon);}
+  return m8LocalTrainingEmpty()&&
+         trainingLoadState!==TRAINING_LOAD_OK&&
+         !m8CanonEmpty(baseCanon);}
 function m8State(){
   if(m8StorageBlocked)return "blocked";
   var uid=m8Uid();if(!uid)return "signedout";

@@ -222,31 +222,53 @@ function saveTrainingLocal(){if(localWritesFrozen())return false;
   try{localStorage.setItem(TKEY,ser);}catch(e){return false;}
   var back;try{back=localStorage.getItem(TKEY);}catch(e){return false;}
   return back===ser;}
-/* Did this boot actually READ the training store? (Owner incident 2026-08-10.)
+/* What did this boot actually LEARN about the training store?
+   (Owner incident 2026-08-10.)
+
    loadTraining() has always swallowed every failure into `catch(e){}`, so a
    throwing localStorage, a truncated value or unparseable JSON left
    state.training at its empty default and said nothing. Boot then continued,
-   the sync layer compared empty-local against a base holding 3 routines, 25
-   exercises and 23 sessions, called the difference an EDIT, and pushed the
-   empty object over it — rev 36 → 37, fileByteLength 0, 200 OK. The athlete's
-   training was gone and every layer believed it had done its job.
+   the sync layer compared empty-local against a base holding his training,
+   called the difference an EDIT, and pushed the empty object over it —
+   rev 36 → 37, fileByteLength 0, 200 OK. The athlete's training was gone and
+   every layer believed it had done its job.
 
-   The missing fact was never "is training empty" — it is "do we KNOW it is
-   empty". These two states are identical in the data and opposite in meaning:
-       loaded, and genuinely empty  → a real state; pushing it is correct
-       never loaded, so empty       → an absence of knowledge; pushing it destroys
-   m8Push consults this before it will originate a push that empties the
-   server (m8-sync.js). */
+   The missing fact was never "is training empty" — it is "what do we KNOW
+   about it". Three states, not two (Architect ruling 2, 2026-08-11):
+
+     "ok"       a valid document was read. Ordinary evidence: if it is empty,
+                that is a real fact about the athlete.
+     "absent"   the key is not there. On a fresh install that is fine and
+                bootstrap adopts the server. It is NOT authority to destroy a
+                non-empty base — an evicted key looks exactly like a new device,
+                and the base record survives eviction of this one.
+     "unknown"  storage refused, or the bytes did not parse, or they parsed to
+                something that is not an object. We know nothing.
+
+   Build 480 collapsed "absent" into "ok" on the reasoning that first-run must
+   not be blocked. That was wrong twice over: first-run never reaches the guard
+   (no base yet means m8State is "fresh"/"bootstrap", not "dirty"), so nothing
+   was bought — and it left eviction able to erase the server. Only "ok" now
+   authorises emptying a non-empty base (m8-sync.js).
+
+   `trainingLoaded` is kept as the boot diagnostic it always was. It is NOT
+   sufficient as destructive authority — it is process-lifetime, and a reload
+   forgets the difference between a deliberate delete-everything and a store
+   that failed to load. Durable per-operation proof is the Architect's ruling 4
+   and is designed next round; this is containment, not the finished contract. */
+var TRAINING_LOAD_UNKNOWN="unknown",TRAINING_LOAD_ABSENT="absent",TRAINING_LOAD_OK="ok";
+var trainingLoadState=TRAINING_LOAD_UNKNOWN;
 var trainingLoaded=false;
 function loadTraining(){
+  trainingLoadState=TRAINING_LOAD_UNKNOWN;trainingLoaded=false;
   var raw;
   try{raw=localStorage.getItem(TKEY);}
-  catch(e){return;}                     /* storage itself refused: we know nothing */
-  if(raw==null){trainingLoaded=true;return;}  /* no store yet is a KNOWN state: a fresh device */
-  var t;try{t=JSON.parse(raw);}catch(e){return;}   /* unreadable bytes: we know nothing */
-  if(!t||typeof t!=="object")return;
+  catch(e){return;}                                /* storage refused */
+  if(raw==null){trainingLoadState=TRAINING_LOAD_ABSENT;return;}
+  var t;try{t=JSON.parse(raw);}catch(e){return;}   /* unreadable bytes */
+  if(!t||typeof t!=="object")return;               /* parseable, wrong shape */
   state.training={cardioTypes:(Array.isArray(t.cardioTypes)&&t.cardioTypes.length)?t.cardioTypes:DEFAULT_CARDIO_TYPES.slice(),sessions:t.sessions||{},exercises:t.exercises||[],routines:t.routines||[],liftSessions:t.liftSessions||{}};
-  trainingLoaded=true;}
+  trainingLoadState=TRAINING_LOAD_OK;trainingLoaded=true;}
 function syncCardioTags(date){var kept=normActs(date).filter(function(a){return !(a.cat==="cardio"&&a.auto);});
   var types={};((state.training.sessions||{})[date]||[]).forEach(function(s){if(s.kind==="cardio"&&s.type)types[s.type]=1;});
   Object.keys(types).forEach(function(t){if(!kept.some(function(a){return a.cat==="cardio"&&a.name===t;}))kept.push({cat:"cardio",name:t,auto:true});});

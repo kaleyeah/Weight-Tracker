@@ -286,30 +286,46 @@ function m8CanonEmpty(canon){
    A push that replaces a base holding content with nothing is either the
    athlete deleting every routine, exercise and session he has — or it is this
    device having failed to load its own store and mistaking that for a delete.
-   The bytes are identical; only `trainingLoaded` tells them apart.
+   The bytes are identical; the load state is what separates them.
 
-   What actually happened: during the .478 update reload the training store did
-   not load, boot continued, and the push path saw empty-vs-base as an ordinary
-   edit. The commit went out at 07:17:49.493Z with fileByteLength 0 and came
-   back 200 OK. Nothing in the pipeline was broken — every layer did exactly
-   what it was told, on a premise nobody had checked.
+   WHAT IS ESTABLISHED, and what is only supposed (Architect ruling 1):
+     established — the training route committed an empty payload at rev 36→37,
+       fileByteLength 0, 200 OK, 07:17:49.493Z.
+     ruled out   — the throwing-read boot path specifically. A store whose reads
+       throw is already refused on m8Push's first line: the boot capture cannot
+       secure the pre-sync bytes, recoveryState goes "blocked", and
+       trainingQuarantined() stops everything. C44 asserts that still holds, so
+       the two layers stay distinguishable.
+     hypotheses  — a push that ran before loadTraining() did; unparseable or
+       wrong-shaped bytes; an absent key; some other path that constructed an
+       empty state. NONE of these is proven, and the guard is deliberately
+       written to cover all of them rather than to bet on one.
 
-   Storage itself was working. A store whose reads THROW is already refused on
-   m8Push's first line: the boot capture cannot secure the pre-sync bytes,
-   recoveryState goes "blocked", and trainingQuarantined() stops everything.
-   That gate cannot have been the one that let this through, so the store read
-   cleanly and produced nothing — unparseable bytes, or a push that ran before
-   loadTraining() did. C44 covers both, and asserts the quarantine still owns
-   the throwing case so the two layers stay distinguishable.
+   So only a READ document authorises emptying a non-empty base. A device that
+   read its store and genuinely holds nothing still pushes; deleting everything
+   remains the athlete's to do. Every other load state — absent, refused,
+   unparseable, wrong-shaped — is an absence of knowledge, and the disagreement
+   goes to the conflict banner, which shows both copies and lets him choose,
+   rather than to a silent overwrite or a hard block he cannot clear.
 
-   So this refuses only the case it can prove is wrong. A device that DID read
-   its store and genuinely holds nothing still pushes; deleting everything
-   remains the athlete's to do. A device that never read it does not get to
-   speak for him, and the disagreement goes to the conflict banner — which
-   shows both copies and lets him choose — rather than to a silent overwrite or
-   a hard block he cannot clear. */
+   ABSENT is refused too (Architect ruling 2). 480 first treated a missing key
+   as a known-empty device so first-run would not be blocked. First-run is not
+   blocked either way — with no base yet, m8State is "fresh"/"bootstrap" and
+   this line is never reached, and bootstrap adopts the server copy. What that
+   exemption DID buy was a hole: the base record survives eviction of the
+   training key, so an evicted store looked exactly like a new device and could
+   still erase the server. Nothing was gained and something real was lost.
+
+   This is containment, not the finished contract. Destructive authority should
+   be durable and tied to the operation (a delete-all records its intent, the
+   prior canonical hash and the expected revision BEFORE the local data goes
+   empty), and the invariant should also sit at the dispatch choke point so
+   journal replay and conflict resolution cannot route around it. Both are
+   Architect rulings 4/5 and are designed next round with the Owner. */
 function m8WouldEmptyServer(baseCanon){
-  return m8LocalTrainingEmpty()&&!trainingLoaded&&!m8CanonEmpty(baseCanon);}
+  return m8LocalTrainingEmpty()&&
+         trainingLoadState!==TRAINING_LOAD_OK&&
+         !m8CanonEmpty(baseCanon);}
 function m8State(){
   if(m8StorageBlocked)return "blocked";
   var uid=m8Uid();if(!uid)return "signedout";

@@ -76,6 +76,8 @@ async function boot(browser,origin,mode){
       statuses:[],presets:[],skips:{},nightlyLog:{},checkins:{}}));
     if(mode!=='absent')localStorage.setItem('wl_training_v1',JSON.stringify(t));
     if(mode==='corrupt')localStorage.setItem('wl_training_v1','{"routines":[{trunc');
+    /* parses fine, is not a training document at all */
+    if(mode==='wrongshape')localStorage.setItem('wl_training_v1','"a string"');
     if(mode==='throws'){
       /* the failure the incident implies: the store is there, the read refuses */
       const real=Storage.prototype.getItem;
@@ -121,6 +123,7 @@ async function pushFrom(page,baseTraining){
     m8Push();
     const c=m8Read('conflict',uid);
     return {trainingLoaded:trainingLoaded,
+            loadState:trainingLoadState,
             stateBefore:stateBefore,
             quarantined:trainingQuarantined(),
             localEmpty:m8LocalTrainingEmpty(),
@@ -155,11 +158,12 @@ const settle=(page)=>page.waitForTimeout(400);
       /* rewind to the pre-load moment: the store is intact on disk, this boot
          has not read it, and the sync layer is about to make a decision */
       state.training={cardioTypes:['Peloton'],sessions:{},exercises:[],routines:[],liftSessions:{}};
-      trainingLoaded=false;
+      trainingLoadState=TRAINING_LOAD_UNKNOWN;trainingLoaded=false;
       m8Write('base',{canon:M8_CANON_VER,body:m8Canon(bt).canon,rev:36},uid);
       m8Write('dirty',{gen:1,persistedGen:1},uid);
       m8Gen=1;
-      const before={state:m8State(),pen:m8HasPen(),quarantined:trainingQuarantined()};
+      const before={state:m8State(),pen:m8HasPen(),quarantined:trainingQuarantined(),
+                    loadState:trainingLoadState};
       m8Push();
       const c=m8Read('conflict',uid);
       return {before:before,
@@ -234,7 +238,7 @@ const settle=(page)=>page.waitForTimeout(400);
       m8Write('dirty',{gen:1,persistedGen:1},uid);
       m8Gen=1;
       m8Push();
-      return {trainingLoaded:trainingLoaded,localEmpty:m8LocalTrainingEmpty(),
+      return {trainingLoaded:trainingLoaded,loadState:trainingLoadState,localEmpty:m8LocalTrainingEmpty(),
               conflict:(m8Read('conflict',uid).st==='ok')};
     },TRAINING);await settle(b.page);
 
@@ -275,13 +279,54 @@ const settle=(page)=>page.waitForTimeout(400);
     await b.ctx.close();
   }
 
-  /* ---- 5. a fresh device (no store at all) is a KNOWN state ----
-     Treating a never-written key as ignorance would block first-run adoption
-     for every new install. */
+  /* ---- 5. AN ABSENT KEY IS NOT AUTHORITY TO DESTROY (Architect ruling 2) ----
+     Build 480 first treated a missing key as a known-empty device, so first-run
+     would not be blocked. The Architect refused that: an EVICTED key looks
+     identical to a new device, and the base record survives eviction of the
+     training key — so the exemption let storage eviction erase the server. */
   {
     const b=await boot(browser,origin,'absent');
-    const known=await b.page.evaluate(()=>trainingLoaded);
-    test('a device with no training store yet knows that, and is not blocked',()=>eq(known,true));
+    const r=await pushFrom(b.page,TRAINING);await settle(b.page);
+    test('an absent key reads as ABSENT, never as a known-empty athlete',()=>{
+      eq(r.loadState,'absent');
+      eq(r.trainingLoaded,false,'absence is not a completed read');
+    });
+    test('absent key + non-empty base REFUSES — the eviction hole',()=>{
+      eq(b.commits.filter(c=>c&&c.subsystem==='training').length,0);
+      ok(r.conflict,'the server copy must be preserved and offered');
+    });
+    await b.ctx.close();
+  }
+
+  /* ---- 5b. and first-run is still not blocked, because it never gets here ----
+     With no base, m8State is "fresh"/"bootstrap", not "dirty" — m8Push returns
+     long before the refusal. This is the assertion that shows ruling 2 cost
+     nothing: the exemption was never buying what it claimed to buy. */
+  {
+    const b=await boot(browser,origin,'absent');
+    const r=await b.page.evaluate(()=>{
+      m10AuthNow=function(){return {ok:true,local:true};};
+      m8StorageBlocked=false;m8HardBlocked=false;m8UnprovenBlocked=false;
+      const uid=pbUid();
+      m8Remove('conflict',uid);m8Remove('base',uid);m8Remove('dirty',uid);
+      return {state:m8State(),loadState:trainingLoadState};
+    });
+    test('a brand-new device is in bootstrap, where adoption happens',()=>{
+      ok(r.state==='fresh'||r.state==='bootstrap','got '+r.state);
+      eq(r.loadState,'absent');
+    });
+    await b.ctx.close();
+  }
+
+  /* ---- 5c. parseable, but not a training document (Architect ruling 12) ---- */
+  {
+    const b=await boot(browser,origin,'wrongshape');
+    const r=await pushFrom(b.page,TRAINING);await settle(b.page);
+    test('a parseable wrong SHAPE fails closed, like unreadable bytes',()=>{
+      eq(r.loadState,'unknown');
+      eq(b.commits.filter(c=>c&&c.subsystem==='training').length,0);
+      ok(r.conflict);
+    });
     await b.ctx.close();
   }
 
