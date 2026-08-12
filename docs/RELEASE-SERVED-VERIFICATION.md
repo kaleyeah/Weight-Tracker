@@ -100,3 +100,23 @@ Pages served the previous build for the first two polls; the match above is the
 third. A single check immediately after a push can verify the *old* artifact and
 read as success — poll until the hash matches, or you are testing the CDN's
 cache, not your release.
+
+---
+
+# Build 488 — `2026-08-12.488-one-file-and-open`
+
+| field | value |
+|---|---|
+| captured (UTC) | `2026-08-12T04:31:21Z` |
+| HTTP status / bytes | `200` / `1421979` |
+| served sha256 | `e656bc86870b63bfc0dcd021d391935484886ad13a56d88f3ec8ac6149f12d0c` |
+| committed sha256 | `e656bc86870b63bfc0dcd021d391935484886ad13a56d88f3ec8ac6149f12d0c` |
+| working-tree sha256 | `e656bc86870b63bfc0dcd021d391935484886ad13a56d88f3ec8ac6149f12d0c` |
+| release commit | `34e06b750af9efdbaff4eff7e2ca13dc35de6c79` |
+| gated artifact sha256 (47/47) | `e656bc86870b63bfc0dcd021d391935484886ad13a56d88f3ec8ac6149f12d0c` |
+| `cmp served committed` | identical |
+
+**Result:** **PASS** — served == committed == working tree == the gated artifact.
+
+Pages served 487 on the first poll; the match is the second. Poll, do not
+spot-check.

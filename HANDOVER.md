@@ -206,11 +206,11 @@ the commit route throw on every request during an earlier round.
 > about a live system: update it in the same commit that changes what is
 > deployed, or delete it rather than let it rot.**
 
-- **Deployed to production:** **`2026-08-12.487-daily-targets`**, release
-  commit `8b57bfd`, on `main` at `kaleyeah/Weight-Tracker` → GitHub Pages.
+- **Deployed to production:** **`2026-08-12.488-one-file-and-open`**, release
+  commit `34e06b7`, on `main` at `kaleyeah/Weight-Tracker` → GitHub Pages.
   Owner-authorized 2026-08-12. Served-byte verification (standing ruling 1)
   recorded in `docs/RELEASE-SERVED-VERIFICATION.md`: committed and served
-  artifacts both sha256 `e9656b58…aa45b`, `cmp` identical.
+  artifacts both sha256 `e656bc86…12d0c`, `cmp` identical.
 - **Poll the serve, do not spot-check it.** Pages served the previous build for
   the first two checks after this push. One check immediately after a push can
   verify the OLD artifact and read as a pass.
