@@ -206,11 +206,14 @@ the commit route throw on every request during an earlier round.
 > about a live system: update it in the same commit that changes what is
 > deployed, or delete it rather than let it rot.**
 
-- **Deployed to production:** **`2026-08-11.486-recovery-shows-the-server`**,
-  release commit `de2c69a`, on `main` at `kaleyeah/Weight-Tracker` → GitHub
-  Pages. Owner-authorized 2026-08-11. Served-byte verification (standing ruling
-  1) recorded in `docs/RELEASE-SERVED-VERIFICATION.md`: committed and served
-  artifacts both sha256 `6a767874…88021`, `cmp` identical.
+- **Deployed to production:** **`2026-08-12.487-daily-targets`**, release
+  commit `8b57bfd`, on `main` at `kaleyeah/Weight-Tracker` → GitHub Pages.
+  Owner-authorized 2026-08-12. Served-byte verification (standing ruling 1)
+  recorded in `docs/RELEASE-SERVED-VERIFICATION.md`: committed and served
+  artifacts both sha256 `e9656b58…aa45b`, `cmp` identical.
+- **Poll the serve, do not spot-check it.** Pages served the previous build for
+  the first two checks after this push. One check immediately after a push can
+  verify the OLD artifact and read as a pass.
 - **Publication is not adoption**, and the two are checked separately. A
   verified serve proves the bytes left the origin; a PWA can run a cached
   artifact for an arbitrary period. Owner confirmed on-device 2026-08-11: his
@@ -223,7 +226,7 @@ the commit route throw on every request during an earlier round.
   is his authority, but this release is an **exception**, not an ordinary
   reviewed completion, and is recorded as one.
 - **Superseded:** `.478-tailnet-pb-base` (`198da64`) was production until
-  2026-08-11; `.485` was live for roughly an hour the same evening. `483` was **rejected in review and never deployed** — see the
+  2026-08-11; `.485` and `.486` were live the same evening. `483` was **rejected in review and never deployed** — see the
   incident record.
 - **Production PocketBase runs the CAS server kit + HOTFIX-001** (hotfix
   deployed and verified 2026-07-29; record in

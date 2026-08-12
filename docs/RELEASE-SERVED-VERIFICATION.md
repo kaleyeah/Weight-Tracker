@@ -75,3 +75,28 @@ round 4 — still OPEN, and it needs the Owner's devices.
 
 Same capture method and the same caveat as above: this proves publication, not
 client adoption.
+
+---
+
+# Build 487 — `2026-08-12.487-daily-targets`
+
+| field | value |
+|---|---|
+| captured (UTC) | `2026-08-12T01:00:48Z` |
+| live URL | `https://kaleyeah.github.io/Weight-Tracker/index.html` |
+| HTTP status | `200` |
+| served byte count | `1420634` |
+| served `APP_BUILD` | `2026-08-12.487-daily-targets` |
+| served sha256 | `e9656b58a239d143511a068ceefc9dc4727a1a75228a9b3a0d3016b8586aa45b` |
+| committed sha256 | `e9656b58a239d143511a068ceefc9dc4727a1a75228a9b3a0d3016b8586aa45b` |
+| working-tree sha256 | `e9656b58a239d143511a068ceefc9dc4727a1a75228a9b3a0d3016b8586aa45b` |
+| release commit | `8b57bfd7ab6411ee1aea06cdf5da0be519e6cebd` |
+| gated artifact sha256 (46/46) | `e9656b58a239d143511a068ceefc9dc4727a1a75228a9b3a0d3016b8586aa45b` |
+| `cmp served committed` | identical |
+
+**Result:** **PASS** — served == committed == working tree == the gated artifact.
+
+Pages served the previous build for the first two polls; the match above is the
+third. A single check immediately after a push can verify the *old* artifact and
+read as success — poll until the hash matches, or you are testing the CDN's
+cache, not your release.
