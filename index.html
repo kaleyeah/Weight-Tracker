@@ -1054,7 +1054,7 @@ input[type=range][data-pfadj]{width:100%;accent-color:var(--accent);min-height:2
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-08-12.487-daily-targets";
+var APP_BUILD="2026-08-12.488-one-file-and-open";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -5212,6 +5212,9 @@ function exportWeekFiles(fmt){var days=weekDays(state.weekOffset).map(dayRow);va
      itself stays for the full-history export, which is a different document. */
   if(fmt!=="csv"){
     var rep;try{rep=srReportHTML(srInput(state.weekOffset));}catch(e){toast("Couldn’t build the report");return;}
+    /* HTML on its own is a thing to read, so open it. With CSV alongside there
+       is a file to deliver either way, so that keeps the share sheet. */
+    if(fmt==="html"&&repOpenHTML("progress-report-"+toISO(ws)+".html",rep))return;
     files.push({name:"progress-report-"+toISO(ws)+".html",mime:"text/html;charset=utf-8",text:rep});}
   shareOrDownloadMulti(files);}
 function exportAllFiles(fmt){var set={};state.weights.forEach(function(x){set[x.date]=1;});Object.keys(state.food).forEach(function(k){set[k]=1;});Object.keys(state.steps).forEach(function(k){set[k]=1;});Object.keys(state.sleep).forEach(function(k){set[k]=1;});Object.keys(state.workouts).forEach(function(k){set[k]=1;});
@@ -5238,11 +5241,31 @@ function shareOrDownloadMulti(list){
     if(/^text\/csv/.test(mime)){text="\uFEFF"+text;mime="text/csv;charset=utf-8";}
     files.push({name:it.name,mime:mime,text:text});}
   try{var fl=files.map(function(f){return new File([f.text],f.name,{type:f.mime});});
-    if(navigator.canShare&&navigator.canShare({files:fl})){navigator.share({files:fl,title:files[0].name}).catch(function(){});return;}}catch(e){}
+    if(navigator.canShare&&navigator.canShare({files:fl})){navigator.share({files:fl}).catch(function(){});return;}}catch(e){}
   /* Download fallback (desktop, and iOS when the share sheet refuses a multi-file
      bundle): browsers drop back-to-back programmatic downloads, so stagger them. */
   files.forEach(function(f,i){setTimeout(function(){repDownloadFile(f);},i*400);});
   toast(files.length>1?("Exported "+files.length+" files"):"Exported");}
+/* OPEN the report rather than hand him a file (Owner, 2026-08-12: "Ideally id
+   love to export my progress report as an html and have it open the page").
+   A report is something to READ. Handing it to the share sheet makes him save
+   it to Files and then find it again, which is two steps to look at his own
+   week.
+
+   Tries a real window first, because that gives him the browser's own back /
+   share / print. Returns false when the open is refused — a standalone PWA or
+   a popup blocker can refuse it, and window.open returning null is the only
+   signal we get — and every caller then falls back to the share sheet, so the
+   file route is never lost. The blob URL is deliberately NOT revoked on a
+   timer: the new context needs it for as long as the tab lives. */
+function repOpenHTML(name,html){
+  var w=null,url=null;
+  try{
+    url=URL.createObjectURL(new Blob([html],{type:"text/html;charset=utf-8"}));
+    w=window.open(url,"_blank");
+  }catch(e){w=null;}
+  if(!w){if(url){try{URL.revokeObjectURL(url);}catch(e){}}return false;}
+  return true;}
 function repDownloadFile(f){
   var blob=new Blob([f.text],{type:f.mime});var url=URL.createObjectURL(blob);
   var a=document.createElement("a");a.href=url;a.download=f.name;document.body.appendChild(a);a.click();document.body.removeChild(a);
@@ -6392,8 +6415,12 @@ function srExport(fmt){
   try{
     var off=state.weekOffset||0;var base=toISO(weekStartFor(off));
     files=[];
-    if(fmt!=="csv")files.push({name:"progress-report-"+base+".html",
-      mime:"text/html;charset=utf-8",text:srReportHTML(srInput(off))});
+    if(fmt!=="csv"){
+      var _rep=srReportHTML(srInput(off));
+      /* open it rather than deliver a file — see repOpenHTML */
+      if(fmt==="html"&&repOpenHTML("progress-report-"+base+".html",_rep))return;
+      files.push({name:"progress-report-"+base+".html",
+        mime:"text/html;charset=utf-8",text:_rep});}
     /* the CSV's Cardio / Weight Training / Activity Notes columns exist for
        the coach too */
     if(fmt!=="html")files.push({name:"weight-summary-"+base+".csv",
@@ -11836,7 +11863,7 @@ function exportData(){
   try{
     var file=new File([json],name,{type:"application/json;charset=utf-8"});
     if(navigator.canShare&&navigator.canShare({files:[file]})){
-      navigator.share({files:[file],title:"Weight Tracker backup"}).catch(function(){});return;
+      navigator.share({files:[file]}).catch(function(){});return;
     }
   }catch(e){}
   var blob=new Blob([json],{type:"application/json;charset=utf-8"});var url=URL.createObjectURL(blob);
@@ -13312,7 +13339,7 @@ function m8CxExport(cb){
   var canShare=false;
   try{var fl=files.map(function(f){return new File([f.text],f.name,{type:f.mime});});
     canShare=!!(navigator.canShare&&navigator.canShare({files:fl})&&navigator.share);
-    if(canShare){navigator.share({files:fl,title:"Compound conflict copies"}).then(markDelivered,
+    if(canShare){navigator.share({files:fl}).then(markDelivered,
       function(){toast("Share cancelled \u2014 the copies have not left the device");cb&&cb(false);});return;}}catch(e){}
   try{files.forEach(function(f,i){setTimeout(function(){repDownloadFile(f);},i*400);});}catch(e){toast("Export failed");cb&&cb(false);return;}
   askConfirm("Two files were downloaded: the device copy and the server copy. Confirm BOTH are saved somewhere safe \u2014 the choice buttons unlock only after that.",markDelivered,{label:"Both files are saved",danger:false});}
@@ -14572,7 +14599,7 @@ function m10cxExport(cb){
   var canShare=false;
   try{var fl=files.map(function(f){return new File([f.text],f.name,{type:f.mime});});
     canShare=!!(navigator.canShare&&navigator.canShare({files:fl})&&navigator.share);
-    if(canShare){navigator.share({files:fl,title:"Compound core conflict copies"}).then(markDelivered,
+    if(canShare){navigator.share({files:fl}).then(markDelivered,
       function(){toast("Share cancelled — the copies have not left the device");cb&&cb(false);});return;}}catch(e){}
   try{files.forEach(function(f,i){setTimeout(function(){repDownloadFile(f);},i*400);});}catch(e){toast("Export failed");cb&&cb(false);return;}
   askConfirm("Two files were downloaded: this device’s copy and the server’s copy. Confirm BOTH are saved somewhere safe — the choice buttons unlock only after that.",markDelivered,{label:"Both files are saved",danger:false});}
@@ -15550,7 +15577,7 @@ function m10pExport(opId,cb){
       var canShare=false;
       try{var f=new File([rec.blob],name,{type:rec.blob.type||"image/jpeg"});
         canShare=!!(navigator.canShare&&navigator.canShare({files:[f]})&&navigator.share);
-        if(canShare){navigator.share({files:[f],title:"Compound photo"}).then(mark,
+        if(canShare){navigator.share({files:[f]}).then(mark,
           function(){toast("Share cancelled — the photo has not left the device");cb&&cb(false);});return;}}catch(e){}
       try{var url=URL.createObjectURL(rec.blob);var a=document.createElement("a");
         a.href=url;a.download=name;document.body.appendChild(a);a.click();

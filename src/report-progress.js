@@ -456,6 +456,9 @@ function exportWeekFiles(fmt){var days=weekDays(state.weekOffset).map(dayRow);va
      itself stays for the full-history export, which is a different document. */
   if(fmt!=="csv"){
     var rep;try{rep=srReportHTML(srInput(state.weekOffset));}catch(e){toast("Couldn’t build the report");return;}
+    /* HTML on its own is a thing to read, so open it. With CSV alongside there
+       is a file to deliver either way, so that keeps the share sheet. */
+    if(fmt==="html"&&repOpenHTML("progress-report-"+toISO(ws)+".html",rep))return;
     files.push({name:"progress-report-"+toISO(ws)+".html",mime:"text/html;charset=utf-8",text:rep});}
   shareOrDownloadMulti(files);}
 function exportAllFiles(fmt){var set={};state.weights.forEach(function(x){set[x.date]=1;});Object.keys(state.food).forEach(function(k){set[k]=1;});Object.keys(state.steps).forEach(function(k){set[k]=1;});Object.keys(state.sleep).forEach(function(k){set[k]=1;});Object.keys(state.workouts).forEach(function(k){set[k]=1;});
@@ -482,11 +485,31 @@ function shareOrDownloadMulti(list){
     if(/^text\/csv/.test(mime)){text="\uFEFF"+text;mime="text/csv;charset=utf-8";}
     files.push({name:it.name,mime:mime,text:text});}
   try{var fl=files.map(function(f){return new File([f.text],f.name,{type:f.mime});});
-    if(navigator.canShare&&navigator.canShare({files:fl})){navigator.share({files:fl,title:files[0].name}).catch(function(){});return;}}catch(e){}
+    if(navigator.canShare&&navigator.canShare({files:fl})){navigator.share({files:fl}).catch(function(){});return;}}catch(e){}
   /* Download fallback (desktop, and iOS when the share sheet refuses a multi-file
      bundle): browsers drop back-to-back programmatic downloads, so stagger them. */
   files.forEach(function(f,i){setTimeout(function(){repDownloadFile(f);},i*400);});
   toast(files.length>1?("Exported "+files.length+" files"):"Exported");}
+/* OPEN the report rather than hand him a file (Owner, 2026-08-12: "Ideally id
+   love to export my progress report as an html and have it open the page").
+   A report is something to READ. Handing it to the share sheet makes him save
+   it to Files and then find it again, which is two steps to look at his own
+   week.
+
+   Tries a real window first, because that gives him the browser's own back /
+   share / print. Returns false when the open is refused — a standalone PWA or
+   a popup blocker can refuse it, and window.open returning null is the only
+   signal we get — and every caller then falls back to the share sheet, so the
+   file route is never lost. The blob URL is deliberately NOT revoked on a
+   timer: the new context needs it for as long as the tab lives. */
+function repOpenHTML(name,html){
+  var w=null,url=null;
+  try{
+    url=URL.createObjectURL(new Blob([html],{type:"text/html;charset=utf-8"}));
+    w=window.open(url,"_blank");
+  }catch(e){w=null;}
+  if(!w){if(url){try{URL.revokeObjectURL(url);}catch(e){}}return false;}
+  return true;}
 function repDownloadFile(f){
   var blob=new Blob([f.text],{type:f.mime});var url=URL.createObjectURL(blob);
   var a=document.createElement("a");a.href=url;a.download=f.name;document.body.appendChild(a);a.click();document.body.removeChild(a);

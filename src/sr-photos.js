@@ -332,8 +332,12 @@ function srExport(fmt){
   try{
     var off=state.weekOffset||0;var base=toISO(weekStartFor(off));
     files=[];
-    if(fmt!=="csv")files.push({name:"progress-report-"+base+".html",
-      mime:"text/html;charset=utf-8",text:srReportHTML(srInput(off))});
+    if(fmt!=="csv"){
+      var _rep=srReportHTML(srInput(off));
+      /* open it rather than deliver a file — see repOpenHTML */
+      if(fmt==="html"&&repOpenHTML("progress-report-"+base+".html",_rep))return;
+      files.push({name:"progress-report-"+base+".html",
+        mime:"text/html;charset=utf-8",text:_rep});}
     /* the CSV's Cardio / Weight Training / Activity Notes columns exist for
        the coach too */
     if(fmt!=="html")files.push({name:"weight-summary-"+base+".csv",

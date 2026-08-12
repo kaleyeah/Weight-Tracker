@@ -88,36 +88,61 @@ const eq=(a,b,m)=>{if(a!==b)throw new Error((m||'eq')+': '+JSON.stringify(a)+' !
     eq(csvPick.ask,null);ok(csvPick.chooserGone,'chooser still visible');
   });
 
+  /* Owner, 2026-08-12: "Ideally id love to export my progress report as an html
+     and have it open the page." So HTML no longer delivers a file — it OPENS.
+     The share sheet remains the fallback for a refused open, and C47 asserts
+     that fallback still carries exactly one file and no title. */
   const htmlPick=await run(()=>{
-    window.__shared=[];
+    window.__shared=[];window.__opened=[];
+    const realOpen=window.open;
+    window.open=function(u){window.__opened.push(String(u).slice(0,5));return {closed:false};};
     document.querySelector('[data-act="sum:exportweek"]').click();
     document.querySelector('[data-act="exp:go"][data-fmt="html"][data-kind="week"]').click();
+    window.open=realOpen;
+    return {shared:window.__shared.slice(),opened:window.__opened.slice()};
+  });
+  test('choosing HTML OPENS the report rather than exporting a file',()=>{
+    eq(htmlPick.opened.length,1,'should have opened once');
+    eq(htmlPick.opened[0],'blob:','opened: '+htmlPick.opened[0]);
+    eq(htmlPick.shared.length,0,'nothing should reach the share sheet');
+  });
+  /* the document IDENTITY still matters — Owner, 2026-08-10: the week's HTML is
+     the progress report, not the old repHTML week document. Asserted through
+     the fallback, which is the only path that still exposes the bytes. */
+  const htmlFallback=await run(()=>{
+    window.__shared=[];
+    const realOpen=window.open;
+    window.open=function(){return null;};          /* refused */
+    document.querySelector('[data-act="sum:exportweek"]').click();
+    document.querySelector('[data-act="exp:go"][data-fmt="html"][data-kind="week"]').click();
+    window.open=realOpen;
     return window.__shared.slice();
   });
-  test('choosing HTML shares exactly one HTML file — and it IS the progress report',()=>{
-    eq(htmlPick.length,1,'share calls');eq(htmlPick[0].length,1,'files');
-    /* Owner, 2026-08-10: the week's HTML is the progress report, not the old
-       repHTML week document. Pinned by filename AND by the document's title. */
-    ok(/^progress-report-.*\.html$/.test(htmlPick[0][0].name),htmlPick[0][0].name);
-    ok(/^text\/html/.test(htmlPick[0][0].mime),htmlPick[0][0].mime);
-    ok(/Compound — Progress report/.test(htmlPick[0][0].head),'document head was: '+htmlPick[0][0].head.slice(0,120));
+  test('and a refused open still yields the progress report itself',()=>{
+    eq(htmlFallback.length,1,'share calls');eq(htmlFallback[0].length,1,'files');
+    ok(/^progress-report-.*\.html$/.test(htmlFallback[0][0].name),htmlFallback[0][0].name);
+    ok(/^text\/html/.test(htmlFallback[0][0].mime),htmlFallback[0][0].mime);
+    ok(/Compound — Progress report/.test(htmlFallback[0][0].head),'document head was: '+htmlFallback[0][0].head.slice(0,120));
   });
 
   /* ---- Summary: Export progress report ----------------------------------- */
   const coach=await run(()=>{
-    window.__shared=[];
+    window.__shared=[];window.__opened=[];
+    const realOpen=window.open;
+    window.open=function(u){window.__opened.push(String(u).slice(0,5));return {closed:false};};
     document.querySelector('[data-act="sum:coachreport"]').click();
     const opened=!!document.querySelector('[data-act="exp:go"][data-kind="coach"]');
     document.querySelector('[data-act="exp:go"][data-fmt="html"][data-kind="coach"]').click();
-    const first=window.__shared.slice();
+    const openedHtml=window.__opened.slice();
+    window.open=realOpen;
     document.querySelector('[data-act="sum:coachreport"]').click();
     document.querySelector('[data-act="exp:go"][data-fmt="csv"][data-kind="coach"]').click();
-    return {opened:opened,first:first,second:window.__shared.slice(1)};
+    return {opened:opened,openedHtml:openedHtml,first:[],second:window.__shared.slice()};
   });
-  test('progress report: HTML choice shares the report alone',()=>{
+  test('progress report: HTML choice opens it, same as the week export',()=>{
     ok(coach.opened,'chooser opened');
-    eq(coach.first.length,1);eq(coach.first[0].length,1,'files');
-    ok(/^progress-report-.*\.html$/.test(coach.first[0][0].name),coach.first[0][0].name);
+    eq(coach.openedHtml.length,1,'should have opened once');
+    eq(coach.openedHtml[0],'blob:');
   });
   test('progress report: CSV choice shares the week CSV alone',()=>{
     eq(coach.second.length,1);eq(coach.second[0].length,1,'files');

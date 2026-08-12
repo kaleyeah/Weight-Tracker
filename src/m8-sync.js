@@ -971,7 +971,7 @@ function m8CxExport(cb){
   var canShare=false;
   try{var fl=files.map(function(f){return new File([f.text],f.name,{type:f.mime});});
     canShare=!!(navigator.canShare&&navigator.canShare({files:fl})&&navigator.share);
-    if(canShare){navigator.share({files:fl,title:"Compound conflict copies"}).then(markDelivered,
+    if(canShare){navigator.share({files:fl}).then(markDelivered,
       function(){toast("Share cancelled \u2014 the copies have not left the device");cb&&cb(false);});return;}}catch(e){}
   try{files.forEach(function(f,i){setTimeout(function(){repDownloadFile(f);},i*400);});}catch(e){toast("Export failed");cb&&cb(false);return;}
   askConfirm("Two files were downloaded: the device copy and the server copy. Confirm BOTH are saved somewhere safe \u2014 the choice buttons unlock only after that.",markDelivered,{label:"Both files are saved",danger:false});}

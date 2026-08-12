@@ -556,7 +556,7 @@ function m10pExport(opId,cb){
       var canShare=false;
       try{var f=new File([rec.blob],name,{type:rec.blob.type||"image/jpeg"});
         canShare=!!(navigator.canShare&&navigator.canShare({files:[f]})&&navigator.share);
-        if(canShare){navigator.share({files:[f],title:"Compound photo"}).then(mark,
+        if(canShare){navigator.share({files:[f]}).then(mark,
           function(){toast("Share cancelled — the photo has not left the device");cb&&cb(false);});return;}}catch(e){}
       try{var url=URL.createObjectURL(rec.blob);var a=document.createElement("a");
         a.href=url;a.download=name;document.body.appendChild(a);a.click();

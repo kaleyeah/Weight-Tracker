@@ -466,7 +466,7 @@ function exportData(){
   try{
     var file=new File([json],name,{type:"application/json;charset=utf-8"});
     if(navigator.canShare&&navigator.canShare({files:[file]})){
-      navigator.share({files:[file],title:"Weight Tracker backup"}).catch(function(){});return;
+      navigator.share({files:[file]}).catch(function(){});return;
     }
   }catch(e){}
   var blob=new Blob([json],{type:"application/json;charset=utf-8"});var url=URL.createObjectURL(blob);
