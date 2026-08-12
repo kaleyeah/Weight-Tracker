@@ -34,7 +34,18 @@ function srInput(offset){
     return {dow:dow,cls:(missN===0?"ok":(dISO===_tI?"prog":(missN<4?"part":"miss")))};});
   var totals=[
     {label:"Calories",v:tot.calories||null},{label:"Steps",v:tot.steps||null},{label:"Weigh-ins",v:wv.length},
-    {label:"Cardio min (Zone 2+)",v:ts.cardioZ2Mins||null},{label:"Lifting min",v:ts.liftMins||null},{label:"Cardio sessions (Zone 2+)",v:ts.cardioZ2Sessions||null}];
+    /* Owner, 2026-08-12: cardio SESSIONS duplicated the cardio-minutes tile
+       beside it — both zone 2+ — while the lifting count, which is what he
+       programmes against, was missing. */
+    {label:"Cardio min (Z2+)",v:ts.cardioZ2Mins||null},{label:"Lifting min",v:ts.liftMins||null},
+    /* counted from M.sessions, the SAME list the Weightlifting section prints,
+       not from weekTrainingStats. The two can differ: lrModel drops a session
+       with no logged exercises (`ses.ex.length>0`) while the stats counter
+       keeps every stored entry, so a started-and-abandoned session made this
+       card say "2" above a section reading "No lifting sessions logged this
+       week". A document that contradicts itself is worse than either number,
+       and the coach reads this one end to end. */
+    {label:"Lifting sessions",v:M.sessions.length||null}];
   /* Weekly Macros: totals vs a goal pro-rated to the days elapsed in the
      displayed week — the same window rule as the app card; fiber rides along
      with no goal, so it prints its total without a bar */
@@ -56,9 +67,14 @@ function srInput(offset){
     {label:"Protein",disp:(avgProt!=null?fnum(avgProt)+"g":"—"),sub:(tProt!=null?"goal "+tProt+"g":""),cls:gcol(avgProt,tProt,false,10)},
     {label:"Fat",disp:(avgFat!=null?fnum(avgFat)+"g":"—"),sub:(tFat!=null?"goal "+tFat+"g":""),cls:acol(tFat!=null&&avgFat!=null,avgFat>tFat&&calOverGoal)},
     {label:"Carbs",disp:(avgCarb!=null?fnum(avgCarb)+"g":"—"),sub:(tCarb!=null?"goal "+tCarb+"g":""),cls:acol(tCarb!=null&&avgCarb!=null,avgCarb>tCarb&&calOverGoal)}];
-  var cardioN=ts.cardioSessions||0,liftN=ts.liftSessions||0,recN=0;
-  for(var _wi=0;_wi<7;_wi++){normActs(toISO(addDays(s,_wi))).forEach(function(a){if(a.cat==="rest")recN++;});}
-  var activity=[{label:"Cardio",n:cardioN,color:"#3b82f6"},{label:"Weight Training",n:liftN,color:"#22c55e"},{label:"Recovery",n:recN,color:"#6b7280"}];
+  /* Owner, 2026-08-12: the Weekly Activity counts are replaced by his DAILY
+     TARGETS, here as on the Summary tab. A coach reading the week needs the
+     numbers the athlete was aiming at to judge the totals above — without
+     them, "2,050 calories" has no denominator. The counts themselves were
+     already covered in minutes and sessions by Weekly Totals. */
+  var targets={cal:num(state.settings.targetCalories),protein:num(state.settings.targetProtein),
+    carbs:num(state.settings.targetCarbs),fat:num(state.settings.targetFat),
+    auto:(state.settings.macroAuto!==false)};
   var dailyRows=days.map(function(r){var sl=num(state.sleep[r.date]);var cal=r.calories,pp=r.protein,ff=r.fat,cc=r.carbs,st=r.steps,wt=r.weight;var calOverD=(tCal!=null&&cal!=null&&cal>tCal);
     function c(v,fm,cls){return v==null?{d:null,cls:""}:{d:fm(v),cls:(cls||"")};}
     return {dow:r.dow.slice(0,3),cells:[
@@ -79,7 +95,7 @@ function srInput(offset){
     photos:srPhotoInput(offset),
     hero:hero,chips:chips,totals:totals,
     macros:{note:((_elapsed>0&&_elapsed<7)?(_elapsed+" of 7 days so far"):"7 of 7 days"),rows:macRows},
-    averages:averages,activity:activity,
+    averages:averages,targets:targets,
     daily:{label:fmtShort(M.ws)+" – "+fmtShort(M.we),rows:dailyRows},
     weightChart:srWeightInput(offset),
     checkin:srCheckinInput(offset),

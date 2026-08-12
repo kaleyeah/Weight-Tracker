@@ -235,10 +235,22 @@ function srAvgsHTML(inp){
   (inp.averages||[]).forEach(function(a){
     h+='<div class="wl-stat"><div class="wl-stat-label">'+srEsc(a.label)+'</div><div class="wl-stat-val'+(a.cls?' '+srEsc(a.cls):'')+'">'+srEsc(a.disp)+'</div><div class="wl-stat-sub">'+(a.sub?srEsc(a.sub):'&nbsp;')+'</div></div>';});
   return h+'</div></div>';}
-function srActivityHTML(inp){
-  var h='<div class="wl-card"><div class="wl-card-head"><span>Weekly Activity</span></div><div class="wl-statrow">';
-  (inp.activity||[]).forEach(function(a){h+='<div class="wl-stat"><div class="wl-stat-label">'+srEsc(a.label)+'</div><div class="wl-stat-val" style="color:'+srEsc(a.color)+'">'+srInt(a.n)+'</div></div>';});
-  return h+'</div></div>';}
+/* The daily targets the week was eaten against (Owner, 2026-08-12). Replaces
+   the Weekly Activity counts, which repeated what Weekly Totals already says in
+   minutes and sessions. A coach cannot read "2,050 calories" without knowing
+   what it was aiming at. */
+function srTargetsHTML(inp){
+  var t=inp.targets;if(!t)return "";
+  if(t.cal==null&&t.protein==null&&t.carbs==null&&t.fat==null)return "";
+  var cell=function(label,v,unit){
+    return '<div class="wl-stat"><div class="wl-stat-label">'+srEsc(label)+'</div><div class="wl-stat-val">'
+      +(v==null?SRDASH:srInt(v))+(v!=null&&unit?'<span style="font-size:11px;color:var(--faint)">'+unit+'</span>':'')+'</div></div>';};
+  return '<div class="wl-card"><div class="wl-card-head"><span>Daily Targets</span>'
+    +'<span class="wl-count">'+(t.auto?"auto":"set by athlete")+'</span></div>'
+    +'<div class="wl-statrow" style="grid-template-columns:repeat(4,1fr)">'
+    +cell("Calories",t.cal,"")+cell("Protein",t.protein,"g")
+    +cell("Carbs",t.carbs,"g")+cell("Fat",t.fat,"g")
+    +'</div></div>';}
 /* the Daily Totals table, one row per day — cell text and coloring classes are
    pre-computed upstream with view_summary's own formatting and gcol rules */
 function srDailyHTML(inp){
@@ -438,7 +450,7 @@ function srReportHTML(inp){
   h+=srTotalsHTML(inp)+"\n";
   h+=srMacrosHTML(inp)+"\n";
   h+=srAvgsHTML(inp)+"\n";
-  h+=srActivityHTML(inp)+"\n";
+  h+=srTargetsHTML(inp)+"\n";
   h+=srDailyHTML(inp)+"\n";
   h+=srWorkoutsHTML(inp)+"\n";
   h+='<div class="foot"><p>&ldquo;Range&rdquo; shows where each set landed against its rep target &middot; RIR is reps left in the tank when the set ended.</p>'+

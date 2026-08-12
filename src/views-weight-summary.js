@@ -391,6 +391,25 @@ function csvActNotesCell(r){var out=[];
 function fnum(v){return v==null?"—":(Math.abs(v)>=1000?Math.round(v).toLocaleString():(v%1===0?String(v):String(r1(v))));}
 function avgStatF(label,disp,sub,color){return '<div class="wl-stat"><div class="wl-stat-label">'+label+'</div><div class="wl-stat-val'+(color?" "+color:"")+'">'+disp+'</div><div class="wl-stat-sub">'+(sub||"&nbsp;")+'</div></div>';}
 function actStat(label,n,cat){var col={cardio:"#3b82f6",lifting:"#22c55e",rest:"#6b7280",supp:"#a855f7"}[cat]||"var(--text)";return '<div class="wl-stat"><div class="wl-stat-label">'+label+'</div><div class="wl-stat-val" style="color:'+col+'">'+n+'</div></div>';}
+/* the four numbers he plans a day around. Absent targets show an em dash and
+   say where to set them rather than rendering a confident zero. */
+function dailyTargetsCardHTML(){
+  var s=state.settings;
+  var cal=num(s.targetCalories),pro=num(s.targetProtein),carb=num(s.targetCarbs),fat=num(s.targetFat);
+  var t=function(label,v,unit){
+    var disp=(v==null)?"\u2014":(Math.abs(v)>=1000?Math.round(v).toLocaleString():String(Math.round(v)));
+    return '<div class="wl-stat"><div class="wl-stat-label">'+label+'</div><div class="wl-stat-val">'
+      +disp+(v!=null&&unit?'<span>'+unit+'</span>':'')+'</div></div>';};
+  var h='<div class="wl-card"><div class="wl-card-head"><span>Daily Targets</span>'
+    +(s.macroAuto===false?'<em>set by you</em>':'<em>auto</em>')+'</div>'
+    +'<div class="wl-statrow" style="grid-template-columns:repeat(4,1fr)">'
+    +t("Calories",cal,"")+t("Protein",pro,"g")+t("Carbs",carb,"g")+t("Fat",fat,"g")
+    +'</div>';
+  if(cal==null&&pro==null&&carb==null&&fat==null)
+    h+='<div class="wl-hint">No targets yet \u2014 set them in Settings \u2192 Calories &amp; macros.</div>';
+  else if(s.macroAuto!==false)
+    h+='<div class="wl-hint">Calculated from your goal weight and rate. Change them in Settings \u2192 Calories &amp; macros.</div>';
+  return h+'</div>';}
 function sumStat(label,v,unit){
   if(label==="")return '<div class="wl-stat" style="visibility:hidden"></div>';
   var disp=v==null?"—":(Math.abs(v)>=1000?Math.round(v).toLocaleString():(v%1===0?String(v):String(r1(v))));
@@ -449,7 +468,12 @@ function view_summary(){
   h+='</div><div class="wl-cilegend"><span class="wl-cileg"><i class="wl-cidot ok"></i>Completed</span><span class="wl-cileg"><i class="wl-cidot part"></i>Partial</span><span class="wl-cileg"><i class="wl-cidot miss"></i>Missed</span></div></div>';
   h+='<div class="wl-card"><div class="wl-card-head"><span>Weekly Totals</span></div><div class="wl-statrow" style="grid-template-columns:repeat(3,1fr)">'+
     sumStat("Calories",tot.calories||null,"")+sumStat("Steps",tot.steps||null,"")+sumStat("Weigh-ins",wv.length,"")+
-    sumStat("Cardio min",ts.cardioZ2Mins||null,"")+sumStat("Lifting min",ts.liftMins||null,"")+sumStat("Cardio sessions",ts.cardioZ2Sessions||null,"")+'</div></div>';
+    /* Owner, 2026-08-12: "Replace Cardio sessions with Lifting Sessions.
+       Cardio minutes is zone 2+ minutes." Cardio sessions duplicated the
+       cardio-minutes tile beside it — both counted the same zone-2+ work —
+       while the lifting COUNT, which is the number he actually programmes
+       against (3-4 sessions a week), was nowhere on this card. */
+    sumStat("Cardio min (Z2+)",ts.cardioZ2Mins||null,"")+sumStat("Lifting min",ts.liftMins||null,"")+sumStat("Lifting sessions",ts.liftSessions||null,"")+'</div></div>';
   /* Weekly Macros — totals consumed vs a goal PRO-RATED to the days elapsed in the
      DISPLAYED week: all 7 for a finished week, through today for the current one, so
      a mid-week bar reads as true adherence rather than always looking behind. A macro
@@ -475,9 +499,23 @@ function view_summary(){
     avgStatF("Protein",avgProt!=null?fnum(avgProt)+"g":"—",tProt!=null?"goal "+tProt+"g":"",gcol(avgProt,tProt,false,10))+
     avgStatF("Fat",avgFat!=null?fnum(avgFat)+"g":"—",tFat!=null?"goal "+tFat+"g":"",acol(tFat!=null&&avgFat!=null,avgFat>tFat&&calOverGoal))+
     avgStatF("Carbs",avgCarb!=null?fnum(avgCarb)+"g":"—",tCarb!=null?"goal "+tCarb+"g":"",acol(tCarb!=null&&avgCarb!=null,avgCarb>tCarb&&calOverGoal))+'</div></div>';
-  var cardioN=ts.cardioSessions||0,liftN=ts.liftSessions||0,recN=0;
-  for(var _wi=0;_wi<7;_wi++){normActs(toISO(addDays(s,_wi))).forEach(function(a){if(a.cat==="rest")recN++;});}
-  h+='<div class="wl-card"><div class="wl-card-head"><span>Weekly Activity</span></div><div class="wl-statrow" style="grid-template-columns:repeat(3,1fr)">'+actStat("Cardio",cardioN,"cardio")+actStat("Weight Training",liftN,"lifting")+actStat("Recovery",recN,"rest")+'</div></div>';
+  /* Owner, 2026-08-12: "there's no current macros on any of my screens like
+     progress or summary. It should go where the weekly activity card is now
+     and replace it... The weekly activity card doesn't tell me much."
+
+     He is right on both counts. Every macro surface in the app showed what he
+     HAD EATEN — weekly totals, weekly averages, the daily grid — and none of
+     them showed what he is aiming at, so the number he plans his day around
+     was only visible by opening Settings. Weekly Activity meanwhile counted
+     cardio / lifting / recovery days, which the Weekly Totals card above
+     already covers in minutes and sessions.
+
+     These are the DAILY targets, not the week's, because that is the unit he
+     eats against. They are the same values the diary and the day view grade
+     against (state.settings.target*), kept current by applyAutoMacros when
+     auto is on — read, never recomputed here, so this card can never disagree
+     with the bars above it. */
+  h+=dailyTargetsCardHTML();
   h+='<div class="wl-card" style="padding:12px 10px"><div class="wl-card-head"><span>Daily Totals</span><span class="wl-count">'+label+'</span></div><table class="wl-byday-grid"><thead><tr><th>Day</th><th>Sleep</th><th>Wt</th><th>Steps</th><th>Cal</th><th>P</th><th>F</th><th>C</th></tr></thead><tbody>';
   days.forEach(function(r){var sl=num(state.sleep[r.date]);var cal=r.calories,pp=r.protein,ff=r.fat,cc=r.carbs,st=r.steps,wt=r.weight;var calOverD=(tCal!=null&&cal!=null&&cal>tCal);
     function cl(disp,cls){return '<td class="'+(cls||"")+'">'+disp+'</td>';}
