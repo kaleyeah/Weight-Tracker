@@ -29,14 +29,15 @@ if (!TDEECore) throw new Error("TDEECore did not attach");
    Only the globals tdeeWindow/tdeeAnalysis actually touch are provided —
    if the adapter grows a new dependency this test fails loudly. */
 const TODAY = "2026-03-30";
-function makeApp(state, recapDates) {
+function makeApp(state, recapDates, opts) {
+  opts = opts || {};
   const sandbox = {
     state,
     TDEECore,
     num: (v) => { const n = parseFloat(v); return isFinite(n) ? n : null; },
     isSkip: (d, f) => !!(state.skips && state.skips[d] && state.skips[d][f]),
-    dayRecap: (iso) => (recapDates.has(iso) ? { text: "recap" } : null),
-    todayISO: () => TODAY,
+    dayRecap: opts.dayRecap || ((iso) => (recapDates.has(iso) ? { text: "recap" } : null)),
+    todayISO: () => (opts.today || TODAY),
     toISO: (dd) => dd.toISOString().slice(0, 10),
     parseISO: (s) => new Date(s + "T00:00:00Z"),
     addDays: (dd, n) => { const d2 = new Date(dd); d2.setUTCDate(d2.getUTCDate() + n); return d2; },
@@ -102,6 +103,66 @@ const skipD = Object.keys(s6.food)[3];
 s6.skips = { [skipD]: { calories: 1 } };
 const r6 = makeApp(s6, new Set()).tdeeWindow().core;
 ok(r6.completeCalorieDays === r1.completeCalorieDays - 1, "an explicitly skipped day is not complete");
+
+/* ---- B-round edge cases (Architect ruling 2, 2026-08-13) ---- */
+
+/* 7. finalized THEN EDITED: the recap goes stale (dayReopenedAt semantics) —
+   dayRecap returns null again, so today drops back out */
+{
+  const s7 = fixture(); s7.food[TODAY] = { calories: 900 };
+  let live = true;
+  const app = makeApp(s7, new Set(), { dayRecap: (iso) => (iso === TODAY && live ? { text: "r" } : null) });
+  const before = app.tdeeWindow().core;
+  ok(before.completeCalorieDays === r1.completeCalorieDays + 1, "finalized today counts");
+  live = false;                                   /* the edit reopened the day; recap now stale */
+  const after = app.tdeeWindow().core;
+  ok(after.completeCalorieDays === r1.completeCalorieDays && after.measuredTdeeDisplay === r1.measuredTdeeDisplay,
+    "finalized-then-edited: a stale recap puts today back out of the calculation");
+}
+
+/* 8. recap removed / unavailable: same as never finalized */
+{
+  const s8 = fixture(); s8.food[TODAY] = { calories: 700 };
+  const r8 = makeApp(s8, new Set()).tdeeWindow().core;
+  ok(r8.measuredTdeeDisplay === r1.measuredTdeeDisplay, "no recap available: today stays out");
+}
+
+/* 9. local-date rollover: yesterday's partial (never finalized) becomes a
+   PAST day at midnight and counts — past logged days always count */
+{
+  const s9 = fixture(); s9.food[TODAY] = { calories: 1400 };   /* partial, no recap */
+  const beforeRoll = makeApp(s9, new Set()).tdeeWindow().core;
+  ok(beforeRoll.completeCalorieDays === r1.completeCalorieDays, "before midnight: partial day out");
+  const tomorrow = "2026-03-31";
+  /* compare against the SAME rolled-over window without the entry — the
+     window itself moves at midnight (a day ages out as this one enters),
+     so the fair baseline is tomorrow-without-the-entry, not today */
+  const s9base = fixture();
+  const rollBase = makeApp(s9base, new Set(), { today: tomorrow }).tdeeWindow().core;
+  const afterRoll = makeApp(s9, new Set(), { today: tomorrow }).tdeeWindow().core;
+  ok(afterRoll.completeCalorieDays === rollBase.completeCalorieDays + 1
+     && afterRoll.averageDailyCalories < rollBase.averageDailyCalories,
+    "after rollover the same entry is a past day and counts (no finalization needed)");
+}
+
+/* 10. future-dated food entry: inert — outside every window, never counted */
+{
+  const s10 = fixture(); s10.food["2026-04-05"] = { calories: 9999 };
+  const r10 = makeApp(s10, new Set()).tdeeWindow().core;
+  ok(r10.measuredTdeeDisplay === r1.measuredTdeeDisplay && r10.completeCalorieDays === r1.completeCalorieDays,
+    "a future-dated entry changes nothing");
+}
+
+/* 11. dayRecap FAILURE fails closed: today excluded, card alive */
+{
+  const s11 = fixture(); s11.food[TODAY] = { calories: 600 };
+  const app = makeApp(s11, new Set(), { dayRecap: () => { throw new Error("coach cache corrupt"); } });
+  let r11 = null, threw = false;
+  try { r11 = app.tdeeWindow().core; } catch (_) { threw = true; }
+  ok(!threw, "a throwing dayRecap does not take the calculation down");
+  ok(r11 && r11.measuredTdeeDisplay === r1.measuredTdeeDisplay,
+    "and fails CLOSED: today reads as not finalized");
+}
 
 console.log(`\n${P} passed, ${F} failed`);
 process.exit(F ? 1 : 0);

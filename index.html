@@ -4222,9 +4222,13 @@ function tdeeCalPerUnit(){return state.settings.units==="kg"?7700:3500;}
    from the calorie VALUE. */
 function tdeeWindow(){
   var calorieDays={},d,_td=todayISO();
+  /* finalization must FAIL CLOSED: if dayRecap throws (coach cache broken,
+     malformed report), today reads as not-finalized and stays out of the
+     average — the safe direction. It must never take the card down. */
+  var _fin=function(iso){try{return !!dayRecap(iso);}catch(_){return false;}};
   for(d in state.food){if(!Object.prototype.hasOwnProperty.call(state.food,d))continue;
     var c=num((state.food[d]||{}).calories);
-    if(c!=null&&!isSkip(d,"calories")&&(d!==_td||!!dayRecap(d)))calorieDays[d]={calories:c,complete:true};}
+    if(c!=null&&!isSkip(d,"calories")&&(d!==_td||_fin(d)))calorieDays[d]={calories:c,complete:true};}
   var offPlan=[];
   (state.statuses||[]).forEach(function(st){if(!st||!st.start)return;
     var cur=st.start,end=st.end||st.start,guard=0;
