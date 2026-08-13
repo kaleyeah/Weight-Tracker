@@ -33,7 +33,7 @@ const FILE = "http://127.0.0.1:" + server.address().port + "/";
 const BASE = { units: "lbs", sex: "male", heightIn: 70, age: 40, activity: "1.5",
                weekStart: "1", targetProtein: "175", stepsGoal: "8000", cardioMinGoal: "60" };
 const SCEN = [
-  ["owner-live",        { strategy: "lose", targetCalories: "2005", targetType: "percent_bw_per_week", targetValue: ".71" }, -0.3929, 1743],
+  ["lose-pct-target",   { strategy: "lose", targetCalories: "2150", targetType: "percent_bw_per_week", targetValue: ".85" }, -0.34, 1815],
   ["lose-on-pace",      { strategy: "lose", targetCalories: "2000", targetType: "lbs_per_week", targetValue: "1" }, -0.1429, 1900],
   ["lose-too-fast",     { strategy: "lose", targetCalories: "2000", targetType: "lbs_per_week", targetValue: "1" }, -0.4286, 1700],
   ["lose-too-slow",     { strategy: "lose", targetCalories: "2000", targetType: "lbs_per_week", targetValue: "1" }, -0.0286, 1950],

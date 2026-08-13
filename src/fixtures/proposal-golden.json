@@ -1,18 +1,18 @@
 {
- "owner-live": {
+ "lose-pct-target": {
   "state": "toofast",
-  "targetRate": 1.27658,
-  "gapDay": 737,
-  "rate": -2.7503000000000024,
-  "tdee": 3118,
-  "intake": 1743,
+  "targetRate": 1.5402,
+  "gapDay": 420,
+  "rate": -2.380000000000001,
+  "tdee": 3005,
+  "intake": 1815,
   "status": "high_confidence",
   "prop": {
-   "cal": 2205,
-   "oldCal": 2005,
+   "cal": 2350,
+   "oldCal": 2150,
    "protein": 175,
-   "fat": 49,
-   "carbs": 266,
+   "fat": 52,
+   "carbs": 296,
    "oldCarbs": null,
    "oldFat": null,
    "steps": null,
