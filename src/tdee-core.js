@@ -446,5 +446,10 @@
   }
 
   return { calculate: calculate, TIERS: TIERS, MAX_CONSECUTIVE_MISSING: MAX_CONSECUTIVE_MISSING,
-           OUTLIER: OUTLIER, detectWeightOutliers: detectWeightOutliers };
+           OUTLIER: OUTLIER, detectWeightOutliers: detectWeightOutliers,
+           /* exported unchanged for TDEECoreV2, which reuses this pipeline
+              rather than reimplementing it (V2 spec §12). Pure additions —
+              no V1 behaviour changes. */
+           dailyWeights: dailyWeights, regressionSlope: regressionSlope,
+           CAL_PER_UNIT: CAL_PER_UNIT };
 });
