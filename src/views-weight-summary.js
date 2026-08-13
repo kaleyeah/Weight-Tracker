@@ -33,12 +33,20 @@ function tdeeCalPerUnit(){return state.settings.units==="kg"?7700:3500;}
      an explicitly skipped day and an absent day are both NOT complete;
    - vacation/sick days stay VISIBLE as gaps and are flagged as context —
      they are no longer silently dropped from the average, which is what used
-     to hide a coverage problem rather than report it. */
+     to hide a coverage problem rather than report it.
+   TDEE V2 spec §1 (Owner, 2026-08-13): the CURRENT day is complete only once
+   it is FINALIZED — the same dayRecap() principle the Summary averages
+   already use (Owner rule 2026-08-02). A half-logged today read as a full
+   day and dragged the average (and the TDEE) down every afternoon; it now
+   stays visible in the diary and simply does not enter the calculation
+   until the day is completed or has passed. Historical days are untouched:
+   a genuinely low past day still counts — completeness is never inferred
+   from the calorie VALUE. */
 function tdeeWindow(){
-  var calorieDays={},d;
+  var calorieDays={},d,_td=todayISO();
   for(d in state.food){if(!Object.prototype.hasOwnProperty.call(state.food,d))continue;
     var c=num((state.food[d]||{}).calories);
-    if(c!=null&&!isSkip(d,"calories"))calorieDays[d]={calories:c,complete:true};}
+    if(c!=null&&!isSkip(d,"calories")&&(d!==_td||!!dayRecap(d)))calorieDays[d]={calories:c,complete:true};}
   var offPlan=[];
   (state.statuses||[]).forEach(function(st){if(!st||!st.start)return;
     var cur=st.start,end=st.end||st.start,guard=0;

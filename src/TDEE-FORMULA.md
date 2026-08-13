@@ -128,6 +128,12 @@ averageDailyCalories = Σ(calories on complete days) / (number of complete days)
 skipped day and an absent day both do not. *"It's only as good as honest as
 the input is."*
 
+**Refined by TDEE V2 spec §1 (Owner, 2026-08-13):** the *current* day counts
+only once it is finalized (the same `dayRecap()` completion the Summary
+averages use). A half-logged today was entering the average as a full day and
+understating TDEE every afternoon. Past days are untouched — a genuinely low
+historical day still counts; completeness is never inferred from the value.
+
 ## 5. Confidence tiers
 
 The same maths runs at every tier; only trust differs.
