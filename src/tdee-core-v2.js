@@ -1,35 +1,35 @@
-/* Compound Fitness — TDEE estimator V2, revision 2. NOT production primary.
+/* Compound Fitness — TDEE estimator V2, revision 3. NOT production primary.
  *
- * REVISION 2 (Architect review 2026-08-13). Revision 1 assimilated a rolling
- * multi-day window every day as if each day brought independent evidence —
- * the windows overlapped almost completely, so the filter's variance shrank
- * illegitimately and its "confidence" numbers claimed a precision the model
- * had not earned. This revision:
- *   - filters over GENUINELY INCREMENTAL daily observations (each weigh-in
- *     and each logged day enters the estimator exactly once);
- *   - keeps the multi-day windows as DIAGNOSTIC raw observations only
- *     (reported for audit and the detail view, never assimilated);
- *   - makes no calibrated-uncertainty claim: outputs are model-relative
- *     stability and evidence-quality labels, not probabilities or ranges.
+ * REVISION 3 (Architect round 2, 2026-08-13). Rev2's defects, fixed here:
+ *   - PREFIX-CAUSAL: every quantity used on day d (initialization, missing-
+ *     intake prediction, intake variability, scale-noise scale, transition
+ *     state) is computed from records dated <= d only. A negative control
+ *     proves appending future data leaves every earlier trail entry
+ *     byte-identical.
+ *   - Missing-intake handling is NAMED for what it is: model-based
+ *     substitution in the state transition — the running PAST-ONLY intake
+ *     mean stands in, with added variance (300-kcal floor). It is not
+ *     "no imputation"; non-random missingness still biases T (adversarially
+ *     demonstrated and labeled).
+ *   - The autocorrelation shortcut is GONE. Sticky water noise is an
+ *     explicit colored state: scale = m + u + iid quantization noise,
+ *     u an AR(1) with fixed phi (a stated design constant, swept) and
+ *     stationary sd estimated prefix-causally from robust residuals.
+ *   - Evidence counts come from the RECORDS, not filter control flow.
+ *   - CUSUM constants were selected AGAINST PREDEFINED synthetic targets
+ *     (delay/false-alarm distributions across seeds and regimes — see
+ *     docs/TDEE-V2-CUSUM-CALIBRATION.md), never against Owner data.
  *
- * The model (src/TDEE-V2-MATH.md, revision 2, written before this code):
- *   state      x = [ m  true body mass (weight units)
- *                    T  expenditure consistent with LOGGED intake (kcal/day) ]
- *   dynamics   m += (I − T)/ρ per day   (ρ = 3,500 kcal/lb · 7,700/kg — the
- *              audit convention; its dynamic bias is documented, not hidden)
- *              T += drift               (random walk, σ_T = 5 kcal/day/day)
- *   measure    scale weight = m + fluctuation noise (water/glycogen/gut),
- *              variance and lag-1 autocorrelation ESTIMATED from the user's
- *              own residuals, autocorrelation handled by the standard
- *              effective-information inflation (1+ρ₁)/(1−ρ₁).
+ * Model (TDEE-V2-MATH.md rev3):
+ *   state  x = [ m   true body mass
+ *                T   expenditure consistent with LOGGED intake (kcal/day)
+ *                u   persistent fluctuation mass (water/glycogen/gut) ]
+ *   dyn    m += (I − T)/ρ ;  T += w_T ;  u = φu + w_u
+ *   meas   scale = m + u + ε        ε iid (scale quantization + posture)
  *
- * T estimates "expenditure consistent with your logs": systematic intake
- * under-recording lowers T one-for-one. That is stated, not corrected —
- * and it is the operationally right quantity for setting logged-calorie
- * targets, which is what the app does with it.
- *
- * Pure function, UMD, V1's discipline: no UI, no AI, no storage, and no
- * medication awareness of any kind — nothing here reads or infers it.
+ * T is "expenditure consistent with your logs": systematic under-recording
+ * lowers it one-for-one — stated, uncorrected, uncorrectable from this data.
+ * Pure function, UMD, no UI, no AI, no storage, no medication awareness.
  */
 (function (root, factory) {
   var dep = (typeof module === "object" && module.exports)
@@ -41,32 +41,30 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function (V1) {
   "use strict";
 
-  /* ---- tuning parameters (MATH rev2 §5) — every one an explicit knob,
-     none calibrated, all swept in the sensitivity table ---- */
   var PARAMS = {
-    sigmaT: 5,                 // kcal/day/day — TDEE random-walk drift
-    priorTsd: 400,             // kcal — width of the initial TDEE prior
-    fluctFloor: { lb: 0.7, kg: 0.32 },  // daily scale-noise sd floor
-    missingIntakeSdMult: 1.0,  // unlogged day: intake sd × this feeds mass noise
+    sigmaT: 5,                  // kcal/day/day drift of T
+    priorTsd: 400,              // initial T prior sd
+    phiU: 0.5,                  // AR(1) daily persistence of fluctuation mass
+    epsSd: { lb: 0.3, kg: 0.14 },      // iid scale noise (quantization etc.)
+    uSdFloor: { lb: 0.6, kg: 0.27 },   // fluctuation sd floor
+    missingIntakeFloorKcal: 300,       // substitution-variance floor
     transition: {
       recentDays: 7, priorDays: 14, minRecent: 5, minPrior: 10,
       absKcal: 300, relFrac: 0.15, activeDays: 14,
-      tShock: 75 * 75,         // one-time T-variance bump at trigger
-      massNoise: { lb: 0.3, kg: 0.14 }, // extra non-energy mass sd/day while active
+      tShock: 75 * 75,
+      uNoise: { lb: 0.3, kg: 0.14 },   // extra fluctuation drive while active
     },
-    /* drift detection: Page's CUSUM on standardized innovations. The
-       allowance follows the textbook k = delta/2 rule, but delta here is the
-       signal the MODEL's own geometry produces: a persistent TDEE error dT
-       biases each one-day-ahead innovation by only (dT/rho)/sqrt(S) — for
-       dT=300 kcal and typical S that is ~0.1 sigma, so k=0.05. h=2 trades
-       detection delay (~2 weeks on a 600-kcal step) against occasional
-       false triggers on quiet data; a false trigger only widens T-variance
-       briefly and self-heals. Both knobs are in the sensitivity sweep. */
-    cusum: { k: 0.05, h: 2, tShock: 75 * 75 },
-    discrepancy: 250,          // kcal — heuristic window-disagreement flag (no σ claim)
+    /* Selected against PREDEFINED synthetic targets (median false alarms
+       <= 1 AND 90th-pct <= 2 per 56 quiet days in every regime; median
+       detection of a 600-kcal step <= 28 days) via the calibration harness:
+       docs/TDEE-V2-CUSUM-CALIBRATION.md. Achieved: worst-regime FA median 1,
+       90th-pct 1, worst-regime median detection 11 days. NOT tuned on
+       Owner data. */
+    cusum: { k: 0.125, h: 8, tShock: 75 * 75 },
+    discrepancy: 250,           // heuristic window-disagreement flag, no sigma claim
     displayStep: 10,
   };
-  var HORIZONS = [42, 28, 21, 14];        // diagnostic windows only
+  var HORIZONS = [42, 28, 21, 14];
   var CAL_RATIO = 6 / 7, WEIGH_RATIO = 5 / 7;
 
   var DAY_MS = 86400000;
@@ -76,9 +74,10 @@
     return d.getUTCFullYear() + "-" + z(d.getUTCMonth() + 1) + "-" + z(d.getUTCDate());
   }
   function r2(x) { return x == null ? null : Math.round(x * 100) / 100; }
+  function med(a) { var s = a.slice().sort(function (x, y) { return x - y; }), n = s.length;
+    return n ? (n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2) : null; }
 
-  /* ---- diagnostic window fit — V1's pipeline reused literally; the raw
-     energy-balance observation per horizon, for audit only ---- */
+  /* ---- diagnostic window fit — V1's pipeline, unchanged from rev2 ---- */
   function fitHorizon(endMs, H, ctx) {
     var startMs = endMs - (H - 1) * DAY_MS;
     var out = { horizon: H, eligible: false, reason: null };
@@ -130,40 +129,52 @@
     return out;
   }
 
-  /* ---- per-user scale-noise estimation (MATH rev2 §3): robust residuals
-     against a repeated-median fit over ALL accepted daily weights, their
-     MAD-based sd, and lag-1 autocorrelation on date-adjacent residuals.
-     Estimated from the data — a measurement, not a tuning knob. ---- */
-  function estimateFluctuation(ctx, endMs) {
+  /* ---- PREFIX-CAUSAL fluctuation-scale estimate as of endMs ---- */
+  function fluctuationAt(ctx, endMs, prm) {
     var pts = [];
     Object.keys(ctx.wByDate).forEach(function (d) {
       var ms = parseDate(d);
       if (ms <= endMs) pts.push({ x: Math.round((ms - ctx.earliestMs) / DAY_MS), y: ctx.wByDate[d], date: d });
     });
     pts.sort(function (a, b) { return a.x - b.x; });
-    var floor = PARAMS.fluctFloor[ctx.units];
-    if (pts.length < 8) return { sd: floor, rho1: 0.3, n: pts.length, defaulted: true };
-    var det = V1.detectWeightOutliers(pts, ctx.units, pts.length); // reuse for its robust fit
+    var floor = prm.uSdFloor[ctx.units];
+    if (pts.length < 8) return { uSd: floor, n: pts.length, defaulted: true, rho1: null, rho1Pairs: 0 };
+    var det = V1.detectWeightOutliers(pts, ctx.units, pts.length);
     if (!det.applicable || det.robustSlopePerDay == null)
-      return { sd: floor, rho1: 0.3, n: pts.length, defaulted: true };
+      return { uSd: floor, n: pts.length, defaulted: true, rho1: null, rho1Pairs: 0 };
     var m = det.robustSlopePerDay, b = det.robustIntercept;
     var res = pts.map(function (p) { return { x: p.x, r: p.y - (m * p.x + b) }; });
-    var sd = Math.max(floor, 1.4826 * medianAbs(res.map(function (o) { return o.r; })));
-    var num = 0, den = 0, count = 0;
-    for (var i = 1; i < res.length; i++) {
-      if (res[i].x - res[i - 1].x === 1) { num += res[i].r * res[i - 1].r; count++; }
-      den += res[i - 1].r * res[i - 1].r;
+    var mad = med(res.map(function (o) { return Math.abs(o.r); })) || 0;
+    var totalSd = 1.4826 * mad;
+    /* split: iid component epsSd is fixed; the colored state u gets the rest */
+    var eps = prm.epsSd[ctx.units];
+    var uSd = Math.max(floor, Math.sqrt(Math.max(0, totalSd * totalSd - eps * eps)));
+    /* DIAGNOSTIC lag-1 autocorrelation (round-2 ruling 4): centered pairs,
+       adjacent dates only, both moments over the SAME pair sample, SIGNED,
+       reported only with >= 8 pairs — otherwise null, no numeric claim. */
+    var pairs = [];
+    for (var i = 1; i < res.length; i++)
+      if (res[i].x - res[i - 1].x === 1) pairs.push([res[i - 1].r, res[i].r]);
+    var rho1 = null;
+    if (pairs.length >= 8) {
+      var xs = [], ys = [];
+      pairs.forEach(function (p) { xs.push(p[0]); ys.push(p[1]); });
+      var mx = xs.reduce(function (aa, cv) { return aa + cv; }, 0) / xs.length;
+      var my = ys.reduce(function (aa, cv) { return aa + cv; }, 0) / ys.length;
+      var num = 0, dx = 0, dy = 0;
+      for (var j = 0; j < pairs.length; j++) {
+        num += (xs[j] - mx) * (ys[j] - my);
+        dx += (xs[j] - mx) * (xs[j] - mx); dy += (ys[j] - my) * (ys[j] - my);
+      }
+      rho1 = (dx > 0 && dy > 0) ? num / Math.sqrt(dx * dy) : null;
     }
-    var rho1 = (count >= 5 && den > 0) ? Math.max(0, Math.min(0.8, num / den)) : 0.3;
-    return { sd: sd, rho1: rho1, n: pts.length, defaulted: false };
-  }
-  function medianAbs(a) {
-    var s = a.map(Math.abs).sort(function (x, y) { return x - y; }), n = s.length;
-    return n ? (n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2) : 0;
+    return { uSd: uSd, n: pts.length, defaulted: false,
+             rho1: rho1 == null ? null : r2(rho1), rho1Pairs: pairs.length };
   }
 
+  /* prefix-causal intake-shift detector (reads only records <= endMs) */
   function intakeShift(endMs, ctx, prm) {
-    var recent = [], prior = [], ms = endMs, T = (prm || PARAMS).transition;
+    var recent = [], prior = [], ms = endMs, T = prm.transition;
     while (ms >= ctx.earliestMs && prior.length < T.priorDays) {
       var c = ctx.cal[isoOf(ms)];
       if (c && c.complete === true && isFinite(Number(c.calories))) {
@@ -180,8 +191,8 @@
   }
 
   /**
-   * Same input shape as V1.calculate. `params` may override PARAMS members —
-   * used ONLY by the sensitivity harness; the app never passes it.
+   * Same input shape as V1.calculate; optional `params` override is used by
+   * the test/calibration harnesses only (the app never passes it).
    */
   function calculate(input) {
     input = input || {};
@@ -189,11 +200,8 @@
     var prm = input.params || PARAMS;
     var today = input.todayLocalDate;
     var base = {
-      model: "v2r2", status: "insufficient",
+      model: "v2r3", status: "insufficient",
       estimatedTdee: null, estimatedTdeeDisplay: null,
-      /* NO probabilistic claims: stability is MODEL-RELATIVE (how settled the
-         filter is under its own assumptions), evidence is a label built from
-         countable facts. Neither is a confidence interval. */
       stability: null, evidenceLevel: "insufficient", evidenceFacts: null,
       flags: [], updates: [], horizons: [], regime: { state: "normal", since: null },
       units: units, calculatedAt: input.now || new Date().toISOString(),
@@ -207,32 +215,16 @@
     if (earliestMs == null) { base.flags.push("no_history"); return base; }
     ctx.earliestMs = earliestMs;
     ctx.historyDaysAt = function (ms) { return Math.round((ms - earliestMs) / DAY_MS) + 1; };
-
-    var fluct = estimateFluctuation(ctx, endMs);
     var calPerUnit = V1.CAL_PER_UNIT[units];
-    /* effective measurement variance: autocorrelated fluctuation carries less
-       information per reading than iid noise — standard inflation */
-    var Rw = Math.pow(fluct.sd, 2) * (1 + fluct.rho1) / (1 - fluct.rho1);
+    var eps2 = Math.pow(prm.epsSd[units], 2);
+    var phi = prm.phiU;
 
-    /* intake stats for missing-day handling */
-    var intakes = [];
-    Object.keys(ctx.cal).forEach(function (d) {
-      var c = ctx.cal[d];
-      if (parseDate(d) <= endMs && c && c.complete === true && isFinite(Number(c.calories))) intakes.push(Number(c.calories));
-    });
-    var intakeMean = intakes.length ? intakes.reduce(function (a, b) { return a + b; }, 0) / intakes.length : null;
-    var intakeSd = 0;
-    if (intakes.length > 1) {
-      var sv = 0; intakes.forEach(function (c) { var dc = c - intakeMean; sv += dc * dc; });
-      intakeSd = Math.sqrt(sv / (intakes.length - 1));
-    }
-
-    /* ---- the daily two-state filter (MATH rev2 §2) ----
-       x=[m,T]; P is its 2x2 covariance [[Pmm,PmT],[PmT,PTT]] */
-    var m = null, T = null, Pmm = 0, PmT = 0, PTT = 0;
+    /* ---- prefix-causal fold: x=[m,T,u], P 3x3 (m=0, T=1, u=2) ---- */
+    var x = null, P = null;
+    var runCount = 0, runMean = 0, runM2 = 0;        // running PAST-ONLY intake stats
     var regimeSince = null, cusumPos = 0, cusumNeg = 0;
-    var completeDays14 = 0, weighDays14 = 0;
-    var trail = [], obsCount = 0, lastWeighMs = null;
+    var trail = [], weighAssimilated = 0, lastWeighMs = null;
+    var fluctCache = { at: null, val: null };
 
     for (var ms = earliestMs; ms <= endMs; ms += DAY_MS) {
       var iso = isoOf(ms);
@@ -242,120 +234,144 @@
       var I = logged ? Number(c.calories) : null;
       var w = ctx.wByDate[iso];
 
-      /* transition detection */
+      /* refresh the prefix-causal fluctuation scale weekly */
+      if (fluctCache.at == null || ms - fluctCache.at >= 7 * DAY_MS) {
+        fluctCache = { at: ms, val: fluctuationAt(ctx, ms, prm) };
+      }
+      var uSd = fluctCache.val.uSd;
+      var uStat2 = uSd * uSd;
+      var qU = uStat2 * (1 - phi * phi);
+
       var shift = intakeShift(ms, ctx, prm);
       var transitionActive = regimeSince != null && (ms - regimeSince) / DAY_MS < prm.transition.activeDays;
       if (shift && shift.triggered && !transitionActive) {
         regimeSince = ms; transitionActive = true;
-        if (T != null) PTT += prm.transition.tShock;
+        if (x != null) P[1][1] += prm.transition.tShock;
         entry.transitionTriggered = true; entry.intakeDelta = r2(shift.delta);
       }
 
-      if (m == null) {
-        /* initialize on the first weigh-in; T's prior = formulaTdee if the
-           app supplies it (already user-visible as "formula estimate"),
-           else the running intake mean, else nothing yet */
+      if (x == null) {
         if (w != null) {
-          m = w; Pmm = Rw; PmT = 0;
-          var t0 = input.formulaTdee != null ? Number(input.formulaTdee) : intakeMean;
-          if (t0 != null) { T = t0; PTT = Math.pow(prm.priorTsd, 2); entry.init = { m: w, T: r2(T), source: input.formulaTdee != null ? "formulaTdee" : "intakeMean" }; }
+          var t0 = input.formulaTdee != null ? Number(input.formulaTdee)
+                 : (runCount >= 3 ? runMean : null);
+          if (t0 != null) {
+            x = [w, t0, 0];
+            P = [[uStat2 + eps2, 0, 0], [0, Math.pow(prm.priorTsd, 2), 0], [0, 0, uStat2]];
+            entry.init = { m: w, T: r2(t0), source: input.formulaTdee != null ? "formulaTdee" : "runningIntakeMean" };
+            weighAssimilated++; lastWeighMs = ms;   // the init weigh-in IS assimilated
+            entry.T = r2(x[1]); entry.Tsd = r2(Math.sqrt(P[1][1]));
+          } else entry.awaitingPrior = true;
         }
+        if (logged) { runCount++; var d0 = I - runMean; runMean += d0 / runCount; runM2 += d0 * (I - runMean); }
         trail.push(entry); continue;
       }
-      if (T == null) {
-        var t1 = input.formulaTdee != null ? Number(input.formulaTdee) : intakeMean;
-        if (t1 != null) { T = t1; PTT = Math.pow(prm.priorTsd, 2); entry.init = { T: r2(T) }; }
-        else { trail.push(entry); continue; }
-      }
 
-      /* predict: m += (I−T)/ρ ; T unchanged. F = [[1,−1/ρ],[0,1]] */
+      /* --- predict. Ieff on an unlogged day is MODEL-BASED SUBSTITUTION:
+         the running past-only intake mean, with substitution variance below. */
+      var Ieff = I != null ? I : runMean;
       var rho = calPerUnit;
-      var Ieff = I != null ? I : intakeMean;           // best available; extra noise below
-      m = m + (Ieff - T) / rho;
-      var Pmm2 = Pmm - 2 * PmT / rho + PTT / (rho * rho);
-      var PmT2 = PmT - PTT / rho;
-      Pmm = Pmm2; PmT = PmT2;
-      PTT = PTT + Math.pow(prm.sigmaT, 2);
-      /* process noise on mass: unlogged intake and non-energy mass change */
-      if (I == null) Pmm += Math.pow((intakeSd || 300) * prm.missingIntakeSdMult / rho, 2) + Math.pow(300 / rho, 2);
-      if (transitionActive) Pmm += Math.pow(prm.transition.massNoise[units], 2);
+      var nm = x[0] + (Ieff - x[1]) / rho;
+      var nu = phi * x[2];
+      x = [nm, x[1], nu];
+      var a = 1 / rho;
+      var Pmm = P[0][0] - a * (P[1][0] + P[0][1]) + a * a * P[1][1];
+      var PmT = P[0][1] - a * P[1][1];
+      var Pmu = phi * (P[0][2] - a * P[1][2]);
+      var PTT = P[1][1] + Math.pow(prm.sigmaT, 2);
+      var PTu = phi * P[1][2];
+      var Puu = phi * phi * P[2][2] + qU + (transitionActive ? Math.pow(prm.transition.uNoise[units], 2) : 0);
+      if (I == null) {
+        var runSd = runCount > 1 ? Math.sqrt(runM2 / (runCount - 1)) : 0;
+        var subSd = Math.max(prm.missingIntakeFloorKcal, runSd);
+        Pmm += Math.pow(subSd / rho, 2);
+        entry.noIntake = true;
+      }
+      P = [[Pmm, PmT, Pmu], [PmT, PTT, PTu], [Pmu, PTu, Puu]];
 
-      /* measure: scale weight (if any) — each weigh-in enters exactly once */
+      /* --- measure: scale = m + u + eps --- */
       if (w != null) {
-        var innov = w - m;
-        var S = Pmm + Rw;
-        var Km = Pmm / S, Kt = PmT / S;
-        m = m + Km * innov;
-        T = T + Kt * innov;
-        var Pmm3 = (1 - Km) * Pmm, PmT3 = (1 - Km) * PmT;
-        PTT = PTT - Kt * PmT; PmT = PmT3; Pmm = Pmm3;
-        obsCount++; lastWeighMs = ms;
+        var innov = w - (x[0] + x[2]);
+        var PHt = [P[0][0] + P[0][2], P[1][0] + P[1][2], P[2][0] + P[2][2]];
+        var S = PHt[0] + PHt[2] + eps2;
+        var K = [PHt[0] / S, PHt[1] / S, PHt[2] / S];
+        x = [x[0] + K[0] * innov, x[1] + K[1] * innov, x[2] + K[2] * innov];
+        var Pn = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+        for (var r = 0; r < 3; r++) for (var cc = 0; cc < 3; cc++)
+          Pn[r][cc] = P[r][cc] - K[r] * PHt[cc];
+        P = Pn;
+        weighAssimilated++; lastWeighMs = ms;
         entry.weight = w; entry.innovation = r2(innov);
-        entry.Kt = r2(Kt); entry.adjustment = r2(Kt * innov);
-        /* CUSUM drift detection on the standardized innovation */
-        var e = innov / Math.sqrt(S), cs = prm.cusum || PARAMS.cusum;
+        entry.Kt = r2(K[1]); entry.adjustment = r2(K[1] * innov);
+        var e = innov / Math.sqrt(S), cs = prm.cusum;
         cusumPos = Math.max(0, cusumPos + e - cs.k);
         cusumNeg = Math.max(0, cusumNeg - e - cs.k);
         if (cusumPos > cs.h || cusumNeg > cs.h) {
-          PTT += cs.tShock; entry.sustainedInnovationShock = true;
+          P[1][1] += cs.tShock; entry.sustainedInnovationShock = true;
           cusumPos = 0; cusumNeg = 0;
         }
         entry.cusum = r2(Math.max(cusumPos, cusumNeg));
       } else entry.noWeighIn = true;
-      if (I == null) entry.noIntake = true;
-      entry.T = r2(T); entry.m = r2(m); entry.Tsd = r2(Math.sqrt(Math.max(PTT, 0)));
+      entry.T = r2(x[1]); entry.m = r2(x[0]); entry.u = r2(x[2]);
+      entry.Tsd = r2(Math.sqrt(Math.max(P[1][1], 0)));
       trail.push(entry);
 
-      /* rolling 14-day evidence counters for the label */
-      if (endMs - ms < 14 * DAY_MS) { if (logged) completeDays14++; if (w != null) weighDays14++; }
+      /* running intake stats AFTER the day is consumed — strictly past-only */
+      if (logged) { runCount++; var d1 = I - runMean; runMean += d1 / runCount; runM2 += d1 * (I - runMean); }
     }
 
-    if (T == null || obsCount < 8) { base.flags.push("insufficient_data"); base.updates = trail; return base; }
+    /* ---- evidence facts from the RECORDS, independent of filter flow ---- */
+    var completeDays14 = 0, weighDays14 = 0;
+    for (var k14 = 0; k14 < 14; k14++) {
+      var dIso = isoOf(endMs - k14 * DAY_MS);
+      var cc14 = ctx.cal[dIso];
+      if (cc14 && cc14.complete === true && isFinite(Number(cc14.calories))) completeDays14++;
+      if (ctx.wByDate[dIso] != null) weighDays14++;
+    }
+
+    if (x == null || weighAssimilated < 8) { base.flags.push("insufficient_data"); base.updates = trail; return base; }
 
     var historyDays = ctx.historyDaysAt(endMs);
-    /* diagnostic windows + heuristic discrepancy flag (no σ claim) */
     var horizons = HORIZONS.map(function (H) { return fitHorizon(endMs, H, ctx); });
     var eligibleRaw = horizons.filter(function (h) { return h.eligible; }).map(function (h) { return h.rawEnergyBalanceTdee; });
     var discrepant = false;
-    for (var a = 0; a < eligibleRaw.length; a++)
-      for (var b2 = a + 1; b2 < eligibleRaw.length; b2++)
-        if (Math.abs(eligibleRaw[a] - eligibleRaw[b2]) > prm.discrepancy) discrepant = true;
+    for (var a2 = 0; a2 < eligibleRaw.length; a2++)
+      for (var b2 = a2 + 1; b2 < eligibleRaw.length; b2++)
+        if (Math.abs(eligibleRaw[a2] - eligibleRaw[b2]) > prm.discrepancy) discrepant = true;
 
     var transitionNow = regimeSince != null && (endMs - regimeSince) / DAY_MS < prm.transition.activeDays;
-    var Tsd = Math.sqrt(Math.max(PTT, 0));
+    var T = x[1], Tsd = Math.sqrt(Math.max(P[1][1], 0));
+    var fluctNow = fluctCache.val;
 
-    /* evidence label from COUNTABLE FACTS (MATH rev2 §6) — heuristic, stated */
     var facts = {
-      historyDays: historyDays, weighInsAssimilated: obsCount,
+      historyDays: historyDays, weighInsAssimilated: weighAssimilated,
       completeCalorieDaysLast14: completeDays14, weighDaysLast14: weighDays14,
       daysSinceLastWeighIn: lastWeighMs == null ? null : Math.round((endMs - lastWeighMs) / DAY_MS),
       intakeTransitionActive: transitionNow, windowsDisagree: discrepant,
-      scaleNoiseSd: r2(fluct.sd), scaleNoiseLag1: r2(fluct.rho1), scaleNoiseDefaulted: fluct.defaulted,
+      fluctuationSd: r2(fluctNow.uSd), fluctuationDefaulted: fluctNow.defaulted,
+      residualLag1: fluctNow.rho1, residualLag1Pairs: fluctNow.rho1Pairs,
     };
     var level;
-    if (historyDays < 14 || obsCount < 10) level = "insufficient";
+    if (historyDays < 14 || weighAssimilated < 10) level = "insufficient";
     else if (historyDays < 21 || completeDays14 < 10 || weighDays14 < 8) level = "early";
     else if (historyDays < 28 || transitionNow || discrepant) level = "developing";
     else if (historyDays < 42 || completeDays14 < 12 || weighDays14 < 10) level = "settling";
-    else level = "established";   /* 42+ days AND current coverage 12/14 cal, 10/14 weigh */
+    else level = "established";
     if (level === "insufficient") { base.flags.push("insufficient_data"); base.updates = trail; base.evidenceFacts = facts; return base; }
 
     var flags = [];
     if (transitionNow) flags.push("intake_transition");
     if (discrepant) flags.push("window_discrepancy");
     if (facts.daysSinceLastWeighIn != null && facts.daysSinceLastWeighIn > 3) flags.push("stale_weigh_ins");
-    if (fluct.sd > (units === "kg" ? 0.68 : 1.5)) flags.push("high_weight_variability");
+    if (fluctNow.uSd > (units === "kg" ? 0.68 : 1.5)) flags.push("high_weight_variability");
 
     return Object.assign({}, base, {
       status: "estimated",
       estimatedTdee: T,
       estimatedTdeeDisplay: Math.round(T / prm.displayStep) * prm.displayStep,
-      /* model-relative settledness of the filter under its own assumptions;
-         NOT a calibrated uncertainty. Exposed for audit and trend, not UI. */
-      stability: r2(Tsd),
-      evidenceLevel: level,
+      stability: r2(Tsd),          // model-relative settledness; never an accuracy claim
+      evidenceLevel: level,        // data-sufficiency label; the facts are authoritative
       evidenceFacts: facts,
-      estimatedMass: r2(m),
+      estimatedMass: r2(x[0]), estimatedFluctuation: r2(x[2]),
       historyDays: historyDays,
       regime: { state: transitionNow ? "intake_transition" : "normal",
                 since: regimeSince == null ? null : isoOf(regimeSince) },
@@ -371,6 +387,6 @@
     });
   }
 
-  return { calculate: calculate, PARAMS: PARAMS, HORIZONS: HORIZONS, fitHorizon: fitHorizon,
-           estimateFluctuation: estimateFluctuation };
+  return { calculate: calculate, PARAMS: PARAMS, HORIZONS: HORIZONS,
+           fitHorizon: fitHorizon, fluctuationAt: fluctuationAt };
 });
