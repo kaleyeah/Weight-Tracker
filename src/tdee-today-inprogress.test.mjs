@@ -1,6 +1,8 @@
-/* TDEE V2 spec §1 — the in-progress-day bug, tested against the SHIPPED
-   bytes: both TDEECore and the tdeeWindow adapter are read out of
-   index.html's inlined build, so what passes here is what the phone runs.
+/* TDEE V2 spec §1 — the in-progress-day bug, tested against the REBUILT
+   CANDIDATE bytes: both TDEECore and the tdeeWindow adapter are read out of
+   the locally built index.html. This proves candidate behavior only — the
+   LIVE served build is whatever origin/main's release process published,
+   and publication status is tracked in the release records, not here.
 
    The claims under test (spec §13, verification 1 and 6):
      1. an unfinished current day cannot change measured TDEE — not through

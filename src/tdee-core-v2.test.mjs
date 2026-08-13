@@ -29,6 +29,9 @@ function gen(days, weightAt, calAt) {
 }
 const run = (g, params) => V2.calculate({ todayLocalDate: g.today, units: "lb",
   weights: g.weights, calorieDays: g.calorieDays, params });
+const runFull = (g) => V2.calculate({ todayLocalDate: g.today, units: "lb", weights: g.weights,
+  calorieDays: g.calorieDays, fullPrecisionAudit: true });
+const byDate = (r) => { const m = {}; for (const u of r.updates) m[u.date] = u; return m; };
 const clone = (o) => JSON.parse(JSON.stringify(o));
 /* AR(1) daily fluctuation — realistic water noise */
 function ar1(seed, n, rho, sd) {
@@ -318,61 +321,129 @@ const D = () => clone(V2.PARAMS);
   ok(on.estimatedTdee > off.estimatedTdee + 25,
     `and accelerates adaptation: ${Math.round(on.estimatedTdee)} vs ${Math.round(off.estimatedTdee)} without it`);
 }
-/* C4. missing-intake noise OFF: gaps stop widening the spread — the exact
-   rev1 blindness, reintroduced on purpose and caught */
+/* C4. missing-intake substitution variance: STRICT analytic verification
+   (round-3 ruling 4). On a missing-intake day, Pmm must jump by exactly
+   (max(300, runningSd)/rho)^2 relative to the no-gap twin — verified at
+   full precision; equality or a sub-tolerance difference FAILS. */
 {
   const noise = ar1(37, 30, 0.4, 0.8);
-  const mk = () => gen(30, (i) => 185 - i / 7 + noise[i], (i) => (i >= 20 && i <= 22 ? null : 2000));
-  const p = D(); p.missingIntakeSdMult = 0;
-  /* also zero the structural floor by construction: sd multiplier 0 keeps
-     only the fixed 300/ρ floor — assert the FULL mechanism moves spread */
-  const off = run(mk(), p), on = run(mk());
-  ok(on.stability >= off.stability,
-    `missing-intake uncertainty is load-bearing (spread ${on.stability} ≥ ${off.stability} when enabled)`);
+  /* day 20 has NO weigh-in in either twin, so the recorded covariance that
+     day is pure post-predict — the injected variance is not partially
+     absorbed by a measurement update */
+  const mk = (gaps) => gen(30, (i) => (i === 20 ? null : 185 - i / 7 + noise[i]),
+    (i) => (gaps && i === 20 ? null : 2000));
+  const gGap = mk(true), gNo = mk(false);
+  const rGap = runFull({ today: gGap.today, weights: gGap.weights, calorieDays: gGap.calorieDays });
+  const rNo = runFull({ today: gNo.today, weights: gNo.weights, calorieDays: gNo.calorieDays });
+  const dGap = byDate(rGap), dNo = byDate(rNo);
+  const gapDate = iso(T0 + 20 * DAY);
+  const uG = dGap[gapDate], uN = dNo[gapDate];
+  /* Pmm is _P[0]; the twin folds are identical until the gap day's predict */
+  const PmmG = uG._P[0], PmmN = uN._P[0];
+  /* running sd of 20 identical 2000s = 0 -> floor 300 applies */
+  const analytic = Math.pow(300 / 3500, 2);
+  const measured = PmmG - PmmN;
+  ok(measured > 1e-6 && Math.abs(measured - analytic) < 1e-9,
+    `missing-intake variance verified ANALYTICALLY: Pmm jumps ${measured.toExponential(3)} = (300/3500)^2 = ${analytic.toExponential(3)}; equality would fail [ruling 4]`);
+  /* self-test: floor disabled -> the strict assertion must fail */
+  const p = D(); p.missingIntakeFloorKcal = 0;
+  const rOff = V2.calculate({ todayLocalDate: gGap.today, units: "lb", weights: gGap.weights,
+    calorieDays: gGap.calorieDays, fullPrecisionAudit: true, params: p });
+  const offJump = byDate(rOff)[gapDate]._P[0] - PmmN;
+  ok(Math.abs(offJump) < 1e-9,
+    `self-test: with the floor disabled (and zero-variance logs) the jump vanishes (${offJump.toExponential(2)}) — the gate detects the mechanism's absence [ruling 5]`);
 }
 
-console.log("== D. causality and reproducibility controls (round-2 rulings 1, 5; P5 form) ==");
+console.log("== D. causality and reproducibility controls (round-3 rulings 1-3) ==");
 
-/* D1. PREFIX-CAUSALITY negative control: appending arbitrary FUTURE records
-   leaves every earlier trail entry byte-identical */
+/* one scenario engineered to contain EVERY interesting boundary:
+   late first weigh-in (init at day 3), missing-intake days, a real intake
+   transition at day 30, fluctuation-cache refreshes (weekly), and a data
+   pattern that fires a CUSUM shock (wrong-ish prior + trend break). */
+const CAUSAL = (() => {
+  const noise = ar1(113, 60, 0.4, 0.8);
+  const wAt = (i) => (i < 3 ? null : (i < 30 ? 190 + noise[i] : 190 - (i - 29) * 1.0 / 7 + noise[i]));
+  const cAt = (i) => ((i === 12 || i === 13 || i === 40) ? null : (i < 30 ? 2500 : 1700));
+  return { gen: (days) => gen(days, wAt, cAt) };
+})();
+
+/* D1. invariant A: records dated AFTER the calculation date are inert */
 {
-  const noise = ar1(97, 40, 0.4, 0.8);
-  const g = gen(40, (i) => 185 - i / 7 + noise[i], () => 2000);
-  const before = run(g);
+  const g = CAUSAL.gen(60);
+  const before = runFull(g);
   const g2 = clone(g);
   for (let i = 0; i < 10; i++) {
     const d = iso(Date.parse(g.today + "T00:00:00Z") + (i + 1) * DAY);
-    g2.weights.push({ date: d, weight: 120 + i * 9 });           // absurd future data
+    g2.weights.push({ date: d, weight: 120 + i * 9 });
     g2.calorieDays[d] = { calories: 12000, complete: true };
   }
-  const after = run(g2);                                          // same todayLocalDate
-  ok(JSON.stringify(before.updates) === JSON.stringify(after.updates),
-    "future records change NOTHING dated on or before today — the fold is prefix-causal [ruling 1]");
-  ok(before.estimatedTdee === after.estimatedTdee, "and the estimate is identical");
+  const after = runFull(g2);
+  ok(before.updates.length === 60 && after.updates.length === 60,
+    `invariant A setup: both trails span all 60 days (${before.updates.length}/${after.updates.length})`);
+  ok(JSON.stringify(before.updates) === JSON.stringify(after.updates)
+     && before.estimatedTdee === after.estimatedTdee,
+    "invariant A: future-dated records change nothing at full precision [ruling 2a]");
 }
-/* D2. daily-prefix reproducibility (the P5 property): the full-data trail's
-   entry for day d equals the result of running with data truncated at d */
+/* D2. invariant B: growing the history forward NEVER rewrites an earlier
+   day — the full-history fold's entry for date d equals a fresh calculation
+   made ON d, compared BY DATE at FULL PRECISION, zero comparisons = FAIL */
 {
-  const noise = ar1(101, 50, 0.4, 0.8);
-  const g = gen(50, (i) => 187 - i / 7 + noise[i], () => 2050);
-  const full = run(g);
-  let identical = true, checkedDays = 0;
-  for (const cut of [20, 30, 40]) {
-    const gc = { todayLocalDate: iso(T0 + (cut - 1) * DAY), units: "lb",
-      weights: g.weights.filter(w => w.date <= iso(T0 + (cut - 1) * DAY)),
-      calorieDays: Object.fromEntries(Object.entries(g.calorieDays).filter(([d]) => d <= iso(T0 + (cut - 1) * DAY))) };
-    const part = run(gc);
-    for (let i = 0; i < part.updates.length; i++) {
-      checkedDays++;
-      if (JSON.stringify(part.updates[i]) !== JSON.stringify(full.updates[i])) { identical = false; break; }
+  const g = CAUSAL.gen(60);
+  const full = byDate(runFull(g));
+  /* cut points: init day+1, inside the missing-intake pair, a cache-refresh
+     boundary, transition activation week, after a CUSUM-eligible stretch */
+  const CUTS = [5, 13, 22, 34, 52];
+  let compared = 0, mismatches = [];
+  for (const cut of CUTS) {
+    const cutDate = iso(T0 + (cut - 1) * DAY);
+    const gc = { today: cutDate,
+      weights: g.weights.filter(w => w.date <= cutDate),
+      calorieDays: Object.fromEntries(Object.entries(g.calorieDays).filter(([d]) => d <= cutDate)) };
+    const part = runFull(gc);
+    if (part.updates.length !== cut) { mismatches.push(`${cutDate}: trail ${part.updates.length} != ${cut}`); continue; }
+    for (const u of part.updates) {
+      compared++;
+      if (JSON.stringify(u) !== JSON.stringify(full[u.date])) mismatches.push(u.date);
     }
   }
-  ok(identical, `every truncated-prefix run reproduces the full run's contemporaneous trail (${checkedDays} day-entries compared) [P5]`);
+  const expected = CUTS.reduce((a, b) => a + b, 0);
+  ok(compared === expected && compared > 0,
+    `invariant B compared exactly ${compared}/${expected} day-entries across cuts ${JSON.stringify(CUTS)} — zero would FAIL [ruling 1]`);
+  ok(mismatches.length === 0,
+    `invariant B: every earlier dated entry is byte-identical at full precision (mismatches: ${JSON.stringify(mismatches.slice(0, 3))}) [ruling 2b]`);
 }
-/* D3. evidence counters from RECORDS: late initialization must not hide
-   recent coverage (round-2 ruling 5) */
+/* D3. GATE SELF-TEST (ruling 5): a build that deliberately breaks prefix
+   causality — running mean replaced by the FINAL mean — must FAIL invariant
+   B at the same cut points. Mutant built by file transform, production
+   module untouched. */
 {
-  /* weigh-ins exist ONLY in the last 12 days; calories all along */
+  const src = fs.readFileSync("src/tdee-core-v2.js", "utf8");
+  const marker = "var Ieff = I != null ? I : runMean;";
+  if (!src.includes(marker)) { ok(false, "self-test marker missing"); }
+  else {
+    /* final mean of ALL logged days — computed up front, i.e., future leak */
+    const broken = src.replace(marker,
+      `var _all = Object.keys(ctx.cal).map(function(d){var q=ctx.cal[d];return (q&&q.complete===true)?Number(q.calories):null;}).filter(function(v){return v!=null&&isFinite(v);});
+       var _finalMean = _all.length ? _all.reduce(function(a,b){return a+b;},0)/_all.length : runMean;
+       var Ieff = I != null ? I : _finalMean;`);
+    fs.writeFileSync("/tmp/tdee-v2-causality-mutant.js", broken.replace('require("./tdee-core.js")',
+      `require("${process.cwd()}/src/tdee-core.js")`));
+    const M = require2("/tmp/tdee-v2-causality-mutant.js");
+    const g = CAUSAL.gen(60);
+    const mFull = (gg) => M.calculate({ todayLocalDate: gg.today, units: "lb", weights: gg.weights,
+      calorieDays: gg.calorieDays, fullPrecisionAudit: true });
+    const full = byDate(mFull(g));
+    const cutDate = iso(T0 + 33 * DAY);   // day 34: after the intake change, missing day 13 behind it
+    const gc = { today: cutDate, weights: g.weights.filter(w => w.date <= cutDate),
+      calorieDays: Object.fromEntries(Object.entries(g.calorieDays).filter(([d]) => d <= cutDate)) };
+    const part = mFull(gc);
+    let broke = false;
+    for (const u of part.updates) if (JSON.stringify(u) !== JSON.stringify(full[u.date])) { broke = true; break; }
+    ok(broke, "self-test: a final-mean (future-leaking) build FAILS invariant B — the gate can actually fire [ruling 5]");
+  }
+}
+/* D4. evidence counters from RECORDS (unchanged from rev3, kept) */
+{
   const noise = ar1(103, 40, 0.4, 0.6);
   const g = gen(40, (i) => (i >= 28 ? 184 - (i - 28) / 7 + noise[i] : null), () => 2000);
   const r = run(g);
@@ -380,9 +451,7 @@ console.log("== D. causality and reproducibility controls (round-2 rulings 1, 5;
     `weighDaysLast14 counts the records (${r.evidenceFacts && r.evidenceFacts.weighDaysLast14} = 12) even though initialization ate the first one`);
   ok(r.evidenceFacts.weighInsAssimilated === 12, "the initialization weigh-in is counted as assimilated");
 }
-/* D4. AR(1) formula check: with phi=0 the fluctuation state carries no
-   memory — two identical histories differing only in a weigh-in 10 days ago
-   converge to the same u; with phi=0.9 they do not (state memory) */
+/* D5. AR(1) memory property (unchanged from rev3, kept) */
 {
   const noise = ar1(107, 36, 0.0, 0.7);
   const mk = () => gen(36, (i) => 183 + noise[i] + (i === 25 ? 2.5 : 0), () => 2300);

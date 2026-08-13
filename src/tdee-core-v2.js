@@ -313,6 +313,14 @@
       } else entry.noWeighIn = true;
       entry.T = r2(x[1]); entry.m = r2(x[0]); entry.u = r2(x[2]);
       entry.Tsd = r2(Math.sqrt(Math.max(P[1][1], 0)));
+      if (input.fullPrecisionAudit) {
+        /* harness-only: byte-exact internal state for the causal gate —
+           rounded fields can hide small future influence (round-3 ruling 3) */
+        entry._x = [x[0], x[1], x[2]];
+        entry._P = [P[0][0], P[0][1], P[0][2], P[1][1], P[1][2], P[2][2]];
+        entry._run = [runCount, runMean, runM2];
+        entry._cusum = [cusumPos, cusumNeg];
+      }
       trail.push(entry);
 
       /* running intake stats AFTER the day is consumed — strictly past-only */

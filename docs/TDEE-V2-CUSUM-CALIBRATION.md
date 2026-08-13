@@ -19,7 +19,32 @@ regimes. Detection: sd 0.9/φ 0.5 with daily and 5-of-7 weigh-in coverage.
 the estimator run is the real rev3 filter with the real shock mechanism.
 No Owner data anywhere.
 
-## Result
+## Frozen selection ordering (complete, stated before the holdout ran)
+
+Total order among candidates: (1) qualify on both targets in every
+calibration regime; (2) minimize worst-regime median detection delay;
+(3) prefer larger h; (4) prefer lower worst-regime false-alarm 90th
+percentile; (5) prefer smaller k. This yields a unique choice with no
+discretionary step. Under this ordering the calibration table selects
+**k = 0.125, h = 8** (delay 11 ties at h=8 across k; 90th-pct 1 beats 2;
+smallest such k is 0.125 since 0.15 has delay 12).
+
+## Holdout acceptance (criteria frozen before running)
+
+Disjoint seeds (offset +5000, never used in calibration), evaluated at the
+SELECTED pair only — calibration seeds are not acceptance evidence:
+
+- H1 (false alarms): quiet median ≤ 1 AND 90th-pct ≤ 2 per 56 days in every
+  quiet regime, now including 20%-missing-intake and 5-of-7-weigh-in
+  variants of the 3×3 noise grid.
+- H2 (detection): 600-kcal step median delay ≤ 28 days in every detection
+  regime, now including an INTAKE-TRANSITION-OVERLAP regime (the intake
+  drops 800 kcal at the same time expenditure steps).
+- H3 (diagnostic only, no pass/fail): 300-kcal step and a gradual 600-kcal
+  ramp over 30 days — small/slow changes are not required to be detected;
+  their detection rates are reported for the record.
+
+## Result (calibration set)
 
 **k = 0.125, h = 8**: worst-regime false-alarm median 1, 90th-pct 1;
 worst-regime median detection 11 days. The rev2 values (k=0.05, h=2) are
@@ -65,3 +90,47 @@ the review's objection, confirmed quantitatively. Full grid:
     0.200 10   yes  yes       0        1        16
     
     qualifying, by rule: k=0.05,h=8,delay=11  k=0.075,h=8,delay=11  k=0.1,h=8,delay=11  k=0.125,h=8,delay=11  k=0.05,h=10,delay=12
+
+## Holdout result (disjoint seeds +5000, run after freezing the criteria above)
+
+```
+== H1 quiet false alarms (median / 90th per 56 evaluated days) ==
+  sd=0.7 phi=0.3 full    median=0 p90=0 
+  sd=0.7 phi=0.3 missCal median=0 p90=0 
+  sd=0.7 phi=0.3 sparseW median=0 p90=0 
+  sd=0.7 phi=0.5 full    median=0 p90=0 
+  sd=0.7 phi=0.5 missCal median=0 p90=0 
+  sd=0.7 phi=0.5 sparseW median=0 p90=0 
+  sd=0.7 phi=0.7 full    median=0 p90=0 
+  sd=0.7 phi=0.7 missCal median=0 p90=0 
+  sd=0.7 phi=0.7 sparseW median=0 p90=0 
+  sd=1 phi=0.3 full    median=0 p90=0 
+  sd=1 phi=0.3 missCal median=0 p90=0 
+  sd=1 phi=0.3 sparseW median=0 p90=0 
+  sd=1 phi=0.5 full    median=0 p90=1 
+  sd=1 phi=0.5 missCal median=0 p90=1 
+  sd=1 phi=0.5 sparseW median=0 p90=1 
+  sd=1 phi=0.7 full    median=0 p90=1 
+  sd=1 phi=0.7 missCal median=0 p90=1 
+  sd=1 phi=0.7 sparseW median=0 p90=1 
+  sd=1.4 phi=0.3 full    median=0 p90=1 
+  sd=1.4 phi=0.3 missCal median=0 p90=1 
+  sd=1.4 phi=0.3 sparseW median=0 p90=1 
+  sd=1.4 phi=0.5 full    median=1 p90=1 
+  sd=1.4 phi=0.5 missCal median=1 p90=1 
+  sd=1.4 phi=0.5 sparseW median=0 p90=1 
+  sd=1.4 phi=0.7 full    median=1 p90=2 
+  sd=1.4 phi=0.7 missCal median=1 p90=2 
+  sd=1.4 phi=0.7 sparseW median=1 p90=1 
+H1: PASS
+== H2 600-kcal step detection (median delay days) ==
+  cov=7: median delay 10
+  cov=5: median delay 12
+  cov=7 +intake-transition overlap: median delay 13
+H2: PASS
+== H3 diagnostics (not pass/fail) ==
+  step300: detected in 25/25 runs within 60 days
+  ramp600: detected in 25/25 runs within 60 days
+
+HOLDOUT: ACCEPTED at k=0.125, h=8
+```

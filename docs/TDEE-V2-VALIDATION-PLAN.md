@@ -20,11 +20,11 @@ incorporates the Architect's round-2 corrections.
 |---|---|---|
 | P1 | isolated weigh-in noise | on days whose weigh-in deviates ≥ 1.5 lb from the 7-day median without adjacent-day corroboration: displayed move < 50 kcal once the evidence label reads settling/established; < 100 while it reads early/developing |
 | P2a | intake-transition false alarms | at most one trigger not corresponding to a real, athlete-confirmable intake change in 56 days |
-| P2b | CUSUM false alarms | ≤ 2 shocks in any 56-day stretch without a sustained real change (the calibrated synthetic rate is median 1); every shock flagged in the trail |
+| P2b | CUSUM false alarms | ≤ 2 shocks in any ROLLING 56-day window without a sustained real change; every shock flagged in the trail. Same-day overlap rule: a CUSUM shock and an intake-transition trigger on the same day count as ONE event, attributed to the intake transition (the more specific detector); each event counts in exactly one of P2a/P2b and once toward P4's combined cap |
 | P3 | missing data | on days with NEITHER intake nor weigh-in: displayed estimate unchanged and spread non-decreasing. Days with exactly one input may update from it — that is the model working, not a violation — and are evaluated under P1/P4 |
 | P4 | movement bound | unflagged day-over-day displayed movement < 50 kcal at settling/established; detector-trigger days must be flagged in the trail, bounded (< 100), and number ≤ 3 per 56 days combined (this second bound closes the trigger-exemption loophole) |
 | P5 | causality + reproducibility | (a) each day's recorded output equals a fresh run over THAT day's data prefix (contemporaneous match); (b) the final-data fold reproduces every recorded prior day byte-identically — proving later data never rewrote earlier outputs |
-| P6 | prediction sanity (weak, stated as such) | at each of days 14, 28, 42: freeze (estimate, planned intake) AT THAT ORIGIN and predict the weight median 14 days ahead; the realized 14-day median must land within 2× the then-current fluctuation sd. Origin-frozen — no final estimate predicts an earlier endpoint |
+| P6 | prediction sanity — **DIAGNOSTIC ONLY, not a gate** (round-3 ruling 9: intake deviation, illness, sodium or training inflammation can miss the bound without estimator failure; promoting this to a mandatory criterion would be an Owner product decision) | at each of days 14, 28, 42: freeze (estimate, planned intake) AT THAT ORIGIN and predict the weight median 14 days ahead; record whether the realized median lands within 2× the then-current fluctuation sd |
 
 Explicitly NOT criteria: V1 agreement (shared assumptions — ruling 11),
 formula agreement, or the Owner liking the number. A clean period
