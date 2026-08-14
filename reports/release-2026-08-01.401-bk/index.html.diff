@@ -1,0 +1,1029 @@
+diff --git a/index.html b/index.html
+index a96dad5..840b588 100644
+--- a/index.html
++++ b/index.html
+@@ -851,7 +851,7 @@ html[data-theme] .wl-header.mode-sick{background:linear-gradient(180deg,rgba(159
+ "use strict";
+ /* ---------------- helpers ---------------- */
+ var DAY=86400000;
+-var APP_BUILD="2026-07-30.400-pb";
++var APP_BUILD="2026-08-01.401-bk";
+ var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
+ var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
+ var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
+@@ -1070,7 +1070,16 @@ function normActs(iso){var raw=state.workouts[iso];if(!Array.isArray(raw))return
+   return raw.map(function(a){if(typeof a==="string")return {cat:catFromName(a),name:a};return {cat:(a&&a.cat)||catFromName(a&&a.name)||"other",name:(a&&a.name)||"",auto:a&&a.auto};});}
+ var TKEY="wl_training_v1";
+ var DEFAULT_CARDIO_TYPES=["Peloton","Treadmill","Rowing","Bike","Elliptical","Outdoor run"];
+-function saveTrainingLocal(){try{localStorage.setItem(TKEY,JSON.stringify(state.training));}catch(e){}}
++/* recoveryFreeze is set when boot could not secure the pre-sync bytes. It stops
++   BOOT-time normalisation (migrateProgressionTypes and friends) from rewriting
++   the very key we failed to protect -- which is what made the old notice's
++   "your local training has not been changed" a false statement. It is released
++   once boot completes, so the athlete's own later edits still save locally. */
++/* Local writes are refused, not merely un-synced, while ownership is unanswered
++   or a wipe is unresolved. Without this the app stayed fully usable after Cancel
++   and could keep changing data it had just told the athlete it would not touch. */
++function localWritesFrozen(){return recoveryFreeze||recoveryState==="adoption"||logoutRecoveryPending();}
++function saveTrainingLocal(){if(localWritesFrozen())return;try{localStorage.setItem(TKEY,JSON.stringify(state.training));}catch(e){}}
+ function saveTraining(){saveTrainingLocal();scheduleTrainingPush();}
+ function loadTraining(){try{var t=JSON.parse(localStorage.getItem(TKEY));if(t&&typeof t==="object"){state.training={cardioTypes:(Array.isArray(t.cardioTypes)&&t.cardioTypes.length)?t.cardioTypes:DEFAULT_CARDIO_TYPES.slice(),sessions:t.sessions||{},exercises:t.exercises||[],routines:t.routines||[],liftSessions:t.liftSessions||{}};}}catch(e){}}
+ function syncCardioTags(date){var kept=normActs(date).filter(function(a){return !(a.cat==="cardio"&&a.auto);});
+@@ -1087,7 +1096,14 @@ function migrateOrphanLiftTags(){var changed=false;var ls=(state.training&&state
+     var filt=arr.filter(function(a){var c=(a&&a.cat)||catFromName(a&&a.name)||"other";if(c!=="lifting")return true;return !!sn[(a&&a.name)||""];});
+     if(filt.length!==arr.length){changed=true;if(filt.length)state.workouts[d]=filt;else delete state.workouts[d];}});
+   return changed;}
+-function resyncAllActivityTags(){var before=JSON.stringify(state.workouts||{});var ds={};
++function resyncAllActivityTags(){
++  /* This derives CORE activity tags from training. While ownership of the
++     training bytes is unestablished, deriving from them would copy possibly
++     someone else's sessions into core -- which then reaches both the backup and,
++     via cloudPush, the signed-in account's server record. Guarded here rather
++     than at each call site so no caller can reintroduce the exposure. */
++  if(trainingQuarantined())return false;
++  var before=JSON.stringify(state.workouts||{});var ds={};
+   var ss=(state.training&&state.training.sessions)||{},ls=(state.training&&state.training.liftSessions)||{};
+   Object.keys(ss).forEach(function(d){ds[d]=1;});Object.keys(ls).forEach(function(d){ds[d]=1;});Object.keys(state.workouts||{}).forEach(function(d){ds[d]=1;});
+   Object.keys(ds).forEach(function(d){syncCardioTags(d);syncLiftTags(d);});
+@@ -1124,7 +1140,7 @@ function load(){
+   try{state.calOpen=localStorage.getItem("wl_calopen")==="1";}catch(e){}
+ }
+ function payload(){return {settings:state.settings,weights:state.weights,food:state.food,workouts:state.workouts,steps:state.steps,notes:state.notes,sleep:state.sleep,bodyfat:state.bodyfat,waist:state.waist,statuses:state.statuses,weeklySummary:state.weeklySummary,nightlySummary:state.nightlySummary,nightlyLog:state.nightlyLog,presets:state.presets,skips:state.skips,glp:state.glp,scriptVer:state.scriptVer};}
+-function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(payload()));}catch(e){toast("Couldn't save — storage full or blocked");}}
++function saveLocal(){if(localWritesFrozen())return;try{localStorage.setItem(KEY,JSON.stringify(payload()));}catch(e){toast("Couldn't save — storage full or blocked");}}
+ function save(){saveLocal();scheduleCloudPush();}
+ 
+ /* ---------------- cloud sync (private GitHub repo via Contents API) ---------------- */
+@@ -1143,7 +1159,12 @@ function fmtClock(ts){return new Date(ts).toLocaleTimeString(undefined,{hour:"nu
+ function lastSyncText(){var t=getLastSync();return t?("synced "+fmtClock(t)):"";}
+ function syncLabel(){return {ok:"Synced",saving:"Saving…",syncing:"Syncing…",offline:"Offline",error:"Sync error"}[syncState.s]||"";}
+ function syncDotClass(){var s=syncState.s;return s==="ok"?"good":(s==="saving"||s==="syncing")?"warn":(s==="offline"||s==="error")?"bad":"idle";}
+-function setSync(s,msg){syncState={s:s,msg:msg||""};
++function setSync(s,msg){
++  /* Core and training share this one indicator. A blocked recovery is a durable
++     safety state, not a transient status, so an ordinary core save landing a
++     moment later must not be able to report "Synced" over the top of it. */
++  if(recoveryBlocked){s="error";msg=recoveryBlockReason;}
++  syncState={s:s,msg:msg||""};
+   var el=document.getElementById("wl-sync");if(el){el.className="wl-sync "+s;el.textContent=syncLabel();}
+   var sd=document.getElementById("wl-sdot");if(sd)sd.className="wl-sdot "+syncDotClass();
+   var tt=document.getElementById("wl-synctime");if(tt)tt.textContent=lastSyncText();
+@@ -1196,7 +1217,7 @@ function cloudPull(manual,done){setSync("syncing");cloudGet(function(d,err){
+ function scheduleCloudPush(){if(!syncOn())return;markDirty(true);setSync("saving");clearTimeout(pushTimer);pushTimer=setTimeout(function(){cloudPush();},1400);}
+ var trainingSha=null,trainingPushTimer=null;
+ function trainingFile(){var uid=syncCfg().uid;return uid?("t-"+uid+".json"):"training.json";}
+-function scheduleTrainingPush(){if(!syncOn())return;clearTimeout(trainingPushTimer);trainingPushTimer=setTimeout(trainingPush,1600);}
++function scheduleTrainingPush(){if(recoveryBlocked)return;if(!syncOn())return;clearTimeout(trainingPushTimer);trainingPushTimer=setTimeout(trainingPush,1600);}
+ function trainingPush(retry){var c=syncCfg();if(!syncOn())return;var url=ghUrl(c,trainingFile());var br=c.branch||DEFAULT_BRANCH;
+   var body={message:"Update training data",content:b64enc(JSON.stringify(state.training)),branch:br};if(trainingSha)body.sha=trainingSha;
+   fetch(url,{method:"PUT",headers:Object.assign({"Content-Type":"application/json"},ghHeaders(c)),body:JSON.stringify(body)})
+@@ -1230,7 +1251,12 @@ function cloudPush(manual){var c=syncCfg();if(!syncOn()){if(manual)toast("Set up
+   put(ghSha,false);}
+ function localHasData(){return state.weights.length>0||Object.keys(state.food).length>0||Object.keys(state.workouts).length>0||num(state.settings.startingWeight)!=null;}
+ function cloudEmpty(d){return !d||((d.weights||[]).length===0&&Object.keys(d.food||{}).length===0&&Object.keys(d.workouts||{}).length===0&&(!d.settings||Object.keys(d.settings).length===0));}
+-function autoSync(){if(!syncOn())return;
++function autoSync(){
++  /* Gated BEFORE any subsystem starts. Guarding only trainingPull() would leave
++     the core recency branch free to call cloudPush() with another user's entire
++     payload() and write it into the signed-in account's server record. */
++  if(ownershipAmbiguous())return;
++  if(!syncOn())return;
+   pullConnections();trainingPull(function(){if(state.view==="train")render();});
+   /* Boot-path recency guard (mirrors the pbDoLogin guard): fetch the server FIRST,
+      then decide. A dirty local copy may overwrite the server ONLY when the server is
+@@ -6357,7 +6383,7 @@ function fbSheetHTML(){
+   return h+'</div></div>';}
+ /* ---- live workout ---- */
+ var WOKEY="wl_workout_v1";
+-function saveWorkout(){try{if(state.workout)localStorage.setItem(WOKEY,JSON.stringify(state.workout));else localStorage.removeItem(WOKEY);}catch(e){}}
++function saveWorkout(){if(localWritesFrozen())return;try{if(state.workout)localStorage.setItem(WOKEY,JSON.stringify(state.workout));else localStorage.removeItem(WOKEY);}catch(e){}}
+ function loadWorkout(){try{var w=JSON.parse(localStorage.getItem(WOKEY));if(w&&w.entries)state.workout=w;}catch(e){}}
+ function currentBW(){if(state.weights&&state.weights.length){var s=state.weights.slice().sort(function(a,b){return a.date<b.date?1:-1;});return s[0].weight;}return num(state.settings.startingWeight);}
+ function lastFullSetsFor(exId){var ls=state.training.liftSessions||{};var dates=Object.keys(ls).sort().reverse();
+@@ -7115,6 +7141,7 @@ function view_settings(){
+   if(pg==="data"){
+   if(isOwner())
+   h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="backup"><span>Backup &amp; transfer</span><span class="wl-chevron'+(op.backup?" open":"")+'">›</span></button>'+(op.backup?('<div class="wl-collapse-body">'+
++    recoveryNoticeHTML()+
+     '<div class="wl-row"><button class="wl-btn wl-btn-ghost wl-full" data-act="export">Export / share file</button><button class="wl-btn wl-btn-ghost wl-full" data-act="import">Import file</button></div>'+
+     '<div class="wl-row" style="margin-top:10px"><button class="wl-btn wl-btn-ghost wl-full" data-act="copy">Copy backup text</button><button class="wl-btn wl-btn-ghost wl-full" data-act="paste">Restore from text</button></div>'+
+     (state.pasteOpen?'<textarea id="wl-paste" placeholder="Paste backup JSON here, then tap Restore" style="width:100%;min-height:120px;margin-top:10px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--mono);font-size:13px;padding:10px;box-sizing:border-box;outline:none"></textarea><div class="wl-row" style="margin-top:8px"><button class="wl-btn wl-btn-ghost wl-full" data-act="paste:cancel">Cancel</button><button class="wl-btn wl-btn-primary wl-full" data-act="paste:do">Restore</button></div>':'')+
+@@ -7502,6 +7529,10 @@ document.addEventListener("click",function(e){
+   if(a==="conn:remove"){var ru=el.getAttribute("data-uid");askConfirm("Stop sharing with this person on your Home tab?",function(){state.settings.connections=(state.settings.connections||[]).filter(function(x){return x!==ru;});delete connData[ru];save();},{label:"Stop sharing"});return;}
+   if(a==="reminder:add"){var ti=document.getElementById("wl-remind-time");var tv=(ti&&ti.value)||"19:00";state.settings.reminderTime=tv;save();shareOrDownload("activity-reminder.ics","text/calendar",reminderICS(tv));return;}
+   if(a==="set:ttype"){state.settings.targetType=el.getAttribute("data-type");save();render();return;}
++  if(a==="lrec:restore"){logoutRecoveryRestore();return;}
++  if(a==="lrec:finish"){askConfirm("Finish clearing this device? The data saved during the interrupted log-out will be erased for good.",function(){logoutRecoveryFinish();},{label:"Erase it",danger:true});return;}
++  if(a==="adopt:ask"){renderAdoptionGate();return;}
++  if(a==="adopt:yes"){adoptLocalData();return;}
+   if(a==="export"){exportData();return;}
+   if(a==="preset:del"){var pr2=normPresets();var pi=+el.getAttribute("data-idx");var pn=(pr2[pi]&&pr2[pi].name)||"";askConfirm("Remove \""+pn+"\" from your activities? It won't be tap-loggable anymore. Days you already logged it on keep it.",function(){var p3=normPresets();p3.splice(pi,1);state.presets=p3;save();},{label:"Remove"});return;}
+   if(a==="import"){document.getElementById("wl-import").click();return;}
+@@ -7649,8 +7680,462 @@ document.getElementById("wl-photo-input").addEventListener("change",function(e){
+     return idbAdd({id:id,date:date,blob:blob,ts:Date.now()+Math.random(),meal:meal});});});});
+   chain.then(function(){if(document.getElementById("wl-photostrip")&&state.selDate===date)renderPhotosStrip(date);toast("Photos saved");}).catch(function(){toast("Couldn't save photos");});
+ });
+-function backupJSON(){return JSON.stringify(payload(),null,2);}
++/* The application-data JSON backup.
++
++   payload() is deliberately NOT extended to carry training: it defines both the
++   core localStorage record and the server's `data` field, and training is a
++   separate subsystem with its own field and its own revision counter. Mixing
++   them would change what every sync writes. The backup is assembled here
++   instead, which touches nothing else.
++
++   Repository history shows backupJSON() originated as payload() and contains no
++   training addition before this change, so backups produced by the current
++   lineage carry no exercises, routines, cardio sessions or lift sessions.
++
++   This is NOT a complete device backup: progress photos have their own export
++   (`pbk:export`) and are not included here.
++
++   `__backup` is metadata about the file, not application data. The double
++   underscore keeps it from colliding with any app field, and the format version
++   means future restore code can dispatch on a number instead of guessing
++   semantics from which keys happen to be present. */
++var BACKUP_FORMAT=2;   /* 1 = core only (implicit, pre-2026-08-01); 2 = core + training */
++/* ---- pre-sync recovery snapshot (2026-08-01) ----
++
++   Installing this build requires a boot, and that boot runs autoSync() ->
++   trainingPull(), which can overwrite local training before the athlete has any
++   chance to export it. So before ANY training is loaded, migrated, normalised or
++   synced, the RAW stored bytes are copied to an immutable envelope.
++
++   Raw strings, not state: capture happens before loadTraining() and
++   migrateProgressionTypes(), so the envelope holds exactly what was on disk
++   rather than a normalised rendering of it. `null` means the key was absent,
++   which is different information from an empty object.
++
++   This is NOT a blind setItem in a swallowed catch. Quota, private mode or a
++   serialisation failure would leave no copy, and continuing to pull would then
++   recreate the original loss. The write is verified byte-for-byte and the pull
++   is suppressed if it cannot be. */
++var TRECOVERY_KEY="wl_training_recovery";
++var RECOVERY_V=1;
++/* Recovery state is one of:
++     "none"    nothing on disk needed protecting
++     "ok"      a validated envelope for this account protects the pre-sync bytes
++     "blocked" the pre-sync bytes are NOT protected -- no training may sync
++   `blocked` covers BOTH directions. Pulling can destroy the local copy; pushing
++   an unverified local copy can destroy newer training on the server. Neither is
++   known safe, so neither runs. */
++/* Two DIFFERENT failure classes, deliberately not one boolean:
++
++     "blocked"   a storage-integrity failure with no evidence of another account.
++                 The pre-sync training bytes are unprotected, so TRAINING does not
++                 sync and is withheld from exports. Core is independently
++                 established and carries on unchanged.
++
++     "ambiguous" ownership cannot be established -- another account has captured
++                 on this device. Then NOTHING local is attributable: wl_v1 may
++                 hold another person's weights, food, notes and settings just as
++                 wl_training_v1 may hold their sessions. Everything quarantines.
++
++   Blurring them would either under-protect core or needlessly cripple an app
++   that merely ran out of storage. */
++var recoveryState="none",recoveryBlocked=false,recoveryBlockReason="",recoveryRawCorrupt=null;
++var recoveryFreeze=false;
++/* The durable owner marker. Written only while authenticated, once ownership of
++   the local bytes has been established; cleared only by a verified full logout.
++   It is what lets a session renewal be told apart from a different-account login
++   without stamping signed-out bytes with whoever authenticates next. */
++var LASTOWNER_KEY="wl_last_owner";
++function lastOwner(){try{return localStorage.getItem(LASTOWNER_KEY)||"";}catch(e){return "";}}
++function setLastOwner(uid){try{if(uid)localStorage.setItem(LASTOWNER_KEY,uid);else localStorage.removeItem(LASTOWNER_KEY);}catch(e){}}
++/* Verified, and fail-closed. A swallowed write here would let synchronisation
++   proceed while ownership was never actually recorded -- and the next session,
++   finding no marker, would then be free to adopt whatever this one pulled down.
++   A full disk does not imply another account, but it does mean durable ownership
++   was not established, and proceeding on that is unsafe. */
++function setLastOwnerVerified(uid){
++  if(!uid)return false;
++  try{localStorage.setItem(LASTOWNER_KEY,uid);}catch(e){return false;}
++  var back=null;
++  try{back=localStorage.getItem(LASTOWNER_KEY);}catch(e){return false;}
++  return back===uid;}
++function localUserDataExists(){
++  try{return localStorage.getItem(TKEY)!==null||localStorage.getItem(WOKEY)!==null||localStorage.getItem(KEY)!==null;}
++  catch(e){return true;}}   /* unreadable storage: assume there is something to protect */
++
++/* training may not sync or be exported */
++function trainingQuarantined(){return recoveryState==="blocked"||ownershipAmbiguous();}
++
++/* Ownership is evaluated against storage AS IT IS NOW, not as it was at boot.
++   Another tab, or any later code path, can add an envelope after
++   runRecoveryCapture() ran, and a cached "ok" would then authorise exactly the
++   operations this exists to prevent. */
++/* The device-quarantine predicate. Named for its original cause, but it is the
++   one gate every user-data route consults, so an unresolved logout belongs in it
++   too: that device must not sync, export, import, mutate or log out either. */
++function ownershipAmbiguous(){
++  if(logoutRecoveryPending())return true;
++  if(recoveryState==="ambiguous"||recoveryState==="adoption")return true;
++  var st=readRecoveryStore();
++  if(st.status==="corrupt"||st.status==="unreadable")return true;
++  var acct=recoveryAccountId();
++  for(var k in st.map){if(k!==acct&&st.map[k]&&typeof st.map[k]==="object")return true;}
++  /* A marker naming someone else means these bytes are theirs. A MISSING marker
++     is deliberately not treated as ambiguity here: a storage-write failure
++     produces exactly that shape without implying a second account, and calling
++     it ambiguity would quarantine the whole app over a full disk. Unattributed
++     data matters at the moment a session appears, and that is checked in
++     establishOwnershipAfterLogin(), which is the only path that can act on it. */
++  var lo=lastOwner();
++  if(acct&&lo&&lo!==acct)return true;
++  return false;}
++function recoveryAccountId(){try{return pbUid()||"";}catch(e){return "";}}
++
++/* Absent, valid and corrupt are three DIFFERENT states. Collapsing a parse
++   failure into "empty" would let the next capture overwrite a damaged store and
++   destroy whatever recoverable bytes were still in it. */
++function readRecoveryStore(){
++  var raw=null;
++  try{raw=localStorage.getItem(TRECOVERY_KEY);}catch(e){return {status:"unreadable",map:null,raw:null};}
++  if(raw===null)return {status:"absent",map:{},raw:null};
++  var m=null;
++  try{m=JSON.parse(raw);}catch(e){return {status:"corrupt",map:null,raw:raw};}
++  if(!m||typeof m!=="object"||Array.isArray(m))return {status:"corrupt",map:null,raw:raw};
++  return {status:"valid",map:m,raw:raw};}
++
++/* A truthy object is not authorization to run a destructive pull. An envelope
++   only counts as protection if it is entirely well-formed for THIS account. */
++function validEnvelope(e,acct){
++  if(!e||typeof e!=="object"||Array.isArray(e))return false;
++  if(e.v!==RECOVERY_V)return false;                                   /* unsupported version */
++  if(typeof e.account!=="string"||e.account!==acct)return false;      /* key must agree with contents */
++  if(typeof e.capturedAt!=="string"||!/^\d{4}-\d{2}-\d{2}T/.test(e.capturedAt))return false;
++  if(typeof e.appBuild!=="string"||!e.appBuild)return false;
++  var t=e.training,w=e.workout;
++  if(!(typeof t==="string"||t===null))return false;
++  if(!(typeof w==="string"||w===null))return false;
++  if(t===null&&w===null)return false;                                 /* protects nothing */
++  return true;}
++
++function trainingRecovery(){
++  var st=readRecoveryStore();
++  if(st.status!=="valid")return null;
++  var acct=recoveryAccountId(),e=st.map[acct];
++  return validEnvelope(e,acct)?e:null;}
++
++/* Removal must be VERIFIED. Logout tells the user the device cache was wiped;
++   a swallowed failure would make that a false statement about their privacy. */
++function clearTrainingRecovery(acct){
++  var st=readRecoveryStore();
++  if(st.status==="absent")return true;
++  if(st.status!=="valid")return false;              /* cannot safely rewrite a corrupt store */
++  if(!(acct in st.map))return true;
++  var m=st.map;delete m[acct];
++  /* The postcondition is the WHOLE store, not just "A is gone". A faulty write
++     that also dropped B and C would satisfy the weaker check while destroying
++     two other people's only recovery copies. Compared as re-serialised parsed
++     maps: semantic equality, since the raw bytes are rewritten by design. */
++  var intended=JSON.stringify(m),empty=Object.keys(m).length===0;
++  try{
++    if(empty)localStorage.removeItem(TRECOVERY_KEY);
++    else localStorage.setItem(TRECOVERY_KEY,intended);
++  }catch(e){return false;}
++  var after=readRecoveryStore();
++  if(empty)return after.status==="absent";
++  if(after.status!=="valid")return false;
++  return JSON.stringify(after.map)===intended;}
++
++function blockRecovery(reason,state){
++  recoveryState=state||"blocked";recoveryBlocked=true;recoveryBlockReason=reason;
++  /* Nothing may sync, nothing may be exported as training, and boot may not
++     rewrite the very bytes we failed to protect. */
++  recoveryFreeze=true;return false;}
++
++/* Capture the RAW pre-sync bytes before anything loads, migrates or syncs.
++   Returns true when training may sync. */
++function captureTrainingRecovery(){
++  var acct=recoveryAccountId();
++  var st=readRecoveryStore();
++
++  if(st.status==="unreadable")
++    return blockRecovery("Training syncing is paused: this device's storage could not be read, so a recovery copy of your training could not be secured.");
++
++  if(st.status==="corrupt"){
++    /* Preserve the exact bytes and never rewrite them. They may still be the
++       only copy of something, and they are exported as a diagnostic -- as raw
++       text, explicitly NOT interpreted as trusted training. */
++    recoveryRawCorrupt=st.raw;
++    return blockRecovery("Training syncing is paused: this device's saved recovery copy is damaged. It has been left untouched and is included in exports.");}
++
++  var m=st.map;
++
++  if(acct===""){
++    /* No session: no pull can run, so nothing needs a snapshot yet. Attribution
++       is deferred to the marker, which login checks before it touches anything. */
++    recoveryState="none";return true;}
++
++  /* Unmarked local data, and an authenticated session. The code cannot tell
++     Griffin's own data from data typed while signed out from a previous owner's
++     on a reused device -- so it does not guess. It asks, once, and stays fully
++     quarantined until answered. Product Owner ruling, 2026-08-01. */
++  if(acct&&!lastOwner()&&localUserDataExists()&&Object.keys(m).length===0){
++    recoveryState="adoption";recoveryBlocked=true;recoveryFreeze=true;
++    recoveryBlockReason="Waiting for you to confirm that the data already on this device is yours.";
++    return false;}
++
++  /* Signed out, there is nothing to protect against. The snapshot exists solely
++     because trainingPull() can overwrite local training, and trainingPull()
++     requires syncOn() -- a token and a uid. With no session, no pull can run.
++
++     Capturing here would manufacture an anonymous envelope that the next sign-in
++     must then treat as unattributable, quarantining the app for a user who never
++     shared the device with anyone. A session expiry alone would trigger it. So
++     the anonymous slot is never created, which resolves the ownership ambiguity
++     by not creating it rather than by policing it afterwards. */
++  /* ANY envelope under another key -- including the anonymous "" slot -- means
++     someone else has captured on this device. The live wl_training_v1 and
++     wl_workout_v1 carry no owner stamp, so their bytes cannot be attributed to
++     whoever is signed in now.
++
++     This check comes BEFORE accepting our own envelope. A valid envelope for
++     this account proves only what WE captured once; it does not prove the live
++     keys still belong to us. A signs out-ish, B uses the device, A signs back in
++     without a verified logout: A's envelope is still perfectly valid while the
++     live bytes are B's. */
++  var other=null;
++  for(var k in m){if(k!==acct&&m[k]&&typeof m[k]==="object"){other=k;break;}}
++  if(other!==null)
++    return blockRecovery("Training syncing is paused: this device holds training saved under another account, so it cannot be established whose the current data is. Log out fully to clear it.","ambiguous");
++
++  var mine=m[acct];
++  if(mine!==undefined){
++    if(validEnvelope(mine,acct)){
++      if(!setLastOwnerVerified(acct))
++        return blockRecovery("Training syncing is paused: this device could not record which account its data belongs to.");
++      recoveryState="ok";return true;}   /* write-once, and sound */
++    /* Present but malformed: do not overwrite it, do not trust it. */
++    return blockRecovery("Training syncing is paused: this device's saved recovery copy for your account is not readable. It has been left untouched.");}
++
++  var rawT=null,rawW=null;
++  try{rawT=localStorage.getItem(TKEY);rawW=localStorage.getItem(WOKEY);}
++  catch(e){return blockRecovery("Training syncing is paused: this device's storage could not be read.");}
++  if(rawT===null&&rawW===null){
++    /* Nothing to snapshot -- but the marker must STILL be recorded and verified.
++       Without it, a later core pull fills wl_v1 for this account and the next
++       session, seeing no marker, could adopt those bytes as its own. */
++    if(!setLastOwnerVerified(acct))
++      return blockRecovery("Training syncing is paused: this device could not record which account its data belongs to.");
++    recoveryState="none";return true;}    /* nothing to protect */
++
++  var env={v:RECOVERY_V,capturedAt:new Date().toISOString(),appBuild:APP_BUILD,account:acct,
++           training:rawT,workout:rawW};
++  m[acct]=env;
++  var str;
++  try{str=JSON.stringify(m);}catch(e){return blockRecovery("Training syncing is paused: a recovery copy of your training could not be prepared.");}
++  try{localStorage.setItem(TRECOVERY_KEY,str);}catch(e){return blockRecovery("Training syncing is paused: a recovery copy of your training could not be saved (storage may be full).");}
++  /* Read back and compare. A storage layer that accepts a write and then returns
++     different bytes is exactly what a bare setItem cannot detect. */
++  var back=null;
++  try{back=localStorage.getItem(TRECOVERY_KEY);}catch(e){return blockRecovery("Training syncing is paused: the recovery copy could not be verified.");}
++  if(back!==str)return blockRecovery("Training syncing is paused: the recovery copy did not verify after saving.");
++  var chk=trainingRecovery();
++  if(!(chk&&chk.training===rawT&&chk.workout===rawW))
++    return blockRecovery("Training syncing is paused: the recovery copy did not verify after saving.");
++  if(!setLastOwnerVerified(acct))
++    return blockRecovery("Training syncing is paused: this device could not record which account its data belongs to.");
++  recoveryState="ok";return true;}
++
++/* A small, honest notice -- not a blocking screen, since a verified snapshot
++   makes blocking unnecessary. It must never imply the training on screen is the
++   authoritative copy: a stale pull may already have replaced it, which is the
++   whole reason the snapshot exists. */
++function recoveryNoticeHTML(){
++  if(logoutRecoveryPending()){
++    var known=logoutRecovery.phase!=="unreadable"&&logoutRecovery.journal;
++    return '<div class="wl-hint" style="margin-bottom:10px;color:var(--bad)"><b>A log-out on this device was interrupted.</b> '+
++      (known
++        ? 'Your data was saved before it started, so nothing has been lost. Choose whether to put it back or finish clearing it.'
++        : 'The record of it cannot be read, so it is not known how far it got. Nothing further will be changed until you decide.')+
++      ' Until then this device will not sync, export, restore, change anything or log out.'+
++      '<div class="wl-row" style="margin-top:10px">'+
++      '<button class="wl-btn wl-btn-ghost wl-full" data-act="lrec:finish">Finish clearing it</button>'+
++      (known?'<button class="wl-btn wl-btn-primary wl-full" data-act="lrec:restore">Put my data back</button>':'')+
++      '</div></div>';}
++  if(recoveryState==="adoption")
++    return '<div class="wl-hint" style="margin-bottom:10px;color:var(--bad)"><b>This device is waiting on one question.</b> '+
++      'Nothing will sync, export, restore, or be added, changed or deleted until you answer whether the data already here is yours.'+
++      '<div class="wl-row" style="margin-top:10px"><button class="wl-btn wl-btn-primary wl-full" data-act="adopt:ask">Answer it now</button></div></div>';
++  if(recoveryBlocked)
++    return '<div class="wl-hint" style="margin-bottom:10px;color:var(--bad)"><b>Training syncing is paused.</b> '+
++      esc(recoveryBlockReason.replace(/^Training syncing is paused: /,""))+
++      (ownershipAmbiguous()
++        ?' Nothing on this device can be synced, exported, restored or logged out while this is unresolved, because none of it can be attributed to one person.'
++        :(trainingQuarantined()?' Backups will not include training while this is unresolved.':''))+
++      ' Your local training has not been altered by this app. Tell whoever maintains it.</div>';
++  var rec=trainingRecovery();
++  if(!rec)return '';
++  return '<div class="wl-hint" style="margin-bottom:10px">A <b>pre-sync copy</b> of your training was saved on '+
++    esc(String(rec.capturedAt||"").slice(0,10))+' before this device last synced, and it is included in every export below. '+
++    'It may differ from the training shown in the app — both are kept, and neither is assumed to be the right one.</div>';}
++
++/* Called immediately after a successful same-page authentication, before any
++   user-data operation. Returns false when the continuation must abort.
++
++   The marker is the attribution, and it is never inferred from the act of
++   signing in: stamping signed-out bytes with whoever authenticates next is the
++   privacy defect, not the fix. */
++function establishOwnershipAfterLogin(){
++  var acct=recoveryAccountId();
++  if(!acct)return false;
++  var lo=lastOwner();
++  if(lo&&lo!==acct){
++    recoveryState="ambiguous";recoveryBlocked=true;recoveryFreeze=true;
++    recoveryBlockReason="Training syncing is paused: this device holds data saved under another account, so it cannot be established whose the current data is.";
++    return false;}
++  if(!lo&&localUserDataExists()){
++    /* Same decision as boot: ask rather than infer. */
++    var st0=readRecoveryStore();
++    if(st0.status==="valid"&&Object.keys(st0.map).length===0){
++      recoveryState="adoption";recoveryBlocked=true;recoveryFreeze=true;
++      recoveryBlockReason="Waiting for you to confirm that the data already on this device is yours.";
++      return false;}
++    /* Data present, and this build has never recorded an owner for it. It was
++       either written signed out or by a build older than the marker. The FIRST
++       authenticated boot of this build adopts it (see captureTrainingRecovery),
++       which is the upgrade path; reaching here instead means the data appeared
++       while signed out, and nothing attributes it to this account. */
++    recoveryState="ambiguous";recoveryBlocked=true;recoveryFreeze=true;
++    recoveryBlockReason="Training syncing is paused: this device holds training that cannot be attributed to your account.";
++    return false;}
++  return runRecoveryCapture();}
++
++var adoptionAsked=false;
++/* Asked once per load, and only ever after boot has finished rendering. Cancel
++   ("Not mine") deliberately does nothing, which leaves the device quarantined --
++   the safe default is the one you get by not answering. */
++function maybeAskAdoption(){
++  if(recoveryState!=="adoption"||adoptionAsked)return;
++  adoptionAsked=true;
++  askConfirm("This device already has training and health data saved on it, from before this update.\n\nLink it to "+(pbEmail()||"this account")+"?\n\nIf it isn't yours, choose Cancel — nothing will be synced, exported or deleted until it's sorted out.",
++    function(){adoptLocalData();},{label:"Yes, it's mine",danger:false});}
++function adoptLocalData(){
++  var acct=recoveryAccountId();
++  if(!acct)return;
++  if(!setLastOwnerVerified(acct)){
++    blockRecovery("Training syncing is paused: this device could not record which account its data belongs to.");
++    if(bootGated&&document.getElementById("app"))renderGate&&renderGate();
++    return;}
++  /* Reload rather than resume: when the gate owned the screen, the ordinary boot
++     never ran, so there is no half-initialised app to resume INTO. The reload
++     boots normally -- the marker now exists, so capture takes its snapshot in
++     its canonical position, BEFORE load and migration. The gate blocked every
++     write while it was up, so the bytes at reload are the bytes at confirmation. */
++  location.reload();}
++
++/* ---- recovery-only and adoption-only boot screens ----
++   These REPLACE the app, they are not banners inside it. A device that cannot
++   resolve its own state must not render data-mutating controls at all: a
++   suppressed save still leaves the edit in memory, visible on screen and ready
++   to be exported the moment the state clears -- which is what made the previous
++   "quarantine" claim false. */
++function gateScreenHTML(title,body,buttons){
++  return '<div class="wl-shell"><main class="wl-main" style="display:flex;align-items:center;justify-content:center;min-height:80vh">'+
++    '<div class="wl-card" style="max-width:420px;margin:20px">'+
++    '<div class="wl-card-head"><span>'+esc(title)+'</span></div>'+
++    '<div style="font-size:14px;line-height:1.5;color:var(--text);margin:10px 0">'+body+'</div>'+
++    buttons+'</div></main></div>'+confirmOverlayHTML();}
++function renderLogoutRecoveryGate(){
++  var known=logoutRecovery&&logoutRecovery.phase!=="unreadable"&&logoutRecovery.journal;
++  var body,buttons;
++  if(known){
++    body='A log-out on this device was interrupted before it finished. Your data was saved before it started, so nothing has been lost.'+
++      '<br><br>Choose whether to put everything back the way it was, or to finish clearing the device. Until then nothing will sync, export, change or log out.';
++    buttons='<div class="wl-row" style="margin-top:14px">'+
++      '<button class="wl-btn wl-btn-ghost wl-full" data-act="lrec:finish">Finish clearing it</button>'+
++      '<button class="wl-btn wl-btn-primary wl-full" data-act="lrec:restore">Put my data back</button></div>';
++  }else{
++    /* Product Owner ruling 2026-08-01: no destructive escape when the record is
++       unreadable. The device stays locked for the reviewed recovery procedure. */
++    body='A log-out on this device was interrupted, and the record of it cannot be read — so it is not known what it holds or how far the log-out got.'+
++      '<br><br>Nothing has been changed, and nothing will be: this device will not sync, export, restore, change data, or log out until it has been looked at.'+
++      '<br><br><b>Contact whoever maintains this app before doing anything else.</b>';
++    buttons='';}
++  document.getElementById("app").innerHTML=gateScreenHTML("Interrupted log-out",body,buttons);}
++function renderAdoptionGate(){
++  var body='This device already has training and health data saved on it, from before this update.'+
++    '<br><br><b>Is it yours?</b> Linking it to <b>'+esc(pbEmail()||"this account")+'</b> makes it part of that account and turns syncing back on.'+
++    '<br><br>Until you answer, nothing on this device will sync, export, restore, or be added, changed or deleted.'+
++    '<br><br>If it is not yours, do nothing — nothing is touched while this screen is showing.';
++  var buttons='<div class="wl-row" style="margin-top:14px">'+
++    '<button class="wl-btn wl-btn-primary wl-full" data-act="adopt:yes">Yes, it’s mine</button></div>';
++  document.getElementById("app").innerHTML=gateScreenHTML("One question first",body,buttons);}
++/* True when a gate owns the screen; the ordinary app must not render. */
++function bootGated(){return logoutRecoveryPending()||recoveryState==="adoption";}
++function renderGate(){if(logoutRecoveryPending())renderLogoutRecoveryGate();else renderAdoptionGate();}
++
++function runRecoveryCapture(){
++  recoveryState="none";recoveryBlocked=false;recoveryBlockReason="";recoveryRawCorrupt=null;
++  recoveryFreeze=false;
++  return captureTrainingRecovery();}
++/* Boot is over: the athlete's own edits must persist again, even while training
++   stays quarantined from syncing and from the ordinary backup. */
++function endRecoveryFreeze(){recoveryFreeze=false;}
++
++/* ---- the application-data JSON backup ----
++
++   payload() is deliberately NOT extended to carry training: it defines both the
++   core localStorage record and the server's `data` field, and training is a
++   separate subsystem with its own field and revision counter. Mixing them would
++   change what every sync writes. The backup is assembled here instead.
++
++   Repository history shows backupJSON() originated as payload() and contains no
++   training addition before this change, so backups produced by the current
++   lineage carry no exercises, routines, cardio sessions or lift sessions.
++
++   Three training-related components are kept SEPARATE, because they can legitimately
++   differ and any of them may be the one that matters:
++     trainingHistory : the live copy, which a stale pull may already have overwritten
++     activeWorkout   : the in-progress session, null when there genuinely is none
++     recovery        : the immutable pre-sync raw snapshot, when one exists
++   Recovery is never substituted for the live copy. Both are evidence.
++
++   NOT a complete device backup: progress photos have their own export
++   (`pbk:export`) and are not included here.
++
++   __backup goes LAST in the assign order. The double underscore avoids a
++   collision with today's fields but cannot promise one against a field added
++   years from now, and payload() must never be able to overwrite the metadata a
++   restore reads to decide how to interpret the file. */
++function backupJSON(){
++  var contains=[];
++  var out={};
++  /* Core is no more attributable than training. Under ownership ambiguity the
++     backup carries NO user data at all rather than a "core-only" file that would
++     still be someone's weights, food and notes. */
++  if(!ownershipAmbiguous()){out=Object.assign({},payload());contains.push("core");}
++  /* When ownership of the live training bytes cannot be established -- another
++     account has captured here, or the store is damaged -- the ordinary backup
++     carries NO training at all. Not the live copy, not the active workout, not
++     any recovery envelope, not the damaged raw bytes. Any of them could be
++     someone else's health data, and an export is the moment it would leave the
++     device. Core stays, and the metadata says why the rest is missing. */
++  if(!trainingQuarantined()&&!ownershipAmbiguous()){
++    out.trainingHistory=state.training;contains.push("trainingHistory");
++    var woRaw=null;
++    try{woRaw=localStorage.getItem(WOKEY);}catch(e){woRaw=null;}
++    if(woRaw===null){out.activeWorkout=null;}
++    else{var wo=null;try{wo=JSON.parse(woRaw);}catch(e){wo=null;}
++         out.activeWorkout=wo;if(wo)contains.push("activeWorkout");}
++    var rec=trainingRecovery();
++    if(rec){out.recovery=rec;contains.push("recovery");}}
++  out.__backup={format:BACKUP_FORMAT,createdAt:new Date().toISOString(),
++    appBuild:APP_BUILD,contains:contains,account:recoveryAccountId()||null,
++    recoveryState:recoveryState,recoveryBlocked:!!recoveryBlocked,
++    trainingWithheld:trainingQuarantined(),userDataWithheld:ownershipAmbiguous(),
++    recoveryBlockReason:recoveryBlocked?recoveryBlockReason:null};
++  return JSON.stringify(out,null,2);}
+ function applyImport(text){
++  if(ownershipAmbiguous()){toast("Restore paused — this device holds data from another account");return;}
+   var d;try{d=JSON.parse(text);}catch(err){toast("That isn't valid backup data");return;}
+   if(!d||typeof d!=="object"||(!("weights" in d)&&!("settings" in d))){toast("Unrecognized backup format");return;}
+   askConfirm("Replace all data on this device with this backup? Current entries will be overwritten.",function(){
+@@ -7662,6 +8147,7 @@ function applyImport(text){
+   },{label:"Replace",danger:false});
+ }
+ function exportData(){
++  if(ownershipAmbiguous()){toast("Export paused — this device holds data from another account");return;}
+   var json=backupJSON();var name="weight-tracker-backup-"+todayISO()+".json";
+   try{
+     var file=new File([json],name,{type:"application/json"});
+@@ -7674,6 +8160,7 @@ function exportData(){
+   setTimeout(function(){URL.revokeObjectURL(url);},1000);toast("Backup exported");
+ }
+ function copyBackup(){
++  if(ownershipAmbiguous()){toast("Copy paused — this device holds data from another account");return;}
+   var json=backupJSON();
+   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(json).then(function(){toast("Backup copied");}).catch(function(){fallbackCopy(json);});
+   else fallbackCopy(json);
+@@ -7895,18 +8382,219 @@ function pbClearSession(keepEmail){
+ /* Full logout: session AND this device's cached copy. Only for an explicit "Log out",
+    where wiping is the point — a shared iPad must not leak the previous account, so
+    the email is dropped too. */
++var LOGOUT_JOURNAL_KEY="wl_logout_journal",LOGOUT_JOURNAL_V=1;
++/* localStorage has no transaction, and a logout also has to clear a session that
++   lives in a DIFFERENT store -- so genuine atomicity is not available. What is
++   available is an honest record of how far the wipe got, so that an interrupted
++   one is never resolved by guessing.
++
++   Product Owner ruling 2026-08-01: when the app cannot tell whether a logout
++   reached the committed state, it STOPS AND ASKS. It does not restore health
++   data onto a device the athlete deliberately logged out of, and it does not
++   finish destroying data they may not have exported. */
++var logoutRecovery=null;   /* null, or {phase, journal} while a wipe is unresolved */
++function logoutRecoveryPending(){return !!logoutRecovery;}
++function logoutTargets(){return [KEY,TKEY,WOKEY,DIRTY_KEY,LAST_KEY,LASTOWNER_KEY,TRECOVERY_KEY];}
++var LOGOUT_PHASES=["prepared","wiping","data-cleared","committed"];
++
++function readSessionPair(){
++  var out={local:null,session:null};
++  try{out.local=localStorage.getItem(PB_KEY);}catch(e){}
++  try{out.session=sessionStorage.getItem(PB_KEY);}catch(e){}
++  return out;}
++
++/* Exactly the approved keys, exactly the expected value types. restore() never
++   iterates keys supplied by the file -- only the fixed target list -- so a
++   tampered or corrupt journal cannot write anywhere it likes. */
++function validLogoutJournal(j){
++  if(!j||typeof j!=="object"||Array.isArray(j))return false;
++  if(j.v!==LOGOUT_JOURNAL_V)return false;
++  if(typeof j.account!=="string")return false;
++  if(typeof j.appBuild!=="string"||!j.appBuild)return false;
++  if(LOGOUT_PHASES.indexOf(j.phase)<0)return false;
++  if(!j.vals||typeof j.vals!=="object"||Array.isArray(j.vals))return false;
++  var want=logoutTargets(),i;
++  if(Object.keys(j.vals).length!==want.length)return false;
++  for(i=0;i<want.length;i++){
++    if(!(want[i] in j.vals))return false;
++    var v=j.vals[want[i]];
++    if(!(v===null||typeof v==="string"))return false;}
++  if(!j.session||typeof j.session!=="object")return false;
++  if(!(j.session.local===null||typeof j.session.local==="string"))return false;
++  if(!(j.session.session===null||typeof j.session.session==="string"))return false;
++  return true;}
++
++function readLogoutJournal(){
++  var raw=null;
++  try{raw=localStorage.getItem(LOGOUT_JOURNAL_KEY);}catch(e){return {status:"unreadable",j:null};}
++  if(raw===null)return {status:"absent",j:null};
++  var j=null;try{j=JSON.parse(raw);}catch(e){return {status:"invalid",j:null};}
++  if(!validLogoutJournal(j))return {status:"invalid",j:null};
++  return {status:"valid",j:j};}
++
++function writeLogoutJournalPhase(j,phase){
++  j.phase=phase;
++  var str;
++  try{str=JSON.stringify(j);}catch(e){return false;}
++  try{localStorage.setItem(LOGOUT_JOURNAL_KEY,str);}catch(e){return false;}
++  var back=null;
++  try{back=localStorage.getItem(LOGOUT_JOURNAL_KEY);}catch(e){return false;}
++  return back===str;}
++
++function buildLogoutJournal(){
++  var j={v:LOGOUT_JOURNAL_V,at:todayISO(),account:recoveryAccountId(),appBuild:APP_BUILD,
++         phase:"prepared",vals:{},session:readSessionPair()};
++  var ks=logoutTargets(),i;
++  for(i=0;i<ks.length;i++){
++    var v=null;
++    try{v=localStorage.getItem(ks[i]);}catch(e){return null;}
++    j.vals[ks[i]]=v;}
++  return j;}
++
++/* Restores the fixed target list AND both session stores, then verifies each. */
++function restoreFromJournal(j){
++  var ok=true,ks=logoutTargets(),i;
++  for(i=0;i<ks.length;i++){
++    var k=ks[i],want=j.vals[k];
++    try{if(want===null)localStorage.removeItem(k);else localStorage.setItem(k,want);}catch(e){ok=false;continue;}
++    var back=null;
++    try{back=localStorage.getItem(k);}catch(e){ok=false;continue;}
++    if(back!==want)ok=false;}
++  [["local",localStorage],["session",typeof sessionStorage!=="undefined"?sessionStorage:null]].forEach(function(pair){
++    var want=j.session[pair[0]],store=pair[1];
++    if(!store)return;
++    try{if(want===null)store.removeItem(PB_KEY);else store.setItem(PB_KEY,want);}catch(e){ok=false;return;}
++    var back=null;
++    try{back=store.getItem(PB_KEY);}catch(e){ok=false;return;}
++    if(back!==want)ok=false;});
++  return ok;}
++
++function deleteLogoutJournalVerified(){
++  try{localStorage.removeItem(LOGOUT_JOURNAL_KEY);}catch(e){return false;}
++  var back=null;
++  try{back=localStorage.getItem(LOGOUT_JOURNAL_KEY);}catch(e){return false;}
++  return back===null;}
++
++/* Boot gate. ANY surviving or unreadable journal stops the app before it loads
++   user data or touches the network. Only the "prepared" phase is self-evidently
++   safe: nothing had been removed yet, so the journal is simply discarded. */
++function checkLogoutJournal(){
++  var r=readLogoutJournal();
++  if(r.status==="absent")return true;
++  if(r.status==="valid"&&r.j.phase==="prepared"){
++    if(deleteLogoutJournalVerified())return true;
++    logoutRecovery={phase:"prepared",journal:r.j};return false;}
++  logoutRecovery={phase:(r.status==="valid"?r.j.phase:"unreadable"),journal:(r.status==="valid"?r.j:null)};
++  return false;}
++
++/* The two answers the athlete can give. Neither is taken automatically. */
++function logoutRecoveryRestore(){
++  var j=logoutRecovery&&logoutRecovery.journal;
++  if(!j){toast("That recovery record can't be read — nothing was changed");return false;}
++  if(!restoreFromJournal(j)){toast("Couldn't fully restore — nothing else was changed");return false;}
++  if(!deleteLogoutJournalVerified()){toast("Restored, but the recovery record could not be cleared");return false;}
++  logoutRecovery=null;location.reload();return true;}
++function logoutRecoveryFinish(){
++  /* Product Owner ruling 2026-08-01: an UNREADABLE journal offers no destructive
++     escape at all. The app cannot know what it would be erasing, so it stays
++     locked and the bytes stay put until the reviewed recovery procedure. */
++  if(!(logoutRecovery&&logoutRecovery.journal)){
++    toast("This can't be erased from here — the record of the log-out can't be read");
++    return false;}
++  var ks=logoutTargets(),i;
++  for(i=0;i<ks.length;i++){try{localStorage.removeItem(ks[i]);}catch(e){toast("Couldn't finish clearing this device — nothing more was changed");return false;}}
++  /* Postcondition, verified: every target key absent, BOTH session slots absent
++     entirely (not merely token-free -- ruling 8), and the journal gone. */
++  for(i=0;i<ks.length;i++){
++    var still=null;
++    try{still=localStorage.getItem(ks[i]);}catch(e){toast("Couldn't verify this device was cleared");return false;}
++    if(still!==null){toast("Couldn't finish clearing this device");return false;}}
++  try{pbClearSession(false);}catch(e){}
++  try{sessionStorage.removeItem(PB_KEY);}catch(e){}
++  /* Same postcondition as an ordinary logout: pbClearSession legitimately keeps
++     the server URL (configuration, not session) in the localStorage slot, so
++     that slot is checked for CREDENTIALS; sessionStorage must be entirely empty
++     of the key. */
++  var lraw2=null;
++  try{lraw2=localStorage.getItem(PB_KEY);}catch(e){toast("Couldn't verify the session was cleared");return false;}
++  if(lraw2!==null){
++    var lc2=null;try{lc2=JSON.parse(lraw2);}catch(e){toast("Couldn't clear the session");return false;}
++    if(lc2&&(lc2.token||lc2.uid||lc2.email)){toast("Couldn't clear the session");return false;}}
++  try{if(sessionStorage.getItem(PB_KEY)!==null){toast("Couldn't clear the session");return false;}}
++  catch(e){toast("Couldn't verify the session was cleared");return false;}
++  if(!deleteLogoutJournalVerified()){toast("Couldn't clear the recovery record");return false;}
++  logoutRecovery=null;location.reload();return true;}
++
+ function pbForceLogout(){
++  if(ownershipAmbiguous()){
++    toast("Can't log out yet — this device holds data from another account");
++    return false;}
++  var j=buildLogoutJournal();
++  if(!j||!writeLogoutJournalPhase(j,"prepared")){
++    toast("Couldn't prepare a safe log-out on this device — nothing was removed");
++    return false;}
++
++  function rollback(msg){
++    if(restoreFromJournal(j)&&deleteLogoutJournalVerified()){
++      toast(msg+" — every value was put back exactly as it was");
++    }else{
++      logoutRecovery={phase:j.phase,journal:j};
++      toast(msg+". This device now needs a decision before it can be used.");}
++    return false;}
++
++  if(!writeLogoutJournalPhase(j,"wiping"))return rollback("Couldn't record the log-out safely");
++
++  var acct=recoveryAccountId();
++  if(!clearTrainingRecovery(acct))return rollback("Couldn't clear this device's saved training copy");
++
++  var targets=logoutTargets(),i;
++  for(i=0;i<targets.length;i++){
++    try{localStorage.removeItem(targets[i]);}catch(e){return rollback("Couldn't clear this device");}}
++  for(i=0;i<targets.length;i++){
++    var still=null;
++    try{still=localStorage.getItem(targets[i]);}catch(e){return rollback("Couldn't verify this device was cleared");}
++    if(still!==null)return rollback("Couldn't clear this device");}
++
++  if(!writeLogoutJournalPhase(j,"data-cleared"))return rollback("Couldn't record the log-out safely");
++
+   pbClearSession(false);
+-  try{localStorage.removeItem(KEY);localStorage.removeItem(TKEY);localStorage.removeItem(WOKEY);
+-      localStorage.removeItem(DIRTY_KEY);localStorage.removeItem(LAST_KEY);}catch(e){}}
++  try{sessionStorage.removeItem(PB_KEY);}catch(e){}
++  /* The privacy postcondition is ABSENCE of wl_pb in both stores, not merely the
++     absence of a parseable token: malformed session bytes are still session
++     bytes. pbClearSession keeps base/remember in localStorage by design, so that
++     slot is checked for credentials only after re-writing; sessionStorage must be
++     entirely empty of the key. */
++  var leftover=false;
++  var lraw=null;try{lraw=localStorage.getItem(PB_KEY);}catch(e){leftover=true;}
++  if(lraw!==null&&lraw!==undefined&&lraw!==""){
++    var lc=null;try{lc=JSON.parse(lraw);}catch(e){leftover=true;}
++    if(lc&&(lc.token||lc.uid||lc.email))leftover=true;}
++  try{if(sessionStorage.getItem(PB_KEY)!==null)leftover=true;}catch(e){leftover=true;}
++  if(leftover)return rollback("Couldn't clear the session");
++
++  if(!writeLogoutJournalPhase(j,"committed")){
++    /* The wipe is done and the session is gone; only the record of it failed.
++       Leave it: boot will stop and ask rather than silently undo a completed
++       logout or silently keep a copy of the data. */
++    logoutRecovery={phase:"committed",journal:j};
++    toast("Logged out, but this device needs a decision before it can be used again.");
++    return false;}
++  /* Verified deletion. A surviving journal holds a complete copy of the health
++     data this logout just erased, so an unverified removeItem is not enough. */
++  if(!deleteLogoutJournalVerified()){
++    logoutRecovery={phase:"committed",journal:j};
++    toast("Logged out, but a copy of the cleared data is still on this device.");
++    return false;}
++  return true;}
+ function pbLogout(){
+   askConfirm("Log out on this device? Your data stays safe on the server — log back in any time.",function(){
+-    pbForceLogout();location.reload();
++    if(pbForceLogout())location.reload();   /* a refused logout must not reload away its own error */
+   },{label:"Log out",danger:true});}
+ 
+ /* ---- the single appdata record ---- */
+ var pbRecId=null;
+ function pbGetRecord(cb){
++  if(ownershipAmbiguous()){cb&&cb(null,"ambiguous");return;}
+   if(!syncOn()){cb&&cb(null,"not configured");return;}
+   fetch(pbBase()+"/api/collections/appdata/records?perPage=1&filter="+encodeURIComponent('user="'+pbUid()+'"')+"&t="+Date.now(),
+     {headers:pbHeaders(),cache:"no-store"})
+@@ -7915,6 +8603,11 @@ function pbGetRecord(cb){
+     .catch(function(e){cb&&cb(null,(e==="auth")?"auth":(e==="error")?"error":"offline");});}
+ 
+ function pbSave(fields,cb){
++  /* Enforced at the primitive, not at named callers. pbSave has call sites in
++     the HealthKit import, the coach request, the nightly generator and
++     pushDataPromise() as well as cloudPush/trainingPush; gating those by name
++     would leave whichever one is added next unprotected. */
++  if(ownershipAmbiguous()){cb&&cb(false,"ambiguous");return;}
+   if(!syncOn()){cb&&cb(false,"not configured");return;}
+   var base=pbBase();
+   function write(id){
+@@ -7936,11 +8629,13 @@ function pbSave(fields,cb){
+ /* ---- drop-in replacements for the GitHub primitives ----
+    Same callback contracts, so cloudPull/autoSync/the status dot are untouched. */
+ function cloudGet(cb){
++  if(ownershipAmbiguous()){cb&&cb(null,"error");return;}
+   pbGetRecord(function(rec,err){
+     if(err){cb&&cb(null,err);return;}
+     cb&&cb((rec&&rec.data)||{},null);});}
+ 
+ function cloudPush(manual){
++  if(ownershipAmbiguous()){if(manual)toast("Paused — this device holds data from another account");return;}
+   if(!syncOn()){if(manual)toast("Log in first");return;}
+   if(pushing){clearTimeout(pushTimer);pushTimer=setTimeout(function(){cloudPush(manual);},900);return;}
+   pushing=true;setSync("saving");resyncAllActivityTags();
+@@ -7951,10 +8646,19 @@ function cloudPush(manual){
+     if(manual)toast(err==="offline"?"No connection":err==="auth"?"Please log in again":"Save failed");});}
+ 
+ function trainingPush(){
++  /* Blocked in BOTH directions. Pulling can destroy the local copy; pushing an
++     unverified local copy can destroy newer training on the server. With the
++     pre-sync bytes unprotected, neither direction is known safe. Local saves
++     still happen -- they just stay local. */
++  if(recoveryBlocked){setSync("error",recoveryBlockReason);return;}
+   if(!syncOn())return;
+   pbSave({training:state.training},function(){});}
+ 
+ function trainingPull(cb){
++  /* Fail closed, in BOTH directions -- trainingPush() carries the same guard.
++     A pull can destroy the local copy; a push of an unverified local copy can
++     destroy newer training on the server. Neither is known safe. */
++  if(recoveryBlocked){setSync("error",recoveryBlockReason);cb&&cb();return;}
+   if(!syncOn()){cb&&cb();return;}
+   pbGetRecord(function(rec){
+     var d=rec&&rec.training;
+@@ -7965,6 +8669,7 @@ function trainingPull(cb){
+     cb&&cb();});}
+ 
+ function cloudTest(){
++  if(ownershipAmbiguous()){toast("Paused — this device holds data from another account");return;}
+   setSync("syncing");
+   cloudGet(function(d,err){
+     if(err){setSync(err==="offline"?"offline":"error",err==="auth"?"session expired":"");
+@@ -8107,6 +8812,22 @@ function pbDoLogin(){
+       pbLoginState.err=(why==="bad")?"That email and password don’t match.":(why==="offline")?"Can’t reach the server. Is Tailscale on?":"Something went wrong. Try again.";
+       pbRenderLogin();return;}
+     pbLoginState.err="";
++    /* Ownership FIRST, before a single user-data request.
++
++       Authentication has just succeeded on this same page, so the session is new
++       but the boot-time capture ran while signed out and took nothing. Without
++       this, the continuation below goes straight to cloudGet -> trainingPull ->
++       photoSync and can overwrite local training that was never snapshotted --
++       the original 2026-07-31 loss, on the expired-session path.
++
++       If the local bytes cannot be attributed to the account that just signed in,
++       the whole continuation aborts rather than proceeding. */
++    if(!establishOwnershipAfterLogin()){
++      setSync("error",recoveryBlockReason);
++      render();
++      if(recoveryState==="adoption"){renderAdoptionGate();}
++      else toast("Signed in, but syncing is paused — this device holds data that isn't yours");
++      return;}
+     setSync("syncing");
+     cloudGet(function(d,err){
+       function finish(){
+@@ -8185,17 +8906,22 @@ function setPbPhotoMap(m){try{localStorage.setItem(PB_PMAP,JSON.stringify(m));}c
+ 
+ /* protected files need a short-lived token — an unguessable URL is not enough */
+ function pbFileToken(){
++  if(ownershipAmbiguous())return Promise.reject("ambiguous");
+   return fetch(pbBase()+"/api/files/token",{method:"POST",headers:pbHeaders(true)})
+     .then(function(r){return r.ok?r.json():Promise.reject(r.status);})
+     .then(function(j){return j.token;});}
+ 
+ function pbPhotoList(){
++  if(ownershipAmbiguous())return Promise.reject("ambiguous");
+   return fetch(pbBase()+"/api/collections/photos/records?perPage=500&filter="
+       +encodeURIComponent('user="'+pbUid()+'"')+"&t="+Date.now(),{headers:pbHeaders(),cache:"no-store"})
+     .then(function(r){return r.ok?r.json():Promise.reject(r.status);})
+     .then(function(p){return p.items||[];});}
+ 
+ function pbPhotoUpload(rec){
++  /* idbAdd() reaches this directly, as do the lightbox edit and idbClearAll --
++     guarding photoSync() alone would not establish photo quarantine. */
++  if(ownershipAmbiguous())return Promise.reject("ambiguous");
+   var fd=new FormData();
+   var type=(rec.blob&&rec.blob.type)||"image/jpeg";
+   var ext=({"image/png":"png","image/webp":"webp","image/heic":"heic"})[type]||"jpg";
+@@ -8214,16 +8940,21 @@ function pbPhotoUpload(rec){
+     .then(function(r){return r.ok?r.json():Promise.reject(r.status);});}
+ 
+ function pbPhotoDelete(serverId){
++  if(ownershipAmbiguous())return Promise.reject("ambiguous");
+   return fetch(pbBase()+"/api/collections/photos/records/"+serverId,{method:"DELETE",headers:pbHeaders()})
+     .then(function(r){return (r.ok||r.status===404)?true:Promise.reject(r.status);});}
+ 
+ function pbPhotoFetchBlob(srec,token){
++  if(ownershipAmbiguous())return Promise.reject("ambiguous");
+   return fetch(pbBase()+"/api/files/photos/"+srec.id+"/"+srec.file+"?token="+encodeURIComponent(token))
+     .then(function(r){return r.ok?r.blob():Promise.reject(r.status);});}
+ 
+ /* ---- the sync itself ---- */
+ var pbPhotoSyncing=false;
+ function photoSync(done){
++  /* Photo bytes and the photo map are local user data with no owner stamp
++     either -- do not upload, download, reconcile or delete while unattributed. */
++  if(ownershipAmbiguous()){done&&done();return;}
+   if(!syncOn()||pbPhotoSyncing||typeof indexedDB==="undefined"){done&&done();return;}
+   pbPhotoSyncing=true;
+   var uploaded=0,downloaded=0,removed=0;
+@@ -8302,6 +9033,10 @@ function photoSync(done){
+ var idbAddLocal=idbAdd,idbDeleteLocal=idbDelete,idbClearAllLocal=idbClearAll;
+ 
+ idbAdd=function(rec){
++  /* Refused BEFORE the local write. Guarding only the upload left unattributed
++     photo data being added, deleted and relabelled on disk while the app told the
++     athlete nothing was being touched. */
++  if(ownershipAmbiguous())return Promise.reject("ambiguous");
+   return idbAddLocal(rec).then(function(r){
+     if(syncOn()&&rec.blob){
+       pbPhotoUpload(rec).then(function(s){var m=pbPhotoMap();m[rec.id]=s.id;setPbPhotoMap(m);})
+@@ -8309,11 +9044,13 @@ idbAdd=function(rec){
+     return r;});};
+ 
+ idbDelete=function(id){
++  if(ownershipAmbiguous())return Promise.reject("ambiguous");
+   var m=pbPhotoMap(),sid=m[id];
+   if(syncOn()&&sid){pbPhotoDelete(sid).then(function(){var mm=pbPhotoMap();delete mm[id];setPbPhotoMap(mm);}).catch(function(){});}
+   return idbDeleteLocal(id);};
+ 
+ idbClearAll=function(){
++  if(ownershipAmbiguous())return Promise.reject("ambiguous");
+   if(syncOn()){
+     pbPhotoList().then(function(list){
+       return Promise.all(list.map(function(s){return pbPhotoDelete(s.id).catch(function(){});}));
+@@ -8369,6 +9106,7 @@ function openLightbox(id){
+     var r=curRec();if(!r)return;
+     var m=b.getAttribute("data-meal");
+     if((r.meal||"")===m){mealsRow.style.display="none";return;}
++    if(ownershipAmbiguous()){toast("Paused — this device holds data from another account");return;}
+     r.meal=m;
+     idbAddLocal(r).then(function(){
+       dirty=true;
+@@ -8379,7 +9117,10 @@ function openLightbox(id){
+       /* mirror to the server; if unreachable, the photo-sync up-sync pass
+          pushes the label the next time it runs */
+       var sid=pbPhotoMap()[r.id];
+-      if(syncOn()&&sid){
++      /* This route does not go through pbPhotoUpload/pbPhotoDelete, so it needs
++         its own guard: a photo record PATCH is still a write to the signed-in
++         account's server data. */
++      if(syncOn()&&sid&&!ownershipAmbiguous()){
+         fetch(pbBase()+"/api/collections/photos/records/"+sid,{method:"PATCH",
+           headers:pbHeaders(true),body:JSON.stringify({meal:m})}).catch(function(){});}
+     }).catch(function(){toast("Couldn’t move the photo");});}
+@@ -8420,7 +9161,29 @@ function openLightbox(id){
+ })();
+ 
+ /* ---------------- init ---------------- */
++/* FIRST, before anything reads, migrates or normalises training: secure the raw
++   pre-sync copy. migrateProgressionTypes() rewrites wl_training_v1 on this very
++   line, so capturing after it would preserve the migrated form rather than what
++   the previous build actually left on disk. */
++/* Boot branches HARD on unresolved state. When a gate is active, the ordinary
++   application never initialises: no user-data load, no migration, no identity
++   work, no photo refresh, no auth refresh, no sync. The gate screen is the whole
++   app until the state is resolved. */
++checkLogoutJournal();
++if(!logoutRecoveryPending())runRecoveryCapture();
++if(bootGated()){
++  renderGate();
++}else{
+ load();loadTraining();migrateProgressionTypes();loadWorkout();rptRetargetAll();ensureIdentity();try{refreshWeekPhotos();}catch(e){}if(resyncAllActivityTags())save();var _hasSetup=/[#&]setup=/.test(location.hash||"");if(_hasSetup){state.settings.onboarded=true;}else{if(state.settings.onboarded==null)state.settings.onboarded=(state.weights.length>0||num(state.settings.goalWeight)!=null||num(state.settings.startingWeight)!=null||!!(state.settings.name&&(""+state.settings.name).trim()));if(!state.settings.onboarded){state.onboarding=true;state.obStep=0;}}applyTheme(state.settings.theme||"dark");makeIcon();if(state.workout)state.view="train";render();if(syncOn()){pbRefresh(function(){autoSync();photoSync();});}if(state.workout)startWoTick();if(_hasSetup)checkSetupLink();
++endRecoveryFreeze();
++/* Everything below belongs ONLY to the clean path. A gated page is terminal:
++   no persistence request, no announcement write, no update check, no visibility
++   or pull-to-refresh handlers. checkForUpdate() in particular can call
++   location.replace() when it sees another build -- which would swap the
++   recovery gate for an artifact whose journal behaviour is unestablished, in
++   the middle of an unresolved destructive operation. The gate renders, its two
++   buttons work through the document-level click handler, and nothing else in
++   this file executes. */
+ try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(e){}
+ try{
+   var wlraw=localStorage.getItem("wl_announced")||"";
+@@ -8458,6 +9221,7 @@ document.addEventListener("visibilitychange",function(){if(!document.hidden){che
+     dist=0;
+   });
+ })();
++}   /* end of the clean-boot path; a gated boot renders its screen and stops */
+ </script>
+ </body>
+ </html>

@@ -29,7 +29,7 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
     localStorage.setItem('wl_last_owner','userA');
     localStorage.setItem('wl_v1',JSON.stringify({
       settings:{onboarded:true,units:'lbs',weekStart:'1',targetCalories:2150},
-      weights:[{date:'2026-07-27',weight:186.8},{date:'2026-08-02',weight:184.0}],
+      weights:[{date:'2026-07-27',weight:199.8},{date:'2026-08-02',weight:197.0}],
       food:{},workouts:{},steps:{'2026-08-01':9100,'2026-08-02':10400},notes:{},sleep:{'2026-08-02':440},
       bodyfat:{},waist:{'2026-08-02':34.5},leanmass:{},statuses:[],presets:[],skips:{},nightlyLog:{}}));
   });

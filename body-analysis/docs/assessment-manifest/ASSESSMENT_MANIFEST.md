@@ -110,7 +110,7 @@ Create a new revision when photos or measurements change after analysis starts, 
     "estimationSex": "male",
     "height": {"value": 70, "unit": "in"},
     "weight": {
-      "value": 182.2,
+      "value": 203.2,
       "unit": "lb",
       "measuredAt": "2026-08-05T13:00:00Z",
       "source": "manual"
@@ -525,7 +525,7 @@ Insufficient: below 0.40
       "displayBest": "About 22%"
     },
     "bodyComposition": {
-      "weight": 182.2,
+      "weight": 203.2,
       "weightUnit": "lb",
       "estimatedFatMass": 39.7,
       "estimatedLeanMass": 142.5,

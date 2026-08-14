@@ -203,7 +203,7 @@ console.log("Stage 2 — assessment API pipeline");
 function readyAssessment() {
   const { assessment: a } = createAssessment({ athleteId: "ath_athlete1",
     athleteContext: { ageYears: 44, estimationSex: "male" } }, deps);
-  addMeasurements(a, { height: meas(70, "in"), weight: meas(182.2, "lb", 1),
+  addMeasurements(a, { height: meas(70, "in"), weight: meas(203.2, "lb", 1),
     waist: meas(34.5, "in", 1), neck: meas(15, "in", 2) });
   POSES.forEach((p, i) => addPhoto(a, photo(p, i), GOODCHECKS, 0.91));
   giveConsent(a, { consentTextVersion: "body_analysis_consent_1.0", privacyPolicyVersion: "privacy_2026.08" });
@@ -215,7 +215,7 @@ await atest("the full pipeline completes a VALID manifest end to end", async () 
   const { doc, errors } = completeAssessment(a);
   eq(errors.length, 0, JSON.stringify(errors[0] || null));
   eq(doc.status, "completed");
-  near(doc.result.bodyComposition.estimatedFatMass + doc.result.bodyComposition.estimatedLeanMass, 182.2, 0.11);
+  near(doc.result.bodyComposition.estimatedFatMass + doc.result.bodyComposition.estimatedLeanMass, 203.2, 0.11);
   const p18 = doc.goalProjections.find((g) => g.targetBodyFatPercent === 18);
   near(p18.estimatedTargetWeight, doc.result.bodyComposition.estimatedLeanMass / 0.82, 0.11);
   ok(doc.reproducibility.configSnapshotId === CONFIG.configSnapshotId);
@@ -231,7 +231,7 @@ test("§32 c5: under 18 is refused at creation, unrecoverable", () => {
   eq(error.code, "AGE_UNSUPPORTED"); eq(error.recoverable, false); });
 await atest("§32 c3: a stale weight blocks analysis by name", async () => {
   const a = readyAssessment();
-  a.doc.athleteContext.weight = meas(182.2, "lb", 5);
+  a.doc.athleteContext.weight = meas(203.2, "lb", 5);
   const e = await runAnalysis(a, { visionAdapter: fakeVision(VISUAL) });
   eq(e.code, "STALE_MEASUREMENT"); ok(/weight/.test(e.message)); });
 await atest("§32 c2: a missing waist blocks analysis by name", async () => {

@@ -1163,7 +1163,7 @@ function buildWorkoutEntries(rt,bw){return (rt.items||[]).map(function(it){var e
     else{w=ex.bodyweight?((bw!=null?bw:0)+(num(it.weight)||0)):(num(it.weight)>0?it.weight:"");r=(it.repHigh!=null&&it.repHigh!=="")?it.repHigh:"";}
     /* A bodyweight exercise's "weight" is the athlete, and the athlete changed
        since last session. History used to pre-fill the OLD bodyweight (a 7-29
-       pull-up suggested 186.8 against a same-day 184.0 weigh-in). Reps still
+       pull-up suggested a stale prior-day bodyweight against a same-day weigh-in). Reps still
        come from history; the load is always today's body plus any added. */
     if(ex.bodyweight)w=(bw!=null?bw:0)+(num(it.weight)||0);
     sets.push({weight:(w===""||w==null)?"":String(w),reps:(r===""||r==null)?"":String(r),rir:"",status:"pending"});}

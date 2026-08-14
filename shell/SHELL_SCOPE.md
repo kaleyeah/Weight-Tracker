@@ -94,7 +94,7 @@ Nothing in the shell requires the compare-and-swap machinery.
 
 1. Does HealthKit data enter as ordinary Compound entries, or stay distinguishable
    as "imported from Health" so the athlete can tell what they typed themselves?
-2. What happens on a conflict of source — the athlete logged 182.4 by hand and
+2. What happens on a conflict of source — the athlete logged 201.4 by hand and
    the scale wrote 182.6 to Health on the same day?
 3. How far back does the first import reach? All history, or a window?
 4. Import cadence — on launch, on foreground, on a pull-to-refresh, or a
