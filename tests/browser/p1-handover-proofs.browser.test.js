@@ -30,7 +30,7 @@ const ok=(v,m)=>{if(!v)throw new Error(m||'expected truthy');};
   /* A realistic EXISTING account: settings + history seeded before first boot,
      exactly the shape a device holds today. */
   const FIXTURE={settings:{onboarded:true,units:'lbs',targetCalories:'2100',weekStart:'1'},
-    weights:[{date:'2026-08-01',weight:184.0},{date:'2026-08-02',weight:183.6},{date:'2026-08-03',weight:183.9}],
+    weights:[{date:'2026-08-01',weight:199.0},{date:'2026-08-02',weight:198.6},{date:'2026-08-03',weight:198.9}],
     food:{'2026-08-03':{calories:1980,protein:150}},notes:{'2026-08-03':'existing note'},
     workouts:{},steps:{},sleep:{},bodyfat:{},waist:{},statuses:[],presets:[],skips:{},nightlyLog:{}};
   /* init scripts replay on EVERY navigation including reload — seed only once,
@@ -53,7 +53,7 @@ const ok=(v,m)=>{if(!v)throw new Error(m||'expected truthy');};
     rendered:document.querySelector('#app').children.length>0}));
   test('boots online; app shell rendered',()=>ok(loaded.rendered));
   test('existing local data loads unchanged (weights, food, notes, settings)',()=>{
-    eq(loaded.weights,3);eq(loaded.w3,183.9);eq(loaded.note,'existing note');
+    eq(loaded.weights,3);eq(loaded.w3,198.9);eq(loaded.note,'existing note');
     eq(loaded.cals,1980);eq(loaded.units,'lbs');});
 
   /* ---- proof 2: network gone — the app stays usable and saves ---- */

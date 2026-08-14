@@ -70,7 +70,7 @@ async function freshDevice(browser,routeHandler){
       return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[{
         id:'rec1',user:'userA',coreRev:300,trainingRev:28,
         data:{settings:{onboarded:true,units:'lbs',weekStart:'1',name:'Griffin'},
-          weights:[{date:'2026-07-20',weight:189.2},{date:'2026-08-03',weight:183.6}],
+          weights:[{date:'2026-07-20',weight:189.2},{date:'2026-08-03',weight:198.6}],
           food:{},steps:{'2026-08-01':9000},sleep:{},notes:{},bodyfat:{},waist:{},leanmass:{},
           statuses:[],presets:[],skips:{},nightlyLog:{}}}]})});
     }
@@ -203,7 +203,7 @@ async function freshDevice(browser,routeHandler){
       return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[{
         id:'rec1',user:'userA',coreRev:300,trainingRev:28,
         data:{settings:{onboarded:true,units:'lbs',weekStart:'1',name:'Griffin'},
-          weights:[{date:'2026-07-20',weight:189.2},{date:'2026-08-03',weight:183.6}],
+          weights:[{date:'2026-07-20',weight:189.2},{date:'2026-08-03',weight:198.6}],
           food:{},steps:{'2026-08-01':9000},sleep:{},notes:{},bodyfat:{},waist:{},leanmass:{},
           statuses:[],presets:[],skips:{},nightlyLog:{}}}]})});
     return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[],token:'tok',record:{id:'userA'}})});
@@ -314,7 +314,7 @@ async function freshDevice(browser,routeHandler){
     if(/collections\/appdata\/records/.test(u)&&r.request().method()==='GET'){pulls++;
       return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[{
         id:'rec1',user:'userA',coreRev:9,trainingRev:1,
-        data:{settings:{onboarded:true,units:'lbs',weekStart:'1'},weights:[{date:'2026-08-03',weight:183.6}],
+        data:{settings:{onboarded:true,units:'lbs',weekStart:'1'},weights:[{date:'2026-08-03',weight:198.6}],
           food:{},steps:{},sleep:{},notes:{},bodyfat:{},waist:{},leanmass:{},statuses:[],presets:[],skips:{},nightlyLog:{}}}]})});}
     return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[],token:'tok',record:{id:'userA'}})});
   };
@@ -359,7 +359,7 @@ async function freshDevice(browser,routeHandler){
     if(/collections\/appdata\/records/.test(u)&&r.request().method()==='GET'){pulls2++;
       return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[{
         id:'rec1',user:'userA',coreRev:9,trainingRev:1,
-        data:{settings:{onboarded:true,units:'lbs',weekStart:'1'},weights:[{date:'2026-08-03',weight:183.6}],
+        data:{settings:{onboarded:true,units:'lbs',weekStart:'1'},weights:[{date:'2026-08-03',weight:198.6}],
           food:{},steps:{},sleep:{},notes:{},bodyfat:{},waist:{},leanmass:{},statuses:[],presets:[],skips:{},nightlyLog:{}}}]})});}
     return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[],token:'tok',record:{id:'userA'}})});
   };
@@ -404,7 +404,7 @@ async function freshDevice(browser,routeHandler){
       return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[{
         id:'rec1',user:'userA',coreRev:301,trainingRev:28,
         data:{settings:{onboarded:true,units:'lbs',weekStart:'1',name:'Griffin'},
-          weights:[{date:'2026-07-20',weight:189.2},{date:'2026-08-03',weight:183.6}],
+          weights:[{date:'2026-07-20',weight:189.2},{date:'2026-08-03',weight:198.6}],
           food:{},steps:{},sleep:{},notes:{},bodyfat:{},waist:{},leanmass:{},
           statuses:[],presets:[],skips:{},nightlyLog:{}}}]})});
     }

@@ -191,7 +191,7 @@ index 0000000..4db9b30
 +    localStorage.setItem('wl_last_owner','userA');
 +    localStorage.setItem('wl_v1',JSON.stringify({
 +      settings:{onboarded:true,units:'lbs',weekStart:'1',targetCalories:2150},
-+      weights:[{date:'2026-07-27',weight:186.8},{date:'2026-08-02',weight:184.0}],
++      weights:[{date:'2026-07-27',weight:201.8},{date:'2026-08-02',weight:199.0}],
 +      food:{},workouts:{},steps:{'2026-08-01':9100,'2026-08-02':10400},notes:{},sleep:{'2026-08-02':440},
 +      bodyfat:{},waist:{'2026-08-02':34.5},leanmass:{},statuses:[],presets:[],skips:{},nightlyLog:{}}));
 +  });
@@ -941,8 +941,8 @@ index 0000000..661625a
 +      settings:{onboarded:true,units:'lbs',weekStart:'1',name:'Griffin',
 +        targetCalories:2150,targetProtein:180,targetCarbs:200,targetFat:60,
 +        startingWeight:198,goalWeight:175,stepsGoal:10000,sleepGoal:'450'},
-+      weights:[{date:'2026-07-20',weight:189.2},{date:'2026-07-27',weight:186.8},
-+               {date:'2026-07-30',weight:185.6},{date:'2026-08-02',weight:184.0},{date:'2026-08-03',weight:183.6}],
++      weights:[{date:'2026-07-20',weight:189.2},{date:'2026-07-27',weight:201.8},
++               {date:'2026-07-30',weight:200.6},{date:'2026-08-02',weight:199.0},{date:'2026-08-03',weight:198.6}],
 +      food:{'2026-08-01':{calories:2180,protein:176,carbs:198,fat:62},
 +            '2026-08-02':{calories:2090,protein:181,carbs:186,fat:58},
 +            '2026-08-03':{calories:2140,protein:178,carbs:192,fat:61}},
@@ -1318,7 +1318,7 @@ index 0000000..1d70e06
 +    const wk=weekDays(0).map(d=>toISO(d));
 +    const before=toISO(new Date(parseISO(wk[0]).getTime()-3*86400000));
 +    state.settings.strategy='lose';
-+    state.weights=[{date:before,weight:186.8},{date:wk[2],weight:184.6}];
++    state.weights=[{date:before,weight:201.8},{date:wk[2],weight:199.6}];
 +    state.bodyfat={};state.leanmass={};state.waist={};
 +    state.bodyfat[before]=22.1;state.bodyfat[wk[2]]=21.3;
 +    state.waist[before]=35.0;                       /* stale: no in-week reading */

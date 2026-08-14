@@ -24,7 +24,7 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
   await ctx.addInitScript(()=>{
     localStorage.setItem('wl_pb',JSON.stringify({uid:'userA',base:'https://pb.test',token:'tok',email:'a@x.com'}));
     localStorage.setItem('wl_last_owner','userA');
-    localStorage.setItem('wl_v1',JSON.stringify({settings:{onboarded:true,units:'lbs'},weights:[{date:'2026-07-22',weight:186.8},{date:'2026-08-01',weight:184.0}],food:{},workouts:{},steps:{},notes:{},sleep:{},bodyfat:{},waist:{},statuses:[],presets:[],skips:{},nightlyLog:{}}));
+    localStorage.setItem('wl_v1',JSON.stringify({settings:{onboarded:true,units:'lbs'},weights:[{date:'2026-07-22',weight:201.8},{date:'2026-08-01',weight:199.0}],food:{},workouts:{},steps:{},notes:{},sleep:{},bodyfat:{},waist:{},statuses:[],presets:[],skips:{},nightlyLog:{}}));
     localStorage.setItem('wl_training_v1',JSON.stringify({
       cardioTypes:['Peloton'],
       exercises:[{id:'e-pull',name:'Pullup',muscle:'back',bodyweight:true,notes:[{id:'n-1',text:'Grip outside shoulders'}]},
@@ -33,8 +33,8 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
         {id:'i1',exerciseId:'e-pull',sets:2,progression:'double',repLow:'6',repHigh:'12',weight:'',notes:[{id:'n-2',text:'Belt on set 2'}]},
         {id:'i2',exerciseId:'e-row',sets:2,progression:'double',repLow:'8',repHigh:'12',weight:'50',notes:[]}]}],
       sessions:{},
-      liftSessions:{'2026-07-22':[{bw:186.8,date:'2026-07-22',mode:'full',name:'Day T',routineId:'r1',ts:1784700000000,entries:[
-        {exerciseId:'e-pull',name:'Pullup',muscle:'back',sets:[{weight:186.8,reps:9,rir:1,status:'done'},{weight:186.8,reps:8,rir:0,status:'done'}]},
+      liftSessions:{'2026-07-22':[{bw:201.8,date:'2026-07-22',mode:'full',name:'Day T',routineId:'r1',ts:1784700000000,entries:[
+        {exerciseId:'e-pull',name:'Pullup',muscle:'back',sets:[{weight:201.8,reps:9,rir:1,status:'done'},{weight:201.8,reps:8,rir:0,status:'done'}]},
         {exerciseId:'e-row',name:'Row',muscle:'back',sets:[{weight:50,reps:10,rir:1,status:'done'},{weight:50,reps:9,rir:0,status:'done'}]}]}]}
     }));
   });
@@ -67,8 +67,8 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
             pullReps:pull.sets.map(s=>s.reps),rowW:row.sets.map(s=>s.weight),
             pullNotes:pull.notes,rowItemNote:pull.notes};
   });
-  test('workout bw is today\'s weigh-in (184)',()=>eq(wo.bw,184));
-  test('#6 pull-up defaults to TODAY\'S bodyweight, not last session\'s 186.8',()=>eq(wo.pullW,['184','184']));
+  test('workout bw is today\'s weigh-in (199)',()=>eq(wo.bw,199));
+  test('#6 pull-up defaults to TODAY\'S bodyweight, not last session\'s 201.8',()=>eq(wo.pullW,['199','199']));
   test('#6 no stale sugW advertised for bodyweight sets',()=>eq(wo.pullSugW.filter(x=>x!=null),[]));
   test('#6 reps still come from history',()=>ok(wo.pullReps[0]==='9'||wo.pullReps[0]==='10',JSON.stringify(wo.pullReps)));
   test('#6 non-bodyweight exercise unchanged: history weight 50 kept',()=>eq(wo.rowW,['50','50']));
@@ -297,7 +297,7 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
   test('REST: same-exercise rest shows name + set # + reps + weight',()=>{
     ok(rest.sameEx,'no preview rendered');
     ok(/Pullup/.test(rest.sameEx),rest.sameEx);ok(/Set 2 of 2/.test(rest.sameEx),rest.sameEx);
-    ok(/6–12 reps/.test(rest.sameEx),rest.sameEx);ok(/184 lbs/.test(rest.sameEx),rest.sameEx);});
+    ok(/6–12 reps/.test(rest.sameEx),rest.sameEx);ok(/199 lbs/.test(rest.sameEx),rest.sameEx);});
   test('REST: crossing to the next exercise previews its first set',()=>{
     ok(rest.nextEx,'no preview rendered');
     ok(/Row/.test(rest.nextEx),rest.nextEx);ok(/Set 1 of 2/.test(rest.nextEx),rest.nextEx);
