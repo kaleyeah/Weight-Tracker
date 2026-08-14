@@ -21,9 +21,9 @@ for(const [d,v] of Object.entries(raw.food)) if(v.calories!=null && !isSkip(d,"c
 const offPlan=[];
 for(const s of raw.statuses){ if(!s||!s.start)continue; let cur=s.start; const end=s.end||s.start;
   while(cur<=end){offPlan.push(cur); const dd=new Date(cur+"T00:00:00Z"); dd.setUTCDate(dd.getUTCDate()+1); cur=dd.toISOString().slice(0,10);} }
-const r=TDEECore.calculate({todayLocalDate:"2026-08-04",units:raw.units==="kg"?"kg":"lb",
+const r=TDEECore.calculate({todayLocalDate:"2019-03-04",units:raw.units==="kg"?"kg":"lb",
   weights:raw.weights.map(x=>({date:x.date,weight:x.weight})),calorieDays,offPlanDates:offPlan,
-  formulaTdee:2600,now:"2026-08-05T00:00:00.000Z"});
+  formulaTdee:2600,now:"2019-03-05T00:00:00.000Z"});
 
 let P=0,F=0; const ok=(c,m)=>{console.log((c?"  PASS  ":"  FAIL  ")+m);c?P++:F++;};
 ok(r.status==="provisional","status provisional (matches the preview)");
