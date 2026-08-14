@@ -29,7 +29,7 @@
 
 ## 2. Environment as found
 
-Discovery was read-only. SSH access required creating a key for the real DSM account (`griffingoodman`); an earlier attempt against a nonexistent `griffin` Unix user failed and is recorded in §6.
+Discovery was read-only. SSH access required creating a key for the real DSM account (`NAS_ACCOUNT`); an earlier attempt against a nonexistent `griffin` Unix user failed and is recorded in §6.
 
 ```
 image:        ghcr.io/muchobien/pocketbase:0.39.8
@@ -40,7 +40,7 @@ volumes:      /volume1/docker/pocketbase/pb_data:/pb_data      <-- ONLY mount as
 entrypoint:   /usr/local/bin/entrypoint.sh
 serve args:   serve --http=0.0.0.0:8090 --dir=/pb_data --publicDir=/pb_public --hooksDir=/pb_hooks
               (no --migrationsDir flag; PocketBase's default was in use)
-container uid: 1026 (griffingoodman)
+container uid: 1026 (NAS_ACCOUNT)
 ```
 
 **Finding that changed the plan: there were no `pb_hooks` or `pb_migrations` bind mounts.** The CAS kit is a hook plus a migration, so there was nowhere to install it that would survive a container recreate. See §5.
@@ -135,7 +135,7 @@ Container recreated with `docker compose up -d` (root, via DSM Task Scheduler �
 | 3 | `docker cp` of the container's existing migration files to the host before mounting | Preservation, not required by the runbook. |
 | 4 | Docker operations run via DSM Task Scheduler as root | The operator account is not in a docker group and `sudo` needs a password. |
 | 5 | Backup transferred with `ssh cat` rather than `scp` | DSM has no sftp-server subsystem; modern `scp` requires it. |
-| 6 | SSH key installed for `griffingoodman`, not `griffin` | There is no `griffin` Unix account on the NAS. An earlier attempt created `/volume1/homes/griffin` as a root-owned decoy; it was removed. `/var/services/homes` is a symlink to `/volume1/homes`. |
+| 6 | SSH key installed for `NAS_ACCOUNT`, not `griffin` | There is no `griffin` Unix account on the NAS. An earlier attempt created `/volume1/homes/griffin` as a root-owned decoy; it was removed. `/var/services/homes` is a symlink to `/volume1/homes`. |
 | 7 | V11d, V12, V13 skipped | They need the server console log, the local `pb_data` path and the binary — none available remotely. V11b/c prove strictly more than V11d, and V2–V7 cover what V12 would have shown. |
 
 ## 7. The gate (P3)
@@ -250,7 +250,7 @@ request.
 ## Caveats — all three recorded rather than resolved
 
 **1. No container restart was performed.** `docker restart` failed with
-`permission denied` on the daemon socket (`griffingoodman` is not in the docker
+`permission denied` on the daemon socket (`NAS_ACCOUNT` is not in the docker
 group; `sudo` needs a password). The new hook is demonstrably live — PocketBase
 v0.39.8 watches `pb_hooks` and reloaded on write, confirmed behaviourally by
 I8b passing where it would previously fail. An explicit restart at the Product

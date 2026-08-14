@@ -5,10 +5,10 @@ const path=require('path'),fs=require('fs'),cp=require('child_process');
 const {chromium}=require(path.join(process.env.HOME,'staging-cas','node_modules','playwright'));
 const PBHOST='rack.tail6fa16c.ts.net',PBIP='100.124.59.10';
 const PB='https://'+PBHOST;
-const ssh=(cmd)=>cp.execSync(`ssh -o BatchMode=yes griffingoodman@${PBIP} ${JSON.stringify(cmd)}`,{encoding:'utf8'});
+const ssh=(cmd)=>cp.execSync(`ssh -o BatchMode=yes NAS_ACCOUNT@${PBIP} ${JSON.stringify(cmd)}`,{encoding:'utf8'});
 (async()=>{
   // create the disposable user via the NAS-side admin (creds never leave the NAS)
-  const mk=ssh("/usr/local/bin/node /volume1/homes/griffingoodman/compound-coach/pb-util.mjs mkuser");
+  const mk=ssh("/usr/local/bin/node /volume1/homes/NAS_ACCOUNT/compound-coach/pb-util.mjs mkuser");
   const user=JSON.parse(mk.trim().split('\n').pop());
   console.log('disposable user:',user.email);
   const tok=user.token,uid=user.id;
@@ -60,7 +60,7 @@ const ssh=(cmd)=>cp.execSync(`ssh -o BatchMode=yes griffingoodman@${PBIP} ${JSON
   console.log('phase2 (after restart):',JSON.stringify(post));
   await ctx.close();server.close();
   // server-side truth + cleanup via the NAS
-  const truth=ssh("/usr/local/bin/node /volume1/homes/griffingoodman/compound-coach/pb-util.mjs truthclean "+uid);
+  const truth=ssh("/usr/local/bin/node /volume1/homes/NAS_ACCOUNT/compound-coach/pb-util.mjs truthclean "+uid);
   console.log('server truth + cleanup:',truth.trim().split('\n').pop());
   const ok=post.state==='clean'&&!post.journal&&!post.dirty&&post.editSurvives&&post.base&&post.base.rev>=1;
   console.log(ok?'CLIENT-RESTART RECOVERY: PASSED against the real ledger':'FAILED');

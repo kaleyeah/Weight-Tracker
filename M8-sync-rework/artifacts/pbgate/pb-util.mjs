@@ -1,6 +1,6 @@
 /* pb-util.mjs <mkuser|truthclean> [uid] — disposable-gate helpers, NAS-local. */
 import fs from "node:fs";
-const cfg={};for(const l of fs.readFileSync("/volume1/homes/griffingoodman/compound-coach/pb.env","utf8").split("\n")){const m=/^([A-Z_]+)=(.*)$/.exec(l.trim());if(m)cfg[m[1]]=m[2];}
+const cfg={};for(const l of fs.readFileSync("/volume1/homes/NAS_ACCOUNT/compound-coach/pb.env","utf8").split("\n")){const m=/^([A-Z_]+)=(.*)$/.exec(l.trim());if(m)cfg[m[1]]=m[2];}
 const PB=(cfg.PB_URL||"http://127.0.0.1:8090").replace(/\/+$/,"");
 const j=async(r)=>r.json();
 const main=async()=>{

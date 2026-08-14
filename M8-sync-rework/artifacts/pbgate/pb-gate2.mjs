@@ -1,6 +1,6 @@
 /* Supplement: cross-account isolation + PB version + schema capture. */
 import fs from "node:fs";
-const COACH="/volume1/homes/griffingoodman/compound-coach";
+const COACH="/volume1/homes/NAS_ACCOUNT/compound-coach";
 const cfg={};for(const line of fs.readFileSync(COACH+"/pb.env","utf8").split("\n")){const m=/^([A-Z_]+)=(.*)$/.exec(line.trim());if(m)cfg[m[1]]=m[2];}
 const PB=(cfg.PB_URL||"http://127.0.0.1:8090").replace(/\/+$/,"");
 const EV={cases:[]};

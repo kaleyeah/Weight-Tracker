@@ -354,7 +354,7 @@ With the fix: 0 of 12.
 - `pkill -f <pattern>` will match Claude Code's own shell and kill the command.
   Use a narrower pattern or `kill $(pgrep -f ...)`.
 - `scp` fails against the Synology (no sftp-server). Use `ssh host 'cat file' >`.
-- The DSM Unix account is `griffingoodman`, not `griffin`.
+- The DSM Unix account name is held in the private records (redacted here 2026-08-14; `NAS_ACCOUNT` is a placeholder throughout the public tree).
 
 ---
 

@@ -1,7 +1,7 @@
 /* Read-only absence proof for prior disposable uids + gate-2 rerun with
    attributable IDs and independent user/record postconditions. */
 import fs from "node:fs";
-const cfg={};for(const l of fs.readFileSync("/volume1/homes/griffingoodman/compound-coach/pb.env","utf8").split("\n")){const m=/^([A-Z_]+)=(.*)$/.exec(l.trim());if(m)cfg[m[1]]=m[2];}
+const cfg={};for(const l of fs.readFileSync("/volume1/homes/NAS_ACCOUNT/compound-coach/pb.env","utf8").split("\n")){const m=/^([A-Z_]+)=(.*)$/.exec(l.trim());if(m)cfg[m[1]]=m[2];}
 const PB=(cfg.PB_URL||"http://127.0.0.1:8090").replace(/\/+$/,"");
 const jj=async r=>{const t=await r.text();try{return JSON.parse(t);}catch{return {raw:t.slice(0,200)};}};
 const main=async()=>{
