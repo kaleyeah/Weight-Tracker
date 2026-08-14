@@ -2,7 +2,7 @@
 
        node tests/browser/c21-repranges.browser.test.js
 
-   Owner, 2026-08-03: "What is going on with seated cable row? It is not
+   Owner, 2019-04-03: "What is going on with seated cable row? It is not
    showing me a rep range on day 1 lifting on the coach report."
 
    lrPrescription() is what decides whether a lifting row prints a range or an
@@ -33,7 +33,7 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
       weights:[],food:{},workouts:{},steps:{},notes:{},sleep:{},bodyfat:{},waist:{},leanmass:{},
       statuses:[],presets:[],skips:{},nightlyLog:{}}));
   });
-  /* M10 (single-writer merge, 2026-08-03): this suite signs in, so the device
+  /* M10 (single-writer merge, 2019-04-03): this suite signs in, so the device
      must hold the writer lease before it may mutate anything. Answer the lease
      route as the granting server; everything else keeps the old stub. Same
      disclosed pattern as c14/c11m8-faults/c11m8-quota. */
@@ -142,7 +142,7 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
   });
 
   /* ---- T8: cardio leads the workouts section, every zone included ------
-       Owner, 2026-08-03: "coach report needs to list the cardio sessions first
+       Owner, 2019-04-03: "coach report needs to list the cardio sessions first
        under this week's workouts ... day, type, zone, duration, cals if
        available. This includes all zones, not just zone 2 plus." ---------- */
   const t8=await ev(()=>{
@@ -254,7 +254,7 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
     const wk=weekDays(0).map(d=>toISO(d));
     const before=toISO(new Date(parseISO(wk[0]).getTime()-3*86400000));
     state.settings.strategy='lose';
-    state.weights=[{date:before,weight:201.8},{date:wk[2],weight:199.6}];
+    state.weights=[{date:before,weight:176.0},{date:wk[2],weight:174.8}];
     state.bodyfat={};state.leanmass={};state.waist={};
     state.bodyfat[before]=22.1;state.bodyfat[wk[2]]=21.3;
     state.waist[before]=35.0;                       /* stale: no in-week reading */
@@ -279,7 +279,7 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
     eq(t12.order[0],'Weight','weight must be the first metric');
     eq(t12.order,['Weight','Body fat','Waist'],'metrics with no data at all are omitted');
     ok(t12.cellsPerRow.every(n2=>n2===4),'ragged rows will not align: '+JSON.stringify(t12.cellsPerRow));
-    ok(/199\.6/.test(t12.firstVal),'value was '+t12.firstVal);
+    ok(/174\.8/.test(t12.firstVal),'value was '+t12.firstVal);
     ok(/↓|&#8595;|\u2193/.test(t12.firstChg)||/2\.2/.test(t12.firstChg),'change was "'+t12.firstChg+'"');
     ok(/good/.test(t12.firstCls),'weight down on a cut should read good: '+t12.firstCls);
     ok(t12.firstDate.length>0,'weight needs its last-measured date too');

@@ -19,14 +19,14 @@ const OUT=process.argv[2]||'/tmp/c20-shots';
       settings:{onboarded:true,units:'lbs',weekStart:'1',name:'Griffin',
         targetCalories:2150,targetProtein:180,targetCarbs:200,targetFat:60,
         startingWeight:198,goalWeight:175,stepsGoal:10000,sleepGoal:'450'},
-      weights:[{date:'2026-07-20',weight:189.2},{date:'2026-07-27',weight:201.8},
-               {date:'2026-07-30',weight:200.6},{date:'2026-08-02',weight:199.0},{date:'2026-08-03',weight:198.6}],
-      food:{'2026-08-01':{calories:2180,protein:176,carbs:198,fat:62},
-            '2026-08-02':{calories:2090,protein:181,carbs:186,fat:58},
-            '2026-08-03':{calories:2140,protein:178,carbs:192,fat:61}},
-      workouts:{},steps:{'2026-07-30':10250,'2026-07-31':9600,'2026-08-01':11400,'2026-08-02':9100,'2026-08-03':10480},
-      notes:{},sleep:{'2026-08-01':432,'2026-08-02':408,'2026-08-03':451},
-      bodyfat:{},waist:{'2026-08-02':34.5},leanmass:{},statuses:[],presets:[],skips:{},nightlyLog:{}}));
+      weights:[{date:'2019-03-20',weight:172.4},{date:'2019-03-27',weight:176.0},
+               {date:'2019-03-30',weight:175.6},{date:'2019-04-02',weight:174.4},{date:'2019-04-03',weight:173.6}],
+      food:{'2019-04-01':{calories:2180,protein:176,carbs:198,fat:62},
+            '2019-04-02':{calories:2090,protein:181,carbs:186,fat:58},
+            '2019-04-03':{calories:2140,protein:178,carbs:192,fat:61}},
+      workouts:{},steps:{'2019-03-30':10250,'2019-03-31':9600,'2019-04-01':11400,'2019-04-02':9100,'2019-04-03':10480},
+      notes:{},sleep:{'2019-04-01':432,'2019-04-02':408,'2019-04-03':451},
+      bodyfat:{},waist:{'2019-04-02':34.5},leanmass:{},statuses:[],presets:[],skips:{},nightlyLog:{}}));
   });
   await ctx.route('**/api/**',r=>r.fulfill({status:200,contentType:'application/json',
     body:JSON.stringify({items:[],token:'tok',record:{id:'userA'}})}));
@@ -54,9 +54,9 @@ const OUT=process.argv[2]||'/tmp/c20-shots';
     state.glp={settings:{enabled:true,showDueDate:true,titration:true,siteRotation:true,symptomLogging:true},
       compound:{name:'Tirzepatide',dose:'5',unit:'mg',cadenceDays:7},
       doses:[{id:'d1',dose:'2.5',unit:'mg',takenAt:Date.parse('2026-06-29T09:00:00Z'),skipped:false},
-             {id:'d2',dose:'2.5',unit:'mg',takenAt:Date.parse('2026-07-06T09:00:00Z'),skipped:false},
-             {id:'d3',dose:'5',unit:'mg',takenAt:Date.parse('2026-07-13T09:00:00Z'),skipped:false},
-             {id:'d4',dose:'5',unit:'mg',takenAt:Date.parse('2026-07-27T09:00:00Z'),skipped:false}],
+             {id:'d2',dose:'2.5',unit:'mg',takenAt:Date.parse('2019-03-06T09:00:00Z'),skipped:false},
+             {id:'d3',dose:'5',unit:'mg',takenAt:Date.parse('2019-03-13T09:00:00Z'),skipped:false},
+             {id:'d4',dose:'5',unit:'mg',takenAt:Date.parse('2019-03-27T09:00:00Z'),skipped:false}],
       symptoms:[],symptomTypes:[]};
     state.settings.ciSince=toISO(weekStartFor(0));
     state.checkins={};state.view='overview';save();render();

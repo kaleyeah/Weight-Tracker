@@ -24,7 +24,7 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
   await ctx.addInitScript(()=>{
     localStorage.setItem('wl_pb',JSON.stringify({uid:'userA',base:'https://pb.test',token:'tok',email:'a@x.com'}));
     localStorage.setItem('wl_last_owner','userA');
-    localStorage.setItem('wl_v1',JSON.stringify({settings:{onboarded:true,units:'lbs'},weights:[{date:'2026-07-22',weight:201.8},{date:'2026-08-01',weight:199.0}],food:{},workouts:{},steps:{},notes:{},sleep:{},bodyfat:{},waist:{},statuses:[],presets:[],skips:{},nightlyLog:{}}));
+    localStorage.setItem('wl_v1',JSON.stringify({settings:{onboarded:true,units:'lbs'},weights:[{date:'2019-03-22',weight:176.0},{date:'2019-04-01',weight:174.4}],food:{},workouts:{},steps:{},notes:{},sleep:{},bodyfat:{},waist:{},statuses:[],presets:[],skips:{},nightlyLog:{}}));
     localStorage.setItem('wl_training_v1',JSON.stringify({
       cardioTypes:['Peloton'],
       exercises:[{id:'e-pull',name:'Pullup',muscle:'back',bodyweight:true,notes:[{id:'n-1',text:'Grip outside shoulders'}]},
@@ -33,8 +33,8 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
         {id:'i1',exerciseId:'e-pull',sets:2,progression:'double',repLow:'6',repHigh:'12',weight:'',notes:[{id:'n-2',text:'Belt on set 2'}]},
         {id:'i2',exerciseId:'e-row',sets:2,progression:'double',repLow:'8',repHigh:'12',weight:'50',notes:[]}]}],
       sessions:{},
-      liftSessions:{'2026-07-22':[{bw:201.8,date:'2026-07-22',mode:'full',name:'Day T',routineId:'r1',ts:1784700000000,entries:[
-        {exerciseId:'e-pull',name:'Pullup',muscle:'back',sets:[{weight:201.8,reps:9,rir:1,status:'done'},{weight:201.8,reps:8,rir:0,status:'done'}]},
+      liftSessions:{'2019-03-22':[{bw:176.0,date:'2019-03-22',mode:'full',name:'Day T',routineId:'r1',ts:1784700000000,entries:[
+        {exerciseId:'e-pull',name:'Pullup',muscle:'back',sets:[{weight:176.0,reps:9,rir:1,status:'done'},{weight:176.0,reps:8,rir:0,status:'done'}]},
         {exerciseId:'e-row',name:'Row',muscle:'back',sets:[{weight:50,reps:10,rir:1,status:'done'},{weight:50,reps:9,rir:0,status:'done'}]}]}]}
     }));
   });
@@ -67,8 +67,8 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
             pullReps:pull.sets.map(s=>s.reps),rowW:row.sets.map(s=>s.weight),
             pullNotes:pull.notes,rowItemNote:pull.notes};
   });
-  test('workout bw is today\'s weigh-in (199)',()=>eq(wo.bw,199));
-  test('#6 pull-up defaults to TODAY\'S bodyweight, not last session\'s 201.8',()=>eq(wo.pullW,['199','199']));
+  test('workout bw is today\'s weigh-in (174.4)',()=>eq(wo.bw,174.4));
+  test('#6 pull-up defaults to TODAY\'S bodyweight, not last session\'s 176.0',()=>eq(wo.pullW,['174.4','174.4']));
   test('#6 no stale sugW advertised for bodyweight sets',()=>eq(wo.pullSugW.filter(x=>x!=null),[]));
   test('#6 reps still come from history',()=>ok(wo.pullReps[0]==='9'||wo.pullReps[0]==='10',JSON.stringify(wo.pullReps)));
   test('#6 non-bodyweight exercise unchanged: history weight 50 kept',()=>eq(wo.rowW,['50','50']));
@@ -123,8 +123,8 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
   /* ---- session date/time/duration editing (Owner-requested feature) ----- */
   const move=await page.evaluate(async()=>{
     // open the existing 7-22 session in liftview
-    state.liftViewDate='2026-07-22';
-    state.liftViewId=state.training.liftSessions['2026-07-22'][0].id;
+    state.liftViewDate='2019-03-22';
+    state.liftViewId=state.training.liftSessions['2019-03-22'][0].id;
     state.liftEdit='summary';state.view='liftview';render();
     await new Promise(r=>setTimeout(r,100));
     const dateIn=document.querySelector('[data-sv="date"]');
@@ -133,28 +133,28 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
     if(!dateIn||!timeIn||!minsIn)return {fail:'editor fields missing',d:!!dateIn,t:!!timeIn,m:!!minsIn};
     // edit: move to 7-21 at 18:43, 60 minutes — via the real input events
     const setVal=(el,v)=>{el.value=v;el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));};
-    setVal(dateIn,'2026-07-21');setVal(timeIn,'18:43');setVal(minsIn,'60');
+    setVal(dateIn,'2019-03-21');setVal(timeIn,'18:43');setVal(minsIn,'60');
     await new Promise(r=>setTimeout(r,80));
     document.querySelector('[data-act="lift:savedetail"]').click();
     await new Promise(r=>setTimeout(r,120));
     const ls=state.training.liftSessions;
-    const moved=(ls['2026-07-21']||[])[0];
+    const moved=(ls['2019-03-21']||[])[0];
     const stored=JSON.parse(localStorage.getItem('wl_training_v1'));
-    const tags21=(state.workouts['2026-07-21']||[]).filter(a=>a.cat==='lifting');
-    const tags22=(state.workouts['2026-07-22']||[]).filter(a=>a.cat==='lifting');
+    const tags21=(state.workouts['2019-03-21']||[]).filter(a=>a.cat==='lifting');
+    const tags22=(state.workouts['2019-03-22']||[]).filter(a=>a.cat==='lifting');
     return {
-      oldKeyGone:!(ls['2026-07-22']||[]).length,
+      oldKeyGone:!(ls['2019-03-22']||[]).length,
       moved:!!moved, date:moved&&moved.date, mins:moved&&moved.mins,
       ts:moved&&new Date(moved.ts).toString().slice(0,21),
       hh:moved&&new Date(moved.ts).getHours(), mm:moved&&new Date(moved.ts).getMinutes(),
       timeFieldGone:moved&&!('time' in moved),
-      persisted:!!(stored.liftSessions['2026-07-21']||[]).length,
+      persisted:!!(stored.liftSessions['2019-03-21']||[]).length,
       tagMoved:tags21.length===1&&tags22.length===0
     };
   });
   test('EDIT: the editor shows Date, Start time and Duration fields',()=>notOk(move.fail,JSON.stringify(move)));
   test('EDIT: the session moved off the old date key',()=>ok(move.oldKeyGone));
-  test('EDIT: and onto the new date key with date field updated',()=>{ok(move.moved);eq(move.date,'2026-07-21');});
+  test('EDIT: and onto the new date key with date field updated',()=>{ok(move.moved);eq(move.date,'2019-03-21');});
   test('EDIT: start time applied to ts (18:43 local)',()=>{eq(move.hh,18);eq(move.mm,43);});
   test('EDIT: duration saved as 60',()=>eq(String(move.mins),'60'));
   test('EDIT: transient time field not persisted on the session',()=>ok(move.timeFieldGone));
@@ -170,18 +170,18 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
     g.compound=g.compound||{};g.compound.name='Semaglutide';
     const at=(iso,hh)=>new Date(iso+'T'+hh+':00').getTime();
     g.doses=[
-      {id:'d-early',takenAt:at('2026-07-28','08:00'),dose:'0.5',unit:'mg',siteId:(g.sites&&g.sites[0]||{}).id,note:'left side'},
-      {id:'d-late', takenAt:at('2026-07-31','09:15'),dose:'0.5',unit:'mg',siteId:(g.sites&&g.sites[1]||g.sites&&g.sites[0]||{}).id,note:'pre-workout'}
+      {id:'d-early',takenAt:at('2019-03-28','08:00'),dose:'0.5',unit:'mg',siteId:(g.sites&&g.sites[0]||{}).id,note:'left side'},
+      {id:'d-late', takenAt:at('2019-03-31','09:15'),dose:'0.5',unit:'mg',siteId:(g.sites&&g.sites[1]||g.sites&&g.sites[0]||{}).id,note:'pre-workout'}
     ];
     const headId=(g.symptomTypes.find(t=>/Headache/.test(t.label))||{}).id;
-    g.symptoms=[{id:'s-31',occurredAt:at('2026-07-31','20:00'),severity:2,symptomTypeId:headId,note:''}];
+    g.symptoms=[{id:'s-31',occurredAt:at('2019-03-31','20:00'),severity:2,symptomTypeId:headId,note:''}];
     const card=()=>{const c=[...document.querySelectorAll('.wl-card')].find(x=>/Log Dose|Dose skipped|Semaglutide|No shot this day/.test(x.textContent)&&x.querySelector('[data-act="glp:dose:open"],[data-act="glp:sym:open"]'));return c?c.textContent:'';};
     // day WITH a shot: only that day's dose + that day's symptom
-    state.selDate='2026-07-31';state.view='train';render();await new Promise(r=>setTimeout(r,80));
+    state.selDate='2019-03-31';state.view='train';render();await new Promise(r=>setTimeout(r,80));
     const dayWith=card();
     const entries31=document.querySelectorAll('[data-act="glp:dose:del"]').length;
     // day WITHOUT a shot: no dose entries, "last was N days ago" hint
-    state.selDate='2026-07-30';render();await new Promise(r=>setTimeout(r,80));
+    state.selDate='2019-03-30';render();await new Promise(r=>setTimeout(r,80));
     const dayWithout=card();
     const entries30=document.querySelectorAll('[data-act="glp:dose:del"]').length;
     // the journal under Weight & dose lists everything
@@ -205,13 +205,13 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
     await new Promise(r=>setTimeout(r,80));
     const fld=document.querySelector('.wl-lbm-input');
     if(!fld)return {fail:'lean-mass field missing'};
-    fld.value='152.4';fld.dispatchEvent(new Event('input',{bubbles:true}));
+    fld.value='171.6';fld.dispatchEvent(new Event('input',{bubbles:true}));
     await new Promise(r=>setTimeout(r,60));
     const stored=JSON.parse(localStorage.getItem('wl_v1')||'{}');
     // the HK plan understands leanmass — exact key, pretty key, and per-day lines
-    const p1=hkPlan({for:'2026-07-31',leanmass:150.6,waist:34.2},null);
-    const p2=hkPlan(JSON.stringify({for:'2026-07-31',"Lean Body Mass":151,"Waist Circumference":34}),null);
-    const p3=hkPlan({leanmass:"2026-07-29,149.8\n2026-07-30,150.1"},null);
+    const p1=hkPlan({for:'2019-03-31',leanmass:171.2,waist:34.2},null);
+    const p2=hkPlan(JSON.stringify({for:'2019-03-31',"Lean Body Mass":151,"Waist Circumference":34}),null);
+    const p3=hkPlan({leanmass:"2019-03-29,149.8\n2019-03-30,170.8"},null);
     // the chart gets an LBM tab
     state.view='weight';state.bcTab='leanmass';render();
     await new Promise(r=>setTimeout(r,80));
@@ -220,21 +220,21 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
     return {
       val:state.leanmass[today],
       persisted:(stored.leanmass||{})[today],
-      p1:{lm:p1.leanmass['2026-07-31'],wa:p1.waist['2026-07-31'],n:p1.count},
-      p2:{lm:p2.leanmass['2026-07-31'],wa:p2.waist['2026-07-31']},
+      p1:{lm:p1.leanmass['2019-03-31'],wa:p1.waist['2019-03-31'],n:p1.count},
+      p2:{lm:p2.leanmass['2019-03-31'],wa:p2.waist['2019-03-31']},
       p3:p3.leanmass,
-      /* trend component (2026-08-06): the old card printed "latest 152.4" in
+      /* trend component (2019-04-06): the old card printed "latest 171.6" in
          a hint line; the component shows the entry as the M-mode latest-point
          label / W value label instead. The PROTECTION is unchanged: the value
          the athlete just saved must appear on the chart card. */
       tabs:seg, chartHasLatest:!!card&&/152\.4/.test(card.textContent)
     };
   });
-  test('LBM: the weight check-in has a Lean mass field that saves',()=>{notOk(lbm.fail,JSON.stringify(lbm));eq(String(lbm.val),'152.4');});
-  test('LBM: the value persists to storage',()=>eq(String(lbm.persisted),'152.4'));
-  test('LBM: hkPlan files leanmass and waist for the target day',()=>{eq(String(lbm.p1.lm),'150.6');eq(String(lbm.p1.wa),'34.2');eq(lbm.p1.n,2);});
+  test('LBM: the weight check-in has a Lean mass field that saves',()=>{notOk(lbm.fail,JSON.stringify(lbm));eq(String(lbm.val),'171.6');});
+  test('LBM: the value persists to storage',()=>eq(String(lbm.persisted),'171.6'));
+  test('LBM: hkPlan files leanmass and waist for the target day',()=>{eq(String(lbm.p1.lm),'171.2');eq(String(lbm.p1.wa),'34.2');eq(lbm.p1.n,2);});
   test('LBM: Shortcut may use pretty keys ("Lean Body Mass", "Waist Circumference")',()=>{eq(String(lbm.p2.lm),'151');eq(String(lbm.p2.wa),'34');});
-  test('LBM: per-day "date,value" lines file each day',()=>{eq(String(lbm.p3['2026-07-29']),'149.8');eq(String(lbm.p3['2026-07-30']),'150.1');});
+  test('LBM: per-day "date,value" lines file each day',()=>{eq(String(lbm.p3['2019-03-29']),'149.8');eq(String(lbm.p3['2019-03-30']),'170.8');});
   test('LBM: the Body composition card has the LBM tab and charts the entry',()=>{ok(lbm.tabs.indexOf('LBM')>=0,String(lbm.tabs));ok(lbm.chartHasLatest,'latest value not shown');});
 
   /* ---- Progress: collapsed sections start open --------------------------- */
@@ -261,7 +261,7 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
     const chartCard=[...document.querySelectorAll('.wl-card')].some(x=>/amber ticks mark dose days/.test(x.textContent));
     const dataKept=Array.isArray(state.glp.symptoms)&&state.glp.symptoms.length>=1;
     // the log-a-symptom flow still works end to end
-    state.view='train';state.selDate='2026-07-31';render();await new Promise(r=>setTimeout(r,80));
+    state.view='train';state.selDate='2019-03-31';render();await new Promise(r=>setTimeout(r,80));
     const openBtn=document.querySelector('[data-act="glp:sym:open"]');
     if(!openBtn)return {fail:'symptom log button gone from the day card'};
     openBtn.click();await new Promise(r=>setTimeout(r,80));
@@ -297,7 +297,7 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
   test('REST: same-exercise rest shows name + set # + reps + weight',()=>{
     ok(rest.sameEx,'no preview rendered');
     ok(/Pullup/.test(rest.sameEx),rest.sameEx);ok(/Set 2 of 2/.test(rest.sameEx),rest.sameEx);
-    ok(/6–12 reps/.test(rest.sameEx),rest.sameEx);ok(/199 lbs/.test(rest.sameEx),rest.sameEx);});
+    ok(/6–12 reps/.test(rest.sameEx),rest.sameEx);ok(/174.4 lbs/.test(rest.sameEx),rest.sameEx);});
   test('REST: crossing to the next exercise previews its first set',()=>{
     ok(rest.nextEx,'no preview rendered');
     ok(/Row/.test(rest.nextEx),rest.nextEx);ok(/Set 1 of 2/.test(rest.nextEx),rest.nextEx);
@@ -338,7 +338,7 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
 
   /* ---- symptom logs are editable (the headache relabel path) ------------- */
   const syme=await page.evaluate(async()=>{
-    state.workout=null;saveWorkout();state.view='train';state.selDate='2026-07-31';render();
+    state.workout=null;saveWorkout();state.view='train';state.selDate='2019-03-31';render();
     await new Promise(r=>setTimeout(r,80));
     // seed happened in the GLP tests: a Headache log exists on 7-31; mislabel one as Nausea now
     const naus=state.glp.symptomTypes.find(t=>/Nausea/.test(t.label)).id;
@@ -417,7 +417,7 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
 
   /* ---- GLP sheets have a visible cancel ---------------------------------- */
   const cancel=await page.evaluate(async()=>{
-    state.view='train';state.selDate='2026-07-31';render();await new Promise(r=>setTimeout(r,80));
+    state.view='train';state.selDate='2019-03-31';render();await new Promise(r=>setTimeout(r,80));
     document.querySelector('[data-act="glp:sym:open"]').click();await new Promise(r=>setTimeout(r,80));
     const x=document.querySelector('.wl-glpsheet-x');
     if(!x)return {fail:'no visible cancel on symptom sheet'};
@@ -455,8 +455,8 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
 
   /* ---- recap card arrows retired (.414): header day nav replaces them ---- */
   const recap=await page.evaluate(async()=>{
-    state.nightlyLog={'2026-07-30':{date:'2026-07-30',text:'Rest day recap.',mood:'calm'},'2026-07-31':{date:'2026-07-31',text:'Solid day.',mood:'happy'}};
-    state.view='overview';state.selDate='2026-07-31';state.nightOpen=true;render();
+    state.nightlyLog={'2019-03-30':{date:'2019-03-30',text:'Rest day recap.',mood:'calm'},'2019-03-31':{date:'2019-03-31',text:'Solid day.',mood:'happy'}};
+    state.view='overview';state.selDate='2019-03-31';state.nightOpen=true;render();
     await new Promise(r=>setTimeout(r,80));
     const card=[...document.querySelectorAll('.wl-card')].find(x=>/Daily recap/.test(x.textContent));
     const arrows=document.querySelectorAll('.wl-recaparw,[data-act="recap:go"]').length;

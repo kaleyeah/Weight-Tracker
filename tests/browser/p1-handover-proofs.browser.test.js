@@ -30,8 +30,8 @@ const ok=(v,m)=>{if(!v)throw new Error(m||'expected truthy');};
   /* A realistic EXISTING account: settings + history seeded before first boot,
      exactly the shape a device holds today. */
   const FIXTURE={settings:{onboarded:true,units:'lbs',targetCalories:'2100',weekStart:'1'},
-    weights:[{date:'2026-08-01',weight:199.0},{date:'2026-08-02',weight:198.6},{date:'2026-08-03',weight:198.9}],
-    food:{'2026-08-03':{calories:1980,protein:150}},notes:{'2026-08-03':'existing note'},
+    weights:[{date:'2019-04-01',weight:174.4},{date:'2019-04-02',weight:173.6},{date:'2019-04-03',weight:174.0}],
+    food:{'2019-04-03':{calories:1980,protein:150}},notes:{'2019-04-03':'existing note'},
     workouts:{},steps:{},sleep:{},bodyfat:{},waist:{},statuses:[],presets:[],skips:{},nightlyLog:{}};
   /* init scripts replay on EVERY navigation including reload — seed only once,
      or the relaunch proof would test the seed, not the retention. */
@@ -47,13 +47,13 @@ const ok=(v,m)=>{if(!v)throw new Error(m||'expected truthy');};
   const loaded=await page.evaluate(()=>({
     weights:state.weights.length,
     w3:state.weights[2]&&state.weights[2].weight,
-    note:state.notes['2026-08-03'],
-    cals:(state.food['2026-08-03']||{}).calories,
+    note:state.notes['2019-04-03'],
+    cals:(state.food['2019-04-03']||{}).calories,
     units:state.settings.units,
     rendered:document.querySelector('#app').children.length>0}));
   test('boots online; app shell rendered',()=>ok(loaded.rendered));
   test('existing local data loads unchanged (weights, food, notes, settings)',()=>{
-    eq(loaded.weights,3);eq(loaded.w3,198.9);eq(loaded.note,'existing note');
+    eq(loaded.weights,3);eq(loaded.w3,174.0);eq(loaded.note,'existing note');
     eq(loaded.cals,1980);eq(loaded.units,'lbs');});
 
   /* ---- proof 2: network gone — the app stays usable and saves ---- */
@@ -61,12 +61,12 @@ const ok=(v,m)=>{if(!v)throw new Error(m||'expected truthy');};
   const off=await page.evaluate(()=>{
     const out={};
     try{
-      state.weights.push({date:'2026-08-04',weight:183.2});
-      state.notes['2026-08-04']='logged offline';
+      state.weights.push({date:'2019-04-04',weight:172.0});
+      state.notes['2019-04-04']='logged offline';
       window.saveLocal();               /* the storage layer, no network needed */
       const back=JSON.parse(localStorage.getItem('wl_v1'));
       out.persistedWeights=back.weights.length;
-      out.persistedNote=back.notes['2026-08-04'];
+      out.persistedNote=back.notes['2019-04-04'];
       out.renders=typeof window.view_overview()==='string';
     }catch(e){out.err=String(e);}
     return out;});
@@ -82,7 +82,7 @@ const ok=(v,m)=>{if(!v)throw new Error(m||'expected truthy');};
   await page.waitForFunction(()=>typeof window.view_overview==='function',null,{timeout:15000});
   const relaunch=await page.evaluate(()=>({
     weights:state.weights.length,
-    note:state.notes['2026-08-04'],
+    note:state.notes['2019-04-04'],
     rendered:document.querySelector('#app').children.length>0}));
   test('relaunch offline: document from cache boots the app',()=>ok(relaunch.rendered));
   test('relaunch offline: the offline save survived',()=>{eq(relaunch.weights,4);eq(relaunch.note,'logged offline');});

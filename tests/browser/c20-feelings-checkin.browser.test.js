@@ -29,11 +29,11 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
     localStorage.setItem('wl_last_owner','userA');
     localStorage.setItem('wl_v1',JSON.stringify({
       settings:{onboarded:true,units:'lbs',weekStart:'1',targetCalories:2150},
-      weights:[{date:'2026-07-27',weight:199.8},{date:'2026-08-02',weight:197.0}],
-      food:{},workouts:{},steps:{'2026-08-01':9100,'2026-08-02':10400},notes:{},sleep:{'2026-08-02':440},
-      bodyfat:{},waist:{'2026-08-02':34.5},leanmass:{},statuses:[],presets:[],skips:{},nightlyLog:{}}));
+      weights:[{date:'2019-03-27',weight:175.2},{date:'2019-04-02',weight:172.8}],
+      food:{},workouts:{},steps:{'2019-04-01':9100,'2019-04-02':10400},notes:{},sleep:{'2019-04-02':440},
+      bodyfat:{},waist:{'2019-04-02':34.5},leanmass:{},statuses:[],presets:[],skips:{},nightlyLog:{}}));
   });
-  /* M10 (single-writer merge, 2026-08-03): this suite signs in, so the device
+  /* M10 (single-writer merge, 2019-04-03): this suite signs in, so the device
      must hold the writer lease before any of the ratings / check-in actions is
      allowed. Answer the lease route as the granting server; everything else
      keeps the old stub. Same disclosed pattern as c14/c11m8-faults/c11m8-quota. */
@@ -146,7 +146,7 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
 
   /* ---- T5: same wording on a past day ----------------------------------- */
   const t5=await ev(()=>{
-    state.selDate='2026-08-01';render();
+    state.selDate='2019-04-01';render();
     const labs=[].slice.call(document.querySelectorAll('.wl-check .wl-ck-lab')).map(x=>x.textContent);
     state.selDate=todayISO();render();
     return labs;});
@@ -224,7 +224,7 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
   });
 
   /* ---- T11: the recap carries NO chart, but the coach still gets the data
-       (Owner, 2026-08-03: "Coach can have the data and comment, but no need
+       (Owner, 2019-04-03: "Coach can have the data and comment, but no need
        to display it") ---------------------------------------------------- */
   const t11=await ev(()=>{
     const d=parseISO(todayISO());state.ratings={};
@@ -359,7 +359,7 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
   });
 
   /* ---- T16b: the auto-filled facts cover the week that just CLOSED ------
-       Owner, 2026-08-03: "it would be from last week Monday through Sunday".
+       Owner, 2019-04-03: "it would be from last week Monday through Sunday".
        The check-in is keyed by its own day, but every metric it reports comes
        from the previous check-in day through the day before this one. ------ */
   const t16b=await ev(()=>{
@@ -401,7 +401,7 @@ const notOk=(v,m)=>{if(v)throw new Error(m||'expected falsy');};
   });
 
   /* ---- T16c: the export shows the photos that CLOSE the reported week ---
-       Owner, 2026-08-03: "the photos i upload on the check in today are the
+       Owner, 2019-04-03: "the photos i upload on the check in today are the
        same photos that should show up on the coach report we export ... the
        photos show the result of the end of the last week." ---------------- */
   const t16c=await ev(async()=>{

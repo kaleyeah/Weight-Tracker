@@ -1,4 +1,4 @@
-/* C22 — the two faults the Owner hit on his iPad, 2026-08-03.
+/* C22 — the two faults the Owner hit on his iPad, 2019-04-03.
 
        CF_SRC=$PWD/index.html node tests/browser/c22-onboarding-review.browser.test.js
 
@@ -13,10 +13,10 @@ const path=require('path'),http=require('http'),fs=require('fs');
 const {chromium}=require(path.join(process.env.HOME,'staging-cas','node_modules','playwright'));
 const SRC=process.env.CF_SRC||'/home/griffin/projects/compound-app/index.html';
 /* ---- artifact self-verification (Architect Stage 2A preflight item 7,
-   2026-08-07): every M10 suite must PROVE which artifact it loaded. Prints
+   2019-04-07): every M10 suite must PROVE which artifact it loaded. Prints
    the resolved path, build id and sha256; when the runner supplies
    CF_EXPECT_BUILD, a mismatch is a hard exit — this is the guard that would
-   have caught the parked-artifact defect on 2026-08-04. */
+   have caught the parked-artifact defect on 2019-04-04. */
 const _SRCBUF=require('fs').readFileSync(SRC);
 const SRC_SHA=require('crypto').createHash('sha256').update(_SRCBUF).digest('hex');
 const SRC_BUILD=((_SRCBUF.toString('utf8').match(/APP_BUILD="([^"]+)"/)||[])[1])||'UNKNOWN';
@@ -70,8 +70,8 @@ async function freshDevice(browser,routeHandler){
       return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[{
         id:'rec1',user:'userA',coreRev:300,trainingRev:28,
         data:{settings:{onboarded:true,units:'lbs',weekStart:'1',name:'Griffin'},
-          weights:[{date:'2026-07-20',weight:189.2},{date:'2026-08-03',weight:198.6}],
-          food:{},steps:{'2026-08-01':9000},sleep:{},notes:{},bodyfat:{},waist:{},leanmass:{},
+          weights:[{date:'2019-03-20',weight:172.4},{date:'2019-04-03',weight:173.6}],
+          food:{},steps:{'2019-04-01':9000},sleep:{},notes:{},bodyfat:{},waist:{},leanmass:{},
           statuses:[],presets:[],skips:{},nightlyLog:{}}}]})});
     }
     return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[],token:'tok',record:{id:'userA'}})});
@@ -203,8 +203,8 @@ async function freshDevice(browser,routeHandler){
       return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[{
         id:'rec1',user:'userA',coreRev:300,trainingRev:28,
         data:{settings:{onboarded:true,units:'lbs',weekStart:'1',name:'Griffin'},
-          weights:[{date:'2026-07-20',weight:189.2},{date:'2026-08-03',weight:198.6}],
-          food:{},steps:{'2026-08-01':9000},sleep:{},notes:{},bodyfat:{},waist:{},leanmass:{},
+          weights:[{date:'2019-03-20',weight:172.4},{date:'2019-04-03',weight:173.6}],
+          food:{},steps:{'2019-04-01':9000},sleep:{},notes:{},bodyfat:{},waist:{},leanmass:{},
           statuses:[],presets:[],skips:{},nightlyLog:{}}}]})});
     return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[],token:'tok',record:{id:'userA'}})});
   });
@@ -242,7 +242,7 @@ async function freshDevice(browser,routeHandler){
   await d4ctx.close();
 
   /* ---------- T9: the read-only bar ------------------------------------
-       Owner, 2026-08-03: a non-holder must carry a persistent bar naming the
+       Owner, 2019-04-03: a non-holder must carry a persistent bar naming the
        other device, offering takeover, and warning to save there first. ---- */
   const heldServer=r=>{
     const u=r.request().url();
@@ -297,7 +297,7 @@ async function freshDevice(browser,routeHandler){
   await d5.ctx.close();
 
   /* ---------- T11: a read-only device keeps pulling ---------------------
-       Owner, 2026-08-03: "the readonly does not sync again after initial load.
+       Owner, 2019-04-03: "the readonly does not sync again after initial load.
        i cant get it to resync by refreshing." The renew timer and the
        visibility handler both ran only for the HOLDER. ------------------- */
   let pulls=0, statuses=0;
@@ -314,7 +314,7 @@ async function freshDevice(browser,routeHandler){
     if(/collections\/appdata\/records/.test(u)&&r.request().method()==='GET'){pulls++;
       return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[{
         id:'rec1',user:'userA',coreRev:9,trainingRev:1,
-        data:{settings:{onboarded:true,units:'lbs',weekStart:'1'},weights:[{date:'2026-08-03',weight:198.6}],
+        data:{settings:{onboarded:true,units:'lbs',weekStart:'1'},weights:[{date:'2019-04-03',weight:173.6}],
           food:{},steps:{},sleep:{},notes:{},bodyfat:{},waist:{},leanmass:{},statuses:[],presets:[],skips:{},nightlyLog:{}}}]})});}
     return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[],token:'tok',record:{id:'userA'}})});
   };
@@ -359,7 +359,7 @@ async function freshDevice(browser,routeHandler){
     if(/collections\/appdata\/records/.test(u)&&r.request().method()==='GET'){pulls2++;
       return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[{
         id:'rec1',user:'userA',coreRev:9,trainingRev:1,
-        data:{settings:{onboarded:true,units:'lbs',weekStart:'1'},weights:[{date:'2026-08-03',weight:198.6}],
+        data:{settings:{onboarded:true,units:'lbs',weekStart:'1'},weights:[{date:'2019-04-03',weight:173.6}],
           food:{},steps:{},sleep:{},notes:{},bodyfat:{},waist:{},leanmass:{},statuses:[],presets:[],skips:{},nightlyLog:{}}}]})});}
     return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[],token:'tok',record:{id:'userA'}})});
   };
@@ -404,7 +404,7 @@ async function freshDevice(browser,routeHandler){
       return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:[{
         id:'rec1',user:'userA',coreRev:301,trainingRev:28,
         data:{settings:{onboarded:true,units:'lbs',weekStart:'1',name:'Griffin'},
-          weights:[{date:'2026-07-20',weight:189.2},{date:'2026-08-03',weight:198.6}],
+          weights:[{date:'2019-03-20',weight:172.4},{date:'2019-04-03',weight:173.6}],
           food:{},steps:{},sleep:{},notes:{},bodyfat:{},waist:{},leanmass:{},
           statuses:[],presets:[],skips:{},nightlyLog:{}}}]})});
     }
@@ -435,7 +435,7 @@ async function freshDevice(browser,routeHandler){
   await d8.ctx.close();
 
   /* ---------- T14: the review banner is REACHABLE, on every tab ---------
-       Owner, 2026-08-03: the app knew it needed review and showed nothing —
+       Owner, 2019-04-03: the app knew it needed review and showed nothing —
        the state changed in the background and the screen was never redrawn, and
        the banner only existed on Home anyway. --------------------------- */
   const d9=await freshDevice(browser,emptyServer);
@@ -485,7 +485,7 @@ async function freshDevice(browser,routeHandler){
   });
 
   /* ---------- T16: a READ-ONLY device can resolve its own conflict ------
-       Owner, 2026-08-03: "it tells me i need to take the pen first". Taking the
+       Owner, 2019-04-03: "it tells me i need to take the pen first". Taking the
        SERVER's copy writes only locally, so requiring the pen made a conflicted
        read-only device unrecoverable — it could not review, and could not take
        the pen without reviewing. Keeping THIS device's copy still needs the pen,
@@ -507,7 +507,7 @@ async function freshDevice(browser,routeHandler){
   /* ---------- T17: the BUTTON, not just the function --------------------
        .436 removed the pen check inside m10cxTakeServer but left the UI gate
        shared between both choices, so a read-only device still saw both greyed
-       out — the deadlock survived at the button (Owner, 2026-08-03, screenshot
+       out — the deadlock survived at the button (Owner, 2019-04-03, screenshot
        showing both disabled). The two choices need different gates. --- */
   const t17=await d9.page.evaluate(()=>{
     const src=m10cxViewHTML.toString();
@@ -530,14 +530,14 @@ async function freshDevice(browser,routeHandler){
   });
 
   /* ---------- T18: the review must say which copy is NEWER ---------------
-       Owner, 2026-08-04: "The info isn't helpful to select. It needs the time
+       Owner, 2019-04-04: "The info isn't helpful to select. It needs the time
        stamp of the last saved states." Counts alone cannot separate two copies
        holding the same number of entries. ------------------------------- */
   const t18=await d9.page.evaluate(()=>{
     const mk=o=>JSON.stringify(o);
-    const older=mk({weights:[{date:'2026-08-01',weight:184}],food:{'2026-08-01':{calories:2000}},
+    const older=mk({weights:[{date:'2019-04-01',weight:184}],food:{'2019-04-01':{calories:2000}},
       steps:{},notes:{},sleep:{},bodyfat:{},waist:{},leanmass:{},workouts:{}});
-    const newer=mk({weights:[{date:'2026-08-03',weight:183}],food:{'2026-08-03':{calories:2100}},
+    const newer=mk({weights:[{date:'2019-04-03',weight:183}],food:{'2019-04-03':{calories:2100}},
       steps:{},notes:{},sleep:{},bodyfat:{},waist:{},leanmass:{},workouts:{}});
     return {
       summaryHasDate:/newest entry/.test(m10cxSummary(newer)),
@@ -558,7 +558,7 @@ async function freshDevice(browser,routeHandler){
        The cause of the false conflicts: a device without the pen still sent a
        commit with fence:null, and with enforcement off the server took it. Two
        devices writing the same data at different revisions then "conflicted"
-       (Owner, 2026-08-04, twice). ------------------------------------- */
+       (Owner, 2019-04-04, twice). ------------------------------------- */
   let commits=0;
   const commitCounting=r=>{
     const u=r.request().url();
@@ -603,7 +603,7 @@ async function freshDevice(browser,routeHandler){
        Both exports did Object.assign({}, backupJSON(), {...}) — and backupJSON
        returns a STRING, so the file came out as ~150k numbered character keys
        instead of the data. It is the safety artifact taken BEFORE choosing
-       which copy to keep, so a broken one is worse than none (Owner, 2026-08-04,
+       which copy to keep, so a broken one is worse than none (Owner, 2019-04-04,
        who had to have it reconstructed character by character). ---------- */
   const t20=await d9.page.evaluate(()=>{
     const txt=conflictExportText('core-local');

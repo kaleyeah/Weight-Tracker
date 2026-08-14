@@ -1,7 +1,7 @@
 /* C46 (browser) — the daily targets are on screen, and Weekly Totals counts
    the thing he programmes against.
 
-   Owner, 2026-08-12: "I just realized there's no current macros on any of my
+   Owner, 2019-04-12: "I just realized there's no current macros on any of my
    screens like progress or summary. It should go where the weekly activity
    card is now and replace it. Show my targets for Daily Calories, Protein,
    Carbs and Fat. The weekly activity card doesn't tell me much. Replace Cardio
@@ -67,7 +67,7 @@ const SETTINGS={onboarded:true,units:'lbs',weekStart:'1',name:'Griffin',
     for(let i=0;i<4;i++){
       state.food[day(i)]={calories:[2100,2240,1980,2160][i],protein:170+i,carbs:225+i*3,fat:50+i,fiber:28};
       state.steps[day(i)]=9000+i*500;
-      state.weights.push({date:day(i),weight:198.4-i*0.2});
+      state.weights.push({date:day(i),weight:173.2-i*0.2});
     }
     state.training={cardioTypes:['Peloton'],exercises:[{id:'e1',name:'Bench'}],routines:[],
       sessions:{[day(0)]:[{kind:'cardio',type:'Peloton',mins:35,zone:3}]},
