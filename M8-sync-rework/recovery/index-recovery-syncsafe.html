@@ -3387,7 +3387,7 @@ function srFin(n){return typeof n==="number"&&isFinite(n);}
 function srInt(n){if(!srFin(n))return SRDASH;n=Math.round(n);var neg=n<0,s=String(Math.abs(n)),o="";while(s.length>3){o=","+s.slice(-3)+o;s=s.slice(0,-3);}return (neg?"−":"")+s+o;}
 /* weights can be fractional (2.5 kg plates): print the decimal only when real */
 function srW(n){if(!srFin(n))return SRDASH;var r=Math.round(n*10)/10;return r===Math.round(r)?srInt(r):String(r);}
-/* one decimal at most, printed the way the app's r1() displays it (199.2, 184) */
+/* one decimal at most, printed the way the app's r1() displays it (172.4, 184) */
 function srR1(n){return srFin(n)?String(Math.round(n*10)/10):SRDASH;}
 function srRangeTxt(g){return srInt(g.lo)+"–"+srInt(g.hi);}
 /* the set-target verdict icons, copied character-for-character from the app's
@@ -6415,7 +6415,7 @@ function buildWorkoutEntries(rt,bw){return (rt.items||[]).map(function(it){var e
     else{w=ex.bodyweight?((bw!=null?bw:0)+(num(it.weight)||0)):(num(it.weight)>0?it.weight:"");r=(it.repHigh!=null&&it.repHigh!=="")?it.repHigh:"";}
     /* A bodyweight exercise's "weight" is the athlete, and the athlete changed
        since last session. History used to pre-fill the OLD bodyweight (a 7-29
-       pull-up suggested 201.8 against a same-day 199.0 weigh-in). Reps still
+       pull-up suggested 174.0 against a same-day 171.6 weigh-in). Reps still
        come from history; the load is always today's body plus any added. */
     if(ex.bodyweight)w=(bw!=null?bw:0)+(num(it.weight)||0);
     sets.push({weight:(w===""||w==null)?"":String(w),reps:(r===""||r==null)?"":String(r),rir:"",status:"pending"});}

@@ -305,7 +305,7 @@ async function boot(browser,srv,st,init,uid){
       document.body.appendChild(b);b.click();
       const dispatched=state.sumOpen!==before;
       const w0=state.weights.length;
-      state.weights.push({date:'2026-08-02',weight:201.5});save();
+      state.weights.push({date:'2019-04-02',weight:170.0});save();
       return {dispatched,directWrite:state.weights.length===w0+1,holder:M10.holder};
     });
     /* increment 5 wired the gate: this is now the INVERSE assertion — a
