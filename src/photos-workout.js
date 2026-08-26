@@ -1495,7 +1495,46 @@ function applySuggestions(entries,routineId){entries.forEach(function(en){if(!en
 function startWorkout(rt){var bw=currentBW();var _ents=buildWorkoutEntries(rt,bw);applySuggestions(_ents,rt.id);
   state.workout={routineId:rt.id,name:rt.name||"Weight training",date:todayISO(),startTs:null,tState:"ready",stateStartTs:null,warmupMs:0,workMs:0,restMs:0,bw:bw,entries:_ents,finishing:false,restHidden:false};
   state.setMenu=null;state.woPrompt=false;state.view="workout";saveWorkout();render();startWoTick();}
-function woTransition(ns){var w=state.workout;if(!w)return;var now=Date.now();var seg=now-w.stateStartTs;if(w.tState==="warmup")w.warmupMs+=seg;else if(w.tState==="working")w.workMs+=seg;else w.restMs+=seg;w.tState=ns;w.stateStartTs=now;saveWorkout();}
+/* ---- rest-timer push -------------------------------------------------------
+   iOS suspends the PWA's JS the moment it backgrounds, so the phone can't fire
+   its own rest-over notification. It hands the timer to compound-push instead:
+   "push me in N seconds unless I cancel." When the rest timer starts we schedule;
+   when the athlete ends rest early (or the workout ends) we cancel. Duration is
+   ONE lookup — the global setting today, a per-exercise restSec tomorrow. */
+var REST_PUSH_BASE="https://compound-1.tail8b20e0.ts.net:8449";
+function _restU8(b64){var pad="=".repeat((4-b64.length%4)%4);var s=(b64+pad).replace(/-/g,"+").replace(/_/g,"/");var raw=atob(s);var a=new Uint8Array(raw.length);for(var i=0;i<raw.length;i++)a[i]=raw.charCodeAt(i);return a;}
+function restPushReady(){return ("serviceWorker" in navigator)&&("PushManager" in window)&&(typeof Notification!=="undefined");}
+function restPushOn(){return !!state.settings.restNotify&&restPushReady()&&Notification.permission==="granted";}
+function restNotifyEnable(){
+  if(!restPushReady()){toast("Add Compound to your Home Screen first, then enable alerts.");return;}
+  Notification.requestPermission().then(function(perm){
+    if(perm!=="granted"){toast("Notifications are off — turn them on in Settings.");return;}
+    navigator.serviceWorker.register("sw.js").then(function(){return navigator.serviceWorker.ready;}).then(function(reg){
+      return fetch(REST_PUSH_BASE+"/vapid").then(function(r){return r.json();}).then(function(v){
+        if(!v||!v.key)throw new Error("push not configured");
+        return reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:_restU8(v.key)});
+      }).then(function(sub){
+        return fetch(REST_PUSH_BASE+"/subscribe",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({subscription:sub})});
+      });
+    }).then(function(){state.settings.restNotify=true;save();render();toast("Rest-timer alerts on 💪");})
+    .catch(function(e){toast("Couldn't enable alerts: "+(e&&e.message||e));});
+  });
+}
+function restSecondsFor(en){
+  if(en&&en.restSec!=null&&en.restSec!==""){var s=num(en.restSec);if(s!=null&&s>0)return Math.max(5,Math.round(s));}
+  var m=num(state.settings.restNotifyMin);return (m!=null&&m>0)?Math.round(m*60):180;
+}
+function _restNextEntry(){var w=state.workout;if(!w||!w.entries)return null;for(var i=0;i<w.entries.length;i++){var e=w.entries[i];var ss=e.sets||[];for(var si=0;si<ss.length;si++){if(ss[si].status!=="done"&&ss[si].status!=="skipped")return e;}}return null;}
+function restNotifyBody(){var un=woUpNext();if(!un)return "Next set is up.";var u=state.settings.units;var bits=[];if(un.name)bits.push(un.name);bits.push("Set "+un.setNo+"/"+un.setTotal);if(un.reps)bits.push(un.reps+" reps");if(un.weight)bits.push(un.weight+" "+u);return bits.join(" · ");}
+function restNotifySchedule(){
+  if(!restPushOn())return;
+  try{fetch(REST_PUSH_BASE+"/rest/start",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:"rest",seconds:restSecondsFor(_restNextEntry()),title:"Time to hit it 💪",body:restNotifyBody()})}).catch(function(){});}catch(e){}
+}
+function restNotifyCancel(){
+  if(!state.settings.restNotify||!restPushReady())return;
+  try{fetch(REST_PUSH_BASE+"/rest/cancel",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:"rest"})}).catch(function(){});}catch(e){}
+}
+function woTransition(ns){var w=state.workout;if(!w)return;var now=Date.now();var seg=now-w.stateStartTs;if(w.tState==="warmup")w.warmupMs+=seg;else if(w.tState==="working")w.workMs+=seg;else w.restMs+=seg;w.tState=ns;w.stateStartTs=now;saveWorkout();if(ns==="resting")restNotifySchedule();else restNotifyCancel();}
 function pauseWorkout(){var w=state.workout;if(!w)return;if(w.tState!=="ready"&&w.stateStartTs){var now=Date.now();var seg=now-w.stateStartTs;if(w.tState==="warmup")w.warmupMs+=seg;else if(w.tState==="working")w.workMs+=seg;else w.restMs+=seg;}w.paused=true;w.stateStartTs=null;saveWorkout();}
 function woBuckets(){var w=state.workout;if(!w)return null;if(w.tState==="ready")return {warmup:0,work:0,rest:0,total:0,segMs:0};if(w.paused||!w.stateStartTs){var tot=w.warmupMs+w.workMs+w.restMs;return {warmup:w.warmupMs,work:w.workMs,rest:w.restMs,total:tot,segMs:0};}var now=Date.now();var seg=now-w.stateStartTs;var b={warmup:w.warmupMs,work:w.workMs,rest:w.restMs};if(w.tState==="warmup")b.warmup+=seg;else if(w.tState==="working")b.work+=seg;else b.rest+=seg;b.total=b.warmup+b.work+b.rest;b.segMs=seg;return b;}
 function fmtDur(ms){var s=Math.max(0,Math.floor(ms/1000));var h=Math.floor(s/3600);var m=Math.floor((s%3600)/60);var ss=s%60;return (h?h+":"+("0"+m).slice(-2):m)+":"+("0"+ss).slice(-2);}
@@ -2001,6 +2040,12 @@ function view_settings(){
     '<label class="wl-field wl-field-full"><span>Remind me to log at</span><input type="time" id="wl-remind-time" value="'+esc(f.reminderTime||"19:00")+'"></label>'+
     '<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="reminder:add">'+I.calendar.replace("<svg","<svg width=16 height=16")+'Add reminder to Calendar</button>'+
     '<div class="wl-hint" style="margin-top:10px">Tap <b>Add reminder to Calendar</b>, then choose <b>Add All</b> — this creates a daily repeating reminder in your Calendar that notifies you even when the app is closed. (iPhone &amp; iPad don\u2019t let a web app send its own scheduled notifications, so this uses your Calendar instead.) To change the time, pick a new one and add it again, then delete the old event.</div></div>'):'')+'</div>';
+  h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="restnotify"><span>Rest timer alerts</span><span class="wl-chevron'+(op.restnotify?" open":"")+'">›</span></button>'+(op.restnotify?('<div class="wl-collapse-body">'+
+    '<div class="wl-hint" style="margin-bottom:10px">When your rest timer reaches the set length, Compound pings you — <b>Time to hit it 💪</b> — with the next set, even if you’ve left the app.</div>'+
+    '<label class="wl-field wl-field-full"><span>Ping me after <em>minutes of rest</em></span><input class="wl-num" type="text" inputmode="decimal" data-set="restNotifyMin" value="'+esc(f.restNotifyMin||"3")+'" placeholder="3"></label>'+
+    '<div class="wl-seg" style="margin-top:12px"><button class="'+(!f.restNotify?"on":"")+'" data-act="restnotify:set" data-on="0">Off</button><button class="'+(f.restNotify?"on":"")+'" data-act="restnotify:set" data-on="1">On</button></div>'+
+    ((typeof Notification!=="undefined"&&Notification.permission==="granted")?'<div class="wl-hint" style="margin-top:10px;color:var(--good)">Notifications are enabled on this device.</div>':'<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="restnotify:enable">Enable notifications on this device</button>')+
+    '<div class="wl-hint" style="margin-top:10px">End a set’s rest before the timer and no ping is sent. Per-exercise rest lengths are coming — this is the default for now.</div></div>'):'')+'</div>';
   }
   if(pg==="appearance"){
   h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="theme"><span>Appearance</span><span class="wl-chevron'+(op.theme?" open":"")+'">›</span></button>'+(op.theme?('<div class="wl-collapse-body"><div class="wl-theme-grid">'+themeGrid()+'</div></div>'):'')+'</div>';

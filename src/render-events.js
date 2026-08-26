@@ -213,7 +213,7 @@ document.addEventListener("click",function(e){
   if(a==="wo:bw"){state.bwEdit=true;render();return;}
   if(a==="wo:bwsave"){var w=state.workout;var inp=document.getElementById("wl-bwinput");var v=num(inp&&inp.value);if(v!=null&&w){var old=w.bw;w.bw=v;w.entries.forEach(function(en){if(en.bodyweight)en.sets.forEach(function(s){s.weight=String(v+(en.addedWt||0));});});}state.bwEdit=false;saveWorkout();render();return;}
   if(a==="wo:bwcancel"){state.bwEdit=false;render();return;}
-  if(a==="wo:finish"){var w=state.workout;if(!w)return;var pending=0;w.entries.forEach(function(en){en.sets.forEach(function(s){if(s.status==="pending")pending++;});});
+  if(a==="wo:finish"){if(typeof restNotifyCancel==="function")restNotifyCancel();var w=state.workout;if(!w)return;var pending=0;w.entries.forEach(function(en){en.sets.forEach(function(s){if(s.status==="pending")pending++;});});
     if(pending>0){state.woPrompt=true;render();return;}
     w.finishing=true;w.finishForm=w.finishForm||{hr:"",hrMax:"",cal:"",rpe:"",zone:2,notes:""};saveWorkout();render();return;}
   if(a==="wo:completethem"){state.woPrompt=false;var w=state.workout;var tid=null;if(w){for(var ei=0;ei<w.entries.length&&tid==null;ei++){for(var si=0;si<w.entries[ei].sets.length;si++){if(w.entries[ei].sets[si].status==="pending"){tid="wo-ex-"+ei;break;}}}}render();if(tid){var elx=document.getElementById(tid);if(elx)elx.scrollIntoView({behavior:"smooth",block:"start"});}return;}
@@ -221,7 +221,7 @@ document.addEventListener("click",function(e){
   if(a==="wo:promptcancel"){state.woPrompt=false;render();return;}
   if(a==="wo:finishback"){var w=state.workout;if(w)w.finishing=false;saveWorkout();render();return;}
   if(a==="wof:zone"){var w=state.workout;if(w&&w.finishForm)w.finishForm.zone=+el.getAttribute("data-zone");render();return;}
-  if(a==="wo:discard"){askConfirm("Discard this workout? Nothing will be saved.",function(){state.workout=null;saveWorkout();if(woTimer)clearInterval(woTimer);state.view="train";},{label:"Discard"});return;}
+  if(a==="wo:discard"){if(typeof restNotifyCancel==="function")restNotifyCancel();askConfirm("Discard this workout? Nothing will be saved.",function(){state.workout=null;saveWorkout();if(woTimer)clearInterval(woTimer);state.view="train";},{label:"Discard"});return;}
   if(a==="wo:exmenu"){state.exMenu={ei:+el.getAttribute("data-ei")};render();return;}
   if(a==="wo:exmenu:close"){state.exMenu=null;render();return;}
   if(a==="wo:exprog"){switchEntryProgression(+el.getAttribute("data-ei"));return;}
@@ -292,8 +292,8 @@ document.addEventListener("click",function(e){
   if(a==="wo:resumecancel"){state.woResume=false;render();return;}
   if(a==="wo:resume"){state.woResume=false;var w=state.workout;if(w&&w.paused){w.paused=false;w.tState="working";w.stateStartTs=Date.now();if(w.startTs==null)w.startTs=Date.now();saveWorkout();}state.view="workout";render();startWoTick();return;}
   if(a==="wo:finishlater"){pauseWorkout();state.woPrompt=false;state.woResume=false;state.view="train";toast("Saved to finish later");render();return;}
-  if(a==="wo:endnow"){state.woResume=false;state.view="workout";var w=state.workout;if(w){var pending=0;w.entries.forEach(function(en){en.sets.forEach(function(s){if(s.status==="pending")pending++;});});if(pending>0){state.woPrompt=true;}else{w.finishing=true;w.finishForm=w.finishForm||{hr:"",hrMax:"",cal:"",rpe:"",zone:2,notes:""};}saveWorkout();}render();return;}
-  if(a==="wo:discardnow"){state.woResume=false;askConfirm("Discard this workout? Nothing will be saved.",function(){state.workout=null;saveWorkout();if(woTimer)clearInterval(woTimer);state.view="train";},{label:"Discard"});return;}
+  if(a==="wo:endnow"){if(typeof restNotifyCancel==="function")restNotifyCancel();state.woResume=false;state.view="workout";var w=state.workout;if(w){var pending=0;w.entries.forEach(function(en){en.sets.forEach(function(s){if(s.status==="pending")pending++;});});if(pending>0){state.woPrompt=true;}else{w.finishing=true;w.finishForm=w.finishForm||{hr:"",hrMax:"",cal:"",rpe:"",zone:2,notes:""};}saveWorkout();}render();return;}
+  if(a==="wo:discardnow"){if(typeof restNotifyCancel==="function")restNotifyCancel();state.woResume=false;askConfirm("Discard this workout? Nothing will be saved.",function(){state.workout=null;saveWorkout();if(woTimer)clearInterval(woTimer);state.view="train";},{label:"Discard"});return;}
   if(a==="wo:quick"){var rid=el.getAttribute("data-id");state.liftForm={routineId:rid,id:null,date:state.selDate||todayISO(),mins:"",hr:"",hrMax:"",cal:"",zone:2,rpe:"",notes:""};state.view="quicklog";render();return;}
   if(a==="lf:zone"){if(state.liftForm)state.liftForm.zone=+el.getAttribute("data-zone");render();return;}
   if(a==="lift:cancel"){state.liftForm=null;state.view="rlaunch";render();return;}
@@ -630,6 +630,8 @@ var lt=getLastSync();toast((syncLabel()||"Sync")+(lt?" \u00b7 "+fmtClock(lt):"")
   if(a==="cal:usecalc"){state.settings.calTargetAuto=true;var okc=applyAutoCalTarget();applyAutoMacros();save();render();toast(okc?"Calorie target set to "+state.settings.targetCalories:"Add your Profile details first");return;}
   if(a==="set:theme"){state.settings.theme=el.getAttribute("data-theme");save();applyTheme(state.settings.theme);render();return;}
   if(a==="card:toggle"){state.open=state.open||{};var cd=el.getAttribute("data-card");state.open[cd]=!state.open[cd];render();return;}
+  if(a==="restnotify:set"){var _on=el.getAttribute("data-on")==="1";if(_on){if(typeof restPushOn==="function"&&restPushOn()){state.settings.restNotify=true;save();render();}else{restNotifyEnable();}}else{state.settings.restNotify=false;save();if(typeof restNotifyCancel==="function")restNotifyCancel();render();}return;}
+  if(a==="restnotify:enable"){restNotifyEnable();return;}
   if(a==="reminder:add"){var ti=document.getElementById("wl-remind-time");var tv=(ti&&ti.value)||"19:00";state.settings.reminderTime=tv;save();shareOrDownload("activity-reminder.ics","text/calendar",reminderICS(tv));return;}
   if(a==="set:ttype"){state.settings.targetType=el.getAttribute("data-type");save();render();return;}
   if(a==="lrec:restore"){logoutRecoveryRestore();return;}
