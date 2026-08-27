@@ -325,6 +325,7 @@ document.addEventListener("click",function(e){
   if(a==="ex:seedall"){var xa=(state.training.exercises||[]);EXSEED.forEach(function(sd,ix){if(!xa.some(function(e){return e.name.toLowerCase()===sd.n.toLowerCase();}))xa.push({id:"x-"+Date.now()+"-"+ix+"-"+Math.random().toString(36).slice(2,6),name:sd.n,muscle:sd.m,equipment:sd.e||"",bodyweight:!!sd.bw,notes:[]});});state.training.exercises=xa;saveTraining();render();return;}
   if(a==="ex:clearall"){if(!(state.training.exercises||[]).length)return;askConfirm("Remove ALL exercises from your library? You can re-add them from Browse.",function(){state.training.exercises=[];saveTraining();},{label:"Remove all"});return;}
   if(a==="ex:add"){state.exForm={id:null,name:"",muscle:"chest",equipment:"",bodyweight:false};render();return;}
+  if(a==="ex:newfromwt"){state.exlibFrom="wtadd";state.view="exlib";state.exForm={id:null,name:"",muscle:"chest",equipment:"",bodyweight:false};render();return;}
   if(a==="ex:edit"){var xid=el.getAttribute("data-id");var xe=(state.training.exercises||[]).filter(function(e){return e.id===xid;})[0];if(xe)state.exForm={id:xe.id,name:xe.name,muscle:xe.muscle||"other",equipment:xe.equipment||"",bodyweight:!!xe.bodyweight,movement:xe.movement||guessMovement(xe.muscle)};render();return;}
   if(a==="ex:mv"){if(state.exForm){state.exForm.movement=el.getAttribute("data-mv");render();}return;}
   if(a==="ex:cancel"){state.exForm=null;render();return;}
@@ -630,8 +631,10 @@ var lt=getLastSync();toast((syncLabel()||"Sync")+(lt?" \u00b7 "+fmtClock(lt):"")
   if(a==="cal:usecalc"){state.settings.calTargetAuto=true;var okc=applyAutoCalTarget();applyAutoMacros();save();render();toast(okc?"Calorie target set to "+state.settings.targetCalories:"Add your Profile details first");return;}
   if(a==="set:theme"){state.settings.theme=el.getAttribute("data-theme");save();applyTheme(state.settings.theme);render();return;}
   if(a==="card:toggle"){state.open=state.open||{};var cd=el.getAttribute("data-card");state.open[cd]=!state.open[cd];render();return;}
-  if(a==="restnotify:set"){var _on=el.getAttribute("data-on")==="1";if(_on){if(typeof restPushOn==="function"&&restPushOn()){state.settings.restNotify=true;save();render();}else{restNotifyEnable();}}else{state.settings.restNotify=false;save();if(typeof restNotifyCancel==="function")restNotifyCancel();render();}return;}
+  if(a==="restnotify:set"){var _on=el.getAttribute("data-on")==="1";if(_on){if(typeof restPushOn==="function"&&restPushOn()){state.settings.restNotify=true;save();if(state.workout&&state.workout.tState==="resting"&&typeof restNotifySchedule==="function")restNotifySchedule();render();}else{restNotifyEnable();}}else{state.settings.restNotify=false;save();if(typeof restNotifyCancel==="function")restNotifyCancel();render();}return;}
   if(a==="restnotify:enable"){restNotifyEnable();return;}
+  if(a==="rest:settings"){state.restSetOpen=true;render();return;}
+  if(a==="rest:settings:close"){state.restSetOpen=false;if(state.workout&&state.workout.tState==="resting"&&typeof restPushOn==="function"&&restPushOn()&&typeof restNotifySchedule==="function")restNotifySchedule();render();return;}
   if(a==="reminder:add"){var ti=document.getElementById("wl-remind-time");var tv=(ti&&ti.value)||"19:00";state.settings.reminderTime=tv;save();shareOrDownload("activity-reminder.ics","text/calendar",reminderICS(tv));return;}
   if(a==="set:ttype"){state.settings.targetType=el.getAttribute("data-type");save();render();return;}
   if(a==="lrec:restore"){logoutRecoveryRestore();return;}
