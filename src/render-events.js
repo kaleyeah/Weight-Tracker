@@ -46,7 +46,8 @@ var glpLPfired=false;
 document.addEventListener("click",function(e){
   if(glpLPfired){glpLPfired=false;return;}
   var el=e.target.closest("[data-act]");if(!el)return;var a=el.getAttribute("data-act");
-  if(a==="set:page"){var _pgv=el.getAttribute("data-page");state.setPage=_pgv;state.open=state.open||{};({profile:["profile"],strategy:["strategy"],goals:["goals"],coach:["reminder"],appearance:["theme"],data:["exportdata","backup"],sync:["sync","share"]}[_pgv]||[]).forEach(function(k){state.open[k]=true;});render();return;}
+  if(a==="set:page"){var _pgv=el.getAttribute("data-page");state.setPage=_pgv;
+    if(_pgv==="whoop"&&state.settings.whoopOn){state.whoopStatus=null;whoopCheck(function(r){state.whoopStatus=r;render();});}state.open=state.open||{};({profile:["profile"],strategy:["strategy"],goals:["goals"],coach:["reminder"],appearance:["theme"],data:["exportdata","backup"],sync:["sync","share"],whoop:["whoop"]}[_pgv]||[]).forEach(function(k){state.open[k]=true;});render();return;}
   if(a==="set:back"){state.setPage=null;render();return;}
   if(a==="glp:enable"){glpNormalize();state.glp.settings.enabled=!state.glp.settings.enabled;save();render();return;}
   if(a==="glp:showdue"){glpNormalize();if(!state.glp.settings.enabled)return;state.glp.settings.showDueDate=!state.glp.settings.showDueDate;save();render();return;}
@@ -120,6 +121,27 @@ document.addEventListener("click",function(e){
   if(a==="opentoday"){state.selDate=todayISO();state.calY=new Date().getFullYear();state.calM=new Date().getMonth();state.cardioForm=null;render();return;}
   if(a==="ai:copy"){copyText(weeklyAIText(),"Copied your week — paste into your AI to generate");return;}
   if(a==="ai:gen"){genSummary();return;}
+  if(a==="whoop:toggle"){state.settings.whoopOn=!state.settings.whoopOn;save();
+    if(state.settings.whoopOn){state.whoopStatus=null;render();whoopCheck(function(r){state.whoopStatus=r;render();});}
+    else render();return;}
+  if(a==="whoop:sync"){if(state.whoopSyncing)return;state.whoopSyncing=true;toast("Syncing WHOOP…");
+    whoopSync(function(r){state.whoopSyncing=false;
+      if(!r||!r.ok){toast("WHOOP sync failed — "+((r&&r.error)||"no answer"));render();return;}
+      var n=r.applied||{};
+      var bits=[];if(n.total)bits.push(n.total+" day"+(n.total===1?"":"s"));
+      if(n.sleep)bits.push(n.sleep+" sleep filled");
+      if(n.skipped)bits.push(n.skipped+" skipped day"+(n.skipped===1?"":"s")+" left alone");
+      toast((r.fake?"Demo sync — ":"WHOOP synced — ")+(bits.join(" · ")||"nothing new"));
+      whoopCheck(function(st){state.whoopStatus=st;render();});});
+    render();return;}
+  if(a==="whoop:connect"){var u=whoopBase()+"/whoop/auth";
+    /* the athlete has to approve on WHOOP's own page; we hand off and they
+       come back to the app via the service's callback */
+    try{location.href=u;}catch(e){toast("Couldn't open WHOOP");}
+    return;}
+  if(a==="whoop:disconnect"){askConfirm("Unlink your WHOOP account? Data already pulled stays; nothing new arrives until you link again.",function(){
+      whoopFetch("/whoop/disconnect",{method:"POST"},function(){whoopCheck(function(st){state.whoopStatus=st;render();});});
+    },{label:"Unlink",danger:true});return;}
   if(a==="hk:import"){var _hkd=state.selDate;state.hkDone=null;
     /* Y1 (round-31 ruling 1): the capture is taken HERE, at the click, and
        carried on state.hkWait — the initial mailbox clear below is itself a
@@ -225,9 +247,9 @@ document.addEventListener("click",function(e){
   if(a==="wo:bwcancel"){state.bwEdit=false;render();return;}
   if(a==="wo:finish"){if(typeof restNotifyCancel==="function")restNotifyCancel();var w=state.workout;if(!w)return;var pending=0;w.entries.forEach(function(en){en.sets.forEach(function(s){if(s.status==="pending")pending++;});});
     if(pending>0){state.woPrompt=true;render();return;}
-    w.finishing=true;w.finishForm=w.finishForm||{hr:"",hrMax:"",cal:"",rpe:"",zone:2,notes:""};saveWorkout();render();return;}
+    w.finishing=true;w.finishForm=w.finishForm||{hr:"",hrMax:"",cal:"",rpe:"",zone:2,notes:""};if(typeof whoopFillFinish==="function")whoopFillFinish(w);saveWorkout();render();return;}
   if(a==="wo:completethem"){state.woPrompt=false;var w=state.workout;var tid=null;if(w){for(var ei=0;ei<w.entries.length&&tid==null;ei++){for(var si=0;si<w.entries[ei].sets.length;si++){if(w.entries[ei].sets[si].status==="pending"){tid="wo-ex-"+ei;break;}}}}render();if(tid){var elx=document.getElementById(tid);if(elx)elx.scrollIntoView({behavior:"smooth",block:"start"});}return;}
-  if(a==="wo:skipthem"){var w=state.workout;if(w)w.entries.forEach(function(en){en.sets.forEach(function(s){if(s.status==="pending")s.status="skipped";});});state.woPrompt=false;w.finishing=true;w.finishForm=w.finishForm||{hr:"",hrMax:"",cal:"",rpe:"",zone:2,notes:""};saveWorkout();render();return;}
+  if(a==="wo:skipthem"){var w=state.workout;if(w)w.entries.forEach(function(en){en.sets.forEach(function(s){if(s.status==="pending")s.status="skipped";});});state.woPrompt=false;w.finishing=true;w.finishForm=w.finishForm||{hr:"",hrMax:"",cal:"",rpe:"",zone:2,notes:""};if(typeof whoopFillFinish==="function")whoopFillFinish(w);saveWorkout();render();return;}
   if(a==="wo:promptcancel"){state.woPrompt=false;render();return;}
   if(a==="wo:finishback"){var w=state.workout;if(w)w.finishing=false;saveWorkout();render();return;}
   if(a==="wof:zone"){var w=state.workout;if(w&&w.finishForm)w.finishForm.zone=+el.getAttribute("data-zone");render();return;}
@@ -338,7 +360,7 @@ document.addEventListener("click",function(e){
   if(a==="wo:resumecancel"){state.woResume=false;render();return;}
   if(a==="wo:resume"){state.woResume=false;var w=state.workout;if(w&&w.paused){w.paused=false;w.tState="working";w.stateStartTs=Date.now();if(w.startTs==null)w.startTs=Date.now();saveWorkout();}state.view="workout";render();startWoTick();return;}
   if(a==="wo:finishlater"){pauseWorkout();state.woPrompt=false;state.woResume=false;state.view="train";toast("Saved to finish later");render();return;}
-  if(a==="wo:endnow"){if(typeof restNotifyCancel==="function")restNotifyCancel();state.woResume=false;state.view="workout";var w=state.workout;if(w){var pending=0;w.entries.forEach(function(en){en.sets.forEach(function(s){if(s.status==="pending")pending++;});});if(pending>0){state.woPrompt=true;}else{w.finishing=true;w.finishForm=w.finishForm||{hr:"",hrMax:"",cal:"",rpe:"",zone:2,notes:""};}saveWorkout();}render();return;}
+  if(a==="wo:endnow"){if(typeof restNotifyCancel==="function")restNotifyCancel();state.woResume=false;state.view="workout";var w=state.workout;if(w){var pending=0;w.entries.forEach(function(en){en.sets.forEach(function(s){if(s.status==="pending")pending++;});});if(pending>0){state.woPrompt=true;}else{w.finishing=true;w.finishForm=w.finishForm||{hr:"",hrMax:"",cal:"",rpe:"",zone:2,notes:""};if(typeof whoopFillFinish==="function")whoopFillFinish(w);}saveWorkout();}render();return;}
   if(a==="wo:discardnow"){if(typeof restNotifyCancel==="function")restNotifyCancel();state.woResume=false;askConfirm("Discard this workout? Nothing will be saved.",function(){state.workout=null;saveWorkout();if(woTimer)clearInterval(woTimer);state.view="train";},{label:"Discard"});return;}
   if(a==="wo:quick"){var rid=el.getAttribute("data-id");state.liftForm={routineId:rid,id:null,date:state.selDate||todayISO(),mins:"",hr:"",hrMax:"",cal:"",zone:2,rpe:"",notes:""};state.view="quicklog";render();return;}
   if(a==="lf:zone"){if(state.liftForm)state.liftForm.zone=+el.getAttribute("data-zone");render();return;}

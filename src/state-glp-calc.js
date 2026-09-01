@@ -309,7 +309,7 @@ function dayDots(iso){var seen={},cats=[];function _ad(c){if(!seen[c]){seen[c]=1
   if(cats.length)return '<span class="wl-cell-dots">'+cats.map(function(c){return '<i class="dot-'+c+'"></i>';}).join("")+'</span>';
   if(dayHasAny(iso))return '<span class="wl-cell-dots"><i class="dot-data"></i></span>';
   return '';}
-var state={settings:Object.assign({},DEFAULT_SETTINGS),weights:[],food:{},workouts:{},steps:{},notes:{},ratings:{},checkins:{},sleep:{},bodyfat:{},waist:{},leanmass:{},statuses:[],weeklySummary:null,nightlySummary:null,nightlyLog:{},presets:DEFAULT_PRESETS.slice(),
+var state={settings:Object.assign({},DEFAULT_SETTINGS),weights:[],food:{},workouts:{},steps:{},notes:{},ratings:{},checkins:{},sleep:{},bodyfat:{},waist:{},leanmass:{},whoop:{},statuses:[],weeklySummary:null,nightlySummary:null,nightlyLog:{},presets:DEFAULT_PRESETS.slice(),
   view:"overview",calY:new Date().getFullYear(),calM:new Date().getMonth(),weekOffset:0,trendMode:"W",trendOffset:0,calOpen:false,sumOpen:true,nightOpen:true,genBusy:false,nightBusy:false,diaryWeeks:1,
   training:{cardioTypes:DEFAULT_CARDIO_TYPES.slice(),sessions:{},exercises:[],routines:[],liftSessions:{}},cardioForm:null,manageOpen:false,actAddCat:null,actPick:null,exForm:null,routineId:null,riPickOpen:false,noteEdit:null,liftForm:null,workout:null,setMenu:null,woPrompt:false,bwEdit:false,histView:null,exMenu:null,woReplaceEi:null,woReplSave:null,liftViewId:null,liftViewDate:null,woResume:false,liftEdit:null,quickEntry:null,
   selDate:todayISO(),foodDate:todayISO(),alertDismissed:false,confirmReset:false,skips:{},glp:glpDefault(),glpDraft:null,glpSheet:null,reopenAsk:null};
@@ -332,7 +332,7 @@ var coreLoadState=CORE_LOAD_UNKNOWN;
    nothing, so counting them would make every fresh install look non-empty. */
 function coreStateEmpty(p){
   p=p||{};
-  var maps=["food","workouts","steps","notes","sleep","bodyfat","waist","leanmass","ratings","checkins","nightlyLog","skips"];
+  var maps=["food","workouts","steps","notes","sleep","bodyfat","waist","leanmass","whoop","ratings","checkins","nightlyLog","skips"];
   for(var i=0;i<maps.length;i++){var m=p[maps[i]];if(m&&typeof m==="object"&&Object.keys(m).length)return false;}
   if((p.weights||[]).length)return false;
   if((p.statuses||[]).length)return false;
@@ -348,7 +348,7 @@ function load(){
     if(!d||typeof d!=="object")throw new Error("not an object");
     state.settings=Object.assign({},DEFAULT_SETTINGS,d.settings||{});
     state.weights=Array.isArray(d.weights)?d.weights:[];
-    state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.bodyfat=d.bodyfat||{};state.waist=d.waist||{};state.leanmass=d.leanmass||{};state.statuses=d.statuses||[];state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;state.nightlyLog=d.nightlyLog||{};state.scriptVer=d.scriptVer||{};coachRptLoad();if(migrateCoachSeen())save();
+    state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.bodyfat=d.bodyfat||{};state.waist=d.waist||{};state.leanmass=d.leanmass||{};state.whoop=d.whoop||{};state.statuses=d.statuses||[];state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;state.nightlyLog=d.nightlyLog||{};state.scriptVer=d.scriptVer||{};coachRptLoad();if(migrateCoachSeen())save();
     state.presets=(Array.isArray(d.presets)&&d.presets.length)?d.presets:DEFAULT_PRESETS.slice();state.skips=d.skips||{};state.glp=d.glp||glpDefault();state.ratings=(d.ratings&&typeof d.ratings==="object")?d.ratings:{};state.checkins=(d.checkins&&typeof d.checkins==="object")?d.checkins:{};
     _ok=true;
   }}catch(e){}
@@ -367,7 +367,7 @@ function _loadTail(){
   try{state.sumOpen=localStorage.getItem("wl_sumopen")!=="0";}catch(e){}
   try{state.calOpen=localStorage.getItem("wl_calopen")==="1";}catch(e){}
 }
-function payload(){return {settings:state.settings,weights:state.weights,food:state.food,workouts:state.workouts,steps:state.steps,notes:state.notes,ratings:state.ratings,checkins:state.checkins,sleep:state.sleep,bodyfat:state.bodyfat,waist:state.waist,leanmass:state.leanmass,statuses:state.statuses,weeklySummary:state.weeklySummary,nightlySummary:state.nightlySummary,nightlyLog:state.nightlyLog,presets:state.presets,skips:state.skips,glp:state.glp,scriptVer:state.scriptVer};}
+function payload(){return {settings:state.settings,weights:state.weights,food:state.food,workouts:state.workouts,steps:state.steps,notes:state.notes,ratings:state.ratings,checkins:state.checkins,sleep:state.sleep,bodyfat:state.bodyfat,waist:state.waist,leanmass:state.leanmass,whoop:state.whoop,statuses:state.statuses,weeklySummary:state.weeklySummary,nightlySummary:state.nightlySummary,nightlyLog:state.nightlyLog,presets:state.presets,skips:state.skips,glp:state.glp,scriptVer:state.scriptVer};}
 function saveLocal(){if(localWritesFrozen())return;try{localStorage.setItem(KEY,JSON.stringify(payload()));}catch(e){toast("Couldn't save — storage full or blocked");}}
 
 /* ---------------- cloud sync (private GitHub repo via Contents API) ---------------- */
@@ -403,7 +403,7 @@ function applyCloud(d){if(!d)return;
   try{if(state.obDeferred)setTimeout(function(){onboardingGate(true);},0);}catch(e){}
   state.settings=Object.assign({},DEFAULT_SETTINGS,d.settings||{});
   state.weights=Array.isArray(d.weights)?d.weights:[];
-  state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.bodyfat=d.bodyfat||{};state.waist=d.waist||{};state.leanmass=d.leanmass||{};state.statuses=d.statuses||[];state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;state.nightlyLog=d.nightlyLog||{};state.scriptVer=d.scriptVer||{};coachRptLoad();if(migrateCoachSeen())save();
+  state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.bodyfat=d.bodyfat||{};state.waist=d.waist||{};state.leanmass=d.leanmass||{};state.whoop=d.whoop||{};state.statuses=d.statuses||[];state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;state.nightlyLog=d.nightlyLog||{};state.scriptVer=d.scriptVer||{};coachRptLoad();if(migrateCoachSeen())save();
   state.presets=(Array.isArray(d.presets)&&d.presets.length)?d.presets:DEFAULT_PRESETS.slice();state.skips=d.skips||{};state.glp=d.glp||glpDefault();state.ratings=(d.ratings&&typeof d.ratings==="object")?d.ratings:{};state.checkins=(d.checkins&&typeof d.checkins==="object")?d.checkins:{};glpNormalize();
   if(state.settings.macroAuto===undefined&&(num(state.settings.targetProtein)!=null||num(state.settings.targetCarbs)!=null||num(state.settings.targetFat)!=null))state.settings.macroAuto=false;
   if(state.settings.calTargetAuto===undefined&&num(state.settings.targetCalories)!=null)state.settings.calTargetAuto=false;

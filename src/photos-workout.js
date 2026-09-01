@@ -1759,6 +1759,12 @@ function finishSheetHTML(){var w=state.workout;var b=woBuckets();var ff=w.finish
   h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="wo:finishback">‹</button><span class="wl-cal-title">Finish workout</span><span style="width:36px;display:inline-block"></span></div>';
   h+='<div class="wl-card"><div class="wl-card-head"><span>'+esc(w.name)+'</span></div><div class="wl-diary-macros" style="border:none;padding:0"><b>'+fmtDur(b.total)+'</b> total · work '+fmtDur(b.work)+' · rest '+fmtDur(b.rest)+(b.warmup>2000?' · warmup '+fmtDur(b.warmup):"")+'</div></div>';
   h+='<div class="wl-card"><div class="wl-card-head"><span>Session summary</span></div>';
+  /* Say plainly which figures the strap supplied — an unexplained number in a
+     field you didn't type is worse than a blank one. */
+  if(w.whoopFill&&w.whoopFill.fields&&w.whoopFill.fields.length){
+    var _wf=w.whoopFill;
+    h+='<div class="wl-whoopfill">'+I.trend.replace("<svg","<svg width=14 height=14")+'<span>From WHOOP: <b>'+esc(_wf.fields.join(", "))+'</b>'+(_wf.strain!=null?' \u00b7 strain '+esc(_wf.strain):'')+'. Change anything that looks wrong.'+((_wf.pct!=null&&_wf.pct<100)?' <em>Only '+esc(_wf.pct)+'% of this workout was recorded.</em>':'')+'</span></div>';
+  }
   h+='<div class="wl-row"><label class="wl-field"><span>Avg HR <em>optional</em></span><input class="wl-wof-input wl-num" data-wof="hr" type="text" inputmode="numeric" placeholder="—" value="'+(ff.hr!=null?esc(String(ff.hr)):"")+'"></label><label class="wl-field"><span>Peak HR <em>optional</em></span><input class="wl-wof-input wl-num" data-wof="hrMax" type="text" inputmode="numeric" placeholder="—" value="'+(ff.hrMax!=null?esc(String(ff.hrMax)):"")+'"></label></div>';
   h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Est. calories <em>optional</em></span><input class="wl-wof-input wl-num" data-wof="cal" type="text" inputmode="numeric" placeholder="—" value="'+(ff.cal!=null?esc(String(ff.cal)):"")+'"></label><label class="wl-field"><span>RPE <em>1-10, optional</em></span><input class="wl-wof-input wl-num" data-wof="rpe" type="text" inputmode="numeric" placeholder="—" value="'+(ff.rpe!=null?esc(String(ff.rpe)):"")+'"></label></div>';
   h+='<div id="wl-zonearea" style="margin-top:12px">'+zoneAreaHTML({hr:ff.hr,zone:ff.zone||2},"wof")+'</div>';
@@ -2103,9 +2109,10 @@ function settingsHubHTML(){var f=state.settings;var strat=strategyMode();var sl=
   var th=(THEMES[f.theme]||THEMES.dark||{});pv.appearance=(th.label||"Dark")+" mode";
   var st=statusFor(todayISO());pv.away=st?((st.status.type==="vacation"?"Vacation":"Recovery")+" mode active"):"No status set";
   pv.sync=syncOn()?"Connected":"Not set up";
+  pv.whoop=state.settings.whoopOn?((state.settings.whoopFake?"Demo data":"On")+" \u00b7 "+whoopAgo(state.settings.whoopLast)):"Off";
   pv.data="Export \u00b7 import \u00b7 restore";
   pv.about="v"+APP_BUILD;
-  var rows=[["profile",I.user,"Profile"],["strategy",I.compass,"Strategy"],["goals",I.target,"Goals"],["glp",I.syringe,"GLP-1 & Peptides"],["coach",I.coach,"Coach"],["appearance",I.palette,"Appearance"],["away",I.palm,"Away & Recovery"],["sync",I.sync,"Sync & Devices"],["data",I.database,"Data & Backup"],["about",I.info,"About & Reset"]];
+  var rows=[["profile",I.user,"Profile"],["strategy",I.compass,"Strategy"],["goals",I.target,"Goals"],["glp",I.syringe,"GLP-1 & Peptides"],["coach",I.coach,"Coach"],["appearance",I.palette,"Appearance"],["away",I.palm,"Away & Recovery"],["sync",I.sync,"Sync & Devices"],["whoop",I.trend,"WHOOP"],["data",I.database,"Data & Backup"],["about",I.info,"About & Reset"]];
   return '<div class="wl-card" style="padding:6px 4px">'+rows.map(function(r){return '<button class="wl-hubrow" data-act="set:page" data-page="'+r[0]+'"><span class="wl-hubic">'+r[1]+'</span><span class="wl-hubl"><span class="wl-hubt">'+r[2]+'</span><span class="wl-hubs">'+pv[r[0]]+'</span></span><span class="wl-hubgo">\u203a</span></button>';}).join("")+'</div>';}
 function view_settings(){
   applyAutoMacros();
@@ -2232,6 +2239,7 @@ function view_settings(){
   h+='<div class="wl-card"><button class="wl-collapse-head" data-act="card:toggle" data-card="exportdata"><span>Export data</span><span class="wl-chevron'+(op.exportdata?" open":"")+'">›</span></button>'+(op.exportdata?('<div class="wl-collapse-body">'+expBtnHTML("all","primary","Export all data",'Your full history. CSV is the data — every logged metric, training, and notes. HTML is a readable report.',true)+'</div>'):'')+'</div>';
   }
   var sc=syncCfg();
+  if(pg==="whoop")h+=whoopSettingsHTML();
   if(pg==="sync"){
   if(isOwner()){
   h+=pbAccountCardHTML(op);

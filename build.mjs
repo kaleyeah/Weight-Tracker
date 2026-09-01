@@ -75,6 +75,7 @@ const MODULES = [
   { name: "lifting-model.js" },
   { name: "sr-photos.js" },
   { name: "photos-workout.js" },
+  { name: "whoop-client.js" },
   { name: "render-events.js" },
   { name: "recovery-update.js" },
   { name: "pb-adapter.js" },
