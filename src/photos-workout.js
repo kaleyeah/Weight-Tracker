@@ -968,6 +968,7 @@ function routineItemHTML(rt,it,idx){
   }else if(it.progression==="double"){
   h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Rep range '+infoBtn("reprange")+'</span><div style="display:flex;align-items:center;gap:6px"><input class="wl-ri-input wl-num" data-iid="'+it.id+'" data-field="repLow" type="text" inputmode="numeric" value="'+esc(it.repLow!=null?it.repLow:"")+'" placeholder="8" style="text-align:center"><span style="color:var(--faint)">–</span><input class="wl-ri-input wl-num" data-iid="'+it.id+'" data-field="repHigh" type="text" inputmode="numeric" value="'+esc(it.repHigh!=null?it.repHigh:"")+'" placeholder="12" style="text-align:center"></div></label>';
   h+='<label class="wl-field"><span>'+(ex.bodyweight?"Added wt <em>optional</em>":"Weight ("+u+")")+'</span><input class="wl-ri-input wl-num" data-iid="'+it.id+'" data-field="weight" type="text" inputmode="decimal" value="'+esc(it.weight!=null?it.weight:"")+'" placeholder="'+(ex.bodyweight?"0 = BW":"0")+'"></label></div>';
+  h+='<label class="wl-field wl-field-full" style="margin-top:10px"><span>Rest between sets <em>min — drives the rest-timer ping</em></span><input class="wl-ri-input wl-num" data-iid="'+it.id+'" data-field="restMin" type="text" inputmode="decimal" value="'+esc(it.restMin!=null?it.restMin:"")+'" placeholder="'+esc(state.settings.restNotifyMin||"3")+'"></label>';
   }
   h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px"><span class="wl-cf-label" style="margin:0">Sets</span><div class="wl-stepper"><button data-act="ri:setdec" data-iid="'+it.id+'">−</button><span>'+(it.sets||0)+'</span><button data-act="ri:setinc" data-iid="'+it.id+'">+</button></div></div>';
   return h+'</div>';
@@ -1173,7 +1174,7 @@ function buildWorkoutEntries(rt,bw){return (rt.items||[]).map(function(it){var e
   var notes=[];(ex.notes||[]).forEach(function(nn){notes.push({id:nn.id,text:nn.text,pinned:true});});(it.notes||[]).forEach(function(nn){notes.push({id:nn.id,text:nn.text,pinned:false});});
   var _lf=fbLastFor(it.exerciseId);
     var _lm=fbLastMuscle(ex.muscle||"other");
-    return {itemId:it.id,progression:it.progression||rt.progression||"double",lastJoint:(_lf&&(_lf.joint==="mod"||_lf.joint==="alot"))?_lf:null,lastMus:_lm,exerciseId:it.exerciseId,name:ex.name,muscle:ex.muscle,equipment:ex.equipment,bodyweight:!!ex.bodyweight,repLow:it.repLow,repHigh:it.repHigh,movement:it.movement||guessMovement(ex.muscle),setRanges:rptRangesFor(it,n),addedWt:num(it.weight)||0,notes:notes,sets:sets};
+    return {itemId:it.id,progression:it.progression||rt.progression||"double",lastJoint:(_lf&&(_lf.joint==="mod"||_lf.joint==="alot"))?_lf:null,lastMus:_lm,exerciseId:it.exerciseId,name:ex.name,muscle:ex.muscle,equipment:ex.equipment,bodyweight:!!ex.bodyweight,repLow:it.repLow,repHigh:it.repHigh,movement:it.movement||guessMovement(ex.muscle),setRanges:rptRangesFor(it,n),addedWt:num(it.weight)||0,restMin:(it.restMin!=null&&it.restMin!==""?it.restMin:null),notes:notes,sets:sets};
 }).filter(Boolean);}
 function rebuildEntryNotes(ei){var w=state.workout;if(!w)return;var en=w.entries[ei];if(!en)return;var rt=getRoutine(w.routineId);var it=rt&&rItem(rt,en.itemId);var ex=exById(en.exerciseId);var notes=[];if(ex)(ex.notes||[]).forEach(function(n){notes.push({id:n.id,text:n.text,pinned:true});});if(it)(it.notes||[]).forEach(function(n){notes.push({id:n.id,text:n.text,pinned:false});});en.notes=notes;saveWorkout();}
 function sugInvertReps(E,w){E=num(E);w=num(w);if(E==null||w==null||w<=0)return null;var r=Math.round(30*(E/w-1));if(r<1)r=1;if(r>30)r=30;return r;}
@@ -1521,8 +1522,10 @@ function restNotifyEnable(){
   });
 }
 function restSecondsFor(en){
-  if(en&&en.restSec!=null&&en.restSec!==""){var s=num(en.restSec);if(s!=null&&s>0)return Math.max(5,Math.round(s));}
-  var m=num(state.settings.restNotifyMin);return (m!=null&&m>0)?Math.round(m*60):180;
+  // per-exercise rest (minutes) wins; else the global default; else 3 min.
+  var m=(en&&en.restMin!=null&&en.restMin!=="")?num(en.restMin):null;
+  if(m==null||!(m>0)){var g=num(state.settings.restNotifyMin);m=(g!=null&&g>0)?g:3;}
+  return Math.max(5,Math.round(m*60));
 }
 function _restNextEntry(){var w=state.workout;if(!w||!w.entries)return null;for(var i=0;i<w.entries.length;i++){var e=w.entries[i];var ss=e.sets||[];for(var si=0;si<ss.length;si++){if(ss[si].status!=="done"&&ss[si].status!=="skipped")return e;}}return null;}
 function restNotifyBody(){var un=woUpNext();if(!un)return "Next set is up.";var u=state.settings.units;var bits=[];if(un.name)bits.push(un.name);bits.push("Set "+un.setNo+"/"+un.setTotal);if(un.reps)bits.push(un.reps+" reps");if(un.weight)bits.push(un.weight+" "+u);return bits.join(" · ");}
@@ -1760,13 +1763,19 @@ function histOverlayHTML(){var hv=state.histView;var ls=state.training.liftSessi
   rows.forEach(function(r){var e=e1rm(r.w,r.r);var isPR=(bestE!=null&&e!=null&&Math.abs(e-bestE)<0.01);h+='<div style="display:flex;justify-content:space-between;align-items:baseline;padding:10px 0;border-bottom:1px solid var(--line)"><span style="font-size:16px">'+(isPR?'⭐ ':"")+'<b>'+r.w+'</b> <span style="font-size:12px;color:var(--faint)">'+u+'</span> × <b>'+(r.r!=null?r.r:"–")+'</b></span><span class="wl-exrow-sub" style="text-align:right">'+fmtShort(parseISO(r.d))+'<br>'+esc(r.name||"")+'</span></div>';});
   return h+'</div></div>';}
 function woOverlaysHTML(){var h="";
-  if(state.restSetOpen){var _rf=state.settings;
-    h+='<div class="wl-confirm" style="z-index:2100"><div class="wl-confirm-card" style="text-align:left"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-weight:800;font-size:17px">Rest timer alerts</div><button class="wl-icon-btn" data-act="rest:settings:close" aria-label="Close">✕</button></div>'+
-      '<div class="wl-hint" style="margin-bottom:12px">Compound pings you — <b>Time to hit it 💪</b> — with your next set when rest reaches this length, even if you’ve left the app.</div>'+
-      '<label class="wl-field wl-field-full"><span>Ping me after <em>minutes of rest</em></span><input class="wl-num" type="text" inputmode="decimal" data-set="restNotifyMin" value="'+esc(_rf.restNotifyMin||"3")+'" placeholder="3"></label>'+
-      '<div class="wl-seg" style="margin-top:12px"><button class="'+(!_rf.restNotify?"on":"")+'" data-act="restnotify:set" data-on="0">Off</button><button class="'+(_rf.restNotify?"on":"")+'" data-act="restnotify:set" data-on="1">On</button></div>'+
+  if(state.restSetOpen){var _rf=state.settings;var _ren=(typeof _restNextEntry==="function")?_restNextEntry():null;
+    h+='<div class="wl-confirm" style="z-index:2100"><div class="wl-confirm-card" style="text-align:left"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="font-weight:800;font-size:17px">Rest timer</div><button class="wl-icon-btn" data-act="rest:settings:close" aria-label="Close">✕</button></div>';
+    if(_ren){var _rv=(_ren.restMin!=null&&_ren.restMin!=="")?_ren.restMin:"";
+      h+='<div class="wl-hint" style="margin-bottom:6px">Rest for <b>'+esc(_ren.name)+'</b></div>'+
+        '<label class="wl-field wl-field-full"><span>Minutes of rest</span><input class="wl-num" id="wl-rest-exmin" type="text" inputmode="decimal" value="'+esc(_rv)+'" placeholder="'+esc(_rf.restNotifyMin||"3")+' (default)"></label>'+
+        '<div class="wl-row" style="margin-top:10px"><button class="wl-btn wl-btn-ghost wl-full" data-act="rest:exsave" data-scope="once">This workout</button><button class="wl-btn wl-btn-primary wl-full" data-act="rest:exsave" data-scope="routine">Save to routine</button></div>'+
+        '<div class="wl-hint" style="margin-top:12px;border-top:1px solid var(--line);padding-top:12px;margin-bottom:2px">Notification</div>';
+    }else{
+      h+='<div class="wl-hint" style="margin-bottom:12px">Compound pings you — <b>Time to hit it 💪</b> — with your next set when rest reaches the set length, even if you’ve left the app.</div>'+
+        '<label class="wl-field wl-field-full"><span>Ping me after <em>minutes of rest</em></span><input class="wl-num" type="text" inputmode="decimal" data-set="restNotifyMin" value="'+esc(_rf.restNotifyMin||"3")+'" placeholder="3"></label>';
+    }
+    h+='<div class="wl-seg" style="margin-top:10px"><button class="'+(!_rf.restNotify?"on":"")+'" data-act="restnotify:set" data-on="0">Off</button><button class="'+(_rf.restNotify?"on":"")+'" data-act="restnotify:set" data-on="1">On</button></div>'+
       ((typeof Notification!=="undefined"&&Notification.permission==="granted")?'<div class="wl-hint" style="margin-top:10px;color:var(--good)">Notifications are enabled on this device.</div>':'<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="restnotify:enable">Enable notifications on this device</button>')+
-      '<div class="wl-hint" style="margin-top:10px">End rest before the timer and no ping is sent. Per-exercise rest lengths are coming.</div>'+
       '<button class="wl-btn wl-btn-primary wl-full" style="margin-top:14px" data-act="rest:settings:close">Done</button>'+
     '</div></div>';}
   if(state.setMenu){h+='<div class="wl-confirm"><div class="wl-confirm-card"><div class="wl-confirm-msg" style="font-weight:700;margin-bottom:14px">Set</div><button class="wl-btn wl-btn-ghost wl-full" data-act="wo:addset">Add set below</button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:skipset">Skip / unskip set</button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="wo:delset">Delete set</button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:12px" data-act="wo:setmenu:close">Cancel</button></div></div>';}
