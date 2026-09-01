@@ -1542,7 +1542,19 @@ function pauseWorkout(){var w=state.workout;if(!w)return;if(w.tState!=="ready"&&
 function woBuckets(){var w=state.workout;if(!w)return null;if(w.tState==="ready")return {warmup:0,work:0,rest:0,total:0,segMs:0};if(w.paused||!w.stateStartTs){var tot=w.warmupMs+w.workMs+w.restMs;return {warmup:w.warmupMs,work:w.workMs,rest:w.restMs,total:tot,segMs:0};}var now=Date.now();var seg=now-w.stateStartTs;var b={warmup:w.warmupMs,work:w.workMs,rest:w.restMs};if(w.tState==="warmup")b.warmup+=seg;else if(w.tState==="working")b.work+=seg;else b.rest+=seg;b.total=b.warmup+b.work+b.rest;b.segMs=seg;return b;}
 function fmtDur(ms){var s=Math.max(0,Math.floor(ms/1000));var h=Math.floor(s/3600);var m=Math.floor((s%3600)/60);var ss=s%60;return (h?h+":"+("0"+m).slice(-2):m)+":"+("0"+ss).slice(-2);}
 var woTimer=null;
-function startWoTick(){if(woTimer)clearInterval(woTimer);woTimer=setInterval(function(){if(!state.workout||state.view!=="workout"){return;}var w=state.workout;var b=woBuckets();var t=document.getElementById("wl-tb-total");if(t)t.textContent=fmtDur(b.total);var s=document.getElementById("wl-tb-seg");if(s)s.textContent=(w.tState==="ready"?"Ready":w.tState==="warmup"?"Warmup":w.tState==="working"?"Working":"Resting")+(w.tState==="ready"?"":" · "+fmtDur(b.segMs));var rt=document.getElementById("wl-rest-time");if(rt&&w.tState==="resting")rt.textContent=fmtDur(b.segMs);},1000);}
+/* Paint the timer displays from the CURRENT clock. Time is stored as
+   stateStartTs (a timestamp), so this is always correct no matter how long the
+   app was backgrounded/suspended — it recomputes from Date.now(). */
+function woTickPaint(){if(!state.workout||state.view!=="workout")return;var w=state.workout;var b=woBuckets();var t=document.getElementById("wl-tb-total");if(t)t.textContent=fmtDur(b.total);var s=document.getElementById("wl-tb-seg");if(s)s.textContent=(w.tState==="ready"?"Ready":w.tState==="warmup"?"Warmup":w.tState==="working"?"Working":"Resting")+(w.tState==="ready"?"":" · "+fmtDur(b.segMs));var rt=document.getElementById("wl-rest-time");if(rt&&w.tState==="resting")rt.textContent=fmtDur(b.segMs);}
+function startWoTick(){if(woTimer)clearInterval(woTimer);woTimer=setInterval(woTickPaint,1000);}
+/* iOS suspends setInterval while the PWA is backgrounded/locked. On return,
+   restart the tick and immediately snap the display to the true elapsed time so
+   the workout timer never looks frozen. (The elapsed value itself was never
+   lost — it's timestamp-based — this only refreshes what's on screen.) */
+function woResumeTick(){if(state.workout&&state.view==="workout"){startWoTick();woTickPaint();}}
+document.addEventListener("visibilitychange",function(){if(!document.hidden)woResumeTick();});
+window.addEventListener("pageshow",woResumeTick);
+window.addEventListener("focus",woResumeTick);
 function setTargetIcon(st,en){var reps=num(st.reps);if(reps==null)return "";
   var up,dn;var tlo=num(st.tgtLo),thi=num(st.tgtHi);
   if(tlo!=null||thi!=null){up=(thi!=null&&reps>thi);dn=(tlo!=null&&reps<tlo);}
