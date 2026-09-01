@@ -1548,7 +1548,7 @@ var woTimer=null;
 /* Paint the timer displays from the CURRENT clock. Time is stored as
    stateStartTs (a timestamp), so this is always correct no matter how long the
    app was backgrounded/suspended — it recomputes from Date.now(). */
-function woTickPaint(){if(!state.workout||state.view!=="workout")return;var w=state.workout;var b=woBuckets();var t=document.getElementById("wl-tb-total");if(t)t.textContent=fmtDur(b.total);var s=document.getElementById("wl-tb-seg");if(s)s.textContent=(w.tState==="ready"?"Ready":w.tState==="warmup"?"Warmup":w.tState==="working"?"Working":(w.pausedRest?"Paused":"Resting"))+((w.tState==="ready"||w.tState==="resting")?"":" · "+fmtDur(b.segMs));var rt=document.getElementById("wl-rest-time");if(rt&&w.tState==="resting")rt.textContent=fmtDur(b.segMs);}
+function woTickPaint(){if(!state.workout||state.view!=="workout")return;var w=state.workout;var b=woBuckets();var t=document.getElementById("wl-tb-total");if(t)t.textContent=fmtDur(b.total);var s=document.getElementById("wl-tb-seg");if(s)s.textContent=(w.tState==="ready"?"Ready":w.tState==="warmup"?"Warmup":w.tState==="working"?"Working":(w.pausedRest?"Paused":"Resting"))+((w.tState==="ready"||w.tState==="resting")?"":" · "+fmtDur(b.segMs));var rt=document.getElementById("wl-rest-time");if(rt&&w.tState==="resting")rt.textContent=fmtDur(b.segMs);var rtot=document.getElementById("wl-rb-total-t");if(rtot)rtot.textContent=fmtDur(b.total);}
 function startWoTick(){if(woTimer)clearInterval(woTimer);woTimer=setInterval(woTickPaint,1000);}
 /* iOS suspends setInterval while the PWA is backgrounded/locked. On return,
    restart the tick and immediately snap the display to the true elapsed time so
@@ -1610,6 +1610,7 @@ function restBarHTML(){
   var w=state.workout;var b=woBuckets();var un=woUpNext();var u=state.settings.units;
   var pz=!!w.pausedRest;   /* paused mid-working-set vs a between-sets rest */
   var h='<div class="wl-restbar'+(pz?' paused':'')+'">';
+  h+='<div class="wl-rb-total"><span class="wl-rb-totall">Total</span><b id="wl-rb-total-t">'+fmtDur(b.total)+'</b></div>';
   h+='<div class="wl-rb-icons">'+(pz?'':'<button class="wl-icon-btn'+(state.restInfoOpen?" on":"")+'" data-act="rest:info" aria-label="Rest info">'+I.info.replace("<svg","<svg width=18 height=18")+'</button>')+
      '<button class="wl-icon-btn" data-act="rest:settings" aria-label="Rest settings" style="font-size:18px;line-height:1">⚙</button></div>';
   h+='<div class="wl-rb-timer"><div class="wl-rb-label">'+(pz?'Paused':'Rest')+'</div><div class="wl-rb-time" id="wl-rest-time">'+fmtDur(b.segMs)+'</div></div>';
@@ -1627,7 +1628,7 @@ function view_workout(){var w=state.workout;
   if(w.finishing)return finishSheetHTML();
   var h='<div class="wl-stack wl-workout">';
   
-  h+=timerBarHTML();
+  if(w.tState!=="resting")h+=timerBarHTML();
   if(w.tState==="ready")h+='<div class="wl-hint" style="text-align:center;margin:2px 0 4px">Review your workout below, then tap <b>Start</b> — your warmup begins first. Tap <b>End warmup</b> when you\u2019re ready to lift.</div>';
   var _resting=(w.tState==="resting");
   if(_resting){h+=restBarHTML();h+='<div class="wl-worklock"><span class="wl-lockchip">🔒 '+(w.pausedRest?'Paused — tap Resume to continue':'Locked until you begin the next set')+'</span></div>';h+='<div class="wl-locked">';}
