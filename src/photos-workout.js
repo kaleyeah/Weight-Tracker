@@ -1558,7 +1558,14 @@ function woResumeTick(){if(state.workout&&state.view==="workout"){startWoTick();
 /* index of the exercise whose next set is up (first pending/non-skipped set) */
 function woCurrentEi(){var w=state.workout;if(!w||!w.entries)return -1;for(var i=0;i<w.entries.length;i++){var ss=w.entries[i].sets||[];for(var j=0;j<ss.length;j++){if(ss[j].status!=="done"&&ss[j].status!=="skipped")return i;}}return -1;}
 /* when leaving rest back into working, bring the current exercise into view */
-function woScrollCurrent(){var ei=woCurrentEi();if(ei<0)return;var el=document.getElementById("wo-ex-"+ei);if(el&&el.scrollIntoView)el.scrollIntoView({behavior:"smooth",block:"start"});}
+/* On returning from rest (Begin next set / Resume), scroll the current exercise
+   into view AND flash its border so the eye lands on the right card. The class
+   is stripped after the animation so a later re-render never re-flashes it. */
+function woScrollCurrent(){var ei=woCurrentEi();if(ei<0)return;var el=document.getElementById("wo-ex-"+ei);if(!el)return;
+  if(el.scrollIntoView)el.scrollIntoView({behavior:"smooth",block:"start"});
+  el.classList.remove("wl-ex-focus");void el.offsetWidth;   /* restart the animation */
+  el.classList.add("wl-ex-focus");
+  setTimeout(function(){el.classList.remove("wl-ex-focus");},1800);}
 document.addEventListener("visibilitychange",function(){if(!document.hidden)woResumeTick();});
 window.addEventListener("pageshow",woResumeTick);
 window.addEventListener("focus",woResumeTick);
