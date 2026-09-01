@@ -954,8 +954,11 @@ function routineNotesHTML(rt,it,ex){var h='';
 function routineItemHTML(rt,it,idx){
   var ex=exById(it.exerciseId);if(!ex)return '<div class="wl-card"><div class="wl-hint">Missing exercise. <button class="wl-link" data-act="ri:remove" data-iid="'+it.id+'">Remove</button></div></div>';
   var u=state.settings.units;
-  var h='<div class="wl-card wl-ritem">';
-  h+='<div style="margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">'+muscleTagHTML(ex.muscle||"other")+'<span class="wl-ri-actions">'+(idx>0?'<button class="wl-icon-btn" data-act="ri:up" data-iid="'+it.id+'">'+I.up.replace("<svg","<svg width=17 height=17")+'</button>':'')+(idx<rt.items.length-1?'<button class="wl-icon-btn" data-act="ri:down" data-iid="'+it.id+'">'+I.down.replace("<svg","<svg width=17 height=17")+'</button>':'')+'<button class="wl-icon-btn" data-act="ri:remove" data-iid="'+it.id+'">'+I.trash.replace("<svg","<svg width=16 height=16")+'</button></span></div>';
+  var _items=rt.items||[];var _sp=ssSpan(_items,idx);var _L=ssLetter(_items,idx);
+  var _linked=(idx<_items.length-1)&&!!it.groupId&&_items[idx+1].groupId===it.groupId;
+  var h='<div class="wl-card wl-ritem'+(_sp.g?' ssmem':'')+'">';
+  h+='<div style="margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">'+(_L?'<span class="wl-sschip">'+_L+'</span>':'')+muscleTagHTML(ex.muscle||"other")+'<span class="wl-ri-actions">'+
+    (idx<_items.length-1?'<button class="wl-icon-btn'+(_linked?' on':'')+'" data-act="'+(_linked?'ri:ssunlink':'ri:sslink')+'" data-iid="'+it.id+'" title="'+(_linked?'Break this superset':'Superset with the next exercise')+'" aria-label="'+(_linked?'Break superset':'Superset with next')+'">'+I[_linked?"unlink":"link"].replace("<svg","<svg width=17 height=17")+'</button>':'')+(idx>0?'<button class="wl-icon-btn" data-act="ri:up" data-iid="'+it.id+'">'+I.up.replace("<svg","<svg width=17 height=17")+'</button>':'')+(idx<rt.items.length-1?'<button class="wl-icon-btn" data-act="ri:down" data-iid="'+it.id+'">'+I.down.replace("<svg","<svg width=17 height=17")+'</button>':'')+'<button class="wl-icon-btn" data-act="ri:remove" data-iid="'+it.id+'">'+I.trash.replace("<svg","<svg width=16 height=16")+'</button></span></div>';
   h+='<div class="wl-exrow-name">'+esc(ex.name)+'</div>'+((ex.equipment||ex.bodyweight)?'<div class="wl-exrow-sub" style="margin-bottom:8px">'+esc(ex.equipment||"")+(ex.bodyweight?(ex.equipment?" · ":"")+"Bodyweight":"")+'</div>':'<div style="height:6px"></div>');
   h+=routineNotesHTML(rt,it,ex);
   h+='<div class="wl-cf-label" style="margin:12px 0 6px">Progression '+infoBtn("progression")+'</div><div class="wl-seg2"><button class="wl-seg2btn'+(it.progression==="double"?" on":"")+'" data-act="ri:prog" data-iid="'+it.id+'" data-prog="double">Progressive Overload</button><button class="wl-seg2btn'+(it.progression==="rpt"?" on":"")+'" data-act="ri:prog" data-iid="'+it.id+'" data-prog="rpt">Reverse Pyramid</button></div>';
@@ -997,7 +1000,15 @@ function view_routine(){
   h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="rt:save">‹</button><span class="wl-cal-title">Edit Routine</span><span style="width:36px;display:inline-block"></span></div>';
   h+='<div class="wl-card"><label class="wl-field wl-field-full"><span>Routine Name</span><input class="wl-rt-name" type="text" value="'+esc(rt.name||"")+'" placeholder="e.g. Day 1 – Push"></label></div>';
   if(!(rt.items||[]).length)h+='<div class="wl-card"><div class="wl-hint">No exercises yet. Add them from your library below — they\u2019ll group by muscle automatically.</div></div>';
-  (rt.items||[]).forEach(function(it,idx){h+=routineItemHTML(rt,it,idx);});
+  var _its=rt.items||[],_ri=0;
+  while(_ri<_its.length){
+    var _rsp=ssSpan(_its,_ri);
+    if(!_rsp.g){h+=routineItemHTML(rt,_its[_ri],_ri);_ri++;continue;}
+    h+='<div class="wl-ssgroup"><div class="wl-ss-head">'+I.link.replace("<svg","<svg width=14 height=14")+'<span>Superset</span><em>straight through \u2014 rest after the round</em></div>';
+    for(var _rj=_rsp.s;_rj<_rsp.e;_rj++)h+=routineItemHTML(rt,_its[_rj],_rj);
+    h+='</div>';
+    _ri=_rsp.e;
+  }
   h+='<button class="wl-btn wl-btn-ghost wl-full" data-act="ri:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add Exercise</button>';
   h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:8px" data-act="rt:save">'+I.check.replace("<svg","<svg width=16 height=16")+'Save Routine</button>';
   h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="rt:del" data-id="'+rt.id+'">Delete Routine</button>';
@@ -1174,7 +1185,7 @@ function buildWorkoutEntries(rt,bw){return (rt.items||[]).map(function(it){var e
   var notes=[];(ex.notes||[]).forEach(function(nn){notes.push({id:nn.id,text:nn.text,pinned:true});});(it.notes||[]).forEach(function(nn){notes.push({id:nn.id,text:nn.text,pinned:false});});
   var _lf=fbLastFor(it.exerciseId);
     var _lm=fbLastMuscle(ex.muscle||"other");
-    return {itemId:it.id,progression:it.progression||rt.progression||"double",lastJoint:(_lf&&(_lf.joint==="mod"||_lf.joint==="alot"))?_lf:null,lastMus:_lm,exerciseId:it.exerciseId,name:ex.name,muscle:ex.muscle,equipment:ex.equipment,bodyweight:!!ex.bodyweight,repLow:it.repLow,repHigh:it.repHigh,movement:it.movement||guessMovement(ex.muscle),setRanges:rptRangesFor(it,n),addedWt:num(it.weight)||0,restMin:(it.restMin!=null&&it.restMin!==""?it.restMin:null),notes:notes,sets:sets};
+    return {itemId:it.id,groupId:(it.groupId||null),progression:it.progression||rt.progression||"double",lastJoint:(_lf&&(_lf.joint==="mod"||_lf.joint==="alot"))?_lf:null,lastMus:_lm,exerciseId:it.exerciseId,name:ex.name,muscle:ex.muscle,equipment:ex.equipment,bodyweight:!!ex.bodyweight,repLow:it.repLow,repHigh:it.repHigh,movement:it.movement||guessMovement(ex.muscle),setRanges:rptRangesFor(it,n),addedWt:num(it.weight)||0,restMin:(it.restMin!=null&&it.restMin!==""?it.restMin:null),notes:notes,sets:sets};
 }).filter(Boolean);}
 function rebuildEntryNotes(ei){var w=state.workout;if(!w)return;var en=w.entries[ei];if(!en)return;var rt=getRoutine(w.routineId);var it=rt&&rItem(rt,en.itemId);var ex=exById(en.exerciseId);var notes=[];if(ex)(ex.notes||[]).forEach(function(n){notes.push({id:n.id,text:n.text,pinned:true});});if(it)(it.notes||[]).forEach(function(n){notes.push({id:n.id,text:n.text,pinned:false});});en.notes=notes;saveWorkout();}
 function sugInvertReps(E,w){E=num(E);w=num(w);if(E==null||w==null||w<=0)return null;var r=Math.round(30*(E/w-1));if(r<1)r=1;if(r>30)r=30;return r;}
@@ -1267,24 +1278,92 @@ function rptRetarget(en,si){
    applying an app update mid-session drops you back here with sets already logged. */
 /* The next exercise with unfinished sets, in the order they appear. Returns null
    when it is the same exercise you are resting inside, or when nothing is left. */
+/* ---- Supersets -------------------------------------------------------------
+   A superset is a run of ADJACENT routine items / workout entries sharing a
+   groupId. You work them round-robin: A1, B1, rest, A2, B2, rest. Owner ruled
+   2026-09-01: NO rest inside a round (straight from one into the next), full
+   rest only when the round closes. Any group size — a pair, a tri-set, more.
+   Uneven set counts alternate as far as they pair up, then the leftovers run
+   straight, each still earning its rest.
+   groupId is ALWAYS optional: routines and in-flight workouts saved by older
+   builds carry none and behave exactly as they always did. */
+
+/* the [s,e) span of the adjacent run sharing list[i]'s groupId. A group that
+   has been orphaned down to one member (its partner was removed, or dropped by
+   buildWorkoutEntries because the exercise was deleted) reports as a plain
+   single, so nothing downstream has to special-case it. */
+function ssSpan(list,i){
+  var g=(list&&list[i])?list[i].groupId:null;
+  if(!g)return {s:i,e:i+1,g:null};
+  var s=i,e=i+1;
+  while(s>0&&list[s-1].groupId===g)s--;
+  while(e<list.length&&list[e].groupId===g)e++;
+  return {s:s,e:e,g:(e-s>1)?g:null};
+}
+/* Strip any groupId that no longer has a partner beside it — after a removal,
+   a reorder, or a split. Keeps "grouped" and "has someone to alternate with"
+   the same statement, so no other code has to check group size. */
+function ssNormalize(list){
+  if(!list||!list.length)return list;
+  for(var i=0;i<list.length;i++){
+    var g=list[i].groupId;if(!g)continue;
+    var alone=(i===0||list[i-1].groupId!==g)&&(i===list.length-1||list[i+1].groupId!==g);
+    if(alone)list[i].groupId=null;
+  }
+  return list;
+}
+function ssIsGrouped(list,i){return ssSpan(list,i).g!=null;}
+/* Every (ei,si) in TRUE PERFORMANCE ORDER — the single source of truth the
+   "what's next" scans all read, so they can never disagree with each other. */
+function woOrder(){
+  var w=state.workout;var out=[];if(!w||!w.entries)return out;
+  var es=w.entries,i=0;
+  while(i<es.length){
+    var sp=ssSpan(es,i);
+    if(!sp.g){var ss=es[i].sets||[];for(var k=0;k<ss.length;k++)out.push({ei:i,si:k,g:null});i++;continue;}
+    var mx=0,j;
+    for(j=sp.s;j<sp.e;j++)mx=Math.max(mx,(es[j].sets||[]).length);
+    for(var r=0;r<mx;r++)for(j=sp.s;j<sp.e;j++){if((es[j].sets||[])[r])out.push({ei:j,si:r,g:sp.g});}
+    i=sp.e;
+  }
+  return out;
+}
+/* the first set still to be done, in performance order */
+function woNextPos(){
+  var w=state.workout;if(!w||!w.entries)return null;
+  var o=woOrder();
+  for(var i=0;i<o.length;i++){
+    var en=w.entries[o[i].ei];var st=en&&(en.sets||[])[o[i].si];
+    if(st&&st.status!=="done"&&st.status!=="skipped")return o[i];
+  }
+  return null;
+}
+/* After logging (ei,si): is the next set the SAME ROUND of the same superset?
+   Then no rest — walk straight to the partner. Round is si, so B1->A2 (which is
+   the same group but the next round) correctly falls through to a real rest. */
+function ssStraightNext(ei,si){
+  var w=state.workout;if(!w||!w.entries)return null;
+  var es=w.entries;if(!ssIsGrouped(es,ei))return null;
+  var g=ssSpan(es,ei).g;
+  var p=woNextPos();
+  if(p&&p.ei!==ei&&p.si===si&&es[p.ei]&&es[p.ei].groupId===g&&ssSpan(es,p.ei).g===g)return p;
+  return null;
+}
+/* label a member as A/B/C… for the UI */
+function ssLetter(list,i){var sp=ssSpan(list,i);if(!sp.g)return "";return String.fromCharCode(65+(i-sp.s));}
 function woUpNext(){
   var w=state.workout;if(!w||!w.entries)return null;
-  for(var i=0;i<w.entries.length;i++){
-    var en=w.entries[i];var sets=en.sets||[];
-    for(var si=0;si<sets.length;si++){
-      var st=sets[si];
-      if(st.status==="done"||st.status==="skipped")continue;
-      var reps="";
-      if((en.progression||"double")==="rpt"){
-        var rgs=(en.setRanges&&en.setRanges.length)?en.setRanges:rptDefRanges(en.movement||"compound",sets.length);
-        var rg=rgs[si]||rgs[rgs.length-1];
-        if(rg&&(rg.lo!=null||rg.hi!=null))reps=(rg.lo!=null?rg.lo:"?")+"\u2013"+(rg.hi!=null?rg.hi:"?");
-      }else if((en.repLow!=null&&en.repLow!=="")||(en.repHigh!=null&&en.repHigh!=="")){
-        reps=(en.repLow!=null&&en.repLow!==""?en.repLow:"?")+"\u2013"+(en.repHigh!=null&&en.repHigh!==""?en.repHigh:"?");
-      }else if(st.reps!==""&&st.reps!=null){reps=String(st.reps);}
-      return {name:en.name||"",setNo:si+1,setTotal:sets.length,reps:reps,weight:(st.weight!==""&&st.weight!=null)?String(st.weight):""};
-    }}
-  return null;}
+  var p=woNextPos();if(!p)return null;
+  var en=w.entries[p.ei];var sets=en.sets||[];var si=p.si;var st=sets[si];
+  var reps="";
+  if((en.progression||"double")==="rpt"){
+    var rgs=(en.setRanges&&en.setRanges.length)?en.setRanges:rptDefRanges(en.movement||"compound",sets.length);
+    var rg=rgs[si]||rgs[rgs.length-1];
+    if(rg&&(rg.lo!=null||rg.hi!=null))reps=(rg.lo!=null?rg.lo:"?")+"–"+(rg.hi!=null?rg.hi:"?");
+  }else if((en.repLow!=null&&en.repLow!=="")||(en.repHigh!=null&&en.repHigh!=="")){
+    reps=(en.repLow!=null&&en.repLow!==""?en.repLow:"?")+"–"+(en.repHigh!=null&&en.repHigh!==""?en.repHigh:"?");
+  }else if(st.reps!==""&&st.reps!=null){reps=String(st.reps);}
+  return {name:en.name||"",setNo:si+1,setTotal:sets.length,reps:reps,weight:(st.weight!==""&&st.weight!=null)?String(st.weight):"",ss:!!p.g,ssLetter:p.g?ssLetter(w.entries,p.ei):""};}
 /* Reps needed to call a set a warm-up: RIR >= 2 and >= 5 reps past the range top. */
 var WARMUP_RIR_MIN=2,WARMUP_OVER=5;
 function warmupCandidate(en,si){
@@ -1527,7 +1606,7 @@ function restSecondsFor(en){
   if(m==null||!(m>0)){var g=num(state.settings.restNotifyMin);m=(g!=null&&g>0)?g:3;}
   return Math.max(5,Math.round(m*60));
 }
-function _restNextEntry(){var w=state.workout;if(!w||!w.entries)return null;for(var i=0;i<w.entries.length;i++){var e=w.entries[i];var ss=e.sets||[];for(var si=0;si<ss.length;si++){if(ss[si].status!=="done"&&ss[si].status!=="skipped")return e;}}return null;}
+function _restNextEntry(){var w=state.workout;var p=woNextPos();return (w&&p)?w.entries[p.ei]:null;}
 function restNotifyBody(){var un=woUpNext();if(!un)return "Next set is up.";var u=state.settings.units;var bits=[];if(un.name)bits.push(un.name);bits.push("Set "+un.setNo+"/"+un.setTotal);if(un.reps)bits.push(un.reps+" reps");if(un.weight)bits.push(un.weight+" "+u);return bits.join(" · ");}
 function restNotifySchedule(){
   if(!restPushOn())return;
@@ -1556,7 +1635,7 @@ function startWoTick(){if(woTimer)clearInterval(woTimer);woTimer=setInterval(woT
    lost — it's timestamp-based — this only refreshes what's on screen.) */
 function woResumeTick(){if(state.workout&&state.view==="workout"){startWoTick();woTickPaint();}}
 /* index of the exercise whose next set is up (first pending/non-skipped set) */
-function woCurrentEi(){var w=state.workout;if(!w||!w.entries)return -1;for(var i=0;i<w.entries.length;i++){var ss=w.entries[i].sets||[];for(var j=0;j<ss.length;j++){if(ss[j].status!=="done"&&ss[j].status!=="skipped")return i;}}return -1;}
+function woCurrentEi(){var p=woNextPos();return p?p.ei:-1;}
 /* when leaving rest back into working, bring the current exercise into view */
 /* On returning from rest (Begin next set / Resume), scroll the current exercise
    into view AND flash its border so the eye lands on the right card. The class
@@ -1624,7 +1703,7 @@ function restBarHTML(){
   h+=pz?'<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="wo:resumeset">Resume set</button>'
        :'<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="wo:endrest">Begin next set</button>';
   if(un){var bits=['Set '+un.setNo+' of '+un.setTotal];if(un.reps)bits.push(un.reps+' reps');if(un.weight)bits.push(esc(un.weight)+' '+u);
-    h+='<div class="wl-rb-upnext"><span class="wl-rb-upl">'+(pz?'Back to':'Up next')+'</span><b>'+esc(un.name)+'</b><div class="wl-rb-upmeta">'+bits.join(' · ')+'</div></div>';}
+    h+='<div class="wl-rb-upnext"><span class="wl-rb-upl">'+(pz?'Back to':'Up next')+(un.ss?' <span class="wl-rb-ss">'+I.link.replace("<svg","<svg width=11 height=11")+'superset '+esc(un.ssLetter)+'</span>':'')+'</span><b>'+esc(un.name)+'</b><div class="wl-rb-upmeta">'+bits.join(' · ')+'</div></div>';}
   if(!pz&&state.restInfoOpen){
     h+='<div class="wl-rb-info"><div class="wl-rb-infoh">Rest long enough to</div><ol class="wl-restwhy-l"><li>No longer be breathing heavily.</li><li>Feel mentally ready for another hard set.</li><li>Not be crampy in a supporting muscle — a fatigued lower back before another squat set, say.</li><li>Have enough back in the target muscle for at least 5 reps.</li></ol></div>';
   }
@@ -1640,8 +1719,12 @@ function view_workout(){var w=state.workout;
   var _resting=(w.tState==="resting");
   if(_resting){h+=restBarHTML();h+='<div class="wl-worklock"><span class="wl-lockchip">🔒 '+(w.pausedRest?'Paused — tap Resume to continue':'Locked until you begin the next set')+'</span></div>';h+='<div class="wl-locked">';}
   w.entries.forEach(function(en,ei){var _pg=(en.progression||"double")==="rpt"?"rpt":"double";
+  /* a superset renders as one bordered block around its members; the cards
+     keep their own wo-ex-<ei> ids so scroll/flash/complete still resolve */
+  var _esp=ssSpan(w.entries,ei);
+  if(_esp.g&&ei===_esp.s)h+='<div class="wl-ssgroup"><div class="wl-ss-head">'+I.link.replace("<svg","<svg width=14 height=14")+'<span>Superset</span><em>straight through \u2014 rest after the round</em></div>';
   h+='<div class="wl-card" id="wo-ex-'+ei+'"><div style="margin-bottom:6px;display:flex;align-items:center;justify-content:space-between">'+
-  '<span style="display:inline-flex;align-items:center;gap:7px;min-width:0">'+muscleTagHTML(en.muscle||"other")+'<span class="wl-progtag'+(_pg==="rpt"?" rpt":"")+'">'+(_pg==="rpt"?"RPT":"PO")+'</span></span>'+
+  '<span style="display:inline-flex;align-items:center;gap:7px;min-width:0">'+(_esp.g?'<span class="wl-sschip">'+ssLetter(w.entries,ei)+'</span>':'')+muscleTagHTML(en.muscle||"other")+'<span class="wl-progtag'+(_pg==="rpt"?" rpt":"")+'">'+(_pg==="rpt"?"RPT":"PO")+'</span></span>'+
   '<span style="display:inline-flex;gap:2px"><button class="wl-icon-btn" data-act="wo:hist" data-ei="'+ei+'">'+I.history.replace("<svg","<svg width=18 height=18")+'</button><button class="wl-icon-btn" data-act="wo:exmenu" data-ei="'+ei+'" style="font-size:20px">⋮</button></span></div>';
     h+='<div class="wl-exrow-name">'+esc(en.name)+'</div>';
     if(en.lastJoint)h+='<div class="wl-fbwarn">'+I.info.replace("<svg","<svg width=13 height=13")+' Joint pain last time \u2014 <b>'+esc(fbLabel(FB_JOINT,en.lastJoint.joint))+'</b> on '+fmtShort(parseISO(en.lastJoint.date))+'. Ease in and stop if it bites.</div>';
@@ -1652,7 +1735,8 @@ function view_workout(){var w=state.workout;
     (en.notes||[]).forEach(function(n){h+='<button class="wl-note" data-act="note:edit" data-woei="'+ei+'" data-iid="'+en.itemId+'" data-nid="'+(n.id||"")+'" data-pinned="'+(n.pinned?"1":"0")+'"><span class="wl-note-txt">'+esc(n.text)+'</span>'+(n.pinned?'<span class="wl-note-pin">📌</span>':'')+'</button>';});
     h+='<div class="wl-setgrid wl-sethead" style="margin-top:10px"><span></span><span>WEIGHT</span><span>REPS</span><span>RIR '+infoBtn("rir")+'</span><span>'+infoBtn("targeticons")+'</span><span>LOG</span></div>';
     en.sets.forEach(function(st,si){h+=setRowHTML(en,ei,st,si);});
-    h+='</div>';});
+    h+='</div>';
+    if(_esp.g&&ei===_esp.e-1)h+='</div>';});
   if(_resting)h+='</div>';
   if(w.tState!=="ready")h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:6px" data-act="wo:finish">End workout</button>';
   h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--faint)" data-act="wo:discard">Discard workout</button>';
@@ -1847,6 +1931,12 @@ function woOverlaysHTML(){var h="";
     '<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:fbopen" data-ei="'+ei+'">Feedback</button>'+
     '<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:exprog" data-ei="'+ei+'">'+((en&&en.progression)==="rpt"?"Change to Progressive Overload":"Change to Reverse Pyramid")+'</button>'+
     '<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:exaddset" data-ei="'+ei+'">Add set</button>'+
+    (function(){if(!w||!w.entries)return "";var _s=ssSpan(w.entries,ei);
+      var _lk=(ei<w.entries.length-1)&&!!en.groupId&&w.entries[ei+1].groupId===en.groupId;
+      var b="";
+      if(_lk)b+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:ssunlink" data-ei="'+ei+'">Break superset with '+esc(w.entries[ei+1].name||"next")+'</button>';
+      else if(ei<w.entries.length-1)b+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:sslink" data-ei="'+ei+'">Superset with '+esc(w.entries[ei+1].name||"next")+'</button>';
+      return b;})()+
     '<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="wo:exremove" data-ei="'+ei+'">Remove exercise</button>'+
     '<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:12px" data-act="wo:exmenu:close">Cancel</button></div></div>';}
   if(state.woReplaceEi!=null){var exs=state.training.exercises||[];

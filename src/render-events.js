@@ -187,14 +187,21 @@ document.addEventListener("click",function(e){
     if(need.length){state.logWarn={ei:ei,si:si,msg:"Enter "+need.join(", ")+" before you can log this set"};render();return;}
     stt.status="done";w.lastEi=ei;if(si===rptTopIndex(en))rptAfterSet1(en);rptRetarget(en,si);state.logWarn=null;
   var _wu=warmupCandidate(en,si);
-  if(_wu&&!en.warmupAsked){en.warmupAsked=true;state.warmupAsk={ei:ei,si:si};}woTransition("resting");
+  if(_wu&&!en.warmupAsked){en.warmupAsked=true;state.warmupAsk={ei:ei,si:si};}
+  /* SUPERSET: mid-round, walk straight into the paired exercise with no rest
+     (Owner 2026-09-01). Rest only when the round closes. */
+  var _ssn=(typeof ssStraightNext==="function")?ssStraightNext(ei,si):null;
+  if(!_ssn)woTransition("resting");
   var _mus=en.muscle||"other";
   if(fbEntryComplete(en)&&fbEntryTrained(en)&&!(en.fb&&en.fb.joint)){
     state.fbSheet={ei:ei,kind:"end",askMuscle:fbMuscleDone(w,_mus,ei)};}
   else if(!((w.mfb||{})[_mus]||{}).sore&&_fbFirstOfMuscle(w,ei)){
     /* how sore you arrived is knowable now, not at the end of the session */
     state.fbSheet={ei:ei,kind:"sore"};}
-  saveWorkout();render();return;}
+  saveWorkout();render();
+  /* no sheet in the way? bring the next exercise of the superset into view */
+  if(_ssn&&!state.fbSheet&&!state.warmupAsk&&typeof woScrollCurrent==="function")setTimeout(woScrollCurrent,40);
+  return;}
   if(a==="fb:set"){var w=state.workout;var fsx=state.fbSheet;if(!w||!fsx)return;
     var kind=el.getAttribute("data-kind"),val=el.getAttribute("data-val"),mus=el.getAttribute("data-muscle");
     var en=w.entries[fsx.ei];if(!en)return;
@@ -228,9 +235,45 @@ document.addEventListener("click",function(e){
   if(a==="wo:exmenu"){state.exMenu={ei:+el.getAttribute("data-ei")};render();return;}
   if(a==="wo:exmenu:close"){state.exMenu=null;render();return;}
   if(a==="wo:exprog"){switchEntryProgression(+el.getAttribute("data-ei"));return;}
-  if(a==="wo:exmove"){var w=state.workout;if(!w)return;var ei=+el.getAttribute("data-ei");var dir=el.getAttribute("data-dir");var ni=dir==="up"?ei-1:ei+1;if(ni<0||ni>=w.entries.length){state.exMenu=null;render();return;}var tmp=w.entries[ei];w.entries[ei]=w.entries[ni];w.entries[ni]=tmp;state.exMenu=null;saveWorkout();render();return;}
+  if(a==="wo:exmove"){var w=state.workout;if(!w)return;var ei=+el.getAttribute("data-ei");var dir=el.getAttribute("data-dir");var ni=dir==="up"?ei-1:ei+1;if(ni<0||ni>=w.entries.length){state.exMenu=null;render();return;}var tmp=w.entries[ei];w.entries[ei]=w.entries[ni];w.entries[ni]=tmp;ssNormalize(w.entries);state.exMenu=null;saveWorkout();render();return;}
+  if(a==="wo:sslink"||a==="wo:ssunlink"){var w=state.workout;if(!w||!w.entries)return;var ei=+el.getAttribute("data-ei");
+    var es=w.entries;if(ei<0||ei>=es.length-1)return;state.exMenu=null;
+    var link=(a==="wo:sslink");
+    if(link){
+      var g=es[ei].groupId||es[ei+1].groupId||("g-"+Date.now()+"-"+Math.random().toString(36).slice(2,6));
+      var oldg=es[ei+1].groupId;
+      es[ei].groupId=g;es[ei+1].groupId=g;
+      if(oldg&&oldg!==g)for(var k=0;k<es.length;k++)if(es[k].groupId===oldg)es[k].groupId=g;
+    }else{
+      var sp=ssSpan(es,ei);if(!sp.g)return;
+      var ng="g-"+Date.now()+"-"+Math.random().toString(36).slice(2,6);
+      for(var k2=ei+1;k2<sp.e;k2++)es[k2].groupId=ng;
+    }
+    ssNormalize(es);saveWorkout();render();
+    /* Same once/forward choice as the per-exercise rest interval: this session
+       by default, or push it into the routine for every future workout. Only
+       offered when the two items are still adjacent in the routine, so saying
+       yes can never silently reorder it. */
+    var rt=getRoutine(w.routineId);
+    var ia=rt&&rItem(rt,es[ei].itemId),ib=rt&&rItem(rt,es[ei+1].itemId);
+    if(rt&&ia&&ib){
+      var arr=rt.items||[],xa=arr.indexOf(ia),xb=arr.indexOf(ib);
+      if(xa>=0&&xb===xa+1){
+        var _gv=link?es[ei].groupId:null;
+        askConfirm(link?"Superset saved for this session. Also keep it in “"+((rt.name||"this routine"))+"” for future workouts?"
+                       :"Superset broken for this session. Also break it in “"+((rt.name||"this routine"))+"” for future workouts?",
+          function(){var r2=getRoutine(w.routineId);if(!r2)return;var a2=rItem(r2,es[ei].itemId),b2=rItem(r2,es[ei+1].itemId);if(!a2||!b2)return;
+            if(link){var gg=a2.groupId||b2.groupId||_gv||("g-"+Date.now()+"-"+Math.random().toString(36).slice(2,6));var og=b2.groupId;a2.groupId=gg;b2.groupId=gg;
+              if(og&&og!==gg)for(var q=0;q<(r2.items||[]).length;q++)if(r2.items[q].groupId===og)r2.items[q].groupId=gg;}
+            else{var s2=ssSpan(r2.items,r2.items.indexOf(a2));if(s2.g){var n2="g-"+Date.now()+"-"+Math.random().toString(36).slice(2,6);for(var q2=r2.items.indexOf(a2)+1;q2<s2.e;q2++)r2.items[q2].groupId=n2;}}
+            ssNormalize(r2.items);saveTraining();render();},
+          {label:"Save to routine",danger:false});
+        return;
+      }
+    }
+    toast(link?"Supersetted for this session":"Superset broken for this session");return;}
   if(a==="wo:exaddset"){var w=state.workout;if(!w)return;var en=w.entries[+el.getAttribute("data-ei")];var last=en.sets[en.sets.length-1];en.sets.push({weight:last?last.weight:"",reps:"",rir:"",status:"pending"});state.exMenu=null;saveWorkout();render();persistSetCount(en);return;}
-  if(a==="wo:exremove"){var w=state.workout;var ei=+el.getAttribute("data-ei");var en=w&&w.entries[ei];askConfirm("Remove "+((en&&en.name)||"this exercise")+" from this workout? (Your routine isn\u2019t changed.)",function(){var w2=state.workout;if(w2)w2.entries.splice(ei,1);state.exMenu=null;saveWorkout();},{label:"Remove"});return;}
+  if(a==="wo:exremove"){var w=state.workout;var ei=+el.getAttribute("data-ei");var en=w&&w.entries[ei];askConfirm("Remove "+((en&&en.name)||"this exercise")+" from this workout? (Your routine isn\u2019t changed.)",function(){var w2=state.workout;if(w2){w2.entries.splice(ei,1);ssNormalize(w2.entries);}state.exMenu=null;saveWorkout();},{label:"Remove"});return;}
   if(a==="wo:exreplace"){state.woReplaceEi=+el.getAttribute("data-ei");state.exMenu=null;render();return;}
   if(a==="wo:replacecancel"){state.woReplaceEi=null;render();return;}
   if(a==="wo:replacepick"){var w=state.workout;var ei=state.woReplaceEi;var ex=exById(el.getAttribute("data-eid"));if(w&&ei!=null&&ex){var en=w.entries[ei];var _prevN=en.name;en.exerciseId=ex.id;en.name=ex.name;en.muscle=ex.muscle;en.equipment=ex.equipment;en.bodyweight=!!ex.bodyweight;en.notes=[];(ex.notes||[]).forEach(function(nn){en.notes.push({id:nn.id,text:nn.text,pinned:true});});
@@ -253,7 +296,7 @@ document.addEventListener("click",function(e){
     var _srt=getRoutine(w.routineId);
     var entries=w.entries.map(function(en){
       var prog=en.progression||(_srt&&_srt.progression)||"double";
-      var o={exerciseId:en.exerciseId,name:en.name,muscle:en.muscle,fb:en.fb||null,progression:prog,repLow:en.repLow,repHigh:en.repHigh,sets:en.sets.map(function(s){return {weight:num(s.weight),reps:num(s.reps),rir:num(s.rir),status:s.status,sugR:num(s.sugR),sugW:num(s.sugW),tgtLo:num(s.tgtLo),tgtHi:num(s.tgtHi)};})};
+      var o={exerciseId:en.exerciseId,name:en.name,muscle:en.muscle,groupId:en.groupId||null,fb:en.fb||null,progression:prog,repLow:en.repLow,repHigh:en.repHigh,sets:en.sets.map(function(s){return {weight:num(s.weight),reps:num(s.reps),rir:num(s.rir),status:s.status,sugR:num(s.sugR),sugW:num(s.sugW),tgtLo:num(s.tgtLo),tgtHi:num(s.tgtHi)};})};
       if(prog==="rpt")o.setRanges=rptRangesFor({movement:en.movement,setRanges:en.setRanges},Math.max(1,en.sets.length));
       return o;});
     var sess={id:"l-"+Date.now()+"-"+Math.random().toString(36).slice(2,6),routineId:w.routineId,name:w.name,mode:"full",date:w.date,mins:Math.round(b.total/60000),warmupSec:Math.round(b.warmup/1000),workSec:Math.round(b.work/1000),restSec:Math.round(b.rest/1000),mfb:w.mfb||null,hr:num(ff.hr),hrMax:num(ff.hrMax),zone:zone,cal:num(ff.cal),rpe:num(ff.rpe),notes:(ff.notes||"").trim(),bw:w.bw,entries:entries,ts:Date.now()};
@@ -311,8 +354,38 @@ document.addEventListener("click",function(e){
   if(a==="ri:add"){state.riPickOpen=true;state.noteEdit=null;render();return;}
   if(a==="ri:pickclose"){state.riPickOpen=false;render();return;}
   if(a==="ri:pick"){var rt=getRoutine(state.routineId);if(!rt)return;var eid=el.getAttribute("data-eid");if((rt.items||[]).some(function(i){return i.exerciseId===eid;}))return;rt.items=rt.items||[];rt.items.push({id:"i-"+Date.now()+"-"+Math.random().toString(36).slice(2,6),exerciseId:eid,repLow:"8",repHigh:"12",sets:3,weight:"",movement:guessMovement((exById(eid)||{}).muscle),notes:[]});saveTraining();render();return;}
-  if(a==="ri:remove"){var rt=getRoutine(state.routineId);if(!rt)return;var iid=el.getAttribute("data-iid");var itm=rItem(rt,iid);var exn=itm&&exById(itm.exerciseId);askConfirm("Remove "+((exn&&exn.name)||"this exercise")+" from this routine?",function(){var r2=getRoutine(state.routineId);if(r2)r2.items=(r2.items||[]).filter(function(i){return i.id!==iid;});saveTraining();},{label:"Remove"});return;}
-  if(a==="ri:up"||a==="ri:down"){var rt=getRoutine(state.routineId);if(!rt)return;var iid=el.getAttribute("data-iid");var arr=rt.items||[];var ix=-1;for(var i=0;i<arr.length;i++){if(arr[i].id===iid){ix=i;break;}}if(ix<0)return;var ni=a==="ri:up"?ix-1:ix+1;if(ni<0||ni>=arr.length)return;var tmp=arr[ix];arr[ix]=arr[ni];arr[ni]=tmp;saveTraining();render();return;}
+  if(a==="ri:remove"){var rt=getRoutine(state.routineId);if(!rt)return;var iid=el.getAttribute("data-iid");var itm=rItem(rt,iid);var exn=itm&&exById(itm.exerciseId);askConfirm("Remove "+((exn&&exn.name)||"this exercise")+" from this routine?",function(){var r2=getRoutine(state.routineId);if(r2){r2.items=(r2.items||[]).filter(function(i){return i.id!==iid;});ssNormalize(r2.items);}saveTraining();},{label:"Remove"});return;}
+  if(a==="ri:up"||a==="ri:down"){var rt=getRoutine(state.routineId);if(!rt)return;var iid=el.getAttribute("data-iid");var arr=rt.items||[];var ix=-1;for(var i=0;i<arr.length;i++){if(arr[i].id===iid){ix=i;break;}}if(ix<0)return;
+    /* Supersets must stay contiguous. Inside a group the arrows reorder the
+       members (A/B swap); at a group edge they move the WHOLE group past the
+       neighbouring block, and an ungrouped item likewise hops a whole group
+       rather than landing in the middle of one. */
+    var sp=ssSpan(arr,ix);var up=(a==="ri:up");
+    if(sp.g&&((up&&ix>sp.s)||(!up&&ix<sp.e-1))){var ni=up?ix-1:ix+1;var t=arr[ix];arr[ix]=arr[ni];arr[ni]=t;saveTraining();render();return;}
+    var blk=arr.slice(sp.s,sp.e);
+    var nb=up?ssSpan(arr,sp.s-1):ssSpan(arr,sp.e);
+    if((up&&sp.s===0)||(!up&&sp.e>=arr.length))return;
+    var other=arr.slice(nb.s,nb.e);
+    var rest=arr.slice();
+    if(up){rest.splice(nb.s,(sp.e-nb.s),...blk,...other);}
+    else{rest.splice(sp.s,(nb.e-sp.s),...other,...blk);}
+    rt.items=rest;ssNormalize(rt.items);saveTraining();render();return;}
+  if(a==="ri:sslink"||a==="ri:ssunlink"){var rt=getRoutine(state.routineId);if(!rt)return;var arr=rt.items||[];var iid=el.getAttribute("data-iid");var ix=-1;for(var i=0;i<arr.length;i++){if(arr[i].id===iid){ix=i;break;}}
+    if(ix<0||ix>=arr.length-1)return;
+    if(a==="ri:sslink"){
+      /* join this item to the one below: adopt whichever side already has a
+         group, else mint one; if both have (different) groups, merge them. */
+      var g=arr[ix].groupId||arr[ix+1].groupId||("g-"+Date.now()+"-"+Math.random().toString(36).slice(2,6));
+      var oldg=arr[ix+1].groupId;
+      arr[ix].groupId=g;arr[ix+1].groupId=g;
+      if(oldg&&oldg!==g)for(var k=0;k<arr.length;k++)if(arr[k].groupId===oldg)arr[k].groupId=g;
+    }else{
+      /* split the group between ix and ix+1 — the tail becomes its own group */
+      var sp=ssSpan(arr,ix);if(!sp.g)return;
+      var ng="g-"+Date.now()+"-"+Math.random().toString(36).slice(2,6);
+      for(var k2=ix+1;k2<sp.e;k2++)arr[k2].groupId=ng;
+    }
+    ssNormalize(arr);saveTraining();render();return;}
   if(a==="ri:setinc"||a==="ri:setdec"){var rt=getRoutine(state.routineId);if(!rt)return;var it=rItem(rt,el.getAttribute("data-iid"));if(!it)return;var s=(+it.sets||0)+(a==="ri:setinc"?1:-1);if(s<1)s=1;if(s>15)s=15;it.sets=s;if(Array.isArray(it.setRanges))it.setRanges=rptRangesFor(it,s);saveTraining();render();return;}
   if(a==="ri:prog"){var rt=getRoutine(state.routineId);if(!rt)return;var it=rItem(rt,el.getAttribute("data-iid"));if(!it)return;it.progression=el.getAttribute("data-prog");saveTraining();render();return;}
   if(a==="ri:mv"){var rt=getRoutine(state.routineId);if(!rt)return;var it=rItem(rt,el.getAttribute("data-iid"));if(!it)return;it.movement=el.getAttribute("data-mv");it.setRanges=rptDefRanges(it.movement,Math.max(1,it.sets||3));saveTraining();render();return;}

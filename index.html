@@ -157,6 +157,15 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 .wl-restbar.paused .wl-rb-total b{color:var(--accent);}
 /* the current exercise flashes when you come back from rest */
 .wl-ex-focus{animation:wlExFocus 1.7s ease-out 1;border-color:var(--accent)!important;}
+/* ---- supersets: a bordered block around the paired exercises ---- */
+.wl-ssgroup{position:relative;border:1px solid rgba(124,147,245,.45);border-radius:16px;padding:8px;margin:10px 0;background:rgba(124,147,245,.045);}
+.wl-ssgroup .wl-card{margin-bottom:8px;}
+.wl-ssgroup .wl-card:last-child{margin-bottom:0;}
+.wl-ss-head{display:flex;align-items:center;gap:7px;padding:3px 6px 9px;color:var(--reg);}
+.wl-ss-head span{font-size:10.5px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;}
+.wl-ss-head em{font-style:normal;font-size:11px;font-weight:600;color:var(--faint);letter-spacing:0;text-transform:none;margin-left:auto;text-align:right;}
+.wl-sschip{display:inline-flex;align-items:center;justify-content:center;min-width:19px;height:19px;padding:0 5px;border-radius:6px;background:rgba(124,147,245,.16);border:1px solid rgba(124,147,245,.55);color:var(--reg);font-family:var(--mono);font-size:10.5px;font-weight:800;line-height:1;flex:none;}
+.wl-rb-ss{display:inline-flex;align-items:center;gap:4px;margin-left:7px;padding:1px 6px;border-radius:999px;background:rgba(124,147,245,.16);border:1px solid rgba(124,147,245,.5);color:var(--reg);font-size:9px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;vertical-align:middle;}
 @keyframes wlExFocus{
   0%{border-color:var(--accent);box-shadow:0 0 0 0 rgba(245,181,68,.55),0 0 26px rgba(245,181,68,.30);}
   18%{border-color:var(--accent);box-shadow:0 0 0 5px rgba(245,181,68,.16),0 0 26px rgba(245,181,68,.26);}
@@ -1086,7 +1095,7 @@ input[type=range][data-pfadj]{width:100%;accent-color:var(--accent);min-height:2
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-09-01.501-rest-top-focus";
+var APP_BUILD="2026-09-01.502-supersets";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -1147,6 +1156,8 @@ var I={
  target:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="0.6" fill="currentColor"/></svg>',
  syringe:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 2 4 4"/><path d="m17 7 3-3"/><path d="M19 9 8.7 19.3c-1 1-2.5 1-3.4 0l-.6-.6c-1-1-1-2.5 0-3.4L15 5"/><path d="m9 11 4 4"/><path d="m5 19-3 3"/><path d="m14 4 6 6"/></svg>',
  pill:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="8" rx="4"/><path d="M12 8v8"/></svg>',
+ link:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 14.5 14.5 9.5"/><path d="M11 6.5 12.8 4.7a4 4 0 0 1 5.7 5.7l-1.9 1.8"/><path d="M13 17.5l-1.8 1.8a4 4 0 0 1-5.7-5.7l1.9-1.8"/></svg>',
+ unlink:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 6.5 12.8 4.7a4 4 0 0 1 5.7 5.7l-1.9 1.8"/><path d="M13 17.5l-1.8 1.8a4 4 0 0 1-5.7-5.7l1.9-1.8"/><path d="M4 4l16 16"/></svg>',
  pin:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.6-7-10a7 7 0 0 1 14 0c0 5.4-7 10-7 10Z"/><circle cx="12" cy="11" r="2.4"/></svg>'
 };
 /* ==BUILD-END:icons.js== */
@@ -9468,8 +9479,11 @@ function routineNotesHTML(rt,it,ex){var h='';
 function routineItemHTML(rt,it,idx){
   var ex=exById(it.exerciseId);if(!ex)return '<div class="wl-card"><div class="wl-hint">Missing exercise. <button class="wl-link" data-act="ri:remove" data-iid="'+it.id+'">Remove</button></div></div>';
   var u=state.settings.units;
-  var h='<div class="wl-card wl-ritem">';
-  h+='<div style="margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">'+muscleTagHTML(ex.muscle||"other")+'<span class="wl-ri-actions">'+(idx>0?'<button class="wl-icon-btn" data-act="ri:up" data-iid="'+it.id+'">'+I.up.replace("<svg","<svg width=17 height=17")+'</button>':'')+(idx<rt.items.length-1?'<button class="wl-icon-btn" data-act="ri:down" data-iid="'+it.id+'">'+I.down.replace("<svg","<svg width=17 height=17")+'</button>':'')+'<button class="wl-icon-btn" data-act="ri:remove" data-iid="'+it.id+'">'+I.trash.replace("<svg","<svg width=16 height=16")+'</button></span></div>';
+  var _items=rt.items||[];var _sp=ssSpan(_items,idx);var _L=ssLetter(_items,idx);
+  var _linked=(idx<_items.length-1)&&!!it.groupId&&_items[idx+1].groupId===it.groupId;
+  var h='<div class="wl-card wl-ritem'+(_sp.g?' ssmem':'')+'">';
+  h+='<div style="margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">'+(_L?'<span class="wl-sschip">'+_L+'</span>':'')+muscleTagHTML(ex.muscle||"other")+'<span class="wl-ri-actions">'+
+    (idx<_items.length-1?'<button class="wl-icon-btn'+(_linked?' on':'')+'" data-act="'+(_linked?'ri:ssunlink':'ri:sslink')+'" data-iid="'+it.id+'" title="'+(_linked?'Break this superset':'Superset with the next exercise')+'" aria-label="'+(_linked?'Break superset':'Superset with next')+'">'+I[_linked?"unlink":"link"].replace("<svg","<svg width=17 height=17")+'</button>':'')+(idx>0?'<button class="wl-icon-btn" data-act="ri:up" data-iid="'+it.id+'">'+I.up.replace("<svg","<svg width=17 height=17")+'</button>':'')+(idx<rt.items.length-1?'<button class="wl-icon-btn" data-act="ri:down" data-iid="'+it.id+'">'+I.down.replace("<svg","<svg width=17 height=17")+'</button>':'')+'<button class="wl-icon-btn" data-act="ri:remove" data-iid="'+it.id+'">'+I.trash.replace("<svg","<svg width=16 height=16")+'</button></span></div>';
   h+='<div class="wl-exrow-name">'+esc(ex.name)+'</div>'+((ex.equipment||ex.bodyweight)?'<div class="wl-exrow-sub" style="margin-bottom:8px">'+esc(ex.equipment||"")+(ex.bodyweight?(ex.equipment?" · ":"")+"Bodyweight":"")+'</div>':'<div style="height:6px"></div>');
   h+=routineNotesHTML(rt,it,ex);
   h+='<div class="wl-cf-label" style="margin:12px 0 6px">Progression '+infoBtn("progression")+'</div><div class="wl-seg2"><button class="wl-seg2btn'+(it.progression==="double"?" on":"")+'" data-act="ri:prog" data-iid="'+it.id+'" data-prog="double">Progressive Overload</button><button class="wl-seg2btn'+(it.progression==="rpt"?" on":"")+'" data-act="ri:prog" data-iid="'+it.id+'" data-prog="rpt">Reverse Pyramid</button></div>';
@@ -9511,7 +9525,15 @@ function view_routine(){
   h+='<div class="wl-cal-head"><button class="wl-icon-btn" data-act="rt:save">‹</button><span class="wl-cal-title">Edit Routine</span><span style="width:36px;display:inline-block"></span></div>';
   h+='<div class="wl-card"><label class="wl-field wl-field-full"><span>Routine Name</span><input class="wl-rt-name" type="text" value="'+esc(rt.name||"")+'" placeholder="e.g. Day 1 – Push"></label></div>';
   if(!(rt.items||[]).length)h+='<div class="wl-card"><div class="wl-hint">No exercises yet. Add them from your library below — they\u2019ll group by muscle automatically.</div></div>';
-  (rt.items||[]).forEach(function(it,idx){h+=routineItemHTML(rt,it,idx);});
+  var _its=rt.items||[],_ri=0;
+  while(_ri<_its.length){
+    var _rsp=ssSpan(_its,_ri);
+    if(!_rsp.g){h+=routineItemHTML(rt,_its[_ri],_ri);_ri++;continue;}
+    h+='<div class="wl-ssgroup"><div class="wl-ss-head">'+I.link.replace("<svg","<svg width=14 height=14")+'<span>Superset</span><em>straight through \u2014 rest after the round</em></div>';
+    for(var _rj=_rsp.s;_rj<_rsp.e;_rj++)h+=routineItemHTML(rt,_its[_rj],_rj);
+    h+='</div>';
+    _ri=_rsp.e;
+  }
   h+='<button class="wl-btn wl-btn-ghost wl-full" data-act="ri:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add Exercise</button>';
   h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:8px" data-act="rt:save">'+I.check.replace("<svg","<svg width=16 height=16")+'Save Routine</button>';
   h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="rt:del" data-id="'+rt.id+'">Delete Routine</button>';
@@ -9688,7 +9710,7 @@ function buildWorkoutEntries(rt,bw){return (rt.items||[]).map(function(it){var e
   var notes=[];(ex.notes||[]).forEach(function(nn){notes.push({id:nn.id,text:nn.text,pinned:true});});(it.notes||[]).forEach(function(nn){notes.push({id:nn.id,text:nn.text,pinned:false});});
   var _lf=fbLastFor(it.exerciseId);
     var _lm=fbLastMuscle(ex.muscle||"other");
-    return {itemId:it.id,progression:it.progression||rt.progression||"double",lastJoint:(_lf&&(_lf.joint==="mod"||_lf.joint==="alot"))?_lf:null,lastMus:_lm,exerciseId:it.exerciseId,name:ex.name,muscle:ex.muscle,equipment:ex.equipment,bodyweight:!!ex.bodyweight,repLow:it.repLow,repHigh:it.repHigh,movement:it.movement||guessMovement(ex.muscle),setRanges:rptRangesFor(it,n),addedWt:num(it.weight)||0,restMin:(it.restMin!=null&&it.restMin!==""?it.restMin:null),notes:notes,sets:sets};
+    return {itemId:it.id,groupId:(it.groupId||null),progression:it.progression||rt.progression||"double",lastJoint:(_lf&&(_lf.joint==="mod"||_lf.joint==="alot"))?_lf:null,lastMus:_lm,exerciseId:it.exerciseId,name:ex.name,muscle:ex.muscle,equipment:ex.equipment,bodyweight:!!ex.bodyweight,repLow:it.repLow,repHigh:it.repHigh,movement:it.movement||guessMovement(ex.muscle),setRanges:rptRangesFor(it,n),addedWt:num(it.weight)||0,restMin:(it.restMin!=null&&it.restMin!==""?it.restMin:null),notes:notes,sets:sets};
 }).filter(Boolean);}
 function rebuildEntryNotes(ei){var w=state.workout;if(!w)return;var en=w.entries[ei];if(!en)return;var rt=getRoutine(w.routineId);var it=rt&&rItem(rt,en.itemId);var ex=exById(en.exerciseId);var notes=[];if(ex)(ex.notes||[]).forEach(function(n){notes.push({id:n.id,text:n.text,pinned:true});});if(it)(it.notes||[]).forEach(function(n){notes.push({id:n.id,text:n.text,pinned:false});});en.notes=notes;saveWorkout();}
 function sugInvertReps(E,w){E=num(E);w=num(w);if(E==null||w==null||w<=0)return null;var r=Math.round(30*(E/w-1));if(r<1)r=1;if(r>30)r=30;return r;}
@@ -9781,24 +9803,92 @@ function rptRetarget(en,si){
    applying an app update mid-session drops you back here with sets already logged. */
 /* The next exercise with unfinished sets, in the order they appear. Returns null
    when it is the same exercise you are resting inside, or when nothing is left. */
+/* ---- Supersets -------------------------------------------------------------
+   A superset is a run of ADJACENT routine items / workout entries sharing a
+   groupId. You work them round-robin: A1, B1, rest, A2, B2, rest. Owner ruled
+   2026-09-01: NO rest inside a round (straight from one into the next), full
+   rest only when the round closes. Any group size — a pair, a tri-set, more.
+   Uneven set counts alternate as far as they pair up, then the leftovers run
+   straight, each still earning its rest.
+   groupId is ALWAYS optional: routines and in-flight workouts saved by older
+   builds carry none and behave exactly as they always did. */
+
+/* the [s,e) span of the adjacent run sharing list[i]'s groupId. A group that
+   has been orphaned down to one member (its partner was removed, or dropped by
+   buildWorkoutEntries because the exercise was deleted) reports as a plain
+   single, so nothing downstream has to special-case it. */
+function ssSpan(list,i){
+  var g=(list&&list[i])?list[i].groupId:null;
+  if(!g)return {s:i,e:i+1,g:null};
+  var s=i,e=i+1;
+  while(s>0&&list[s-1].groupId===g)s--;
+  while(e<list.length&&list[e].groupId===g)e++;
+  return {s:s,e:e,g:(e-s>1)?g:null};
+}
+/* Strip any groupId that no longer has a partner beside it — after a removal,
+   a reorder, or a split. Keeps "grouped" and "has someone to alternate with"
+   the same statement, so no other code has to check group size. */
+function ssNormalize(list){
+  if(!list||!list.length)return list;
+  for(var i=0;i<list.length;i++){
+    var g=list[i].groupId;if(!g)continue;
+    var alone=(i===0||list[i-1].groupId!==g)&&(i===list.length-1||list[i+1].groupId!==g);
+    if(alone)list[i].groupId=null;
+  }
+  return list;
+}
+function ssIsGrouped(list,i){return ssSpan(list,i).g!=null;}
+/* Every (ei,si) in TRUE PERFORMANCE ORDER — the single source of truth the
+   "what's next" scans all read, so they can never disagree with each other. */
+function woOrder(){
+  var w=state.workout;var out=[];if(!w||!w.entries)return out;
+  var es=w.entries,i=0;
+  while(i<es.length){
+    var sp=ssSpan(es,i);
+    if(!sp.g){var ss=es[i].sets||[];for(var k=0;k<ss.length;k++)out.push({ei:i,si:k,g:null});i++;continue;}
+    var mx=0,j;
+    for(j=sp.s;j<sp.e;j++)mx=Math.max(mx,(es[j].sets||[]).length);
+    for(var r=0;r<mx;r++)for(j=sp.s;j<sp.e;j++){if((es[j].sets||[])[r])out.push({ei:j,si:r,g:sp.g});}
+    i=sp.e;
+  }
+  return out;
+}
+/* the first set still to be done, in performance order */
+function woNextPos(){
+  var w=state.workout;if(!w||!w.entries)return null;
+  var o=woOrder();
+  for(var i=0;i<o.length;i++){
+    var en=w.entries[o[i].ei];var st=en&&(en.sets||[])[o[i].si];
+    if(st&&st.status!=="done"&&st.status!=="skipped")return o[i];
+  }
+  return null;
+}
+/* After logging (ei,si): is the next set the SAME ROUND of the same superset?
+   Then no rest — walk straight to the partner. Round is si, so B1->A2 (which is
+   the same group but the next round) correctly falls through to a real rest. */
+function ssStraightNext(ei,si){
+  var w=state.workout;if(!w||!w.entries)return null;
+  var es=w.entries;if(!ssIsGrouped(es,ei))return null;
+  var g=ssSpan(es,ei).g;
+  var p=woNextPos();
+  if(p&&p.ei!==ei&&p.si===si&&es[p.ei]&&es[p.ei].groupId===g&&ssSpan(es,p.ei).g===g)return p;
+  return null;
+}
+/* label a member as A/B/C… for the UI */
+function ssLetter(list,i){var sp=ssSpan(list,i);if(!sp.g)return "";return String.fromCharCode(65+(i-sp.s));}
 function woUpNext(){
   var w=state.workout;if(!w||!w.entries)return null;
-  for(var i=0;i<w.entries.length;i++){
-    var en=w.entries[i];var sets=en.sets||[];
-    for(var si=0;si<sets.length;si++){
-      var st=sets[si];
-      if(st.status==="done"||st.status==="skipped")continue;
-      var reps="";
-      if((en.progression||"double")==="rpt"){
-        var rgs=(en.setRanges&&en.setRanges.length)?en.setRanges:rptDefRanges(en.movement||"compound",sets.length);
-        var rg=rgs[si]||rgs[rgs.length-1];
-        if(rg&&(rg.lo!=null||rg.hi!=null))reps=(rg.lo!=null?rg.lo:"?")+"\u2013"+(rg.hi!=null?rg.hi:"?");
-      }else if((en.repLow!=null&&en.repLow!=="")||(en.repHigh!=null&&en.repHigh!=="")){
-        reps=(en.repLow!=null&&en.repLow!==""?en.repLow:"?")+"\u2013"+(en.repHigh!=null&&en.repHigh!==""?en.repHigh:"?");
-      }else if(st.reps!==""&&st.reps!=null){reps=String(st.reps);}
-      return {name:en.name||"",setNo:si+1,setTotal:sets.length,reps:reps,weight:(st.weight!==""&&st.weight!=null)?String(st.weight):""};
-    }}
-  return null;}
+  var p=woNextPos();if(!p)return null;
+  var en=w.entries[p.ei];var sets=en.sets||[];var si=p.si;var st=sets[si];
+  var reps="";
+  if((en.progression||"double")==="rpt"){
+    var rgs=(en.setRanges&&en.setRanges.length)?en.setRanges:rptDefRanges(en.movement||"compound",sets.length);
+    var rg=rgs[si]||rgs[rgs.length-1];
+    if(rg&&(rg.lo!=null||rg.hi!=null))reps=(rg.lo!=null?rg.lo:"?")+"–"+(rg.hi!=null?rg.hi:"?");
+  }else if((en.repLow!=null&&en.repLow!=="")||(en.repHigh!=null&&en.repHigh!=="")){
+    reps=(en.repLow!=null&&en.repLow!==""?en.repLow:"?")+"–"+(en.repHigh!=null&&en.repHigh!==""?en.repHigh:"?");
+  }else if(st.reps!==""&&st.reps!=null){reps=String(st.reps);}
+  return {name:en.name||"",setNo:si+1,setTotal:sets.length,reps:reps,weight:(st.weight!==""&&st.weight!=null)?String(st.weight):"",ss:!!p.g,ssLetter:p.g?ssLetter(w.entries,p.ei):""};}
 /* Reps needed to call a set a warm-up: RIR >= 2 and >= 5 reps past the range top. */
 var WARMUP_RIR_MIN=2,WARMUP_OVER=5;
 function warmupCandidate(en,si){
@@ -10041,7 +10131,7 @@ function restSecondsFor(en){
   if(m==null||!(m>0)){var g=num(state.settings.restNotifyMin);m=(g!=null&&g>0)?g:3;}
   return Math.max(5,Math.round(m*60));
 }
-function _restNextEntry(){var w=state.workout;if(!w||!w.entries)return null;for(var i=0;i<w.entries.length;i++){var e=w.entries[i];var ss=e.sets||[];for(var si=0;si<ss.length;si++){if(ss[si].status!=="done"&&ss[si].status!=="skipped")return e;}}return null;}
+function _restNextEntry(){var w=state.workout;var p=woNextPos();return (w&&p)?w.entries[p.ei]:null;}
 function restNotifyBody(){var un=woUpNext();if(!un)return "Next set is up.";var u=state.settings.units;var bits=[];if(un.name)bits.push(un.name);bits.push("Set "+un.setNo+"/"+un.setTotal);if(un.reps)bits.push(un.reps+" reps");if(un.weight)bits.push(un.weight+" "+u);return bits.join(" · ");}
 function restNotifySchedule(){
   if(!restPushOn())return;
@@ -10070,7 +10160,7 @@ function startWoTick(){if(woTimer)clearInterval(woTimer);woTimer=setInterval(woT
    lost — it's timestamp-based — this only refreshes what's on screen.) */
 function woResumeTick(){if(state.workout&&state.view==="workout"){startWoTick();woTickPaint();}}
 /* index of the exercise whose next set is up (first pending/non-skipped set) */
-function woCurrentEi(){var w=state.workout;if(!w||!w.entries)return -1;for(var i=0;i<w.entries.length;i++){var ss=w.entries[i].sets||[];for(var j=0;j<ss.length;j++){if(ss[j].status!=="done"&&ss[j].status!=="skipped")return i;}}return -1;}
+function woCurrentEi(){var p=woNextPos();return p?p.ei:-1;}
 /* when leaving rest back into working, bring the current exercise into view */
 /* On returning from rest (Begin next set / Resume), scroll the current exercise
    into view AND flash its border so the eye lands on the right card. The class
@@ -10138,7 +10228,7 @@ function restBarHTML(){
   h+=pz?'<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="wo:resumeset">Resume set</button>'
        :'<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="wo:endrest">Begin next set</button>';
   if(un){var bits=['Set '+un.setNo+' of '+un.setTotal];if(un.reps)bits.push(un.reps+' reps');if(un.weight)bits.push(esc(un.weight)+' '+u);
-    h+='<div class="wl-rb-upnext"><span class="wl-rb-upl">'+(pz?'Back to':'Up next')+'</span><b>'+esc(un.name)+'</b><div class="wl-rb-upmeta">'+bits.join(' · ')+'</div></div>';}
+    h+='<div class="wl-rb-upnext"><span class="wl-rb-upl">'+(pz?'Back to':'Up next')+(un.ss?' <span class="wl-rb-ss">'+I.link.replace("<svg","<svg width=11 height=11")+'superset '+esc(un.ssLetter)+'</span>':'')+'</span><b>'+esc(un.name)+'</b><div class="wl-rb-upmeta">'+bits.join(' · ')+'</div></div>';}
   if(!pz&&state.restInfoOpen){
     h+='<div class="wl-rb-info"><div class="wl-rb-infoh">Rest long enough to</div><ol class="wl-restwhy-l"><li>No longer be breathing heavily.</li><li>Feel mentally ready for another hard set.</li><li>Not be crampy in a supporting muscle — a fatigued lower back before another squat set, say.</li><li>Have enough back in the target muscle for at least 5 reps.</li></ol></div>';
   }
@@ -10154,8 +10244,12 @@ function view_workout(){var w=state.workout;
   var _resting=(w.tState==="resting");
   if(_resting){h+=restBarHTML();h+='<div class="wl-worklock"><span class="wl-lockchip">🔒 '+(w.pausedRest?'Paused — tap Resume to continue':'Locked until you begin the next set')+'</span></div>';h+='<div class="wl-locked">';}
   w.entries.forEach(function(en,ei){var _pg=(en.progression||"double")==="rpt"?"rpt":"double";
+  /* a superset renders as one bordered block around its members; the cards
+     keep their own wo-ex-<ei> ids so scroll/flash/complete still resolve */
+  var _esp=ssSpan(w.entries,ei);
+  if(_esp.g&&ei===_esp.s)h+='<div class="wl-ssgroup"><div class="wl-ss-head">'+I.link.replace("<svg","<svg width=14 height=14")+'<span>Superset</span><em>straight through \u2014 rest after the round</em></div>';
   h+='<div class="wl-card" id="wo-ex-'+ei+'"><div style="margin-bottom:6px;display:flex;align-items:center;justify-content:space-between">'+
-  '<span style="display:inline-flex;align-items:center;gap:7px;min-width:0">'+muscleTagHTML(en.muscle||"other")+'<span class="wl-progtag'+(_pg==="rpt"?" rpt":"")+'">'+(_pg==="rpt"?"RPT":"PO")+'</span></span>'+
+  '<span style="display:inline-flex;align-items:center;gap:7px;min-width:0">'+(_esp.g?'<span class="wl-sschip">'+ssLetter(w.entries,ei)+'</span>':'')+muscleTagHTML(en.muscle||"other")+'<span class="wl-progtag'+(_pg==="rpt"?" rpt":"")+'">'+(_pg==="rpt"?"RPT":"PO")+'</span></span>'+
   '<span style="display:inline-flex;gap:2px"><button class="wl-icon-btn" data-act="wo:hist" data-ei="'+ei+'">'+I.history.replace("<svg","<svg width=18 height=18")+'</button><button class="wl-icon-btn" data-act="wo:exmenu" data-ei="'+ei+'" style="font-size:20px">⋮</button></span></div>';
     h+='<div class="wl-exrow-name">'+esc(en.name)+'</div>';
     if(en.lastJoint)h+='<div class="wl-fbwarn">'+I.info.replace("<svg","<svg width=13 height=13")+' Joint pain last time \u2014 <b>'+esc(fbLabel(FB_JOINT,en.lastJoint.joint))+'</b> on '+fmtShort(parseISO(en.lastJoint.date))+'. Ease in and stop if it bites.</div>';
@@ -10166,7 +10260,8 @@ function view_workout(){var w=state.workout;
     (en.notes||[]).forEach(function(n){h+='<button class="wl-note" data-act="note:edit" data-woei="'+ei+'" data-iid="'+en.itemId+'" data-nid="'+(n.id||"")+'" data-pinned="'+(n.pinned?"1":"0")+'"><span class="wl-note-txt">'+esc(n.text)+'</span>'+(n.pinned?'<span class="wl-note-pin">📌</span>':'')+'</button>';});
     h+='<div class="wl-setgrid wl-sethead" style="margin-top:10px"><span></span><span>WEIGHT</span><span>REPS</span><span>RIR '+infoBtn("rir")+'</span><span>'+infoBtn("targeticons")+'</span><span>LOG</span></div>';
     en.sets.forEach(function(st,si){h+=setRowHTML(en,ei,st,si);});
-    h+='</div>';});
+    h+='</div>';
+    if(_esp.g&&ei===_esp.e-1)h+='</div>';});
   if(_resting)h+='</div>';
   if(w.tState!=="ready")h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:6px" data-act="wo:finish">End workout</button>';
   h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--faint)" data-act="wo:discard">Discard workout</button>';
@@ -10361,6 +10456,12 @@ function woOverlaysHTML(){var h="";
     '<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:fbopen" data-ei="'+ei+'">Feedback</button>'+
     '<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:exprog" data-ei="'+ei+'">'+((en&&en.progression)==="rpt"?"Change to Progressive Overload":"Change to Reverse Pyramid")+'</button>'+
     '<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:exaddset" data-ei="'+ei+'">Add set</button>'+
+    (function(){if(!w||!w.entries)return "";var _s=ssSpan(w.entries,ei);
+      var _lk=(ei<w.entries.length-1)&&!!en.groupId&&w.entries[ei+1].groupId===en.groupId;
+      var b="";
+      if(_lk)b+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:ssunlink" data-ei="'+ei+'">Break superset with '+esc(w.entries[ei+1].name||"next")+'</button>';
+      else if(ei<w.entries.length-1)b+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="wo:sslink" data-ei="'+ei+'">Superset with '+esc(w.entries[ei+1].name||"next")+'</button>';
+      return b;})()+
     '<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="wo:exremove" data-ei="'+ei+'">Remove exercise</button>'+
     '<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:12px" data-act="wo:exmenu:close">Cancel</button></div></div>';}
   if(state.woReplaceEi!=null){var exs=state.training.exercises||[];
@@ -10869,14 +10970,21 @@ document.addEventListener("click",function(e){
     if(need.length){state.logWarn={ei:ei,si:si,msg:"Enter "+need.join(", ")+" before you can log this set"};render();return;}
     stt.status="done";w.lastEi=ei;if(si===rptTopIndex(en))rptAfterSet1(en);rptRetarget(en,si);state.logWarn=null;
   var _wu=warmupCandidate(en,si);
-  if(_wu&&!en.warmupAsked){en.warmupAsked=true;state.warmupAsk={ei:ei,si:si};}woTransition("resting");
+  if(_wu&&!en.warmupAsked){en.warmupAsked=true;state.warmupAsk={ei:ei,si:si};}
+  /* SUPERSET: mid-round, walk straight into the paired exercise with no rest
+     (Owner 2026-09-01). Rest only when the round closes. */
+  var _ssn=(typeof ssStraightNext==="function")?ssStraightNext(ei,si):null;
+  if(!_ssn)woTransition("resting");
   var _mus=en.muscle||"other";
   if(fbEntryComplete(en)&&fbEntryTrained(en)&&!(en.fb&&en.fb.joint)){
     state.fbSheet={ei:ei,kind:"end",askMuscle:fbMuscleDone(w,_mus,ei)};}
   else if(!((w.mfb||{})[_mus]||{}).sore&&_fbFirstOfMuscle(w,ei)){
     /* how sore you arrived is knowable now, not at the end of the session */
     state.fbSheet={ei:ei,kind:"sore"};}
-  saveWorkout();render();return;}
+  saveWorkout();render();
+  /* no sheet in the way? bring the next exercise of the superset into view */
+  if(_ssn&&!state.fbSheet&&!state.warmupAsk&&typeof woScrollCurrent==="function")setTimeout(woScrollCurrent,40);
+  return;}
   if(a==="fb:set"){var w=state.workout;var fsx=state.fbSheet;if(!w||!fsx)return;
     var kind=el.getAttribute("data-kind"),val=el.getAttribute("data-val"),mus=el.getAttribute("data-muscle");
     var en=w.entries[fsx.ei];if(!en)return;
@@ -10910,9 +11018,45 @@ document.addEventListener("click",function(e){
   if(a==="wo:exmenu"){state.exMenu={ei:+el.getAttribute("data-ei")};render();return;}
   if(a==="wo:exmenu:close"){state.exMenu=null;render();return;}
   if(a==="wo:exprog"){switchEntryProgression(+el.getAttribute("data-ei"));return;}
-  if(a==="wo:exmove"){var w=state.workout;if(!w)return;var ei=+el.getAttribute("data-ei");var dir=el.getAttribute("data-dir");var ni=dir==="up"?ei-1:ei+1;if(ni<0||ni>=w.entries.length){state.exMenu=null;render();return;}var tmp=w.entries[ei];w.entries[ei]=w.entries[ni];w.entries[ni]=tmp;state.exMenu=null;saveWorkout();render();return;}
+  if(a==="wo:exmove"){var w=state.workout;if(!w)return;var ei=+el.getAttribute("data-ei");var dir=el.getAttribute("data-dir");var ni=dir==="up"?ei-1:ei+1;if(ni<0||ni>=w.entries.length){state.exMenu=null;render();return;}var tmp=w.entries[ei];w.entries[ei]=w.entries[ni];w.entries[ni]=tmp;ssNormalize(w.entries);state.exMenu=null;saveWorkout();render();return;}
+  if(a==="wo:sslink"||a==="wo:ssunlink"){var w=state.workout;if(!w||!w.entries)return;var ei=+el.getAttribute("data-ei");
+    var es=w.entries;if(ei<0||ei>=es.length-1)return;state.exMenu=null;
+    var link=(a==="wo:sslink");
+    if(link){
+      var g=es[ei].groupId||es[ei+1].groupId||("g-"+Date.now()+"-"+Math.random().toString(36).slice(2,6));
+      var oldg=es[ei+1].groupId;
+      es[ei].groupId=g;es[ei+1].groupId=g;
+      if(oldg&&oldg!==g)for(var k=0;k<es.length;k++)if(es[k].groupId===oldg)es[k].groupId=g;
+    }else{
+      var sp=ssSpan(es,ei);if(!sp.g)return;
+      var ng="g-"+Date.now()+"-"+Math.random().toString(36).slice(2,6);
+      for(var k2=ei+1;k2<sp.e;k2++)es[k2].groupId=ng;
+    }
+    ssNormalize(es);saveWorkout();render();
+    /* Same once/forward choice as the per-exercise rest interval: this session
+       by default, or push it into the routine for every future workout. Only
+       offered when the two items are still adjacent in the routine, so saying
+       yes can never silently reorder it. */
+    var rt=getRoutine(w.routineId);
+    var ia=rt&&rItem(rt,es[ei].itemId),ib=rt&&rItem(rt,es[ei+1].itemId);
+    if(rt&&ia&&ib){
+      var arr=rt.items||[],xa=arr.indexOf(ia),xb=arr.indexOf(ib);
+      if(xa>=0&&xb===xa+1){
+        var _gv=link?es[ei].groupId:null;
+        askConfirm(link?"Superset saved for this session. Also keep it in “"+((rt.name||"this routine"))+"” for future workouts?"
+                       :"Superset broken for this session. Also break it in “"+((rt.name||"this routine"))+"” for future workouts?",
+          function(){var r2=getRoutine(w.routineId);if(!r2)return;var a2=rItem(r2,es[ei].itemId),b2=rItem(r2,es[ei+1].itemId);if(!a2||!b2)return;
+            if(link){var gg=a2.groupId||b2.groupId||_gv||("g-"+Date.now()+"-"+Math.random().toString(36).slice(2,6));var og=b2.groupId;a2.groupId=gg;b2.groupId=gg;
+              if(og&&og!==gg)for(var q=0;q<(r2.items||[]).length;q++)if(r2.items[q].groupId===og)r2.items[q].groupId=gg;}
+            else{var s2=ssSpan(r2.items,r2.items.indexOf(a2));if(s2.g){var n2="g-"+Date.now()+"-"+Math.random().toString(36).slice(2,6);for(var q2=r2.items.indexOf(a2)+1;q2<s2.e;q2++)r2.items[q2].groupId=n2;}}
+            ssNormalize(r2.items);saveTraining();render();},
+          {label:"Save to routine",danger:false});
+        return;
+      }
+    }
+    toast(link?"Supersetted for this session":"Superset broken for this session");return;}
   if(a==="wo:exaddset"){var w=state.workout;if(!w)return;var en=w.entries[+el.getAttribute("data-ei")];var last=en.sets[en.sets.length-1];en.sets.push({weight:last?last.weight:"",reps:"",rir:"",status:"pending"});state.exMenu=null;saveWorkout();render();persistSetCount(en);return;}
-  if(a==="wo:exremove"){var w=state.workout;var ei=+el.getAttribute("data-ei");var en=w&&w.entries[ei];askConfirm("Remove "+((en&&en.name)||"this exercise")+" from this workout? (Your routine isn\u2019t changed.)",function(){var w2=state.workout;if(w2)w2.entries.splice(ei,1);state.exMenu=null;saveWorkout();},{label:"Remove"});return;}
+  if(a==="wo:exremove"){var w=state.workout;var ei=+el.getAttribute("data-ei");var en=w&&w.entries[ei];askConfirm("Remove "+((en&&en.name)||"this exercise")+" from this workout? (Your routine isn\u2019t changed.)",function(){var w2=state.workout;if(w2){w2.entries.splice(ei,1);ssNormalize(w2.entries);}state.exMenu=null;saveWorkout();},{label:"Remove"});return;}
   if(a==="wo:exreplace"){state.woReplaceEi=+el.getAttribute("data-ei");state.exMenu=null;render();return;}
   if(a==="wo:replacecancel"){state.woReplaceEi=null;render();return;}
   if(a==="wo:replacepick"){var w=state.workout;var ei=state.woReplaceEi;var ex=exById(el.getAttribute("data-eid"));if(w&&ei!=null&&ex){var en=w.entries[ei];var _prevN=en.name;en.exerciseId=ex.id;en.name=ex.name;en.muscle=ex.muscle;en.equipment=ex.equipment;en.bodyweight=!!ex.bodyweight;en.notes=[];(ex.notes||[]).forEach(function(nn){en.notes.push({id:nn.id,text:nn.text,pinned:true});});
@@ -10935,7 +11079,7 @@ document.addEventListener("click",function(e){
     var _srt=getRoutine(w.routineId);
     var entries=w.entries.map(function(en){
       var prog=en.progression||(_srt&&_srt.progression)||"double";
-      var o={exerciseId:en.exerciseId,name:en.name,muscle:en.muscle,fb:en.fb||null,progression:prog,repLow:en.repLow,repHigh:en.repHigh,sets:en.sets.map(function(s){return {weight:num(s.weight),reps:num(s.reps),rir:num(s.rir),status:s.status,sugR:num(s.sugR),sugW:num(s.sugW),tgtLo:num(s.tgtLo),tgtHi:num(s.tgtHi)};})};
+      var o={exerciseId:en.exerciseId,name:en.name,muscle:en.muscle,groupId:en.groupId||null,fb:en.fb||null,progression:prog,repLow:en.repLow,repHigh:en.repHigh,sets:en.sets.map(function(s){return {weight:num(s.weight),reps:num(s.reps),rir:num(s.rir),status:s.status,sugR:num(s.sugR),sugW:num(s.sugW),tgtLo:num(s.tgtLo),tgtHi:num(s.tgtHi)};})};
       if(prog==="rpt")o.setRanges=rptRangesFor({movement:en.movement,setRanges:en.setRanges},Math.max(1,en.sets.length));
       return o;});
     var sess={id:"l-"+Date.now()+"-"+Math.random().toString(36).slice(2,6),routineId:w.routineId,name:w.name,mode:"full",date:w.date,mins:Math.round(b.total/60000),warmupSec:Math.round(b.warmup/1000),workSec:Math.round(b.work/1000),restSec:Math.round(b.rest/1000),mfb:w.mfb||null,hr:num(ff.hr),hrMax:num(ff.hrMax),zone:zone,cal:num(ff.cal),rpe:num(ff.rpe),notes:(ff.notes||"").trim(),bw:w.bw,entries:entries,ts:Date.now()};
@@ -10993,8 +11137,38 @@ document.addEventListener("click",function(e){
   if(a==="ri:add"){state.riPickOpen=true;state.noteEdit=null;render();return;}
   if(a==="ri:pickclose"){state.riPickOpen=false;render();return;}
   if(a==="ri:pick"){var rt=getRoutine(state.routineId);if(!rt)return;var eid=el.getAttribute("data-eid");if((rt.items||[]).some(function(i){return i.exerciseId===eid;}))return;rt.items=rt.items||[];rt.items.push({id:"i-"+Date.now()+"-"+Math.random().toString(36).slice(2,6),exerciseId:eid,repLow:"8",repHigh:"12",sets:3,weight:"",movement:guessMovement((exById(eid)||{}).muscle),notes:[]});saveTraining();render();return;}
-  if(a==="ri:remove"){var rt=getRoutine(state.routineId);if(!rt)return;var iid=el.getAttribute("data-iid");var itm=rItem(rt,iid);var exn=itm&&exById(itm.exerciseId);askConfirm("Remove "+((exn&&exn.name)||"this exercise")+" from this routine?",function(){var r2=getRoutine(state.routineId);if(r2)r2.items=(r2.items||[]).filter(function(i){return i.id!==iid;});saveTraining();},{label:"Remove"});return;}
-  if(a==="ri:up"||a==="ri:down"){var rt=getRoutine(state.routineId);if(!rt)return;var iid=el.getAttribute("data-iid");var arr=rt.items||[];var ix=-1;for(var i=0;i<arr.length;i++){if(arr[i].id===iid){ix=i;break;}}if(ix<0)return;var ni=a==="ri:up"?ix-1:ix+1;if(ni<0||ni>=arr.length)return;var tmp=arr[ix];arr[ix]=arr[ni];arr[ni]=tmp;saveTraining();render();return;}
+  if(a==="ri:remove"){var rt=getRoutine(state.routineId);if(!rt)return;var iid=el.getAttribute("data-iid");var itm=rItem(rt,iid);var exn=itm&&exById(itm.exerciseId);askConfirm("Remove "+((exn&&exn.name)||"this exercise")+" from this routine?",function(){var r2=getRoutine(state.routineId);if(r2){r2.items=(r2.items||[]).filter(function(i){return i.id!==iid;});ssNormalize(r2.items);}saveTraining();},{label:"Remove"});return;}
+  if(a==="ri:up"||a==="ri:down"){var rt=getRoutine(state.routineId);if(!rt)return;var iid=el.getAttribute("data-iid");var arr=rt.items||[];var ix=-1;for(var i=0;i<arr.length;i++){if(arr[i].id===iid){ix=i;break;}}if(ix<0)return;
+    /* Supersets must stay contiguous. Inside a group the arrows reorder the
+       members (A/B swap); at a group edge they move the WHOLE group past the
+       neighbouring block, and an ungrouped item likewise hops a whole group
+       rather than landing in the middle of one. */
+    var sp=ssSpan(arr,ix);var up=(a==="ri:up");
+    if(sp.g&&((up&&ix>sp.s)||(!up&&ix<sp.e-1))){var ni=up?ix-1:ix+1;var t=arr[ix];arr[ix]=arr[ni];arr[ni]=t;saveTraining();render();return;}
+    var blk=arr.slice(sp.s,sp.e);
+    var nb=up?ssSpan(arr,sp.s-1):ssSpan(arr,sp.e);
+    if((up&&sp.s===0)||(!up&&sp.e>=arr.length))return;
+    var other=arr.slice(nb.s,nb.e);
+    var rest=arr.slice();
+    if(up){rest.splice(nb.s,(sp.e-nb.s),...blk,...other);}
+    else{rest.splice(sp.s,(nb.e-sp.s),...other,...blk);}
+    rt.items=rest;ssNormalize(rt.items);saveTraining();render();return;}
+  if(a==="ri:sslink"||a==="ri:ssunlink"){var rt=getRoutine(state.routineId);if(!rt)return;var arr=rt.items||[];var iid=el.getAttribute("data-iid");var ix=-1;for(var i=0;i<arr.length;i++){if(arr[i].id===iid){ix=i;break;}}
+    if(ix<0||ix>=arr.length-1)return;
+    if(a==="ri:sslink"){
+      /* join this item to the one below: adopt whichever side already has a
+         group, else mint one; if both have (different) groups, merge them. */
+      var g=arr[ix].groupId||arr[ix+1].groupId||("g-"+Date.now()+"-"+Math.random().toString(36).slice(2,6));
+      var oldg=arr[ix+1].groupId;
+      arr[ix].groupId=g;arr[ix+1].groupId=g;
+      if(oldg&&oldg!==g)for(var k=0;k<arr.length;k++)if(arr[k].groupId===oldg)arr[k].groupId=g;
+    }else{
+      /* split the group between ix and ix+1 — the tail becomes its own group */
+      var sp=ssSpan(arr,ix);if(!sp.g)return;
+      var ng="g-"+Date.now()+"-"+Math.random().toString(36).slice(2,6);
+      for(var k2=ix+1;k2<sp.e;k2++)arr[k2].groupId=ng;
+    }
+    ssNormalize(arr);saveTraining();render();return;}
   if(a==="ri:setinc"||a==="ri:setdec"){var rt=getRoutine(state.routineId);if(!rt)return;var it=rItem(rt,el.getAttribute("data-iid"));if(!it)return;var s=(+it.sets||0)+(a==="ri:setinc"?1:-1);if(s<1)s=1;if(s>15)s=15;it.sets=s;if(Array.isArray(it.setRanges))it.setRanges=rptRangesFor(it,s);saveTraining();render();return;}
   if(a==="ri:prog"){var rt=getRoutine(state.routineId);if(!rt)return;var it=rItem(rt,el.getAttribute("data-iid"));if(!it)return;it.progression=el.getAttribute("data-prog");saveTraining();render();return;}
   if(a==="ri:mv"){var rt=getRoutine(state.routineId);if(!rt)return;var it=rItem(rt,el.getAttribute("data-iid"));if(!it)return;it.movement=el.getAttribute("data-mv");it.setRanges=rptDefRanges(it.movement,Math.max(1,it.sets||3));saveTraining();render();return;}
