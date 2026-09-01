@@ -143,6 +143,7 @@ function whoopAgo(ts){
 /* The daily card: recovery / HRV / resting HR / strain for a given day. Shown
    only when WHOOP actually has that day. */
 function whoopDayCardHTML(iso){
+  if(!whoopOn())return "";
   var d=whoopDay(iso);if(!d)return "";
   var bits=[];
   if(d.recovery!=null)bits.push('<div class="wl-wh-cell"><span class="wl-wh-k">Recovery</span><b class="wl-wh-v '+whoopRecoveryTone(d.recovery)+'">'+d.recovery+'%</b></div>');

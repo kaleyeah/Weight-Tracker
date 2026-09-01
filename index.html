@@ -1110,7 +1110,7 @@ input[type=range][data-pfadj]{width:100%;accent-color:var(--accent);min-height:2
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-09-01.504-whoop";
+var APP_BUILD="2026-09-01.505-whoop-daily";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -3526,6 +3526,9 @@ function view_overview(){
      inside the check-in form itself, and unlike that prompt it persists \u2014 with
      escalating lateness \u2014 until it is sent or deliberately skipped. */
   h+=ciCardHTML();
+  /* WHOOP's read on the day — recovery is a decision input for training, so
+     it sits high. Follows selDate, so browsing back shows that day's figures. */
+  if(typeof whoopDayCardHTML==="function")h+=whoopDayCardHTML(state.selDate);
   h+=todayChecklistHTML(state.selDate);
   if(!_atTop)h+=_recapUnit;
   h+=activitySummaryHTML(state.selDate);
@@ -10961,6 +10964,7 @@ function whoopAgo(ts){
 /* The daily card: recovery / HRV / resting HR / strain for a given day. Shown
    only when WHOOP actually has that day. */
 function whoopDayCardHTML(iso){
+  if(!whoopOn())return "";
   var d=whoopDay(iso);if(!d)return "";
   var bits=[];
   if(d.recovery!=null)bits.push('<div class="wl-wh-cell"><span class="wl-wh-k">Recovery</span><b class="wl-wh-v '+whoopRecoveryTone(d.recovery)+'">'+d.recovery+'%</b></div>');

@@ -869,6 +869,9 @@ function view_overview(){
      inside the check-in form itself, and unlike that prompt it persists \u2014 with
      escalating lateness \u2014 until it is sent or deliberately skipped. */
   h+=ciCardHTML();
+  /* WHOOP's read on the day — recovery is a decision input for training, so
+     it sits high. Follows selDate, so browsing back shows that day's figures. */
+  if(typeof whoopDayCardHTML==="function")h+=whoopDayCardHTML(state.selDate);
   h+=todayChecklistHTML(state.selDate);
   if(!_atTop)h+=_recapUnit;
   h+=activitySummaryHTML(state.selDate);
