@@ -264,6 +264,7 @@ function view_weight(){
   h+=feelCardHTML();
   h+=ciHistoryHTML();
   h+=glpProgressHTML();
+  if(typeof whoopChartsHTML==="function")h+=whoopChartsHTML();
   var moreOpen=state.moreStats!==false; /* Owner 2026-08-02: Progress sections start open */
   h+='<div class="wl-card"><button class="wl-collapse-head" data-act="morestats"><span>More stats</span><span class="wl-chevron'+(moreOpen?" open":"")+'">\u203a</span></button>';
   if(moreOpen){

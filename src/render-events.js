@@ -471,6 +471,7 @@ document.addEventListener("click",function(e){
   if(a==="t2:next"){if((state.t2Off||0)>0){state.t2Off=state.t2Off-1;state.t2Pt=null;state.histMore=false;render();}return;}
   if(a==="t2:tocur"){state.t2Off=0;state.t2Pt=null;render();return;}
   if(a==="t2:pt"){state.t2Pt={tab:state.bcTab||"weight",date:el.getAttribute("data-date"),value:num(el.getAttribute("data-value"))};render();return;}
+  if(a==="whoopstats"){state.whoopStatsOpen=(state.whoopStatsOpen===false);render();return;}
   if(a==="morestats"){state.moreStats=(state.moreStats===false);render();return;}
   if(a==="syncdot"){var _sr=syncIdleReason();if(_sr){toast("Sync: "+_sr);return;}
 var lt=getLastSync();toast((syncLabel()||"Sync")+(lt?" \u00b7 "+fmtClock(lt):"")+(syncState.msg?" \u2014 "+syncState.msg:""));return;}
