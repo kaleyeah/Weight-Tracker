@@ -175,7 +175,9 @@ document.addEventListener("click",function(e){
   if(a==="wo:start"){if(state.workout){state.view="train";toast("Finish or discard your current workout first");state.woResume=true;render();return;}var rt=getRoutine(el.getAttribute("data-id"));if(rt)startWorkout(rt);return;}
   if(a==="wo:begin"){var w=state.workout;if(!w)return;w.tState="warmup";w.startTs=Date.now();w.stateStartTs=Date.now();saveWorkout();render();startWoTick();return;}
   if(a==="wo:startroutine"){woTransition("working");render();return;}
-  if(a==="wo:endrest"){woTransition("working");render();return;}
+  if(a==="wo:endrest"){woTransition("working");render();if(typeof woScrollCurrent==="function")setTimeout(woScrollCurrent,40);return;}
+  if(a==="wo:pause"){var w=state.workout;if(!w||w.tState!=="working")return;w.pausedRest=true;woTransition("resting");if(typeof startWoTick==="function")startWoTick();render();return;}
+  if(a==="wo:resumeset"){var w=state.workout;if(!w)return;woTransition("working");if(typeof startWoTick==="function")startWoTick();render();if(typeof woScrollCurrent==="function")setTimeout(woScrollCurrent,40);return;}
   if(a==="wo:log"){var w=state.workout;if(!w)return;if(w.tState==="ready"){toast("Tap Start to begin your warmup first");return;}if(w.tState==="warmup"){toast("Finish your warmup — tap End warmup to start the routine");return;}var ei=+el.getAttribute("data-ei"),si=+el.getAttribute("data-si");var stt=w.entries[ei].sets[si];
     if(stt.status==="done"){askConfirm("Reopen this set? It goes back to unlogged, and time counts as working until you check it again.",function(){var w2=state.workout;if(!w2)return;var s2=w2.entries[ei].sets[si];s2.status="pending";if(w2.tState==="resting"){var now=Date.now();w2.workMs+=(now-w2.stateStartTs);w2.tState="working";w2.stateStartTs=now;}saveWorkout();},{label:"Reopen",danger:false});return;}
     var en=w.entries[ei];var need=[];var vw=num(stt.weight),vr=num(stt.reps),vi=num(stt.rir);

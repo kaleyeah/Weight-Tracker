@@ -1537,7 +1537,10 @@ function restNotifyCancel(){
   if(!state.settings.restNotify||!restPushReady())return;
   try{fetch(REST_PUSH_BASE+"/rest/cancel",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:"rest"})}).catch(function(){});}catch(e){}
 }
-function woTransition(ns){var w=state.workout;if(!w)return;var now=Date.now();var seg=now-w.stateStartTs;if(w.tState==="warmup")w.warmupMs+=seg;else if(w.tState==="working")w.workMs+=seg;else w.restMs+=seg;w.tState=ns;w.stateStartTs=now;saveWorkout();if(ns==="resting")restNotifySchedule();else restNotifyCancel();}
+function woTransition(ns){var w=state.workout;if(!w)return;var now=Date.now();var seg=now-w.stateStartTs;if(w.tState==="warmup")w.warmupMs+=seg;else if(w.tState==="working")w.workMs+=seg;else w.restMs+=seg;w.tState=ns;w.stateStartTs=now;if(ns!=="resting")w.pausedRest=false;saveWorkout();
+  /* a paused working set counts as rest, but is NOT a between-sets rest — no
+     "time to hit it" ping while paused. */
+  if(ns==="resting"&&!w.pausedRest)restNotifySchedule();else restNotifyCancel();}
 function pauseWorkout(){var w=state.workout;if(!w)return;if(w.tState!=="ready"&&w.stateStartTs){var now=Date.now();var seg=now-w.stateStartTs;if(w.tState==="warmup")w.warmupMs+=seg;else if(w.tState==="working")w.workMs+=seg;else w.restMs+=seg;}w.paused=true;w.stateStartTs=null;saveWorkout();}
 function woBuckets(){var w=state.workout;if(!w)return null;if(w.tState==="ready")return {warmup:0,work:0,rest:0,total:0,segMs:0};if(w.paused||!w.stateStartTs){var tot=w.warmupMs+w.workMs+w.restMs;return {warmup:w.warmupMs,work:w.workMs,rest:w.restMs,total:tot,segMs:0};}var now=Date.now();var seg=now-w.stateStartTs;var b={warmup:w.warmupMs,work:w.workMs,rest:w.restMs};if(w.tState==="warmup")b.warmup+=seg;else if(w.tState==="working")b.work+=seg;else b.rest+=seg;b.total=b.warmup+b.work+b.rest;b.segMs=seg;return b;}
 function fmtDur(ms){var s=Math.max(0,Math.floor(ms/1000));var h=Math.floor(s/3600);var m=Math.floor((s%3600)/60);var ss=s%60;return (h?h+":"+("0"+m).slice(-2):m)+":"+("0"+ss).slice(-2);}
@@ -1545,13 +1548,17 @@ var woTimer=null;
 /* Paint the timer displays from the CURRENT clock. Time is stored as
    stateStartTs (a timestamp), so this is always correct no matter how long the
    app was backgrounded/suspended — it recomputes from Date.now(). */
-function woTickPaint(){if(!state.workout||state.view!=="workout")return;var w=state.workout;var b=woBuckets();var t=document.getElementById("wl-tb-total");if(t)t.textContent=fmtDur(b.total);var s=document.getElementById("wl-tb-seg");if(s)s.textContent=(w.tState==="ready"?"Ready":w.tState==="warmup"?"Warmup":w.tState==="working"?"Working":"Resting")+(w.tState==="ready"?"":" · "+fmtDur(b.segMs));var rt=document.getElementById("wl-rest-time");if(rt&&w.tState==="resting")rt.textContent=fmtDur(b.segMs);}
+function woTickPaint(){if(!state.workout||state.view!=="workout")return;var w=state.workout;var b=woBuckets();var t=document.getElementById("wl-tb-total");if(t)t.textContent=fmtDur(b.total);var s=document.getElementById("wl-tb-seg");if(s)s.textContent=(w.tState==="ready"?"Ready":w.tState==="warmup"?"Warmup":w.tState==="working"?"Working":(w.pausedRest?"Paused":"Resting"))+((w.tState==="ready"||w.tState==="resting")?"":" · "+fmtDur(b.segMs));var rt=document.getElementById("wl-rest-time");if(rt&&w.tState==="resting")rt.textContent=fmtDur(b.segMs);}
 function startWoTick(){if(woTimer)clearInterval(woTimer);woTimer=setInterval(woTickPaint,1000);}
 /* iOS suspends setInterval while the PWA is backgrounded/locked. On return,
    restart the tick and immediately snap the display to the true elapsed time so
    the workout timer never looks frozen. (The elapsed value itself was never
    lost — it's timestamp-based — this only refreshes what's on screen.) */
 function woResumeTick(){if(state.workout&&state.view==="workout"){startWoTick();woTickPaint();}}
+/* index of the exercise whose next set is up (first pending/non-skipped set) */
+function woCurrentEi(){var w=state.workout;if(!w||!w.entries)return -1;for(var i=0;i<w.entries.length;i++){var ss=w.entries[i].sets||[];for(var j=0;j<ss.length;j++){if(ss[j].status!=="done"&&ss[j].status!=="skipped")return i;}}return -1;}
+/* when leaving rest back into working, bring the current exercise into view */
+function woScrollCurrent(){var ei=woCurrentEi();if(ei<0)return;var el=document.getElementById("wo-ex-"+ei);if(el&&el.scrollIntoView)el.scrollIntoView({behavior:"smooth",block:"start"});}
 document.addEventListener("visibilitychange",function(){if(!document.hidden)woResumeTick();});
 window.addEventListener("pageshow",woResumeTick);
 window.addEventListener("focus",woResumeTick);
@@ -1565,10 +1572,14 @@ function setTargetIcon(st,en){var reps=num(st.reps);if(reps==null)return "";
   if(up)return '<span class="wl-tgt" style="color:#22c55e">'+I.trend.replace("<svg","<svg width=18 height=18")+'</span>';
   return '<span class="wl-tgt" style="color:#eab308">'+I.target.replace("<svg","<svg width=17 height=17")+'</span>';}
 function timerBarHTML(){var w=state.workout;var b=woBuckets();
-  var lbl=w.tState==="ready"?"Ready":w.tState==="warmup"?"Warmup":w.tState==="working"?"Working":"Resting";
-  var h='<div class="wl-timerbar"><div class="wl-tb-left"><div class="wl-tb-total" id="wl-tb-total">'+fmtDur(b.total)+'</div><div class="wl-tb-seg wl-tb-'+w.tState+'" id="wl-tb-seg">'+lbl+(w.tState==="ready"?"":' · '+fmtDur(b.segMs))+'</div></div><div class="wl-tb-btns">';
+  /* the big rest timer lives in the rest bar; the total bar just names the
+     state while resting (no duplicated rest number). */
+  var lbl=w.tState==="ready"?"Ready":w.tState==="warmup"?"Warmup":w.tState==="working"?"Working":(w.pausedRest?"Paused":"Resting");
+  var _noSeg=(w.tState==="ready"||w.tState==="resting");
+  var h='<div class="wl-timerbar"><div class="wl-tb-left"><div class="wl-tb-total" id="wl-tb-total">'+fmtDur(b.total)+'</div><div class="wl-tb-seg wl-tb-'+w.tState+'" id="wl-tb-seg">'+lbl+(_noSeg?"":' · '+fmtDur(b.segMs))+'</div></div><div class="wl-tb-btns">';
   if(w.tState==="ready")h+='<button class="wl-btn wl-btn-primary" data-act="wo:begin" style="padding:9px 16px">Start</button>';
   else if(w.tState==="warmup")h+='<button class="wl-btn wl-btn-primary" data-act="wo:startroutine" style="padding:9px 14px">End warmup</button>';
+  else if(w.tState==="working")h+='<button class="wl-btn wl-btn-ghost" data-act="wo:pause" style="padding:9px 16px">Pause</button>';
   h+='</div></div>';
   return h;}
 function setRowHTML(en,ei,st,si){var done=st.status==="done",sk=st.status==="skipped",wu=st.status==="warmup";
@@ -1597,14 +1608,16 @@ if(sk)h+='<span class="wl-set-skip">skipped</span>';else h+='<input class="wl-se
    modal. Keeps id="wl-rest-time" so woTickPaint keeps updating it. */
 function restBarHTML(){
   var w=state.workout;var b=woBuckets();var un=woUpNext();var u=state.settings.units;
-  var h='<div class="wl-restbar">';
-  h+='<div class="wl-rb-top"><div class="wl-rb-left"><span class="wl-rb-label">Rest</span><span class="wl-rb-time" id="wl-rest-time">'+fmtDur(b.segMs)+'</span></div>'+
-     '<div class="wl-rb-icons"><button class="wl-icon-btn'+(state.restInfoOpen?" on":"")+'" data-act="rest:info" aria-label="Rest info">'+I.info.replace("<svg","<svg width=18 height=18")+'</button>'+
-     '<button class="wl-icon-btn" data-act="rest:settings" aria-label="Rest settings" style="font-size:18px;line-height:1">⚙</button></div></div>';
-  h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="wo:endrest">Begin next set</button>';
+  var pz=!!w.pausedRest;   /* paused mid-working-set vs a between-sets rest */
+  var h='<div class="wl-restbar'+(pz?' paused':'')+'">';
+  h+='<div class="wl-rb-icons">'+(pz?'':'<button class="wl-icon-btn'+(state.restInfoOpen?" on":"")+'" data-act="rest:info" aria-label="Rest info">'+I.info.replace("<svg","<svg width=18 height=18")+'</button>')+
+     '<button class="wl-icon-btn" data-act="rest:settings" aria-label="Rest settings" style="font-size:18px;line-height:1">⚙</button></div>';
+  h+='<div class="wl-rb-timer"><div class="wl-rb-label">'+(pz?'Paused':'Rest')+'</div><div class="wl-rb-time" id="wl-rest-time">'+fmtDur(b.segMs)+'</div></div>';
+  h+=pz?'<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="wo:resumeset">Resume set</button>'
+       :'<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="wo:endrest">Begin next set</button>';
   if(un){var bits=['Set '+un.setNo+' of '+un.setTotal];if(un.reps)bits.push(un.reps+' reps');if(un.weight)bits.push(esc(un.weight)+' '+u);
-    h+='<div class="wl-rb-upnext"><span class="wl-rb-upl">Up next</span><b>'+esc(un.name)+'</b><div class="wl-rb-upmeta">'+bits.join(' · ')+'</div></div>';}
-  if(state.restInfoOpen){
+    h+='<div class="wl-rb-upnext"><span class="wl-rb-upl">'+(pz?'Back to':'Up next')+'</span><b>'+esc(un.name)+'</b><div class="wl-rb-upmeta">'+bits.join(' · ')+'</div></div>';}
+  if(!pz&&state.restInfoOpen){
     h+='<div class="wl-rb-info"><div class="wl-rb-infoh">Rest long enough to</div><ol class="wl-restwhy-l"><li>No longer be breathing heavily.</li><li>Feel mentally ready for another hard set.</li><li>Not be crampy in a supporting muscle — a fatigued lower back before another squat set, say.</li><li>Have enough back in the target muscle for at least 5 reps.</li></ol></div>';
   }
   return h+'</div>';
@@ -1617,7 +1630,7 @@ function view_workout(){var w=state.workout;
   h+=timerBarHTML();
   if(w.tState==="ready")h+='<div class="wl-hint" style="text-align:center;margin:2px 0 4px">Review your workout below, then tap <b>Start</b> — your warmup begins first. Tap <b>End warmup</b> when you\u2019re ready to lift.</div>';
   var _resting=(w.tState==="resting");
-  if(_resting){h+=restBarHTML();h+='<div class="wl-worklock"><span class="wl-lockchip">🔒 Locked until you begin the next set</span></div>';h+='<div class="wl-locked">';}
+  if(_resting){h+=restBarHTML();h+='<div class="wl-worklock"><span class="wl-lockchip">🔒 '+(w.pausedRest?'Paused — tap Resume to continue':'Locked until you begin the next set')+'</span></div>';h+='<div class="wl-locked">';}
   w.entries.forEach(function(en,ei){var _pg=(en.progression||"double")==="rpt"?"rpt":"double";
   h+='<div class="wl-card" id="wo-ex-'+ei+'"><div style="margin-bottom:6px;display:flex;align-items:center;justify-content:space-between">'+
   '<span style="display:inline-flex;align-items:center;gap:7px;min-width:0">'+muscleTagHTML(en.muscle||"other")+'<span class="wl-progtag'+(_pg==="rpt"?" rpt":"")+'">'+(_pg==="rpt"?"RPT":"PO")+'</span></span>'+
