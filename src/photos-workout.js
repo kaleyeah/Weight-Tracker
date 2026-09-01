@@ -1590,6 +1590,25 @@ if(sk)h+='<span class="wl-set-skip">skipped</span>';else h+='<input class="wl-se
   h+='<button class="wl-set-log'+(done&&!wu?" done":"")+(sk?" skipped":"")+(wu?" warmup":"")+'" data-act="wo:log" data-ei="'+ei+'" data-si="'+si+'">'+(wu?"W":done?"✓":sk?"–":"")+'</button>';
   var _rw=(state.logWarn&&state.logWarn.ei===ei&&state.logWarn.si===si)?'<div class="wl-rirwarn"><span class="wl-rirwarn-ic">!</span><span>'+esc(state.logWarn.msg)+'</span></div>':'';
   return h+'</div>'+_rw;}
+/* The rest bar (Owner-approved redesign 2026-09-01): during rest, a compact bar
+   at the top — big timer + Begin next set + Up next + a ⓘ that expands the "rest
+   long enough to" guidance + the ⚙ rest settings. The workout list below stays
+   browsable but LOCKED until Begin next set. Replaces the old blocking rest
+   modal. Keeps id="wl-rest-time" so woTickPaint keeps updating it. */
+function restBarHTML(){
+  var w=state.workout;var b=woBuckets();var un=woUpNext();var u=state.settings.units;
+  var h='<div class="wl-restbar">';
+  h+='<div class="wl-rb-top"><div class="wl-rb-left"><span class="wl-rb-label">Rest</span><span class="wl-rb-time" id="wl-rest-time">'+fmtDur(b.segMs)+'</span></div>'+
+     '<div class="wl-rb-icons"><button class="wl-icon-btn'+(state.restInfoOpen?" on":"")+'" data-act="rest:info" aria-label="Rest info">'+I.info.replace("<svg","<svg width=18 height=18")+'</button>'+
+     '<button class="wl-icon-btn" data-act="rest:settings" aria-label="Rest settings" style="font-size:18px;line-height:1">⚙</button></div></div>';
+  h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="wo:endrest">Begin next set</button>';
+  if(un){var bits=['Set '+un.setNo+' of '+un.setTotal];if(un.reps)bits.push(un.reps+' reps');if(un.weight)bits.push(esc(un.weight)+' '+u);
+    h+='<div class="wl-rb-upnext"><span class="wl-rb-upl">Up next</span><b>'+esc(un.name)+'</b><div class="wl-rb-upmeta">'+bits.join(' · ')+'</div></div>';}
+  if(state.restInfoOpen){
+    h+='<div class="wl-rb-info"><div class="wl-rb-infoh">Rest long enough to</div><ol class="wl-restwhy-l"><li>No longer be breathing heavily.</li><li>Feel mentally ready for another hard set.</li><li>Not be crampy in a supporting muscle — a fatigued lower back before another squat set, say.</li><li>Have enough back in the target muscle for at least 5 reps.</li></ol></div>';
+  }
+  return h+'</div>';
+}
 function view_workout(){var w=state.workout;
   if(!w)return '<div class="wl-stack"><div class="wl-card"><div class="wl-hint">No active workout.</div></div></div>';
   if(w.finishing)return finishSheetHTML();
@@ -1597,6 +1616,8 @@ function view_workout(){var w=state.workout;
   
   h+=timerBarHTML();
   if(w.tState==="ready")h+='<div class="wl-hint" style="text-align:center;margin:2px 0 4px">Review your workout below, then tap <b>Start</b> — your warmup begins first. Tap <b>End warmup</b> when you\u2019re ready to lift.</div>';
+  var _resting=(w.tState==="resting");
+  if(_resting){h+=restBarHTML();h+='<div class="wl-worklock"><span class="wl-lockchip">🔒 Locked until you begin the next set</span></div>';h+='<div class="wl-locked">';}
   w.entries.forEach(function(en,ei){var _pg=(en.progression||"double")==="rpt"?"rpt":"double";
   h+='<div class="wl-card" id="wo-ex-'+ei+'"><div style="margin-bottom:6px;display:flex;align-items:center;justify-content:space-between">'+
   '<span style="display:inline-flex;align-items:center;gap:7px;min-width:0">'+muscleTagHTML(en.muscle||"other")+'<span class="wl-progtag'+(_pg==="rpt"?" rpt":"")+'">'+(_pg==="rpt"?"RPT":"PO")+'</span></span>'+
@@ -1611,6 +1632,7 @@ function view_workout(){var w=state.workout;
     h+='<div class="wl-setgrid wl-sethead" style="margin-top:10px"><span></span><span>WEIGHT</span><span>REPS</span><span>RIR '+infoBtn("rir")+'</span><span>'+infoBtn("targeticons")+'</span><span>LOG</span></div>';
     en.sets.forEach(function(st,si){h+=setRowHTML(en,ei,st,si);});
     h+='</div>';});
+  if(_resting)h+='</div>';
   if(w.tState!=="ready")h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:6px" data-act="wo:finish">End workout</button>';
   h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--faint)" data-act="wo:discard">Discard workout</button>';
   h+='<div style="height:16px"></div>';
@@ -1814,8 +1836,6 @@ function woOverlaysHTML(){var h="";
     h+='</div></div>';}
   if(state.woReplSave){var _rs=state.woReplSave;
     h+='<div class="wl-confirm"><div class="wl-confirm-card"><div class="wl-confirm-msg">Swapped <b>'+esc(_rs.prev)+'</b> for <b>'+esc(_rs.next)+'</b>. Save it to the routine going forward, or keep it for today only?</div><div class="wl-confirm-btns"><button class="wl-btn wl-btn-ghost wl-full" data-act="wo:replsave:once">Just this once</button><button class="wl-btn wl-full" style="background:var(--accent);color:#fff;border:none" data-act="wo:replsave:fwd">Save to routine</button></div></div></div>';}
-  if(state.workout&&state.workout.tState==="resting"){var b=woBuckets();
-    h+='<div class="wl-confirm"><div class="wl-confirm-card" style="text-align:center;position:relative"><button class="wl-icon-btn" data-act="rest:settings" aria-label="Rest timer settings" style="position:absolute;top:6px;right:6px;font-size:19px;line-height:1">⚙️</button><div style="font-size:12px;color:var(--faint);text-transform:uppercase;letter-spacing:.1em;font-weight:800">Rest</div><div class="wl-tb-total" id="wl-rest-time" style="font-size:52px;margin:12px 0;color:#3b82f6">'+fmtDur(b.segMs)+'</div><div class="wl-restwhy"><div class="wl-restwhy-h">Rest long enough to</div><ol class="wl-restwhy-l"><li>No longer be breathing heavily.</li><li>Feel mentally ready for another hard set.</li><li>Not be crampy in a supporting muscle \u2014 a fatigued lower back before another squat set, say.</li><li>Have enough back in the target muscle for at least 5 reps.</li></ol></div><button class="wl-btn wl-btn-primary wl-full" data-act="wo:endrest">Begin next set</button>'+(function(){var _un=woUpNext();if(!_un)return "";var _u=state.settings.units;var _bits=['Set '+_un.setNo+' of '+_un.setTotal];if(_un.reps)_bits.push(_un.reps+' reps');if(_un.weight)_bits.push(esc(_un.weight)+' '+_u);return '<div class="wl-upnext"><span class="wl-upnext-l">Up next</span><b style="color:var(--text)">'+esc(_un.name)+'</b><br>'+_bits.join(' \u00b7 ')+'</div>';})()+'</div></div>';}
   h+=fbSheetHTML();
   h+=warmupAskHTML();
   if(state.woResume){var w=state.workout;var paused=w&&w.paused;

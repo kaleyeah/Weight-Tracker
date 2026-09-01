@@ -635,6 +635,7 @@ var lt=getLastSync();toast((syncLabel()||"Sync")+(lt?" \u00b7 "+fmtClock(lt):"")
   if(a==="restnotify:set"){var _on=el.getAttribute("data-on")==="1";if(_on){if(typeof restPushOn==="function"&&restPushOn()){state.settings.restNotify=true;save();if(state.workout&&state.workout.tState==="resting"&&typeof restNotifySchedule==="function")restNotifySchedule();render();}else{restNotifyEnable();}}else{state.settings.restNotify=false;save();if(typeof restNotifyCancel==="function")restNotifyCancel();render();}return;}
   if(a==="restnotify:enable"){restNotifyEnable();return;}
   if(a==="rest:settings"){state.restSetOpen=true;render();return;}
+  if(a==="rest:info"){state.restInfoOpen=!state.restInfoOpen;render();return;}
   if(a==="rest:exsave"){var _sc=el.getAttribute("data-scope");var _inp=document.getElementById("wl-rest-exmin");var _v=_inp?_inp.value.trim():"";var _w=state.workout;var _en=(typeof _restNextEntry==="function")?_restNextEntry():null;if(!_w||!_en)return;
     _en.restMin=_v;saveWorkout();var _savedRt=false;
     if(_sc==="routine"){var _rt=getRoutine(_w.routineId);var _it=_rt&&rItem(_rt,_en.itemId);if(_it){_it.restMin=_v;saveTraining();_savedRt=true;}}
