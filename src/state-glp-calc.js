@@ -790,21 +790,20 @@ function glpSymptomListHTML(){
   return h+'<div class="wl-hint" style="margin-top:8px">Tap an entry to edit or delete it.</div></div>';}
 function glpProgressHTML(){
   if(!glpProgEnabled())return "";
-  var h=glpWeightByDoseCardHTML();
-  if(glpDoseBars().length||glpNonSkipDoses().length){
-    h+='<button class="wl-glpexpand" data-act="glp:timeline"><span>Weight timeline with dose bands</span><span class="wl-glpgo">›</span></button>';
-  }
+  /* Owner 2026-09-01: the Weight-&-dose timeline is the more useful default;
+     the by-dose comparison card is now one tap away (its "Compare by dose
+     level" button opens view_glpcompare). */
+  var h=glpTimelineHTML();
   h+=glpSymptomListHTML();
   return h;
 }
 /* 7c — weight timeline with dose bands (detail screen) */
-function view_glptimeline(){
-  var h='<div class="wl-stack">';
-  if(!glpProgEnabled()){return h+'<div class="wl-card"><div class="wl-empty">GLP-1 tracking is off.</div></div></div>';}
+function glpTimelineHTML(){
+  if(!glpProgEnabled())return '<div class="wl-card"><div class="wl-empty">GLP-1 tracking is off.</div></div>';
   var u=state.settings.units;var goal=num(state.settings.goalWeight);
   var c=prepChart();var data=c.data;
-  h+='<div class="wl-card">';
-  if(!data.length){h+='<div class="wl-empty">No weigh-ins yet. Add a few to see your weight against dose levels.</div>';return h+'</div></div>';}
+  var h='<div class="wl-card">';
+  if(!data.length)return h+'<div class="wl-empty">No weigh-ins yet. Add a few to see your weight against dose levels.</div></div>';
   var periods=glpLevelPeriods();
   var W=340,H=210,padL=34,padR=12,padT=26,padB=24;
   var ys=[];data.forEach(function(d){ys.push(d.weight);if(d.avg!=null)ys.push(d.avg);});if(goal!=null)ys.push(goal);
@@ -857,8 +856,15 @@ function view_glptimeline(){
   h+='<div class="wl-readout"><b>'+r1(last.weight)+'</b> '+u+' · '+fmtShort(new Date(last.ts))+' (latest)</div>';
   h+='<div class="wl-glpnote"><b>Bands mark when each dose was active</b> — not what caused the change. Diet, training and sleep move this line too.</div>';
   h+='</div>';
-  h+='<button class="wl-glpexpand" data-act="go" data-view="weight"><span>Compare by dose level</span><span class="wl-glpgo">›</span></button>';
+  h+='<button class="wl-glpexpand" data-act="go" data-view="glpcompare"><span>Compare by dose level</span><span class="wl-glpgo">›</span></button>';
   h+=glpJournalHTML();
+  return h;
+}
+function view_glptimeline(){return '<div class="wl-stack">'+glpTimelineHTML()+'</div>';}
+function view_glpcompare(){
+  var h='<div class="wl-stack">';
+  if(!glpProgEnabled())return h+'<div class="wl-card"><div class="wl-empty">GLP-1 tracking is off.</div></div></div>';
+  h+=glpWeightByDoseCardHTML();
   return h+'</div>';
 }
 

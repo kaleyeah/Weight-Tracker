@@ -1054,7 +1054,7 @@ input[type=range][data-pfadj]{width:100%;accent-color:var(--accent);min-height:2
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-09-01.494-rest-field-fix";
+var APP_BUILD="2026-09-01.495-glp-timeline-default";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -2074,21 +2074,20 @@ function glpSymptomListHTML(){
   return h+'<div class="wl-hint" style="margin-top:8px">Tap an entry to edit or delete it.</div></div>';}
 function glpProgressHTML(){
   if(!glpProgEnabled())return "";
-  var h=glpWeightByDoseCardHTML();
-  if(glpDoseBars().length||glpNonSkipDoses().length){
-    h+='<button class="wl-glpexpand" data-act="glp:timeline"><span>Weight timeline with dose bands</span><span class="wl-glpgo">›</span></button>';
-  }
+  /* Owner 2026-09-01: the Weight-&-dose timeline is the more useful default;
+     the by-dose comparison card is now one tap away (its "Compare by dose
+     level" button opens view_glpcompare). */
+  var h=glpTimelineHTML();
   h+=glpSymptomListHTML();
   return h;
 }
 /* 7c — weight timeline with dose bands (detail screen) */
-function view_glptimeline(){
-  var h='<div class="wl-stack">';
-  if(!glpProgEnabled()){return h+'<div class="wl-card"><div class="wl-empty">GLP-1 tracking is off.</div></div></div>';}
+function glpTimelineHTML(){
+  if(!glpProgEnabled())return '<div class="wl-card"><div class="wl-empty">GLP-1 tracking is off.</div></div>';
   var u=state.settings.units;var goal=num(state.settings.goalWeight);
   var c=prepChart();var data=c.data;
-  h+='<div class="wl-card">';
-  if(!data.length){h+='<div class="wl-empty">No weigh-ins yet. Add a few to see your weight against dose levels.</div>';return h+'</div></div>';}
+  var h='<div class="wl-card">';
+  if(!data.length)return h+'<div class="wl-empty">No weigh-ins yet. Add a few to see your weight against dose levels.</div></div>';
   var periods=glpLevelPeriods();
   var W=340,H=210,padL=34,padR=12,padT=26,padB=24;
   var ys=[];data.forEach(function(d){ys.push(d.weight);if(d.avg!=null)ys.push(d.avg);});if(goal!=null)ys.push(goal);
@@ -2141,8 +2140,15 @@ function view_glptimeline(){
   h+='<div class="wl-readout"><b>'+r1(last.weight)+'</b> '+u+' · '+fmtShort(new Date(last.ts))+' (latest)</div>';
   h+='<div class="wl-glpnote"><b>Bands mark when each dose was active</b> — not what caused the change. Diet, training and sleep move this line too.</div>';
   h+='</div>';
-  h+='<button class="wl-glpexpand" data-act="go" data-view="weight"><span>Compare by dose level</span><span class="wl-glpgo">›</span></button>';
+  h+='<button class="wl-glpexpand" data-act="go" data-view="glpcompare"><span>Compare by dose level</span><span class="wl-glpgo">›</span></button>';
   h+=glpJournalHTML();
+  return h;
+}
+function view_glptimeline(){return '<div class="wl-stack">'+glpTimelineHTML()+'</div>';}
+function view_glpcompare(){
+  var h='<div class="wl-stack">';
+  if(!glpProgEnabled())return h+'<div class="wl-card"><div class="wl-empty">GLP-1 tracking is off.</div></div></div>';
+  h+=glpWeightByDoseCardHTML();
   return h+'</div>';
 }
 
@@ -10603,13 +10609,13 @@ function confirmOverlayHTML(){var c=state.pendingConfirm;if(!c)return "";
   return '<div class="wl-confirm" style="z-index:2500"><div class="wl-confirm-card"><div class="wl-confirm-msg">'+esc(c.message)+'</div><div class="wl-confirm-btns"><button class="wl-btn wl-btn-ghost wl-full" data-act="confirm:no">Cancel</button><button class="wl-btn wl-full" style="background:'+(c.danger?"var(--bad)":"var(--accent)")+';color:#fff;border:none" data-act="confirm:yes">'+esc(c.label)+'</button></div></div></div>';}
 function render(){
   clearPhotoURLs();
-  var title=state.view==="settings"?"Settings":state.view==="diary"?"Food Diary":state.view==="exlib"?"":state.view==="routine"?"":state.view==="rlaunch"?"Workout":state.view==="quicklog"?"Quick log":state.view==="workout"?"Workout":state.view==="liftview"?"Workout":state.view==="wtadd"?"Weight Training":state.view==="cardioadd"?((state.cardioForm&&state.cardioForm.id)?"Edit Cardio":"Add Cardio"):state.view==="actadd"?(state.actPick==="rest"?"Add Recovery":state.actPick==="supp"?"Add Supplement":"Add"):state.view==="photos"?"Progress Photos":state.view==="checkin"?"Weekly check-in":state.view==="glptimeline"?"Weight & dose":(NAV.filter(function(n){return n[0]===state.view;})[0]||["","" ])[1];var hsub=state.view==="workout"?((state.workout&&state.workout.name)||""):state.view==="liftview"?(((getLiftSession()||{}).name)||""):state.view==="quicklog"?(((state.liftForm&&getRoutine(state.liftForm.routineId))||{}).name||""):state.view==="rlaunch"?(((getRoutine(state.routineId))||{}).name||""):"";
-  var body=state.view==="overview"?view_overview():(state.view==="food"||state.view==="calendar")?view_overview():state.view==="weight"?view_weight():state.view==="summary"?view_summary():state.view==="diary"?view_diary():state.view==="train"?view_train():state.view==="exlib"?view_exlib():state.view==="routine"?view_routine():state.view==="rlaunch"?view_rlaunch():state.view==="quicklog"?view_quicklog():state.view==="workout"?view_workout():state.view==="liftview"?view_liftview():state.view==="wtadd"?view_wtadd():state.view==="cardioadd"?view_cardio():state.view==="actadd"?view_actadd():state.view==="photos"?view_photos():state.view==="checkin"?view_checkin():state.view==="glptimeline"?view_glptimeline():view_settings();
+  var title=state.view==="settings"?"Settings":state.view==="diary"?"Food Diary":state.view==="exlib"?"":state.view==="routine"?"":state.view==="rlaunch"?"Workout":state.view==="quicklog"?"Quick log":state.view==="workout"?"Workout":state.view==="liftview"?"Workout":state.view==="wtadd"?"Weight Training":state.view==="cardioadd"?((state.cardioForm&&state.cardioForm.id)?"Edit Cardio":"Add Cardio"):state.view==="actadd"?(state.actPick==="rest"?"Add Recovery":state.actPick==="supp"?"Add Supplement":"Add"):state.view==="photos"?"Progress Photos":state.view==="checkin"?"Weekly check-in":state.view==="glptimeline"?"Weight & dose":state.view==="glpcompare"?"Compare by dose":(NAV.filter(function(n){return n[0]===state.view;})[0]||["","" ])[1];var hsub=state.view==="workout"?((state.workout&&state.workout.name)||""):state.view==="liftview"?(((getLiftSession()||{}).name)||""):state.view==="quicklog"?(((state.liftForm&&getRoutine(state.liftForm.routineId))||{}).name||""):state.view==="rlaunch"?(((getRoutine(state.routineId))||{}).name||""):"";
+  var body=state.view==="overview"?view_overview():(state.view==="food"||state.view==="calendar")?view_overview():state.view==="weight"?view_weight():state.view==="summary"?view_summary():state.view==="diary"?view_diary():state.view==="train"?view_train():state.view==="exlib"?view_exlib():state.view==="routine"?view_routine():state.view==="rlaunch"?view_rlaunch():state.view==="quicklog"?view_quicklog():state.view==="workout"?view_workout():state.view==="liftview"?view_liftview():state.view==="wtadd"?view_wtadd():state.view==="cardioadd"?view_cardio():state.view==="actadd"?view_actadd():state.view==="photos"?view_photos():state.view==="checkin"?view_checkin():state.view==="glptimeline"?view_glptimeline():state.view==="glpcompare"?view_glpcompare():view_settings();
   var nav='<nav class="wl-nav">'+NAV.map(function(n){return '<button class="wl-navbtn '+(state.view===n[0]||(n[0]==="overview"&&(state.view==="food"||state.view==="diary"))||(n[0]==="weight"&&(state.view==="photos"||state.view==="glptimeline"))?"on":"")+'" data-act="go" data-view="'+n[0]+'">'+I[n[0]]+'<span>'+n[1]+'</span></button>';/* unread-recap nudge now lives on the M avatar, not the Home tab */}).join("")+'</nav>';
   var avatar='<button class="wl-avatar'+(state.view==="settings"?" on":"")+'" data-act="go" data-view="settings" aria-label="Settings"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>';
   var hdrRight=syncOn()?'<button class="wl-syncdot" data-act="syncdot" aria-label="Sync status"><span class="wl-sdot '+syncDotClass()+'" id="wl-sdot"></span></button>':'';
   var maxBtn=isOwner()?'<button class="wl-maxb'+((coachUnreadW()||coachUnreadT())?" hot":"")+'" data-act="max:open" aria-label="Messages from Coach Max">M</button>':'';
-  var backBtn=state.view==="checkin"?'<button class="wl-hdr-back" data-act="ci:close" aria-label="Back">‹</button>':(state.view==="photos"||state.view==="glptimeline")?'<button class="wl-hdr-back" data-act="go" data-view="weight" aria-label="Back">‹</button>':state.view==="diary"?'<button class="wl-hdr-back" data-act="go" data-view="overview" aria-label="Back">‹</button>':'';
+  var backBtn=state.view==="checkin"?'<button class="wl-hdr-back" data-act="ci:close" aria-label="Back">‹</button>':(state.view==="photos"||state.view==="glptimeline"||state.view==="glpcompare")?'<button class="wl-hdr-back" data-act="go" data-view="weight" aria-label="Back">‹</button>':state.view==="diary"?'<button class="wl-hdr-back" data-act="go" data-view="overview" aria-label="Back">‹</button>':'';
   var _navH=headerNav();var _brand='<span class="wl-mark">'+BRANDMARK+'</span>';var _md=statusFor(todayISO());var _mbanner=_md?('<button class="wl-modebanner" data-act="go" data-view="settings"><span class="wl-mb-em">'+(_md.status.type==="vacation"?"\ud83c\udfd6\ufe0f":"\ud83e\udd12")+'</span><span>'+(_md.status.type==="vacation"?"Vacation Mode":"Recovery Mode")+'</span><span class="wl-mb-go">Settings \u203a</span></button>'):'';
   document.getElementById("app").innerHTML='<div class="wl-shell"><header class="wl-header'+(_md?" hasbanner":"")+'">'+_mbanner+'<div class="wl-hdr-brand"><div class="wl-brandrow">'+_brand+'<span class="wl-eyebrow">Compound</span></div>'+hdrRight+'</div><div class="wl-hdr-main">'+backBtn+'<div class="wl-title-slot">'+(title?('<h1 class="wl-title">'+title+'</h1>'):'')+(hsub?'<div class="wl-hsub">'+esc(hsub)+'</div>':'')+'</div><div class="wl-hdr-actions">'+maxBtn+avatar+'</div></div>'+(_navH?'<div class="wl-hdr-datebar">'+_navH+'</div>':'')+'</header>'+m10RoBarHTML()+'<main class="wl-main">'+m10cxShellBannerHTML()+body+'</main>'+nav+'</div>'+confirmOverlayHTML()+woOverlaysHTML()+quickEntryHTML()+statusSheetHTML()+obOverlayHTML()+maxSheetHTML()+infoSheetHTML()+glpSheetHTML()+pfReviewHTML()+pfChooseHTML();
   var hdr=document.querySelector(".wl-header");if(hdr)document.documentElement.style.setProperty("--headh",hdr.offsetHeight+"px");
