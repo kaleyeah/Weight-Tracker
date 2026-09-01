@@ -1541,6 +1541,9 @@ function sugForEntry(en,routineId){
     for(var i=0;i<n;i++){var rg=ranges[i]||ranges[ranges.length-1]||{lo:6,hi:8};
       var w=(i===0)?s1w:rptRound(rout[i-1].w*0.9);
       rout.push({w:w,r:rg.lo,tgtLo:rg.lo,tgtHi:rg.hi});}
+    /* the seeding already applied the bump — carry WHY, so the exercise can say
+       so out loud next time instead of the number just quietly changing */
+    if(jumped)rout.bump={dir:"up",from:lastS1W,to:s1w};
     return rout;}
   /* Double progression (never-blank: default 8-12 when unset). */
   var lo=num(en.repLow);if(lo==null)lo=8;var hi=num(en.repHigh);if(hi==null)hi=12;
@@ -1558,6 +1561,9 @@ function sugForEntry(en,routineId){
     else if(allBelow){w=Math.max(inc,lastW-inc);r=lo;}
     else{w=lastW;r=Math.min(hi,br+1);}
     out.push({w:w,r:r,e:(w!=null&&!bw)?e1rm(w,r):null});});
+  if(!bw&&lastW!=null){
+    if(allTop)out.bump={dir:"up",from:lastW,to:lastW+inc};
+    else if(allBelow)out.bump={dir:"down",from:lastW,to:Math.max(inc,lastW-inc)};}
   return out;}
 function applySuggestions(entries,routineId){entries.forEach(function(en){if(!en)return;
   var sg=sugForEntry(en,routineId);
@@ -1571,7 +1577,8 @@ function applySuggestions(entries,routineId){entries.forEach(function(en){if(!en
     if(g.r!=null)st.reps=String(g.r);
     if(g.tgtLo!=null){st.tgtLo=g.tgtLo;st.tgtHi=g.tgtHi;st.sugR=null;st.sugW=null;st.sugE=null;}
     else{st.sugR=g.r;if(g.w!=null&&!en.bodyweight)st.sugW=g.w;if(en.bodyweight)st.sugW=null;if(g.e!=null)st.sugE=g.e;st.tgtLo=null;st.tgtHi=null;}});
-  if(any)en.sug=true;});}
+  if(any)en.sug=true;
+  if(sg.bump)en.bump=sg.bump;});}
 function startWorkout(rt){var bw=currentBW();var _ents=buildWorkoutEntries(rt,bw);applySuggestions(_ents,rt.id);
   state.workout={routineId:rt.id,name:rt.name||"Weight training",date:todayISO(),startTs:null,tState:"ready",stateStartTs:null,warmupMs:0,workMs:0,restMs:0,bw:bw,entries:_ents,finishing:false,restHidden:false};
   state.setMenu=null;state.woPrompt=false;state.view="workout";saveWorkout();render();startWoTick();}
@@ -1731,6 +1738,11 @@ function view_workout(){var w=state.workout;
     if(en.lastMus&&(en.lastMus.vol==="much"||en.lastMus.vol==="low"||en.lastMus.sore==="still")&&_fbFirstOfMuscle(w,ei))h+='<div class="wl-fbnote">'+I.info.replace("<svg","<svg width=13 height=13")+' Last time: '+(en.lastMus.sore==="still"?'still sore from the session before':'')+((en.lastMus.sore==="still"&&en.lastMus.vol!=="right"&&en.lastMus.vol)?' \u00b7 ':'')+(en.lastMus.vol==="much"?'volume felt like too much \u2014 consider fewer sets':(en.lastMus.vol==="low"?'volume felt light \u2014 you could add a set':''))+'.</div>';
     if(en.bodyweight)h+='<div class="wl-exrow-sub">Bodyweight @ <button class="wl-link" data-act="wo:bw" style="display:inline">'+(w.bw!=null?w.bw+" "+state.settings.units:"set weight")+'</button></div>';
     else if(en.equipment)h+='<div class="wl-exrow-sub">'+esc(en.equipment)+'</div>';
+    /* The bump the summary promised, restated ON the exercise the moment it
+       comes back round — Owner 2026-09-01: "it's a great motivator." An eased
+       weight says so too, so a drop is never silent either. */
+    if(en.bump&&en.bump.to!=null){var _bu=(en.bump.dir==="up");
+      h+='<div class="wl-bump'+(_bu?'':' down')+'">'+(_bu?'📈':'🔻')+'<span>'+(_bu?'Up to <b>':'Eased to <b>')+esc(en.bump.to)+' '+state.settings.units+'</b>'+(en.bump.from!=null?' from '+esc(en.bump.from):'')+' — '+(_bu?'you topped your range last time.':'reps fell below range last time.')+'</span></div>';}
     if(en.firstTime){var _rr=(en.progression==="rpt"&&en.setRanges&&en.setRanges[0])?en.setRanges[0]:{lo:en.repLow,hi:en.repHigh};if(num(_rr.lo)!=null||num(_rr.hi)!=null)h+='<div class="wl-exrow-sub" style="color:var(--accent)">First time: work up to a weight where '+(_rr.lo||"?")+'\u2013'+(_rr.hi||"?")+' reps leaves 0\u20131 RIR.</div>';}
     (en.notes||[]).forEach(function(n){h+='<button class="wl-note" data-act="note:edit" data-woei="'+ei+'" data-iid="'+en.itemId+'" data-nid="'+(n.id||"")+'" data-pinned="'+(n.pinned?"1":"0")+'"><span class="wl-note-txt">'+esc(n.text)+'</span>'+(n.pinned?'<span class="wl-note-pin">📌</span>':'')+'</button>';});
     h+='<div class="wl-setgrid wl-sethead" style="margin-top:10px"><span></span><span>WEIGHT</span><span>REPS</span><span>RIR '+infoBtn("rir")+'</span><span>'+infoBtn("targeticons")+'</span><span>LOG</span></div>';
