@@ -99,7 +99,8 @@ device fingerprinting, and no location tracking.</p>
 
 <h2>WHOOP data</h2>
 <p>If you connect a WHOOP account, Compound reads — and only reads — the following. It never
-writes anything to WHOOP and never posts on your behalf.</p>
+writes anything to WHOOP and never posts on your behalf. It does not request access to your
+WHOOP profile, so it never receives your name or email address from WHOOP.</p>
 
 <div class="tw">
 <table>
@@ -110,7 +111,6 @@ writes anything to WHOOP and never posts on your behalf.</p>
     <tr><td><code>read:sleep</code></td><td>Sleep duration, to fill your sleep log when you have not entered it yourself.</td></tr>
     <tr><td><code>read:workout</code></td><td>Average and peak heart rate, calories and strain for a lift, matched to the session you logged.</td></tr>
     <tr><td><code>read:body_measurement</code></td><td>Maximum heart rate, used to set up heart-rate zones if you have not entered one.</td></tr>
-    <tr><td><code>read:profile</code></td><td>Confirming which WHOOP account is linked.</td></tr>
     <tr><td><code>offline</code></td><td>Refreshing the connection so you are not asked to log in again each time.</td></tr>
   </tbody>
 </table>
