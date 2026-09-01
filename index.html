@@ -1110,7 +1110,7 @@ input[type=range][data-pfadj]{width:100%;accent-color:var(--accent);min-height:2
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-09-01.506-whoop-charts";
+var APP_BUILD="2026-09-01.507-whoop-autosleep";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -4600,7 +4600,7 @@ function quickEntryHTML(){
   var body='';
   if(sec==="weight"){var _wsk=isSkip(sel,"weight");body='<label class="wl-field wl-field-full"><span>Weight <em>'+u+'</em></span><input class="wl-daywt-input wl-num" type="text" inputmode="decimal" placeholder="'+(_wsk?"skipped":"—")+'" value="'+(wmap[sel]!=null?wmap[sel]:"")+'"></label>';var waistU=u==="kg"?"cm":"in";body+='<div class="wl-row" style="margin-top:10px"><label class="wl-field"><span>Body fat <em>%</em></span><input class="wl-bf-input wl-num" type="text" inputmode="decimal" placeholder="\u2014" value="'+(state.bodyfat[sel]!=null?state.bodyfat[sel]:"")+'"></label><label class="wl-field"><span>Waist <em>'+waistU+'</em></span><input class="wl-waist-input wl-num" type="text" inputmode="decimal" placeholder="\u2014" value="'+(state.waist[sel]!=null?state.waist[sel]:"")+'"></label></div>';body+='<div class="wl-row" style="margin-top:10px"><label class="wl-field"><span>Lean mass <em>'+u+'</em></span><input class="wl-lbm-input wl-num" type="text" inputmode="decimal" placeholder="\u2014" value="'+(state.leanmass[sel]!=null?state.leanmass[sel]:"")+'"></label></div>';body+='<div class="wl-hint" style="margin-top:6px">Log body fat %, waist, or lean mass whenever you measure \u2014 it sharpens your coach\u2019s read.</div>';body+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="skip:weight">'+(_wsk?"Un-skip — I’ll log a weight":"No scale today — skip weight")+'</button>';if(_wsk)body+='<div class="wl-hint" style="margin-top:8px">Marked skipped for this day. Add a note (e.g. “on vacation”) so your coach knows why.</div>';}
   else if(sec==="steps"){var _stk=isSkip(sel,"steps");body='<label class="wl-field wl-field-full"><span>Steps</span><input class="wl-steps-input wl-num" data-int="1" type="text" inputmode="numeric" placeholder="'+(_stk?"skipped":"\u2014")+'" value="'+(state.steps[sel]!=null?state.steps[sel]:"")+'"></label>';body+=skipBtn("steps",_stk,"steps");}
-  else if(sec==="sleep"){var _slk=isSkip(sel,"sleep");body='<div class="wl-row"><label class="wl-field"><span>Hours</span><input class="wl-num wl-sleep-h" data-int="1" type="text" inputmode="numeric" placeholder="'+(_slk?"skip":"\u2014")+'" value="'+(state.sleep[sel]!=null?Math.floor(state.sleep[sel]/60):"")+'"></label><label class="wl-field"><span>Minutes</span><input class="wl-num wl-sleep-m" data-int="1" type="text" inputmode="numeric" placeholder="'+(_slk?"skip":"\u2014")+'" value="'+(state.sleep[sel]!=null?state.sleep[sel]%60:"")+'"></label></div>';body+=skipBtn("sleep",_slk,"sleep");}
+  else if(sec==="sleep"){var _slk=isSkip(sel,"sleep");body='<div class="wl-row"><label class="wl-field"><span>Hours</span><input class="wl-num wl-sleep-h" data-int="1" type="text" inputmode="numeric" placeholder="'+(_slk?"skip":"\u2014")+'" value="'+(state.sleep[sel]!=null?Math.floor(state.sleep[sel]/60):"")+'"></label><label class="wl-field"><span>Minutes</span><input class="wl-num wl-sleep-m" data-int="1" type="text" inputmode="numeric" placeholder="'+(_slk?"skip":"\u2014")+'" value="'+(state.sleep[sel]!=null?state.sleep[sel]%60:"")+'"></label></div>';body+=skipBtn("sleep",_slk,"sleep");if(typeof whoopSleepNoteHTML==="function")body+=whoopSleepNoteHTML(sel);}
   else if(sec==="calories"){body='<div class="wl-macro3">';
     [["protein","Protein","g"],["fat","Fat","g"],["carbs","Carbs","g"]].forEach(function(f){var val=e[f[0]]!=null?e[f[0]]:"";body+='<label class="wl-field"><span>'+f[1]+' <em>'+f[2]+'</em></span><input class="wl-food-input wl-num" data-food="'+f[0]+'" type="text" inputmode="decimal" placeholder="0" value="'+val+'">';if(hasT&&t[f[0]]!=null)body+='<div class="wl-tbar" id="bar-'+f[0]+'">'+barInner(num(val),t[f[0]])+'</div>';body+='</label>';});
     var _cv=e.calories!=null?e.calories:"";
@@ -11113,6 +11113,59 @@ function whoopChartsHTML(){
   }
   return h+'</div>';
 }
+
+/* ---- automatic sync ---------------------------------------------------------
+   A PWA cannot run in the background, so "automatic" means "the moment the app
+   is looked at". Opening it, or returning to it after the phone was locked,
+   pulls anything new. In practice that is the first glance of the morning —
+   last night's sleep is filed before the day is even opened.
+   Silent by design: no toast on success, because a sync that announces itself
+   every single time you open the app is noise. Failures are silent too (the
+   tailnet may simply be unreachable); the Settings screen is where you go to
+   find out what happened. */
+var WHOOP_AUTO_MIN=20;
+function whoopAutoSync(){
+  if(!whoopOn()||state.whoopSyncing)return;
+  if(typeof navigator!=="undefined"&&navigator.onLine===false)return;
+  var last=num(state.settings.whoopLast)||0;
+  if(Date.now()-last < WHOOP_AUTO_MIN*60000)return;
+  state.whoopSyncing=true;
+  whoopSync(function(r){
+    state.whoopSyncing=false;
+    /* only repaint when something actually landed, so a no-op sync can never
+       yank the screen out from under a set being logged */
+    if(r&&r.ok&&r.applied&&(r.applied.days||r.applied.sleep))render();
+  });
+}
+document.addEventListener("visibilitychange",function(){if(!document.hidden)whoopAutoSync();});
+window.addEventListener("pageshow",whoopAutoSync);
+window.addEventListener("focus",whoopAutoSync);
+setTimeout(whoopAutoSync,2500);   /* and once shortly after boot */
+
+/* ---- what WHOOP has for a day's sleep ---------------------------------------
+   Shown beside the sleep fields. When the entry is blank this is just
+   confirmation of where the number came from; when it DIFFERS from what was
+   typed it offers the figure rather than taking it, which is the whole
+   never-overwrite rule expressed as a button. */
+function whoopSleepNoteHTML(iso){
+  if(!whoopOn())return "";
+  var d=whoopDay(iso);if(!d||d.sleepMin==null)return "";
+  var cur=num((state.sleep||{})[iso]);
+  var same=(cur!=null&&Math.abs(cur-d.sleepMin)<=1);
+  var bits=[];
+  if(d.sleepPerf!=null)bits.push(d.sleepPerf+"% performance");
+  if(d.sleepEff!=null)bits.push(d.sleepEff+"% efficiency");
+  if(d.disturbances!=null)bits.push(d.disturbances+" disturbance"+(d.disturbances===1?"":"s"));
+  if(d.napMin)bits.push("plus a "+minToHM(d.napMin)+" nap");
+  var h='<div class="wl-whoopfill" style="margin:8px 0 0">'+I.trend.replace("<svg","<svg width=14 height=14")+'<span>';
+  if(cur==null)h+='WHOOP recorded <b>'+minToHM(d.sleepMin)+'</b>';
+  else if(same)h+='From WHOOP: <b>'+minToHM(d.sleepMin)+'</b>';
+  else h+='WHOOP recorded <b>'+minToHM(d.sleepMin)+'</b>, you logged '+minToHM(cur);
+  if(bits.length)h+=' · '+esc(bits.join(' · '));
+  h+='.';
+  if(cur!=null&&!same)h+=' <button class="wl-link" data-act="whoop:usesleep" data-d="'+iso+'" style="display:inline">Use WHOOP’s</button>';
+  return h+'</span></div>';
+}
 /* ==BUILD-END:whoop-client.js== */
 /* ==BUILD:render-events.js== */
 /* ---------------- render ---------------- */
@@ -11238,6 +11291,10 @@ document.addEventListener("click",function(e){
   if(a==="opentoday"){state.selDate=todayISO();state.calY=new Date().getFullYear();state.calM=new Date().getMonth();state.cardioForm=null;render();return;}
   if(a==="ai:copy"){copyText(weeklyAIText(),"Copied your week — paste into your AI to generate");return;}
   if(a==="ai:gen"){genSummary();return;}
+  if(a==="whoop:usesleep"){var d=el.getAttribute("data-d");var row=whoopDay(d);
+    if(!row||row.sleepMin==null)return;
+    state.sleep[d]=row.sleepMin;setSkip(d,"sleep",false);save();render();
+    toast("Sleep set to WHOOP\u2019s "+minToHM(row.sleepMin));return;}
   if(a==="whoop:toggle"){state.settings.whoopOn=!state.settings.whoopOn;save();
     if(state.settings.whoopOn){state.whoopStatus=null;render();whoopCheck(function(r){state.whoopStatus=r;render();});}
     else render();return;}
@@ -16916,7 +16973,7 @@ document.addEventListener("click",function(e){
    entry gating alone proves nothing once an await intervenes. Fail closed: if
    the gate state or durable storage is unavailable, nothing mutates. */
 var M10_GATED={};
-["act:addcat","act:del","act:toggle","ai:copy","ai:gen","cal:ignore","cal:overwrite","cal:usecalc","cardio:del","cardio:save","cf:newtype","ci:send","ci:skipyes","ci:unskip","day:clear","day:reopendo","ex:clearall","ex:del","ex:save","ex:seedall","exp:go","exseed:add","fb:done","fb:set","glp:compound","glp:compoundsave","glp:dose:del","glp:dose:open","glp:dose:save","glp:enable","glp:showdue","glp:siterot","glp:skip","glp:sym:del","glp:sym:edit","glp:sym:newsave","glp:sym:open","glp:sym:save","glp:symptoms","glp:titration","hk:import","import","lift:del","lift:save","lift:savedetail","m10cx:server","m10cx:takeover","m10p:apply","m10p:export","m8:cx:local","m8:cx:server","macro:keep","macro:suggest","max:open","night:gen","night:toggle","note:del","note:save","ob:back","ob:recalc","paste:do","pb:adv","pb:pwsave","pbk:import","photo:add","pphoto:add","preset:del","rat:set","reminder:add","reset:ask","reset:do","ri:mv","ri:pick","ri:prog","ri:remove","rt:del","rt:new","rt:save","set:activity","set:sex","set:strategy","set:theme","set:ttype","set:units","set:weekstart","skip:calories","skip:sleep","skip:steps","skip:weight","status:end","status:endnow","status:save","sum:coachreport","sum:exportall","sum:exportweek","sum:toggle","sync:pull","sync:push","sync:test","tdee:apply","tdee:later","weight:add","weight:del","wo:addset","wo:begin","wo:bwsave","wo:delset","wo:discard","wo:discardnow","wo:endnow","wo:endrest","wo:exaddset","wo:exmove","wo:exprog","wo:exremove","wo:finish","wo:finishback","wo:finishlater","wo:log","wo:replacepick","wo:replsave:fwd","wo:resume","wo:savesession","wo:skipset","wo:skipthem","wo:start","wo:startroutine","wu:no","wu:yes","whoop:toggle","whoop:sync","whoop:disconnect","ri:sslink","ri:ssunlink","wo:sslink","wo:ssunlink"].forEach(function(a){M10_GATED[a]=1;});
+["act:addcat","act:del","act:toggle","ai:copy","ai:gen","cal:ignore","cal:overwrite","cal:usecalc","cardio:del","cardio:save","cf:newtype","ci:send","ci:skipyes","ci:unskip","day:clear","day:reopendo","ex:clearall","ex:del","ex:save","ex:seedall","exp:go","exseed:add","fb:done","fb:set","glp:compound","glp:compoundsave","glp:dose:del","glp:dose:open","glp:dose:save","glp:enable","glp:showdue","glp:siterot","glp:skip","glp:sym:del","glp:sym:edit","glp:sym:newsave","glp:sym:open","glp:sym:save","glp:symptoms","glp:titration","hk:import","import","lift:del","lift:save","lift:savedetail","m10cx:server","m10cx:takeover","m10p:apply","m10p:export","m8:cx:local","m8:cx:server","macro:keep","macro:suggest","max:open","night:gen","night:toggle","note:del","note:save","ob:back","ob:recalc","paste:do","pb:adv","pb:pwsave","pbk:import","photo:add","pphoto:add","preset:del","rat:set","reminder:add","reset:ask","reset:do","ri:mv","ri:pick","ri:prog","ri:remove","rt:del","rt:new","rt:save","set:activity","set:sex","set:strategy","set:theme","set:ttype","set:units","set:weekstart","skip:calories","skip:sleep","skip:steps","skip:weight","status:end","status:endnow","status:save","sum:coachreport","sum:exportall","sum:exportweek","sum:toggle","sync:pull","sync:push","sync:test","tdee:apply","tdee:later","weight:add","weight:del","wo:addset","wo:begin","wo:bwsave","wo:delset","wo:discard","wo:discardnow","wo:endnow","wo:endrest","wo:exaddset","wo:exmove","wo:exprog","wo:exremove","wo:finish","wo:finishback","wo:finishlater","wo:log","wo:replacepick","wo:replsave:fwd","wo:resume","wo:savesession","wo:skipset","wo:skipthem","wo:start","wo:startroutine","wu:no","wu:yes","whoop:toggle","whoop:sync","whoop:disconnect","whoop:usesleep","ri:sslink","ri:ssunlink","wo:sslink","wo:ssunlink"].forEach(function(a){M10_GATED[a]=1;});
 
 /* fresh, complete authority check — account, session generation, holder,
    deadline AND fence identity, plus storage health */

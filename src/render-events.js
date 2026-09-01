@@ -121,6 +121,10 @@ document.addEventListener("click",function(e){
   if(a==="opentoday"){state.selDate=todayISO();state.calY=new Date().getFullYear();state.calM=new Date().getMonth();state.cardioForm=null;render();return;}
   if(a==="ai:copy"){copyText(weeklyAIText(),"Copied your week — paste into your AI to generate");return;}
   if(a==="ai:gen"){genSummary();return;}
+  if(a==="whoop:usesleep"){var d=el.getAttribute("data-d");var row=whoopDay(d);
+    if(!row||row.sleepMin==null)return;
+    state.sleep[d]=row.sleepMin;setSkip(d,"sleep",false);save();render();
+    toast("Sleep set to WHOOP\u2019s "+minToHM(row.sleepMin));return;}
   if(a==="whoop:toggle"){state.settings.whoopOn=!state.settings.whoopOn;save();
     if(state.settings.whoopOn){state.whoopStatus=null;render();whoopCheck(function(r){state.whoopStatus=r;render();});}
     else render();return;}

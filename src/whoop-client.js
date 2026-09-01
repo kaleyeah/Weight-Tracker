@@ -291,3 +291,56 @@ function whoopChartsHTML(){
   }
   return h+'</div>';
 }
+
+/* ---- automatic sync ---------------------------------------------------------
+   A PWA cannot run in the background, so "automatic" means "the moment the app
+   is looked at". Opening it, or returning to it after the phone was locked,
+   pulls anything new. In practice that is the first glance of the morning —
+   last night's sleep is filed before the day is even opened.
+   Silent by design: no toast on success, because a sync that announces itself
+   every single time you open the app is noise. Failures are silent too (the
+   tailnet may simply be unreachable); the Settings screen is where you go to
+   find out what happened. */
+var WHOOP_AUTO_MIN=20;
+function whoopAutoSync(){
+  if(!whoopOn()||state.whoopSyncing)return;
+  if(typeof navigator!=="undefined"&&navigator.onLine===false)return;
+  var last=num(state.settings.whoopLast)||0;
+  if(Date.now()-last < WHOOP_AUTO_MIN*60000)return;
+  state.whoopSyncing=true;
+  whoopSync(function(r){
+    state.whoopSyncing=false;
+    /* only repaint when something actually landed, so a no-op sync can never
+       yank the screen out from under a set being logged */
+    if(r&&r.ok&&r.applied&&(r.applied.days||r.applied.sleep))render();
+  });
+}
+document.addEventListener("visibilitychange",function(){if(!document.hidden)whoopAutoSync();});
+window.addEventListener("pageshow",whoopAutoSync);
+window.addEventListener("focus",whoopAutoSync);
+setTimeout(whoopAutoSync,2500);   /* and once shortly after boot */
+
+/* ---- what WHOOP has for a day's sleep ---------------------------------------
+   Shown beside the sleep fields. When the entry is blank this is just
+   confirmation of where the number came from; when it DIFFERS from what was
+   typed it offers the figure rather than taking it, which is the whole
+   never-overwrite rule expressed as a button. */
+function whoopSleepNoteHTML(iso){
+  if(!whoopOn())return "";
+  var d=whoopDay(iso);if(!d||d.sleepMin==null)return "";
+  var cur=num((state.sleep||{})[iso]);
+  var same=(cur!=null&&Math.abs(cur-d.sleepMin)<=1);
+  var bits=[];
+  if(d.sleepPerf!=null)bits.push(d.sleepPerf+"% performance");
+  if(d.sleepEff!=null)bits.push(d.sleepEff+"% efficiency");
+  if(d.disturbances!=null)bits.push(d.disturbances+" disturbance"+(d.disturbances===1?"":"s"));
+  if(d.napMin)bits.push("plus a "+minToHM(d.napMin)+" nap");
+  var h='<div class="wl-whoopfill" style="margin:8px 0 0">'+I.trend.replace("<svg","<svg width=14 height=14")+'<span>';
+  if(cur==null)h+='WHOOP recorded <b>'+minToHM(d.sleepMin)+'</b>';
+  else if(same)h+='From WHOOP: <b>'+minToHM(d.sleepMin)+'</b>';
+  else h+='WHOOP recorded <b>'+minToHM(d.sleepMin)+'</b>, you logged '+minToHM(cur);
+  if(bits.length)h+=' · '+esc(bits.join(' · '));
+  h+='.';
+  if(cur!=null&&!same)h+=' <button class="wl-link" data-act="whoop:usesleep" data-d="'+iso+'" style="display:inline">Use WHOOP’s</button>';
+  return h+'</span></div>';
+}
