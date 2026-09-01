@@ -279,8 +279,28 @@ function srCardioHTML(inp){
        '<span>'+(c.zone!=null?'Z'+srInt(c.zone):SRDASH)+'</span>'+
        '<span>'+(c.mins!=null?srInt(c.mins)+' min':SRDASH)+'</span>'+
        '<span>'+(c.cal!=null?srInt(c.cal):SRDASH)+'</span></div>';
+    if(c.hr!=null||c.hrMax!=null)h+='<div class="cd-note">'+(c.hr!=null?'avg HR '+srInt(c.hr):'')+(c.hrMax!=null?(c.hr!=null?' &middot; ':'')+'peak '+srInt(c.hrMax):'')+'</div>';
+    if(c.zones)h+=srZonesHTML(c.zones);
     if(c.note)h+='<div class="cd-note">'+srEsc(c.note)+'</div>';});
   return h+'</div>';}
+/* The WHOOP heart-rate zone split for one activity. The exported report is a
+   standalone file with its own CSS, so this draws with inline styles rather
+   than reaching for the app's classes. */
+var SRZC=["#5A6474","#7C93F5","#5CD6A0","#F5B544","#F2874B","#F26D5B"];
+function srZonesHTML(z){
+  if(!z||!z.length)return "";
+  var tot=0;for(var i=0;i<z.length;i++)tot+=(z[i]||0);
+  if(!tot)return "";
+  /* uses the report's OWN css variables — hardcoding light-theme colours here
+     rendered the minute figures near-invisible against the dark report card */
+  var h='<div style="margin:9px 0 4px"><div style="font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-bottom:5px">Heart-rate zones &middot; '+srInt(tot)+' min</div>';
+  h+='<div style="display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--bg2);border:1px solid var(--line)">';
+  z.forEach(function(m,i){if(!m)return;h+='<span style="display:block;height:100%;width:'+(m/tot*100).toFixed(2)+'%;background:'+SRZC[i]+'"></span>';});
+  h+='</div><div style="display:flex;flex-wrap:wrap;gap:3px 11px;margin-top:7px">';
+  z.forEach(function(m,i){if(!m)return;
+    h+='<span style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;color:var(--muted);font-family:var(--mono)"><i style="width:8px;height:8px;border-radius:2px;background:'+SRZC[i]+';display:inline-block"></i>Z'+i+' <b style="color:var(--text)">'+m+'m</b></span>';});
+  return h+'</div></div>';
+}
 function srWorkoutsHTML(inp){
   var h='<div class="secLbl">This week&rsquo;s workouts</div>';
   h+=srCardioHTML(inp);
@@ -292,7 +312,11 @@ function srWorkoutsHTML(inp){
     if(s.mins!=null)meta.push(srInt(s.mins)+' min');
     if(s.rpe!=null)meta.push('session RPE '+srR1(s.rpe));
     if(s.ton)meta.push(srInt(s.ton)+' '+srEsc(inp.units)+' lifted');
+    if(s.hr!=null)meta.push('avg HR '+srInt(s.hr)+(s.hrMax!=null?' / peak '+srInt(s.hrMax):''));
+    else if(s.hrMax!=null)meta.push('peak HR '+srInt(s.hrMax));
+    if(s.cal!=null)meta.push(srInt(s.cal)+' cal');
     if(meta.length)h+='<div class="sess-meta">'+meta.join(' &middot; ')+'</div>';
+    h+=srZonesHTML(s.zones);
     (s.ex||[]).forEach(function(x,xi){h+=srExerciseHTML(x,xi===0);});
     if(s.note)h+='<div class="sess-note"><em>Note</em>'+srEsc(s.note)+'</div>';
     h+='</div>';});

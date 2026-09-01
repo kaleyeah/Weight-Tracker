@@ -154,6 +154,10 @@ function lrModel(offset){
     var ses={n:si+1,iso:d,
       dateLabel:dt.toLocaleDateString(undefined,{weekday:"short"})+" "+fmtShort(dt),
       name:(s.name||"Workout"),mins:num(s.mins),rpe:num(s.rpe),notes:(s.notes||"").trim(),
+      hr:num(s.hr),hrMax:num(s.hrMax),cal:num(s.cal),zone:num(s.zone),
+      /* the WHOOP zone split — stored on the session, or matched by time for
+         sessions saved before zones were captured */
+      zones:(typeof whoopZonesForSession==="function")?whoopZonesForSession(s):(s.whoopZones||null),
       mfb:s.mfb||null,ton:0,sets:0,rirSum:0,rirN:0,inR:0,rngN:0,ex:[]};
     (s.entries||[]).forEach(function(en){
       var all=(en.sets||[]);

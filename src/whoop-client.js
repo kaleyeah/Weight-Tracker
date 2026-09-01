@@ -419,3 +419,22 @@ function whoopZoneBarHTML(z,opts){
     h+='<span class="wl-zk"><i style="background:'+WH_ZONE_COL[i]+'"></i>Z'+i+' <b>'+m+'m</b></span>';});
   return h+'</div></div>';
 }
+
+/* Zones for a SAVED session. Prefers what was stored at save time, but falls
+   back to matching the WHOOP workout by time — so sessions saved before zones
+   existed still get them, and a re-sync can fill in a session logged while the
+   strap data was still being scored. */
+function whoopZonesForSession(s){
+  if(!s)return null;
+  if(s.whoopZones&&s.whoopZones.length)return s.whoopZones;
+  if(!whoopOn())return null;
+  var end=num(s.ts);var mins=num(s.mins);
+  if(end&&mins){
+    var m=whoopMatchWorkout(end-mins*60000,end,s.date);
+    if(m&&m.zones)return m.zones;
+  }
+  /* no usable window (an old record, or a quick log): accept a lone workout
+     on that day rather than guessing between several */
+  var same=(state.whoopWorkouts||[]).filter(function(w){return w.date===s.date&&w.zones;});
+  return same.length===1?same[0].zones:null;
+}

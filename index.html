@@ -1119,7 +1119,7 @@ input[type=range][data-pfadj]{width:100%;accent-color:var(--accent);min-height:2
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-09-01.508-whoop-full";
+var APP_BUILD="2026-09-01.509-zones-everywhere";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -5527,6 +5527,10 @@ function lrModel(offset){
     var ses={n:si+1,iso:d,
       dateLabel:dt.toLocaleDateString(undefined,{weekday:"short"})+" "+fmtShort(dt),
       name:(s.name||"Workout"),mins:num(s.mins),rpe:num(s.rpe),notes:(s.notes||"").trim(),
+      hr:num(s.hr),hrMax:num(s.hrMax),cal:num(s.cal),zone:num(s.zone),
+      /* the WHOOP zone split — stored on the session, or matched by time for
+         sessions saved before zones were captured */
+      zones:(typeof whoopZonesForSession==="function")?whoopZonesForSession(s):(s.whoopZones||null),
       mfb:s.mfb||null,ton:0,sets:0,rirSum:0,rirN:0,inR:0,rngN:0,ex:[]};
     (s.entries||[]).forEach(function(en){
       var all=(en.sets||[]);
@@ -5998,8 +6002,28 @@ function srCardioHTML(inp){
        '<span>'+(c.zone!=null?'Z'+srInt(c.zone):SRDASH)+'</span>'+
        '<span>'+(c.mins!=null?srInt(c.mins)+' min':SRDASH)+'</span>'+
        '<span>'+(c.cal!=null?srInt(c.cal):SRDASH)+'</span></div>';
+    if(c.hr!=null||c.hrMax!=null)h+='<div class="cd-note">'+(c.hr!=null?'avg HR '+srInt(c.hr):'')+(c.hrMax!=null?(c.hr!=null?' &middot; ':'')+'peak '+srInt(c.hrMax):'')+'</div>';
+    if(c.zones)h+=srZonesHTML(c.zones);
     if(c.note)h+='<div class="cd-note">'+srEsc(c.note)+'</div>';});
   return h+'</div>';}
+/* The WHOOP heart-rate zone split for one activity. The exported report is a
+   standalone file with its own CSS, so this draws with inline styles rather
+   than reaching for the app's classes. */
+var SRZC=["#5A6474","#7C93F5","#5CD6A0","#F5B544","#F2874B","#F26D5B"];
+function srZonesHTML(z){
+  if(!z||!z.length)return "";
+  var tot=0;for(var i=0;i<z.length;i++)tot+=(z[i]||0);
+  if(!tot)return "";
+  /* uses the report's OWN css variables — hardcoding light-theme colours here
+     rendered the minute figures near-invisible against the dark report card */
+  var h='<div style="margin:9px 0 4px"><div style="font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-bottom:5px">Heart-rate zones &middot; '+srInt(tot)+' min</div>';
+  h+='<div style="display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--bg2);border:1px solid var(--line)">';
+  z.forEach(function(m,i){if(!m)return;h+='<span style="display:block;height:100%;width:'+(m/tot*100).toFixed(2)+'%;background:'+SRZC[i]+'"></span>';});
+  h+='</div><div style="display:flex;flex-wrap:wrap;gap:3px 11px;margin-top:7px">';
+  z.forEach(function(m,i){if(!m)return;
+    h+='<span style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;color:var(--muted);font-family:var(--mono)"><i style="width:8px;height:8px;border-radius:2px;background:'+SRZC[i]+';display:inline-block"></i>Z'+i+' <b style="color:var(--text)">'+m+'m</b></span>';});
+  return h+'</div></div>';
+}
 function srWorkoutsHTML(inp){
   var h='<div class="secLbl">This week&rsquo;s workouts</div>';
   h+=srCardioHTML(inp);
@@ -6011,7 +6035,11 @@ function srWorkoutsHTML(inp){
     if(s.mins!=null)meta.push(srInt(s.mins)+' min');
     if(s.rpe!=null)meta.push('session RPE '+srR1(s.rpe));
     if(s.ton)meta.push(srInt(s.ton)+' '+srEsc(inp.units)+' lifted');
+    if(s.hr!=null)meta.push('avg HR '+srInt(s.hr)+(s.hrMax!=null?' / peak '+srInt(s.hrMax):''));
+    else if(s.hrMax!=null)meta.push('peak HR '+srInt(s.hrMax));
+    if(s.cal!=null)meta.push(srInt(s.cal)+' cal');
     if(meta.length)h+='<div class="sess-meta">'+meta.join(' &middot; ')+'</div>';
+    h+=srZonesHTML(s.zones);
     (s.ex||[]).forEach(function(x,xi){h+=srExerciseHTML(x,xi===0);});
     if(s.note)h+='<div class="sess-note"><em>Note</em>'+srEsc(s.note)+'</div>';
     h+='</div>';});
@@ -6267,6 +6295,7 @@ function srInput(offset){
       c(ff,function(v){return String(v);},(tFat!=null&&ff!=null)?((ff>tFat&&calOverD)?"bad":"good"):""),
       c(cc,function(v){return String(v);},(tCarb!=null&&cc!=null)?((cc>tCarb&&calOverD)?"bad":"good"):"")]};});
   var sessions=M.sessions.map(function(sn){return {name:sn.name,dateLabel:sn.dateLabel,mins:sn.mins,rpe:sn.rpe,ton:sn.ton,note:sn.notes,
+    hr:sn.hr,hrMax:sn.hrMax,cal:sn.cal,zone:sn.zone,zones:sn.zones||null,
     ex:sn.ex.map(function(e){return {name:e.name,mode:e.rxMode,assumed:e.assumed,ranges:e.ranges||[],
       sets:e.rows.map(function(r){return {n:r.i,skipped:!!r.skipped,w:r.w,r:r.r,rir:r.rir,lo:r.lo,hi:r.hi,pr:r.pr};})};})};});
   return {
@@ -6420,7 +6449,11 @@ function srCardioInput(offset){
     list.forEach(function(c){
       out.push({dayLabel:DAYS3[d.getDay()],date:iso,
         type:(c.type||"Cardio"),zone:num(c.zone),mins:num(c.mins),
-        cal:num(c.cal),hr:num(c.hr),note:(c.notes||"").trim()});});});
+        cal:num(c.cal),hr:num(c.hr),hrMax:num(c.hrMax),note:(c.notes||"").trim(),
+        /* cardio has no saved zone split, so match WHOOP by the day when that
+           day holds exactly one workout — never guess between several */
+        zones:(function(){if(typeof whoopZonesForSession!=="function")return null;
+          return whoopZonesForSession({date:iso,ts:num(c.ts),mins:num(c.mins),whoopZones:c.whoopZones||null});})()});});});
   return out;}
 /* ---- progress photos for the report: prefetch, cache, never block the tap ----
    iOS requires transient user activation for navigator.share — awaiting slow
@@ -10452,6 +10485,7 @@ function view_liftview(){var s=getLiftSession();var u=state.settings.units;var m
   if(s.mode==="full")h+='<div class="wl-diary-macros" style="border:none;padding:0;margin-bottom:6px">'+(s.mins!=null?'<b>'+s.mins+' min</b> · ':"")+'work '+fmtDur((s.workSec||0)*1000)+' · rest '+fmtDur((s.restSec||0)*1000)+(s.warmupSec>2?' · warmup '+fmtDur((s.warmupSec||0)*1000):"")+'</div>';
   var sm=[];if(s.mins!=null&&s.mode!=="full")sm.push(s.mins+" min");if(s.hr!=null)sm.push("HR "+s.hr+(s.hrMax!=null?"/"+s.hrMax:""));else if(s.hrMax!=null)sm.push("peak "+s.hrMax);if(s.zone)sm.push("Zone "+s.zone);if(s.cal!=null)sm.push("~"+s.cal+" cal");if(s.rpe!=null)sm.push("RPE "+s.rpe);
   h+='<div class="wl-exrow-sub" style="line-height:1.6">'+(sm.length?sm.join("  ·  "):"No HR / calories / RPE recorded")+'</div>';
+  if(typeof whoopZonesForSession==="function"){var _wz=whoopZonesForSession(s);if(_wz)h+=whoopZoneBarHTML(_wz);}
   if(s.notes)h+='<div class="wl-note" style="cursor:default;margin-top:8px"><span class="wl-note-txt" style="white-space:normal">'+esc(s.notes)+'</span></div>';
   h+='</div>';
   if(s.mode==="full"&&s.entries){s.entries.forEach(function(en,ei){h+='<div class="wl-card"><div style="margin-bottom:6px">'+muscleTagHTML(en.muscle||"other")+'</div><div class="wl-exrow-name">'+esc(en.name)+'</div>';
@@ -11250,6 +11284,25 @@ function whoopZoneBarHTML(z,opts){
   z.forEach(function(m,i){if(!m)return;
     h+='<span class="wl-zk"><i style="background:'+WH_ZONE_COL[i]+'"></i>Z'+i+' <b>'+m+'m</b></span>';});
   return h+'</div></div>';
+}
+
+/* Zones for a SAVED session. Prefers what was stored at save time, but falls
+   back to matching the WHOOP workout by time — so sessions saved before zones
+   existed still get them, and a re-sync can fill in a session logged while the
+   strap data was still being scored. */
+function whoopZonesForSession(s){
+  if(!s)return null;
+  if(s.whoopZones&&s.whoopZones.length)return s.whoopZones;
+  if(!whoopOn())return null;
+  var end=num(s.ts);var mins=num(s.mins);
+  if(end&&mins){
+    var m=whoopMatchWorkout(end-mins*60000,end,s.date);
+    if(m&&m.zones)return m.zones;
+  }
+  /* no usable window (an old record, or a quick log): accept a lone workout
+     on that day rather than guessing between several */
+  var same=(state.whoopWorkouts||[]).filter(function(w){return w.date===s.date&&w.zones;});
+  return same.length===1?same[0].zones:null;
 }
 /* ==BUILD-END:whoop-client.js== */
 /* ==BUILD:render-events.js== */

@@ -1899,6 +1899,7 @@ function view_liftview(){var s=getLiftSession();var u=state.settings.units;var m
   if(s.mode==="full")h+='<div class="wl-diary-macros" style="border:none;padding:0;margin-bottom:6px">'+(s.mins!=null?'<b>'+s.mins+' min</b> · ':"")+'work '+fmtDur((s.workSec||0)*1000)+' · rest '+fmtDur((s.restSec||0)*1000)+(s.warmupSec>2?' · warmup '+fmtDur((s.warmupSec||0)*1000):"")+'</div>';
   var sm=[];if(s.mins!=null&&s.mode!=="full")sm.push(s.mins+" min");if(s.hr!=null)sm.push("HR "+s.hr+(s.hrMax!=null?"/"+s.hrMax:""));else if(s.hrMax!=null)sm.push("peak "+s.hrMax);if(s.zone)sm.push("Zone "+s.zone);if(s.cal!=null)sm.push("~"+s.cal+" cal");if(s.rpe!=null)sm.push("RPE "+s.rpe);
   h+='<div class="wl-exrow-sub" style="line-height:1.6">'+(sm.length?sm.join("  ·  "):"No HR / calories / RPE recorded")+'</div>';
+  if(typeof whoopZonesForSession==="function"){var _wz=whoopZonesForSession(s);if(_wz)h+=whoopZoneBarHTML(_wz);}
   if(s.notes)h+='<div class="wl-note" style="cursor:default;margin-top:8px"><span class="wl-note-txt" style="white-space:normal">'+esc(s.notes)+'</span></div>';
   h+='</div>';
   if(s.mode==="full"&&s.entries){s.entries.forEach(function(en,ei){h+='<div class="wl-card"><div style="margin-bottom:6px">'+muscleTagHTML(en.muscle||"other")+'</div><div class="wl-exrow-name">'+esc(en.name)+'</div>';

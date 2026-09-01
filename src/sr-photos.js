@@ -86,6 +86,7 @@ function srInput(offset){
       c(ff,function(v){return String(v);},(tFat!=null&&ff!=null)?((ff>tFat&&calOverD)?"bad":"good"):""),
       c(cc,function(v){return String(v);},(tCarb!=null&&cc!=null)?((cc>tCarb&&calOverD)?"bad":"good"):"")]};});
   var sessions=M.sessions.map(function(sn){return {name:sn.name,dateLabel:sn.dateLabel,mins:sn.mins,rpe:sn.rpe,ton:sn.ton,note:sn.notes,
+    hr:sn.hr,hrMax:sn.hrMax,cal:sn.cal,zone:sn.zone,zones:sn.zones||null,
     ex:sn.ex.map(function(e){return {name:e.name,mode:e.rxMode,assumed:e.assumed,ranges:e.ranges||[],
       sets:e.rows.map(function(r){return {n:r.i,skipped:!!r.skipped,w:r.w,r:r.r,rir:r.rir,lo:r.lo,hi:r.hi,pr:r.pr};})};})};});
   return {
@@ -239,7 +240,11 @@ function srCardioInput(offset){
     list.forEach(function(c){
       out.push({dayLabel:DAYS3[d.getDay()],date:iso,
         type:(c.type||"Cardio"),zone:num(c.zone),mins:num(c.mins),
-        cal:num(c.cal),hr:num(c.hr),note:(c.notes||"").trim()});});});
+        cal:num(c.cal),hr:num(c.hr),hrMax:num(c.hrMax),note:(c.notes||"").trim(),
+        /* cardio has no saved zone split, so match WHOOP by the day when that
+           day holds exactly one workout — never guess between several */
+        zones:(function(){if(typeof whoopZonesForSession!=="function")return null;
+          return whoopZonesForSession({date:iso,ts:num(c.ts),mins:num(c.mins),whoopZones:c.whoopZones||null});})()});});});
   return out;}
 /* ---- progress photos for the report: prefetch, cache, never block the tap ----
    iOS requires transient user activation for navigator.share — awaiting slow
