@@ -52,6 +52,7 @@ document.addEventListener("click",function(e){
   if(a==="glp:showdue"){glpNormalize();if(!state.glp.settings.enabled)return;state.glp.settings.showDueDate=!state.glp.settings.showDueDate;save();render();return;}
   if(a==="glp:titration"){glpNormalize();if(!state.glp.settings.enabled)return;state.glp.settings.titration=!state.glp.settings.titration;save();render();return;}
   if(a==="glp:siterot"){glpNormalize();if(!state.glp.settings.enabled)return;state.glp.settings.siteRotation=!state.glp.settings.siteRotation;save();render();return;}
+  if(a==="glp:sitetoggle"){glpNormalize();if(!state.glp.settings.enabled)return;var _sid=el.getAttribute("data-site");var _arr=(state.glp.settings.activeSites||[]).slice();var _ix=_arr.indexOf(_sid);if(_ix>=0){if(_arr.length<=1){toast("Keep at least one site active");return;}_arr.splice(_ix,1);}else _arr.push(_sid);state.glp.settings.activeSites=_arr;save();render();return;}
   if(a==="glp:symptoms"){glpNormalize();if(!state.glp.settings.enabled)return;state.glp.settings.symptomLogging=!state.glp.settings.symptomLogging;save();render();return;}
   if(a==="glp:compound"){glpNormalize();var _gc=state.glp.compound||{};state.glpDraft={name:_gc.name||"",dose:(_gc.dose!=null?_gc.dose:""),unit:_gc.unit||"mg",cadenceDays:(_gc.cadenceDays!=null?_gc.cadenceDays:7)};state.setPage="glpcompound";render();return;}
   if(a==="glp:compoundback"){state.glpDraft=null;state.setPage="glp";render();return;}

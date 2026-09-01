@@ -37,13 +37,14 @@ var CATPH={cardio:"e.g. Peloton (optional)",lifting:"e.g. Push day (optional)",s
 var GLP_SITES=[["l_abdomen","L abdomen"],["r_abdomen","R abdomen"],["l_thigh","L thigh"],["r_thigh","R thigh"],["l_arm","L arm"],["r_arm","R arm"],["l_glute","L glute"],["r_glute","R glute"]];
 var GLP_BUILTIN_SYMPTOMS=["Nausea","Fatigue","Constipation","Heartburn","Headache","Appetite drop","Site reaction","Sulfur burps"];
 function glpNewId(p){return (p||"g")+"-"+Date.now()+"-"+Math.random().toString(36).slice(2,6);}
-function glpDefault(){return {settings:{enabled:false,showDueDate:true,titration:false,siteRotation:true,symptomLogging:true},compound:null,doses:[],symptoms:[],symptomTypes:[]};}
+function glpDefault(){return {settings:{enabled:false,showDueDate:true,titration:false,siteRotation:true,symptomLogging:true,activeSites:GLP_SITES.map(function(s){return s[0];})},compound:null,doses:[],symptoms:[],symptomTypes:[]};}
 /* Repairs shape on load/pull AND lazily seeds the 8 built-in symptom types the first
    time they're missing, so existing users pick them up without a migration step. */
 function glpNormalize(){
   if(!state.glp||typeof state.glp!=="object")state.glp=glpDefault();
   var g=state.glp;
   g.settings=Object.assign({enabled:false,showDueDate:true,titration:false,siteRotation:true,symptomLogging:true},g.settings||{});
+  if(!Array.isArray(g.settings.activeSites)||!g.settings.activeSites.length)g.settings.activeSites=GLP_SITES.map(function(s){return s[0];});
   if(g.compound!==null&&typeof g.compound!=="object")g.compound=null;
   if(!Array.isArray(g.doses))g.doses=[];
   if(!Array.isArray(g.symptoms))g.symptoms=[];
@@ -89,7 +90,8 @@ function glpDosesOn(iso){
     .sort(function(a,b){return b.takenAt-a.takenAt;});}
 function glpDueInfo(){var g=state.glp;if(!g||!g.compound)return null;var cad=parseInt(g.compound.cadenceDays,10)||7;var doses=g.doses||[];var lastReal=null,lastAny=null;doses.forEach(function(d){if(d.takenAt==null)return;if(!lastAny||d.takenAt>lastAny.takenAt)lastAny=d;if(!d.skipped&&(!lastReal||d.takenAt>lastReal.takenAt))lastReal=d;});if(!lastAny)return {lastReal:null,due:null,cad:cad,overdue:false};/* anchor the schedule on the most recent event (dose OR skip) so a skip rolls the next due forward one cadence and a later miss can nag again */var due=lastAny.takenAt+cad*86400000;var overdue=(Date.now()>due);return {lastReal:lastReal,due:due,cad:cad,overdue:overdue};}
 /* least-recently-used site (never-used ranks oldest); 2 most-recent distinct = "recent"; mutually exclusive */
-function glpSiteSuggestion(){var used=(state.glp.doses||[]).filter(function(d){return !d.skipped&&d.siteId;}).slice().sort(function(a,b){return b.takenAt-a.takenAt;});var recent=[];for(var i=0;i<used.length&&recent.length<2;i++){if(recent.indexOf(used[i].siteId)<0)recent.push(used[i].siteId);}var lastUsed={};used.forEach(function(d){if(lastUsed[d.siteId]==null)lastUsed[d.siteId]=d.takenAt;});var ids=GLP_SITES.map(function(s){return s[0];});var pool=ids.filter(function(id){return recent.indexOf(id)<0;});if(!pool.length)pool=ids.slice();var best=pool[0],bestT=(lastUsed[pool[0]]!=null?lastUsed[pool[0]]:-Infinity);pool.forEach(function(id){var t=(lastUsed[id]!=null?lastUsed[id]:-Infinity);if(t<bestT){bestT=t;best=id;}});if(!used.length)best="l_abdomen";return {suggested:best,recent:recent};}
+function glpActiveSites(){var g=state.glp&&state.glp.settings;var a=(g&&Array.isArray(g.activeSites))?g.activeSites.filter(function(id){return GLP_SITES.some(function(s){return s[0]===id;});}):null;return (a&&a.length)?a:GLP_SITES.map(function(s){return s[0];});}
+function glpSiteSuggestion(){var used=(state.glp.doses||[]).filter(function(d){return !d.skipped&&d.siteId;}).slice().sort(function(a,b){return b.takenAt-a.takenAt;});var recent=[];for(var i=0;i<used.length&&recent.length<2;i++){if(recent.indexOf(used[i].siteId)<0)recent.push(used[i].siteId);}var lastUsed={};used.forEach(function(d){if(lastUsed[d.siteId]==null)lastUsed[d.siteId]=d.takenAt;});var ids=glpActiveSites();var pool=ids.filter(function(id){return recent.indexOf(id)<0;});if(!pool.length)pool=ids.slice();var best=pool[0],bestT=(lastUsed[pool[0]]!=null?lastUsed[pool[0]]:-Infinity);pool.forEach(function(id){var t=(lastUsed[id]!=null?lastUsed[id]:-Infinity);if(t<bestT){bestT=t;best=id;}});if(!used.length)best=ids[0]||"l_abdomen";return {suggested:best,recent:recent,last:(used.length?used[0].siteId:null),lastAt:(used.length?used[0].takenAt:null)};}
 /* pull sheet text/time fields into the scratch object before any chip-driven re-render */
 function glpSheetSync(){var s=state.glpSheet;if(!s)return;var q=function(k){return document.querySelector('[data-glps="'+k+'"]');};var d=q("dose");if(d)s.dose=d.value;var n=q("note");if(n)s.note=n.value;var at=q("at");if(at){var t=glpFromLocalInput(at.value);if(t!=null)s.at=t;}var nl=q("newlabel");if(nl)s.newLabel=nl.value;}
 function glpArchiveType(id){glpNormalize();var changed=false;state.glp.symptomTypes.forEach(function(t){if(t.id===id&&!t.isBuiltIn&&!t.archived){t.archived=true;changed=true;}});if(!changed)return;if(state.glpSheet&&state.glpSheet.symptomTypeId===id){var rem=state.glp.symptomTypes.filter(function(t){return !t.archived;});state.glpSheet.symptomTypeId=rem[0]?rem[0].id:null;}save();render();toast("Symptom archived");}
@@ -112,7 +114,8 @@ function glpCardHTML(){
     var days=Math.ceil((info.due-Date.now())/86400000);
     if(days>=0){var when=days===0?"today":(days===1?"in 1 day":("in "+days+" days"));dueLine="Next dose "+when+(g.settings.siteRotation?(" · "+esc(glpSiteLabel(sug.suggested))):"");}
   }
-  h+='<div class="wl-card catcard glp'+(overdue?" late":"")+'"><div class="wl-cathead">'+icon+'<div class="wl-catmeta"><div class="wl-cattype">GLP-1 &amp; Peptides</div><div class="wl-catsum">'+summary+(dueLine?'<span class="wl-glpdue">'+dueLine+'</span>':'')+'</div></div></div>';
+  var lastLine=sug.last?("Last · "+esc(glpSiteLabel(sug.last))):"";
+  h+='<div class="wl-card catcard glp'+(overdue?" late":"")+'"><div class="wl-cathead">'+icon+'<div class="wl-catmeta"><div class="wl-cattype">GLP-1 &amp; Peptides</div><div class="wl-catsum">'+summary+(lastLine?'<span class="wl-glpdue">'+lastLine+'</span>':'')+(dueLine?'<span class="wl-glpdue">'+dueLine+'</span>':'')+'</div></div></div>';
   if(overdue){
     var ago=Math.floor((Date.now()-info.due)/86400000);
     h+='<div class="wl-glpnag"><div class="wl-glpnag-top"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.01"/></svg><span>Dose overdue</span></div>';
@@ -158,7 +161,8 @@ function glpDoseSheetInner(s,g){var c=g.compound||{};var unit=c.unit||"mg";
   if(g.settings.siteRotation){
     var sug=glpSiteSuggestion();
     h+='<div class="wl-glpfield"><div class="wl-glpflabel">Injection site</div><div class="wl-glpchips">';
-    GLP_SITES.forEach(function(site){var id=site[0];var cls="wl-glpchip";if(s.siteId===id)cls+=" sel";else if(id===sug.suggested)cls+=" next";else if(sug.recent.indexOf(id)>=0)cls+=" recent";h+='<button class="'+cls+'" data-act="glp:site" data-site="'+id+'">'+esc(site[1])+'</button>';});
+    var _act=glpActiveSites();
+    GLP_SITES.filter(function(site){return _act.indexOf(site[0])>=0||s.siteId===site[0];}).forEach(function(site){var id=site[0];var cls="wl-glpchip";if(s.siteId===id)cls+=" sel";else if(id===sug.suggested)cls+=" next";else if(sug.recent.indexOf(id)>=0)cls+=" recent";h+='<button class="'+cls+'" data-act="glp:site" data-site="'+id+'">'+esc(site[1])+'</button>';});
     h+='</div><div class="wl-glplegend"><span><i style="background:var(--accent)"></i>Suggested</span><span><i style="background:var(--faint)"></i>Used recently</span></div></div>';
   }
   h+='<div class="wl-glpfield"><div class="wl-glpflabel">Time</div><input class="wl-glpinbox" data-glps="at" type="datetime-local" value="'+glpToLocalInput(s.at||Date.now())+'"></div>';

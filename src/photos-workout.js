@@ -2032,6 +2032,10 @@ function view_settings(){
   h+='<div class="wl-glp-sect'+dim+'">Logging</div>';
   h+='<div class="wl-glp-list'+dim+'">';
   h+=glpToggleRow(I.pin,"Site rotation","Suggests next site","glp:siterot",!!gs.siteRotation,true);
+  if(gs.siteRotation){var _as=(Array.isArray(gs.activeSites)&&gs.activeSites.length)?gs.activeSites:GLP_SITES.map(function(s){return s[0];});
+    h+='<div class="wl-glpfield'+dim+'" style="padding:10px 8px 4px"><div class="wl-glpflabel" style="margin-bottom:6px">Rotate between these sites</div><div class="wl-glpchips">';
+    GLP_SITES.forEach(function(site){var on=_as.indexOf(site[0])>=0;h+='<button class="wl-glpchip'+(on?" sel":"")+'" data-act="glp:sitetoggle" data-site="'+site[0]+'">'+esc(site[1])+'</button>';});
+    h+='</div><div class="wl-hint" style="padding:6px 0 0">Tap to include or exclude a site — rotation only suggests from the active ones.</div></div>';}
   h+=glpToggleRow(I.overview,"Symptom logging","Charts on Progress","glp:symptoms",!!gs.symptomLogging,true);
   h+='</div>';
   h+='<div class="wl-hint" style="padding:11px 8px 0">Turning this off keeps your history — the card and charts just stop appearing.</div>';
