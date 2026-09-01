@@ -67,10 +67,22 @@ function whoopApply(data){
   });
   state.settings.whoopLast=Date.now();
   if(data&&data.fake)state.settings.whoopFake=true;else delete state.settings.whoopFake;
-  /* WHOOP measures max HR directly; adopt it only if nothing is set, since the
-     zone model is the athlete's to own. */
-  if(data&&data.body&&data.body.max_heart_rate&&!num(state.settings.maxHR))
-    state.settings.maxHR=String(data.body.max_heart_rate);
+  /* Max HR is a value WHOOP STORES and recalculates as fitness changes (its own
+     spec calls it "the max heart rate WHOOP calculated"), so it tracks rather
+     than being adopted once and frozen. The change is applied, then announced —
+     it moves every zone boundary, so it must never happen invisibly.
+     Resting HR is deliberately NOT written: WHOOP exposes no stored value, only
+     a daily reading, so there is nothing authoritative to defer to. The profile
+     field is offered WHOOP's 30-day average instead (whoopRestingAvg). */
+  var mh=data&&data.body&&data.body.max_heart_rate;
+  if(mh){
+    var cur=num(state.settings.maxHR);
+    if(cur==null){state.settings.maxHR=String(mh);}
+    else if(cur!==mh&&state.settings.whoopMaxHR!==false){
+      state.settings.maxHR=String(mh);
+      state.whoopNotice={kind:"maxhr",from:cur,to:mh,at:Date.now()};
+    }
+  }
   save();
   return {days:nd,sleep:nsleep,skipped:skipped,total:Object.keys(days).length};
 }
@@ -125,7 +137,8 @@ function whoopFillFinish(w){
   if(m.maxHr!=null&&blank("hrMax")){ff.hrMax=String(m.maxHr);filled.push("peak HR");}
   if(m.cal!=null&&blank("cal")){ff.cal=String(m.cal);filled.push("calories");}
   if(!filled.length)return null;
-  w.whoopFill={id:m.id,fields:filled,strain:m.strain,pct:m.pctRecorded};
+  w.whoopFill={id:m.id,fields:filled,strain:m.strain,pct:m.pctRecorded,zones:m.zones||null};
+  if(m.zones)w.whoopZones=m.zones;      /* carried onto the saved session */
   return w.whoopFill;
 }
 
@@ -162,7 +175,8 @@ function whoopSettingsHTML(){
   var on=whoopOn();
   var last=state.settings.whoopLast;
   var nDays=Object.keys(state.whoop||{}).length;
-  var h='<div class="wl-card">';
+  var h=whoopNoticeHTML();
+  h+='<div class="wl-card">';
   h+='<div class="wl-card-head"><span>WHOOP</span></div>';
   h+='<div class="wl-hint" style="margin-bottom:10px">Pulls recovery, HRV, resting heart rate, day strain, sleep, and your lift’s heart rate and calories. It never overwrites a number you typed — it only fills blanks.</div>';
   h+='<div class="wl-glp-list">'+glpToggleRow(I.trend,"Use WHOOP",(on?"Filling blanks from your strap":"Off"),"whoop:toggle",on,false)+'</div>';
@@ -180,6 +194,7 @@ function whoopSettingsHTML(){
     if(st&&st.ok&&!st.fake&&!st.connected)h+='<button class="wl-btn wl-btn-ghost" style="flex:1" data-act="whoop:connect">Link account</button>';
     else if(st&&st.ok&&st.connected&&!st.fake)h+='<button class="wl-btn wl-btn-ghost" style="flex:1" data-act="whoop:disconnect">Unlink</button>';
     h+='</div>';
+    h+=whoopRestingOfferHTML();
     h+='<label class="wl-field wl-field-full" style="margin-top:12px"><span>Days to pull each sync</span><input class="wl-num" data-set="whoopDays" type="text" inputmode="numeric" value="'+esc(state.settings.whoopDays!=null?state.settings.whoopDays:"14")+'" placeholder="14"></label>';
     h+='<label class="wl-field wl-field-full" style="margin-top:8px"><span>Service address <em>leave blank for the default</em></span><input data-set="whoopBase" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" value="'+esc(state.settings.whoopBase||"")+'" placeholder="'+esc(WHOOP_DEFAULT_BASE)+'"></label>';
   }
@@ -331,9 +346,17 @@ function whoopSleepNoteHTML(iso){
   var cur=num((state.sleep||{})[iso]);
   var same=(cur!=null&&Math.abs(cur-d.sleepMin)<=1);
   var bits=[];
+  if(d.deepMin!=null||d.remMin!=null){
+    var st=[];if(d.deepMin!=null)st.push(minToHM(d.deepMin)+" deep");if(d.remMin!=null)st.push(minToHM(d.remMin)+" REM");if(d.lightMin!=null)st.push(minToHM(d.lightMin)+" light");
+    bits.push(st.join(" · "));
+  }
   if(d.sleepPerf!=null)bits.push(d.sleepPerf+"% performance");
-  if(d.sleepEff!=null)bits.push(d.sleepEff+"% efficiency");
+  if(d.sleepNeedMin!=null&&d.sleepMin!=null&&d.sleepNeedMin>d.sleepMin)
+    bits.push("needed "+minToHM(d.sleepNeedMin)+", short by "+minToHM(d.sleepNeedMin-d.sleepMin));
+  else if(d.sleepDebtMin)bits.push(minToHM(d.sleepDebtMin)+" sleep debt");
+  if(d.awakeMin)bits.push(minToHM(d.awakeMin)+" awake");
   if(d.disturbances!=null)bits.push(d.disturbances+" disturbance"+(d.disturbances===1?"":"s"));
+  if(d.bedTime&&d.wakeTime)bits.push(d.bedTime+"\u2013"+d.wakeTime);
   if(d.napMin)bits.push("plus a "+minToHM(d.napMin)+" nap");
   var h='<div class="wl-whoopfill" style="margin:8px 0 0">'+I.trend.replace("<svg","<svg width=14 height=14")+'<span>';
   if(cur==null)h+='WHOOP recorded <b>'+minToHM(d.sleepMin)+'</b>';
@@ -343,4 +366,56 @@ function whoopSleepNoteHTML(iso){
   h+='.';
   if(cur!=null&&!same)h+=' <button class="wl-link" data-act="whoop:usesleep" data-d="'+iso+'" style="display:inline">Use WHOOP’s</button>';
   return h+'</span></div>';
+}
+
+/* ---- resting heart rate ------------------------------------------------------
+   WHOOP has no stored resting HR — only a nightly reading — so nothing here is
+   written automatically. A 30-day median (not a mean: one feverish night should
+   not drag the zone model) is offered beside the profile field to accept. */
+function whoopRestingAvg(days){
+  days=days||30;
+  var w=state.whoop||{};var cut=new Date(Date.now()-days*864e5).toISOString().slice(0,10);
+  var v=[];Object.keys(w).forEach(function(d){if(d>=cut&&w[d].restingHr!=null)v.push(w[d].restingHr);});
+  if(v.length<5)return null;                     /* too thin to mean anything */
+  v.sort(function(a,b){return a-b;});
+  var m=v.length%2?v[(v.length-1)/2]:Math.round((v[v.length/2-1]+v[v.length/2])/2);
+  return {median:m,n:v.length,lo:v[0],hi:v[v.length-1]};
+}
+function whoopRestingOfferHTML(){
+  if(!whoopOn())return "";
+  var a=whoopRestingAvg(30);if(!a)return "";
+  var cur=num(state.settings.restingHR);
+  if(cur!=null&&Math.abs(cur-a.median)<=1)return "";
+  return '<div class="wl-whoopfill" style="margin-top:8px">'+I.trend.replace("<svg","<svg width=14 height=14")+
+    '<span>WHOOP’s resting heart rate over '+a.n+' nights: <b>'+a.median+' bpm</b> (median, '+a.lo+'–'+a.hi+')'+
+    (cur!=null?'. Yours says '+cur+'.':'.')+
+    ' <button class="wl-link" data-act="whoop:useresting" data-v="'+a.median+'" style="display:inline">Use it</button></span></div>';
+}
+/* a one-off notice when WHOOP moved a setting that changes other numbers */
+function whoopNoticeHTML(){
+  var n=state.whoopNotice;if(!n||n.kind!=="maxhr")return "";
+  return '<div class="wl-whoopfill" style="margin:0 0 10px">'+I.trend.replace("<svg","<svg width=14 height=14")+
+    '<span>WHOOP updated your <b>max heart rate</b> to '+n.to+' (was '+n.from+'), so your heart-rate zones have shifted. '+
+    '<button class="wl-link" data-act="whoop:undomax" data-v="'+n.from+'" style="display:inline">Put it back</button> · '+
+    '<button class="wl-link" data-act="whoop:noticeok" style="display:inline">Got it</button></span></div>';
+}
+
+/* ---- HR zones on a workout ---------------------------------------------------
+   WHOOP reports minutes in each of six zones. Compound already thinks in zones,
+   so this is shown as a single stacked bar rather than a table of numbers —
+   where the session's time actually went, at a glance. */
+var WH_ZONE_COL=["#5A6474","#7C93F5","#5CD6A0","#F5B544","#F2874B","#F26D5B"];
+function whoopZoneBarHTML(z,opts){
+  if(!z||!z.length)return "";
+  opts=opts||{};
+  var tot=z.reduce(function(a,b){return a+b;},0);if(!tot)return "";
+  var h='<div class="wl-zbar-wrap">';
+  if(opts.label!==false)h+='<div class="wl-zbar-h"><span>Time in heart-rate zones</span><span>'+fmtDur(tot*60000)+'</span></div>';
+  h+='<div class="wl-zbar">';
+  z.forEach(function(m,i){if(!m)return;
+    h+='<span class="wl-zseg" style="width:'+(m/tot*100).toFixed(2)+'%;background:'+WH_ZONE_COL[i]+'" title="Zone '+i+': '+m+' min"></span>';});
+  h+='</div><div class="wl-zkey">';
+  z.forEach(function(m,i){if(!m)return;
+    h+='<span class="wl-zk"><i style="background:'+WH_ZONE_COL[i]+'"></i>Z'+i+' <b>'+m+'m</b></span>';});
+  return h+'</div></div>';
 }

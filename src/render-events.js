@@ -121,6 +121,12 @@ document.addEventListener("click",function(e){
   if(a==="opentoday"){state.selDate=todayISO();state.calY=new Date().getFullYear();state.calM=new Date().getMonth();state.cardioForm=null;render();return;}
   if(a==="ai:copy"){copyText(weeklyAIText(),"Copied your week — paste into your AI to generate");return;}
   if(a==="ai:gen"){genSummary();return;}
+  if(a==="whoop:useresting"){var v=num(el.getAttribute("data-v"));if(v==null)return;
+    state.settings.restingHR=String(v);save();render();toast("Resting heart rate set to "+v);return;}
+  if(a==="whoop:undomax"){var v2=num(el.getAttribute("data-v"));if(v2==null)return;
+    state.settings.maxHR=String(v2);state.settings.whoopMaxHR=false;state.whoopNotice=null;save();render();
+    toast("Max heart rate back to "+v2+" \u2014 WHOOP won\u2019t change it again");return;}
+  if(a==="whoop:noticeok"){state.whoopNotice=null;render();return;}
   if(a==="whoop:usesleep"){var d=el.getAttribute("data-d");var row=whoopDay(d);
     if(!row||row.sleepMin==null)return;
     state.sleep[d]=row.sleepMin;setSkip(d,"sleep",false);save();render();
@@ -325,7 +331,7 @@ document.addEventListener("click",function(e){
       var o={exerciseId:en.exerciseId,name:en.name,muscle:en.muscle,groupId:en.groupId||null,fb:en.fb||null,progression:prog,repLow:en.repLow,repHigh:en.repHigh,sets:en.sets.map(function(s){return {weight:num(s.weight),reps:num(s.reps),rir:num(s.rir),status:s.status,sugR:num(s.sugR),sugW:num(s.sugW),tgtLo:num(s.tgtLo),tgtHi:num(s.tgtHi)};})};
       if(prog==="rpt")o.setRanges=rptRangesFor({movement:en.movement,setRanges:en.setRanges},Math.max(1,en.sets.length));
       return o;});
-    var sess={id:"l-"+Date.now()+"-"+Math.random().toString(36).slice(2,6),routineId:w.routineId,name:w.name,mode:"full",date:w.date,mins:Math.round(b.total/60000),warmupSec:Math.round(b.warmup/1000),workSec:Math.round(b.work/1000),restSec:Math.round(b.rest/1000),mfb:w.mfb||null,hr:num(ff.hr),hrMax:num(ff.hrMax),zone:zone,cal:num(ff.cal),rpe:num(ff.rpe),notes:(ff.notes||"").trim(),bw:w.bw,entries:entries,ts:Date.now()};
+    var sess={id:"l-"+Date.now()+"-"+Math.random().toString(36).slice(2,6),routineId:w.routineId,name:w.name,mode:"full",date:w.date,mins:Math.round(b.total/60000),warmupSec:Math.round(b.warmup/1000),workSec:Math.round(b.work/1000),restSec:Math.round(b.rest/1000),mfb:w.mfb||null,hr:num(ff.hr),hrMax:num(ff.hrMax),zone:zone,whoopZones:(w.whoopZones||null),cal:num(ff.cal),rpe:num(ff.rpe),notes:(ff.notes||"").trim(),bw:w.bw,entries:entries,ts:Date.now()};
     state.training.liftSessions=state.training.liftSessions||{};var d=w.date;var list=(state.training.liftSessions[d]||[]).slice();list.push(sess);state.training.liftSessions[d]=list;
     syncLiftTags(d);saveTraining();save();state.workout=null;saveWorkout();if(woTimer)clearInterval(woTimer);state.liftViewDate=d;state.liftViewId=sess.id;state.liftEdit=null;state.view="liftview";toast("Workout saved");render();return;}
   if(a==="lift:view"){state.liftViewDate=state.selDate;state.liftViewId=el.getAttribute("data-id");state.liftEdit=null;state.view="liftview";render();return;}

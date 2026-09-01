@@ -166,6 +166,15 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 .wl-ss-head em{font-style:normal;font-size:11px;font-weight:600;color:var(--faint);letter-spacing:0;text-transform:none;margin-left:auto;text-align:right;}
 .wl-sschip{display:inline-flex;align-items:center;justify-content:center;min-width:19px;height:19px;padding:0 5px;border-radius:6px;background:rgba(124,147,245,.16);border:1px solid rgba(124,147,245,.55);color:var(--reg);font-family:var(--mono);font-size:10.5px;font-weight:800;line-height:1;flex:none;}
 /* ---- WHOOP ---- */
+.wl-zbar-wrap{margin:10px 0 2px;}
+.wl-zbar-h{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;font-size:10px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);}
+.wl-zbar-h span:last-child{font-family:var(--mono);letter-spacing:0;color:var(--muted);}
+.wl-zbar{display:flex;height:14px;border-radius:7px;overflow:hidden;background:var(--bg2);border:1px solid var(--line);}
+.wl-zseg{display:block;height:100%;}
+.wl-zkey{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:8px;}
+.wl-zk{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);font-family:var(--mono);}
+.wl-zk i{width:9px;height:9px;border-radius:2px;display:inline-block;flex:none;}
+.wl-zk b{color:var(--text);font-weight:700;}
 .wl-whoopfill{display:flex;gap:7px;align-items:flex-start;margin:2px 0 12px;padding:9px 11px;border-radius:10px;background:rgba(124,147,245,.10);border:1px solid rgba(124,147,245,.42);color:var(--reg);font-size:12.5px;line-height:1.45;}
 .wl-whoopfill b{color:var(--text);font-weight:700;}
 .wl-whoopfill em{font-style:normal;color:var(--accent);}
@@ -1110,7 +1119,7 @@ input[type=range][data-pfadj]{width:100%;accent-color:var(--accent);min-height:2
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-09-01.507-whoop-autosleep";
+var APP_BUILD="2026-09-01.508-whoop-full";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -10308,6 +10317,7 @@ function finishSheetHTML(){var w=state.workout;var b=woBuckets();var ff=w.finish
   if(w.whoopFill&&w.whoopFill.fields&&w.whoopFill.fields.length){
     var _wf=w.whoopFill;
     h+='<div class="wl-whoopfill">'+I.trend.replace("<svg","<svg width=14 height=14")+'<span>From WHOOP: <b>'+esc(_wf.fields.join(", "))+'</b>'+(_wf.strain!=null?' \u00b7 strain '+esc(_wf.strain):'')+'. Change anything that looks wrong.'+((_wf.pct!=null&&_wf.pct<100)?' <em>Only '+esc(_wf.pct)+'% of this workout was recorded.</em>':'')+'</span></div>';
+    if(_wf.zones&&typeof whoopZoneBarHTML==="function")h+=whoopZoneBarHTML(_wf.zones);
   }
   h+='<div class="wl-row"><label class="wl-field"><span>Avg HR <em>optional</em></span><input class="wl-wof-input wl-num" data-wof="hr" type="text" inputmode="numeric" placeholder="—" value="'+(ff.hr!=null?esc(String(ff.hr)):"")+'"></label><label class="wl-field"><span>Peak HR <em>optional</em></span><input class="wl-wof-input wl-num" data-wof="hrMax" type="text" inputmode="numeric" placeholder="—" value="'+(ff.hrMax!=null?esc(String(ff.hrMax)):"")+'"></label></div>';
   h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Est. calories <em>optional</em></span><input class="wl-wof-input wl-num" data-wof="cal" type="text" inputmode="numeric" placeholder="—" value="'+(ff.cal!=null?esc(String(ff.cal)):"")+'"></label><label class="wl-field"><span>RPE <em>1-10, optional</em></span><input class="wl-wof-input wl-num" data-wof="rpe" type="text" inputmode="numeric" placeholder="—" value="'+(ff.rpe!=null?esc(String(ff.rpe)):"")+'"></label></div>';
@@ -10889,10 +10899,22 @@ function whoopApply(data){
   });
   state.settings.whoopLast=Date.now();
   if(data&&data.fake)state.settings.whoopFake=true;else delete state.settings.whoopFake;
-  /* WHOOP measures max HR directly; adopt it only if nothing is set, since the
-     zone model is the athlete's to own. */
-  if(data&&data.body&&data.body.max_heart_rate&&!num(state.settings.maxHR))
-    state.settings.maxHR=String(data.body.max_heart_rate);
+  /* Max HR is a value WHOOP STORES and recalculates as fitness changes (its own
+     spec calls it "the max heart rate WHOOP calculated"), so it tracks rather
+     than being adopted once and frozen. The change is applied, then announced —
+     it moves every zone boundary, so it must never happen invisibly.
+     Resting HR is deliberately NOT written: WHOOP exposes no stored value, only
+     a daily reading, so there is nothing authoritative to defer to. The profile
+     field is offered WHOOP's 30-day average instead (whoopRestingAvg). */
+  var mh=data&&data.body&&data.body.max_heart_rate;
+  if(mh){
+    var cur=num(state.settings.maxHR);
+    if(cur==null){state.settings.maxHR=String(mh);}
+    else if(cur!==mh&&state.settings.whoopMaxHR!==false){
+      state.settings.maxHR=String(mh);
+      state.whoopNotice={kind:"maxhr",from:cur,to:mh,at:Date.now()};
+    }
+  }
   save();
   return {days:nd,sleep:nsleep,skipped:skipped,total:Object.keys(days).length};
 }
@@ -10947,7 +10969,8 @@ function whoopFillFinish(w){
   if(m.maxHr!=null&&blank("hrMax")){ff.hrMax=String(m.maxHr);filled.push("peak HR");}
   if(m.cal!=null&&blank("cal")){ff.cal=String(m.cal);filled.push("calories");}
   if(!filled.length)return null;
-  w.whoopFill={id:m.id,fields:filled,strain:m.strain,pct:m.pctRecorded};
+  w.whoopFill={id:m.id,fields:filled,strain:m.strain,pct:m.pctRecorded,zones:m.zones||null};
+  if(m.zones)w.whoopZones=m.zones;      /* carried onto the saved session */
   return w.whoopFill;
 }
 
@@ -10984,7 +11007,8 @@ function whoopSettingsHTML(){
   var on=whoopOn();
   var last=state.settings.whoopLast;
   var nDays=Object.keys(state.whoop||{}).length;
-  var h='<div class="wl-card">';
+  var h=whoopNoticeHTML();
+  h+='<div class="wl-card">';
   h+='<div class="wl-card-head"><span>WHOOP</span></div>';
   h+='<div class="wl-hint" style="margin-bottom:10px">Pulls recovery, HRV, resting heart rate, day strain, sleep, and your lift’s heart rate and calories. It never overwrites a number you typed — it only fills blanks.</div>';
   h+='<div class="wl-glp-list">'+glpToggleRow(I.trend,"Use WHOOP",(on?"Filling blanks from your strap":"Off"),"whoop:toggle",on,false)+'</div>';
@@ -11002,6 +11026,7 @@ function whoopSettingsHTML(){
     if(st&&st.ok&&!st.fake&&!st.connected)h+='<button class="wl-btn wl-btn-ghost" style="flex:1" data-act="whoop:connect">Link account</button>';
     else if(st&&st.ok&&st.connected&&!st.fake)h+='<button class="wl-btn wl-btn-ghost" style="flex:1" data-act="whoop:disconnect">Unlink</button>';
     h+='</div>';
+    h+=whoopRestingOfferHTML();
     h+='<label class="wl-field wl-field-full" style="margin-top:12px"><span>Days to pull each sync</span><input class="wl-num" data-set="whoopDays" type="text" inputmode="numeric" value="'+esc(state.settings.whoopDays!=null?state.settings.whoopDays:"14")+'" placeholder="14"></label>';
     h+='<label class="wl-field wl-field-full" style="margin-top:8px"><span>Service address <em>leave blank for the default</em></span><input data-set="whoopBase" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" value="'+esc(state.settings.whoopBase||"")+'" placeholder="'+esc(WHOOP_DEFAULT_BASE)+'"></label>';
   }
@@ -11153,9 +11178,17 @@ function whoopSleepNoteHTML(iso){
   var cur=num((state.sleep||{})[iso]);
   var same=(cur!=null&&Math.abs(cur-d.sleepMin)<=1);
   var bits=[];
+  if(d.deepMin!=null||d.remMin!=null){
+    var st=[];if(d.deepMin!=null)st.push(minToHM(d.deepMin)+" deep");if(d.remMin!=null)st.push(minToHM(d.remMin)+" REM");if(d.lightMin!=null)st.push(minToHM(d.lightMin)+" light");
+    bits.push(st.join(" · "));
+  }
   if(d.sleepPerf!=null)bits.push(d.sleepPerf+"% performance");
-  if(d.sleepEff!=null)bits.push(d.sleepEff+"% efficiency");
+  if(d.sleepNeedMin!=null&&d.sleepMin!=null&&d.sleepNeedMin>d.sleepMin)
+    bits.push("needed "+minToHM(d.sleepNeedMin)+", short by "+minToHM(d.sleepNeedMin-d.sleepMin));
+  else if(d.sleepDebtMin)bits.push(minToHM(d.sleepDebtMin)+" sleep debt");
+  if(d.awakeMin)bits.push(minToHM(d.awakeMin)+" awake");
   if(d.disturbances!=null)bits.push(d.disturbances+" disturbance"+(d.disturbances===1?"":"s"));
+  if(d.bedTime&&d.wakeTime)bits.push(d.bedTime+"\u2013"+d.wakeTime);
   if(d.napMin)bits.push("plus a "+minToHM(d.napMin)+" nap");
   var h='<div class="wl-whoopfill" style="margin:8px 0 0">'+I.trend.replace("<svg","<svg width=14 height=14")+'<span>';
   if(cur==null)h+='WHOOP recorded <b>'+minToHM(d.sleepMin)+'</b>';
@@ -11165,6 +11198,58 @@ function whoopSleepNoteHTML(iso){
   h+='.';
   if(cur!=null&&!same)h+=' <button class="wl-link" data-act="whoop:usesleep" data-d="'+iso+'" style="display:inline">Use WHOOP’s</button>';
   return h+'</span></div>';
+}
+
+/* ---- resting heart rate ------------------------------------------------------
+   WHOOP has no stored resting HR — only a nightly reading — so nothing here is
+   written automatically. A 30-day median (not a mean: one feverish night should
+   not drag the zone model) is offered beside the profile field to accept. */
+function whoopRestingAvg(days){
+  days=days||30;
+  var w=state.whoop||{};var cut=new Date(Date.now()-days*864e5).toISOString().slice(0,10);
+  var v=[];Object.keys(w).forEach(function(d){if(d>=cut&&w[d].restingHr!=null)v.push(w[d].restingHr);});
+  if(v.length<5)return null;                     /* too thin to mean anything */
+  v.sort(function(a,b){return a-b;});
+  var m=v.length%2?v[(v.length-1)/2]:Math.round((v[v.length/2-1]+v[v.length/2])/2);
+  return {median:m,n:v.length,lo:v[0],hi:v[v.length-1]};
+}
+function whoopRestingOfferHTML(){
+  if(!whoopOn())return "";
+  var a=whoopRestingAvg(30);if(!a)return "";
+  var cur=num(state.settings.restingHR);
+  if(cur!=null&&Math.abs(cur-a.median)<=1)return "";
+  return '<div class="wl-whoopfill" style="margin-top:8px">'+I.trend.replace("<svg","<svg width=14 height=14")+
+    '<span>WHOOP’s resting heart rate over '+a.n+' nights: <b>'+a.median+' bpm</b> (median, '+a.lo+'–'+a.hi+')'+
+    (cur!=null?'. Yours says '+cur+'.':'.')+
+    ' <button class="wl-link" data-act="whoop:useresting" data-v="'+a.median+'" style="display:inline">Use it</button></span></div>';
+}
+/* a one-off notice when WHOOP moved a setting that changes other numbers */
+function whoopNoticeHTML(){
+  var n=state.whoopNotice;if(!n||n.kind!=="maxhr")return "";
+  return '<div class="wl-whoopfill" style="margin:0 0 10px">'+I.trend.replace("<svg","<svg width=14 height=14")+
+    '<span>WHOOP updated your <b>max heart rate</b> to '+n.to+' (was '+n.from+'), so your heart-rate zones have shifted. '+
+    '<button class="wl-link" data-act="whoop:undomax" data-v="'+n.from+'" style="display:inline">Put it back</button> · '+
+    '<button class="wl-link" data-act="whoop:noticeok" style="display:inline">Got it</button></span></div>';
+}
+
+/* ---- HR zones on a workout ---------------------------------------------------
+   WHOOP reports minutes in each of six zones. Compound already thinks in zones,
+   so this is shown as a single stacked bar rather than a table of numbers —
+   where the session's time actually went, at a glance. */
+var WH_ZONE_COL=["#5A6474","#7C93F5","#5CD6A0","#F5B544","#F2874B","#F26D5B"];
+function whoopZoneBarHTML(z,opts){
+  if(!z||!z.length)return "";
+  opts=opts||{};
+  var tot=z.reduce(function(a,b){return a+b;},0);if(!tot)return "";
+  var h='<div class="wl-zbar-wrap">';
+  if(opts.label!==false)h+='<div class="wl-zbar-h"><span>Time in heart-rate zones</span><span>'+fmtDur(tot*60000)+'</span></div>';
+  h+='<div class="wl-zbar">';
+  z.forEach(function(m,i){if(!m)return;
+    h+='<span class="wl-zseg" style="width:'+(m/tot*100).toFixed(2)+'%;background:'+WH_ZONE_COL[i]+'" title="Zone '+i+': '+m+' min"></span>';});
+  h+='</div><div class="wl-zkey">';
+  z.forEach(function(m,i){if(!m)return;
+    h+='<span class="wl-zk"><i style="background:'+WH_ZONE_COL[i]+'"></i>Z'+i+' <b>'+m+'m</b></span>';});
+  return h+'</div></div>';
 }
 /* ==BUILD-END:whoop-client.js== */
 /* ==BUILD:render-events.js== */
@@ -11291,6 +11376,12 @@ document.addEventListener("click",function(e){
   if(a==="opentoday"){state.selDate=todayISO();state.calY=new Date().getFullYear();state.calM=new Date().getMonth();state.cardioForm=null;render();return;}
   if(a==="ai:copy"){copyText(weeklyAIText(),"Copied your week — paste into your AI to generate");return;}
   if(a==="ai:gen"){genSummary();return;}
+  if(a==="whoop:useresting"){var v=num(el.getAttribute("data-v"));if(v==null)return;
+    state.settings.restingHR=String(v);save();render();toast("Resting heart rate set to "+v);return;}
+  if(a==="whoop:undomax"){var v2=num(el.getAttribute("data-v"));if(v2==null)return;
+    state.settings.maxHR=String(v2);state.settings.whoopMaxHR=false;state.whoopNotice=null;save();render();
+    toast("Max heart rate back to "+v2+" \u2014 WHOOP won\u2019t change it again");return;}
+  if(a==="whoop:noticeok"){state.whoopNotice=null;render();return;}
   if(a==="whoop:usesleep"){var d=el.getAttribute("data-d");var row=whoopDay(d);
     if(!row||row.sleepMin==null)return;
     state.sleep[d]=row.sleepMin;setSkip(d,"sleep",false);save();render();
@@ -11495,7 +11586,7 @@ document.addEventListener("click",function(e){
       var o={exerciseId:en.exerciseId,name:en.name,muscle:en.muscle,groupId:en.groupId||null,fb:en.fb||null,progression:prog,repLow:en.repLow,repHigh:en.repHigh,sets:en.sets.map(function(s){return {weight:num(s.weight),reps:num(s.reps),rir:num(s.rir),status:s.status,sugR:num(s.sugR),sugW:num(s.sugW),tgtLo:num(s.tgtLo),tgtHi:num(s.tgtHi)};})};
       if(prog==="rpt")o.setRanges=rptRangesFor({movement:en.movement,setRanges:en.setRanges},Math.max(1,en.sets.length));
       return o;});
-    var sess={id:"l-"+Date.now()+"-"+Math.random().toString(36).slice(2,6),routineId:w.routineId,name:w.name,mode:"full",date:w.date,mins:Math.round(b.total/60000),warmupSec:Math.round(b.warmup/1000),workSec:Math.round(b.work/1000),restSec:Math.round(b.rest/1000),mfb:w.mfb||null,hr:num(ff.hr),hrMax:num(ff.hrMax),zone:zone,cal:num(ff.cal),rpe:num(ff.rpe),notes:(ff.notes||"").trim(),bw:w.bw,entries:entries,ts:Date.now()};
+    var sess={id:"l-"+Date.now()+"-"+Math.random().toString(36).slice(2,6),routineId:w.routineId,name:w.name,mode:"full",date:w.date,mins:Math.round(b.total/60000),warmupSec:Math.round(b.warmup/1000),workSec:Math.round(b.work/1000),restSec:Math.round(b.rest/1000),mfb:w.mfb||null,hr:num(ff.hr),hrMax:num(ff.hrMax),zone:zone,whoopZones:(w.whoopZones||null),cal:num(ff.cal),rpe:num(ff.rpe),notes:(ff.notes||"").trim(),bw:w.bw,entries:entries,ts:Date.now()};
     state.training.liftSessions=state.training.liftSessions||{};var d=w.date;var list=(state.training.liftSessions[d]||[]).slice();list.push(sess);state.training.liftSessions[d]=list;
     syncLiftTags(d);saveTraining();save();state.workout=null;saveWorkout();if(woTimer)clearInterval(woTimer);state.liftViewDate=d;state.liftViewId=sess.id;state.liftEdit=null;state.view="liftview";toast("Workout saved");render();return;}
   if(a==="lift:view"){state.liftViewDate=state.selDate;state.liftViewId=el.getAttribute("data-id");state.liftEdit=null;state.view="liftview";render();return;}
@@ -16973,7 +17064,7 @@ document.addEventListener("click",function(e){
    entry gating alone proves nothing once an await intervenes. Fail closed: if
    the gate state or durable storage is unavailable, nothing mutates. */
 var M10_GATED={};
-["act:addcat","act:del","act:toggle","ai:copy","ai:gen","cal:ignore","cal:overwrite","cal:usecalc","cardio:del","cardio:save","cf:newtype","ci:send","ci:skipyes","ci:unskip","day:clear","day:reopendo","ex:clearall","ex:del","ex:save","ex:seedall","exp:go","exseed:add","fb:done","fb:set","glp:compound","glp:compoundsave","glp:dose:del","glp:dose:open","glp:dose:save","glp:enable","glp:showdue","glp:siterot","glp:skip","glp:sym:del","glp:sym:edit","glp:sym:newsave","glp:sym:open","glp:sym:save","glp:symptoms","glp:titration","hk:import","import","lift:del","lift:save","lift:savedetail","m10cx:server","m10cx:takeover","m10p:apply","m10p:export","m8:cx:local","m8:cx:server","macro:keep","macro:suggest","max:open","night:gen","night:toggle","note:del","note:save","ob:back","ob:recalc","paste:do","pb:adv","pb:pwsave","pbk:import","photo:add","pphoto:add","preset:del","rat:set","reminder:add","reset:ask","reset:do","ri:mv","ri:pick","ri:prog","ri:remove","rt:del","rt:new","rt:save","set:activity","set:sex","set:strategy","set:theme","set:ttype","set:units","set:weekstart","skip:calories","skip:sleep","skip:steps","skip:weight","status:end","status:endnow","status:save","sum:coachreport","sum:exportall","sum:exportweek","sum:toggle","sync:pull","sync:push","sync:test","tdee:apply","tdee:later","weight:add","weight:del","wo:addset","wo:begin","wo:bwsave","wo:delset","wo:discard","wo:discardnow","wo:endnow","wo:endrest","wo:exaddset","wo:exmove","wo:exprog","wo:exremove","wo:finish","wo:finishback","wo:finishlater","wo:log","wo:replacepick","wo:replsave:fwd","wo:resume","wo:savesession","wo:skipset","wo:skipthem","wo:start","wo:startroutine","wu:no","wu:yes","whoop:toggle","whoop:sync","whoop:disconnect","whoop:usesleep","ri:sslink","ri:ssunlink","wo:sslink","wo:ssunlink"].forEach(function(a){M10_GATED[a]=1;});
+["act:addcat","act:del","act:toggle","ai:copy","ai:gen","cal:ignore","cal:overwrite","cal:usecalc","cardio:del","cardio:save","cf:newtype","ci:send","ci:skipyes","ci:unskip","day:clear","day:reopendo","ex:clearall","ex:del","ex:save","ex:seedall","exp:go","exseed:add","fb:done","fb:set","glp:compound","glp:compoundsave","glp:dose:del","glp:dose:open","glp:dose:save","glp:enable","glp:showdue","glp:siterot","glp:skip","glp:sym:del","glp:sym:edit","glp:sym:newsave","glp:sym:open","glp:sym:save","glp:symptoms","glp:titration","hk:import","import","lift:del","lift:save","lift:savedetail","m10cx:server","m10cx:takeover","m10p:apply","m10p:export","m8:cx:local","m8:cx:server","macro:keep","macro:suggest","max:open","night:gen","night:toggle","note:del","note:save","ob:back","ob:recalc","paste:do","pb:adv","pb:pwsave","pbk:import","photo:add","pphoto:add","preset:del","rat:set","reminder:add","reset:ask","reset:do","ri:mv","ri:pick","ri:prog","ri:remove","rt:del","rt:new","rt:save","set:activity","set:sex","set:strategy","set:theme","set:ttype","set:units","set:weekstart","skip:calories","skip:sleep","skip:steps","skip:weight","status:end","status:endnow","status:save","sum:coachreport","sum:exportall","sum:exportweek","sum:toggle","sync:pull","sync:push","sync:test","tdee:apply","tdee:later","weight:add","weight:del","wo:addset","wo:begin","wo:bwsave","wo:delset","wo:discard","wo:discardnow","wo:endnow","wo:endrest","wo:exaddset","wo:exmove","wo:exprog","wo:exremove","wo:finish","wo:finishback","wo:finishlater","wo:log","wo:replacepick","wo:replsave:fwd","wo:resume","wo:savesession","wo:skipset","wo:skipthem","wo:start","wo:startroutine","wu:no","wu:yes","whoop:toggle","whoop:sync","whoop:disconnect","whoop:usesleep","whoop:useresting","whoop:undomax","ri:sslink","ri:ssunlink","wo:sslink","wo:ssunlink"].forEach(function(a){M10_GATED[a]=1;});
 
 /* fresh, complete authority check — account, session generation, holder,
    deadline AND fence identity, plus storage health */
