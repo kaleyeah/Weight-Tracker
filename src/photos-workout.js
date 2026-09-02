@@ -2040,6 +2040,12 @@ function cardioFormHTML(cf){
   h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Peak HR <em>bpm, optional</em></span><input class="wl-cf-input wl-num" data-cf="hrMax" type="text" inputmode="numeric" placeholder="\u2014" value="'+(cf.hrMax!=null?esc(String(cf.hrMax)):"")+'"></label><label class="wl-field"><span>Est. calories <em>optional</em></span><input class="wl-cf-input wl-num" data-cf="cal" type="text" inputmode="numeric" placeholder="\u2014" value="'+(cf.cal!=null?esc(String(cf.cal)):"")+'"></label></div>';
   h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>RPE <em>1-10, optional</em></span><input class="wl-cf-input wl-num" data-cf="rpe" type="text" inputmode="numeric" placeholder="\u2014" value="'+(cf.rpe!=null?esc(String(cf.rpe)):"")+'"></label><label class="wl-field" style="visibility:hidden"><span>.</span><input></label></div>';
   h+='<div id="wl-zonearea" style="margin-top:12px">'+zoneAreaHTML(cf)+'</div>';
+  /* the full zone split for this activity, when WHOOP recorded one — the single
+     zone above is derived from average HR and says nothing about the shape */
+  if(typeof whoopZonesForSession==="function"){
+    var _cz=cf.whoopZones||whoopZonesForSession({date:state.selDate,ts:num(cf.ts),mins:num(cf.mins),whoopZones:cf.whoopZones});
+    if(_cz)h+=whoopZoneBarHTML(_cz);
+  }
   h+='<label class="wl-field wl-field-full" style="margin-top:12px"><span>Notes <em>optional</em></span><textarea class="wl-cf-input" data-cf="notes" placeholder="How it felt, incline, intervals \u2014 anything for your coach\u2026" style="width:100%;min-height:60px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:14px;padding:11px 12px;box-sizing:border-box;outline:none;resize:vertical">'+esc(cf.notes||"")+'</textarea></label>';
   h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:14px" data-act="cardio:save">'+(cf.id?"Save changes":"Log cardio")+'</button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="cardio:cancel">Cancel</button>';
   return h+'</div>';

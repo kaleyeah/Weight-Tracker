@@ -456,7 +456,12 @@ document.addEventListener("click",function(e){
     state.training.exercises=list;saveTraining();state.exForm=null;toast("Saved");render();return;}
   if(a==="ex:del"){var did=el.getAttribute("data-id");var dex=(state.training.exercises||[]).filter(function(e){return e.id===did;})[0];if(!dex)return;askConfirm("Remove \""+dex.name+"\" from your library? This can\u2019t be undone.",function(){state.training.exercises=(state.training.exercises||[]).filter(function(e){return e.id!==did;});saveTraining();if(state.exForm&&state.exForm.id===did)state.exForm=null;});return;}
   if(a==="cardio:add"){state.cardioForm={kind:"cardio",id:null,picking:true,type:"",mins:"",zone:2,rpe:"",cal:"",hr:"",hrMax:"",notes:"",newOpen:false};state.view="cardioadd";render();return;}
-  if(a==="cardio:edit"){var eid=el.getAttribute("data-id");var es=((state.training.sessions[state.selDate])||[]).filter(function(s){return s.id===eid;})[0];if(es)state.cardioForm={kind:"cardio",id:es.id,type:es.type,mins:es.mins,zone:es.zone||2,rpe:es.rpe!=null?es.rpe:"",cal:es.cal!=null?es.cal:"",hr:es.hr!=null?es.hr:"",hrMax:es.hrMax!=null?es.hrMax:"",notes:es.notes!=null?es.notes:"",picking:false,newOpen:false};state.view="cardioadd";render();return;}
+  if(a==="cardio:edit"){var eid=el.getAttribute("data-id");var es=((state.training.sessions[state.selDate])||[]).filter(function(s){return s.id===eid;})[0];if(es)state.cardioForm={kind:"cardio",id:es.id,type:es.type,mins:es.mins,zone:es.zone||2,rpe:es.rpe!=null?es.rpe:"",cal:es.cal!=null?es.cal:"",hr:es.hr!=null?es.hr:"",hrMax:es.hrMax!=null?es.hrMax:"",notes:es.notes!=null?es.notes:"",
+    /* carry the WHOOP provenance through an edit: without it, saving would drop
+       the id (so the workout would be offered for import again as a duplicate),
+       lose the zone split, and stamp a fresh ts that breaks the time match */
+    ts:es.ts,whoopId:es.whoopId||null,whoopZones:es.whoopZones||null,whoopStrain:(es.whoopStrain!=null?es.whoopStrain:null),whoopSport:es.whoopSport||null,
+    picking:false,newOpen:false};state.view="cardioadd";render();return;}
   if(a==="cardio:pick"){state.cardioTypeEdit=false;if(state.cardioForm){state.cardioForm.type=el.getAttribute("data-type");state.cardioForm.picking=false;}render();return;}
   if(a==="cardio:repick"){if(state.cardioForm)state.cardioForm.picking=true;render();return;}
   if(a==="cardio:cancel"){state.cardioForm=null;state.view="train";render();return;}
@@ -470,7 +475,10 @@ document.addEventListener("click",function(e){
     if(!cf.type){toast("Pick a cardio type");return;}if(mins==null||mins<=0){toast("Enter a duration in minutes");return;}
     var d=state.selDate;var list=((state.training.sessions[d])||[]).slice();
     var hrv=num(cf.hr);var zone=zoneForHR(hrv);if(zone==null)zone=(cf.zone||null);
-    var sess={id:cf.id||("c-"+Date.now()+"-"+Math.random().toString(36).slice(2,6)),kind:"cardio",type:cf.type,mins:Math.round(mins),zone:zone,rpe:num(cf.rpe),cal:num(cf.cal),hr:num(cf.hr),hrMax:num(cf.hrMax),notes:(cf.notes||"").trim(),ts:Date.now()};
+    var sess={id:cf.id||("c-"+Date.now()+"-"+Math.random().toString(36).slice(2,6)),kind:"cardio",type:cf.type,mins:Math.round(mins),zone:zone,rpe:num(cf.rpe),cal:num(cf.cal),hr:num(cf.hr),hrMax:num(cf.hrMax),notes:(cf.notes||"").trim(),
+      ts:(cf.id&&num(cf.ts)!=null)?num(cf.ts):Date.now(),   /* an edit keeps when it happened */
+      whoopId:cf.whoopId||null,whoopZones:cf.whoopZones||null,
+      whoopStrain:(cf.whoopStrain!=null?cf.whoopStrain:null),whoopSport:cf.whoopSport||null};
     if(cf.id){for(var i=0;i<list.length;i++){if(list[i].id===cf.id){list[i]=sess;break;}}}else list.push(sess);
     state.training.sessions[d]=list;syncCardioTags(d);saveTraining();save();state.cardioForm=null;state.view="train";toast("Cardio logged");render();return;}
   if(a==="cardio:del"){var did=el.getAttribute("data-id");var dd2=state.selDate;var sList=(state.training.sessions[dd2])||[];var victim=sList.filter(function(s){return s.id===did;})[0];askConfirm("Delete this "+((victim&&victim.type)||"cardio")+" session"+(victim&&victim.mins?" ("+victim.mins+" min)":"")+"? This can\u2019t be undone.",function(){var l2=((state.training.sessions[dd2])||[]).filter(function(s){return s.id!==did;});if(l2.length)state.training.sessions[dd2]=l2;else delete state.training.sessions[dd2];syncCardioTags(dd2);saveTraining();save();if(state.cardioForm&&state.cardioForm.id===did)state.cardioForm=null;});return;}

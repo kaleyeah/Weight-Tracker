@@ -1132,7 +1132,7 @@ input[type=range][data-pfadj]{width:100%;accent-color:var(--accent);min-height:2
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-09-02.515-whoop-names-retry";
+var APP_BUILD="2026-09-02.516-cardio-zones";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -10683,6 +10683,12 @@ function cardioFormHTML(cf){
   h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Peak HR <em>bpm, optional</em></span><input class="wl-cf-input wl-num" data-cf="hrMax" type="text" inputmode="numeric" placeholder="\u2014" value="'+(cf.hrMax!=null?esc(String(cf.hrMax)):"")+'"></label><label class="wl-field"><span>Est. calories <em>optional</em></span><input class="wl-cf-input wl-num" data-cf="cal" type="text" inputmode="numeric" placeholder="\u2014" value="'+(cf.cal!=null?esc(String(cf.cal)):"")+'"></label></div>';
   h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>RPE <em>1-10, optional</em></span><input class="wl-cf-input wl-num" data-cf="rpe" type="text" inputmode="numeric" placeholder="\u2014" value="'+(cf.rpe!=null?esc(String(cf.rpe)):"")+'"></label><label class="wl-field" style="visibility:hidden"><span>.</span><input></label></div>';
   h+='<div id="wl-zonearea" style="margin-top:12px">'+zoneAreaHTML(cf)+'</div>';
+  /* the full zone split for this activity, when WHOOP recorded one — the single
+     zone above is derived from average HR and says nothing about the shape */
+  if(typeof whoopZonesForSession==="function"){
+    var _cz=cf.whoopZones||whoopZonesForSession({date:state.selDate,ts:num(cf.ts),mins:num(cf.mins),whoopZones:cf.whoopZones});
+    if(_cz)h+=whoopZoneBarHTML(_cz);
+  }
   h+='<label class="wl-field wl-field-full" style="margin-top:12px"><span>Notes <em>optional</em></span><textarea class="wl-cf-input" data-cf="notes" placeholder="How it felt, incline, intervals \u2014 anything for your coach\u2026" style="width:100%;min-height:60px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:14px;padding:11px 12px;box-sizing:border-box;outline:none;resize:vertical">'+esc(cf.notes||"")+'</textarea></label>';
   h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:14px" data-act="cardio:save">'+(cf.id?"Save changes":"Log cardio")+'</button><button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="cardio:cancel">Cancel</button>';
   return h+'</div>';
@@ -12036,7 +12042,12 @@ document.addEventListener("click",function(e){
     state.training.exercises=list;saveTraining();state.exForm=null;toast("Saved");render();return;}
   if(a==="ex:del"){var did=el.getAttribute("data-id");var dex=(state.training.exercises||[]).filter(function(e){return e.id===did;})[0];if(!dex)return;askConfirm("Remove \""+dex.name+"\" from your library? This can\u2019t be undone.",function(){state.training.exercises=(state.training.exercises||[]).filter(function(e){return e.id!==did;});saveTraining();if(state.exForm&&state.exForm.id===did)state.exForm=null;});return;}
   if(a==="cardio:add"){state.cardioForm={kind:"cardio",id:null,picking:true,type:"",mins:"",zone:2,rpe:"",cal:"",hr:"",hrMax:"",notes:"",newOpen:false};state.view="cardioadd";render();return;}
-  if(a==="cardio:edit"){var eid=el.getAttribute("data-id");var es=((state.training.sessions[state.selDate])||[]).filter(function(s){return s.id===eid;})[0];if(es)state.cardioForm={kind:"cardio",id:es.id,type:es.type,mins:es.mins,zone:es.zone||2,rpe:es.rpe!=null?es.rpe:"",cal:es.cal!=null?es.cal:"",hr:es.hr!=null?es.hr:"",hrMax:es.hrMax!=null?es.hrMax:"",notes:es.notes!=null?es.notes:"",picking:false,newOpen:false};state.view="cardioadd";render();return;}
+  if(a==="cardio:edit"){var eid=el.getAttribute("data-id");var es=((state.training.sessions[state.selDate])||[]).filter(function(s){return s.id===eid;})[0];if(es)state.cardioForm={kind:"cardio",id:es.id,type:es.type,mins:es.mins,zone:es.zone||2,rpe:es.rpe!=null?es.rpe:"",cal:es.cal!=null?es.cal:"",hr:es.hr!=null?es.hr:"",hrMax:es.hrMax!=null?es.hrMax:"",notes:es.notes!=null?es.notes:"",
+    /* carry the WHOOP provenance through an edit: without it, saving would drop
+       the id (so the workout would be offered for import again as a duplicate),
+       lose the zone split, and stamp a fresh ts that breaks the time match */
+    ts:es.ts,whoopId:es.whoopId||null,whoopZones:es.whoopZones||null,whoopStrain:(es.whoopStrain!=null?es.whoopStrain:null),whoopSport:es.whoopSport||null,
+    picking:false,newOpen:false};state.view="cardioadd";render();return;}
   if(a==="cardio:pick"){state.cardioTypeEdit=false;if(state.cardioForm){state.cardioForm.type=el.getAttribute("data-type");state.cardioForm.picking=false;}render();return;}
   if(a==="cardio:repick"){if(state.cardioForm)state.cardioForm.picking=true;render();return;}
   if(a==="cardio:cancel"){state.cardioForm=null;state.view="train";render();return;}
@@ -12050,7 +12061,10 @@ document.addEventListener("click",function(e){
     if(!cf.type){toast("Pick a cardio type");return;}if(mins==null||mins<=0){toast("Enter a duration in minutes");return;}
     var d=state.selDate;var list=((state.training.sessions[d])||[]).slice();
     var hrv=num(cf.hr);var zone=zoneForHR(hrv);if(zone==null)zone=(cf.zone||null);
-    var sess={id:cf.id||("c-"+Date.now()+"-"+Math.random().toString(36).slice(2,6)),kind:"cardio",type:cf.type,mins:Math.round(mins),zone:zone,rpe:num(cf.rpe),cal:num(cf.cal),hr:num(cf.hr),hrMax:num(cf.hrMax),notes:(cf.notes||"").trim(),ts:Date.now()};
+    var sess={id:cf.id||("c-"+Date.now()+"-"+Math.random().toString(36).slice(2,6)),kind:"cardio",type:cf.type,mins:Math.round(mins),zone:zone,rpe:num(cf.rpe),cal:num(cf.cal),hr:num(cf.hr),hrMax:num(cf.hrMax),notes:(cf.notes||"").trim(),
+      ts:(cf.id&&num(cf.ts)!=null)?num(cf.ts):Date.now(),   /* an edit keeps when it happened */
+      whoopId:cf.whoopId||null,whoopZones:cf.whoopZones||null,
+      whoopStrain:(cf.whoopStrain!=null?cf.whoopStrain:null),whoopSport:cf.whoopSport||null};
     if(cf.id){for(var i=0;i<list.length;i++){if(list[i].id===cf.id){list[i]=sess;break;}}}else list.push(sess);
     state.training.sessions[d]=list;syncCardioTags(d);saveTraining();save();state.cardioForm=null;state.view="train";toast("Cardio logged");render();return;}
   if(a==="cardio:del"){var did=el.getAttribute("data-id");var dd2=state.selDate;var sList=(state.training.sessions[dd2])||[];var victim=sList.filter(function(s){return s.id===did;})[0];askConfirm("Delete this "+((victim&&victim.type)||"cardio")+" session"+(victim&&victim.mins?" ("+victim.mins+" min)":"")+"? This can\u2019t be undone.",function(){var l2=((state.training.sessions[dd2])||[]).filter(function(s){return s.id!==did;});if(l2.length)state.training.sessions[dd2]=l2;else delete state.training.sessions[dd2];syncCardioTags(dd2);saveTraining();save();if(state.cardioForm&&state.cardioForm.id===did)state.cardioForm=null;});return;}
