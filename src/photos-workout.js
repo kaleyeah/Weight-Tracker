@@ -2121,11 +2121,17 @@ function view_train(){
   h+='<div class="wl-card catcard lift">'+catHead("lift","Weight Training",liftSum);
   if(state.workout){var wp=state.workout.paused;h+='<button class="wl-inprogress'+(wp?" partial":"")+'" data-act="wo:resumeask"><span><span class="wl-ip-dot'+(wp?" pauseddot":"")+'"></span>'+esc(state.workout.name||"Workout")+'</span><span class="wl-ip-badge'+(wp?" partial":"")+'">'+(wp?"Partial ›":"In Progress ›")+'</span></button>';}
   if(lsess.length){lsess.forEach(function(s){var meta=[];meta.push((s.mode==="full"?"logged":"quick"));if(s.mins)meta.push(s.mins+" min");if(s.hr)meta.push("HR "+s.hr+(s.hrMax?"/"+s.hrMax:""));if(s.rpe)meta.push("RPE "+s.rpe);if(s.cal)meta.push("~"+s.cal+" cal");
-    h+='<div class="wl-sess"><button class="wl-sess-main" data-act="lift:view" data-id="'+s.id+'"><span class="wl-sess-type">'+esc(s.name||"Weight training")+'</span><span class="wl-sess-meta">'+meta.join("  ·  ")+'</span></button><button class="wl-icon-btn" data-act="lift:del" data-id="'+s.id+'">'+I.trash.replace("<svg","<svg width=15 height=15")+'</button></div>';});}
+    h+='<div class="wl-sess"><button class="wl-sess-main" data-act="lift:view" data-id="'+s.id+'"><span class="wl-sess-type">'+esc(s.name||"Weight training")+'</span><span class="wl-sess-meta">'+meta.join("  ·  ")+'</span></button><button class="wl-icon-btn" data-act="lift:del" data-id="'+s.id+'">'+I.trash.replace("<svg","<svg width=15 height=15")+'</button></div>';
+    if(typeof whoopZonesForSession==="function"){var _lz=whoopZonesForSession(s);if(_lz)h+=whoopZoneBarHTML(_lz,{label:false});}
+  });}
   h+='<button class="wl-btn wl-btn-lift wl-full" style="margin-top:10px" data-act="wt:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add Weight Training</button></div>';
   h+='<div class="wl-card catcard car">'+catHead("car","Cardio",carSum);
   if(sess.length){sess.forEach(function(s){var meta=[];meta.push(s.mins+" min");if(s.zone)meta.push("Zone "+s.zone);if(s.hr)meta.push("HR "+s.hr+(s.hrMax?"/"+s.hrMax:""));else if(s.hrMax)meta.push("peak "+s.hrMax);if(s.rpe)meta.push("RPE "+s.rpe);if(s.cal)meta.push("~"+s.cal+" cal");
-    h+='<div class="wl-sess"><button class="wl-sess-main" data-act="cardio:edit" data-id="'+s.id+'"><span class="wl-sess-type">'+esc(s.type||"Cardio")+'</span><span class="wl-sess-meta">'+meta.join("  ·  ")+'</span></button><button class="wl-icon-btn" data-act="cardio:del" data-id="'+s.id+'">'+I.trash.replace("<svg","<svg width=15 height=15")+'</button></div>';});}
+    h+='<div class="wl-sess"><button class="wl-sess-main" data-act="cardio:edit" data-id="'+s.id+'"><span class="wl-sess-type">'+esc(s.type||"Cardio")+'</span><span class="wl-sess-meta">'+meta.join("  ·  ")+'</span></button><button class="wl-icon-btn" data-act="cardio:del" data-id="'+s.id+'">'+I.trash.replace("<svg","<svg width=15 height=15")+'</button></div>';
+    /* the zone split on the list itself — the single "Zone N" in the meta line
+       is an average and hides the shape of the session */
+    if(typeof whoopZonesForSession==="function"){var _cz=whoopZonesForSession(s);if(_cz)h+=whoopZoneBarHTML(_cz,{label:false});}
+  });}
   h+='<button class="wl-btn wl-btn-cardio wl-full" style="margin-top:10px" data-act="cardio:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add Cardio</button></div>';
 
   h+=actCatCardHTML("rest","Recovery",d);

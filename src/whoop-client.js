@@ -480,10 +480,17 @@ function whoopZonesForSession(s){
     var m=whoopMatchWorkout(end-mins*60000,end,s.date);
     if(m&&m.zones)return m.zones;
   }
-  /* no usable window (an old record, or a quick log): accept a lone workout
-     on that day rather than guessing between several */
-  var same=(state.whoopWorkouts||[]).filter(function(w){return w.date===s.date&&w.zones;});
-  return same.length===1?same[0].zones:null;
+  var day=(state.whoopWorkouts||[]).filter(function(w){return w.date===s.date&&w.zones;});
+  /* Name match: a session called "Spin" on a day WHOOP recorded a spin is the
+     same session. This recovers sessions whose whoopId was stripped — an edit
+     on builds before .516 dropped it — and needs no migration. */
+  var ty=String(s.type||"").toLowerCase().trim();
+  if(ty){
+    var named=day.filter(function(w){return String(w.sport||"").toLowerCase().trim()===ty;});
+    if(named.length===1)return named[0].zones;
+  }
+  /* otherwise accept a lone workout on the day rather than guessing between several */
+  return day.length===1?day[0].zones:null;
 }
 
 /* ---- importing WHOOP workouts as cardio -------------------------------------

@@ -180,6 +180,13 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 .wl-zrow-v{width:44px;text-align:right;font-family:var(--mono);font-size:12px;color:var(--text);font-variant-numeric:tabular-nums;}
 .wl-zrow-v.zero{color:var(--faint);}
 .wl-zbar-wrap{margin:10px 0 2px;}
+.wl-sess + .wl-zbar-wrap{margin:-2px 0 12px;padding:0 2px;}
+/* the activity cards are strongly coloured, so the zone key needs its own
+   contrast there — muted grey and a blue swatch both vanish on blue */
+.catcard .wl-zbar{background:rgba(0,0,0,.28);border-color:rgba(255,255,255,.22);}
+.catcard .wl-zk{color:rgba(255,255,255,.82);}
+.catcard .wl-zk b{color:#fff;}
+.catcard .wl-zk i{box-shadow:0 0 0 1px rgba(0,0,0,.35);}
 .wl-zbar-h{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;font-size:10px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);}
 .wl-zbar-h span:last-child{font-family:var(--mono);letter-spacing:0;color:var(--muted);}
 .wl-zbar{display:flex;height:14px;border-radius:7px;overflow:hidden;background:var(--bg2);border:1px solid var(--line);}
@@ -1132,7 +1139,7 @@ input[type=range][data-pfadj]{width:100%;accent-color:var(--accent);min-height:2
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-09-02.516-cardio-zones";
+var APP_BUILD="2026-09-02.517-zone-recover";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -10764,11 +10771,17 @@ function view_train(){
   h+='<div class="wl-card catcard lift">'+catHead("lift","Weight Training",liftSum);
   if(state.workout){var wp=state.workout.paused;h+='<button class="wl-inprogress'+(wp?" partial":"")+'" data-act="wo:resumeask"><span><span class="wl-ip-dot'+(wp?" pauseddot":"")+'"></span>'+esc(state.workout.name||"Workout")+'</span><span class="wl-ip-badge'+(wp?" partial":"")+'">'+(wp?"Partial ›":"In Progress ›")+'</span></button>';}
   if(lsess.length){lsess.forEach(function(s){var meta=[];meta.push((s.mode==="full"?"logged":"quick"));if(s.mins)meta.push(s.mins+" min");if(s.hr)meta.push("HR "+s.hr+(s.hrMax?"/"+s.hrMax:""));if(s.rpe)meta.push("RPE "+s.rpe);if(s.cal)meta.push("~"+s.cal+" cal");
-    h+='<div class="wl-sess"><button class="wl-sess-main" data-act="lift:view" data-id="'+s.id+'"><span class="wl-sess-type">'+esc(s.name||"Weight training")+'</span><span class="wl-sess-meta">'+meta.join("  ·  ")+'</span></button><button class="wl-icon-btn" data-act="lift:del" data-id="'+s.id+'">'+I.trash.replace("<svg","<svg width=15 height=15")+'</button></div>';});}
+    h+='<div class="wl-sess"><button class="wl-sess-main" data-act="lift:view" data-id="'+s.id+'"><span class="wl-sess-type">'+esc(s.name||"Weight training")+'</span><span class="wl-sess-meta">'+meta.join("  ·  ")+'</span></button><button class="wl-icon-btn" data-act="lift:del" data-id="'+s.id+'">'+I.trash.replace("<svg","<svg width=15 height=15")+'</button></div>';
+    if(typeof whoopZonesForSession==="function"){var _lz=whoopZonesForSession(s);if(_lz)h+=whoopZoneBarHTML(_lz,{label:false});}
+  });}
   h+='<button class="wl-btn wl-btn-lift wl-full" style="margin-top:10px" data-act="wt:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add Weight Training</button></div>';
   h+='<div class="wl-card catcard car">'+catHead("car","Cardio",carSum);
   if(sess.length){sess.forEach(function(s){var meta=[];meta.push(s.mins+" min");if(s.zone)meta.push("Zone "+s.zone);if(s.hr)meta.push("HR "+s.hr+(s.hrMax?"/"+s.hrMax:""));else if(s.hrMax)meta.push("peak "+s.hrMax);if(s.rpe)meta.push("RPE "+s.rpe);if(s.cal)meta.push("~"+s.cal+" cal");
-    h+='<div class="wl-sess"><button class="wl-sess-main" data-act="cardio:edit" data-id="'+s.id+'"><span class="wl-sess-type">'+esc(s.type||"Cardio")+'</span><span class="wl-sess-meta">'+meta.join("  ·  ")+'</span></button><button class="wl-icon-btn" data-act="cardio:del" data-id="'+s.id+'">'+I.trash.replace("<svg","<svg width=15 height=15")+'</button></div>';});}
+    h+='<div class="wl-sess"><button class="wl-sess-main" data-act="cardio:edit" data-id="'+s.id+'"><span class="wl-sess-type">'+esc(s.type||"Cardio")+'</span><span class="wl-sess-meta">'+meta.join("  ·  ")+'</span></button><button class="wl-icon-btn" data-act="cardio:del" data-id="'+s.id+'">'+I.trash.replace("<svg","<svg width=15 height=15")+'</button></div>';
+    /* the zone split on the list itself — the single "Zone N" in the meta line
+       is an average and hides the shape of the session */
+    if(typeof whoopZonesForSession==="function"){var _cz=whoopZonesForSession(s);if(_cz)h+=whoopZoneBarHTML(_cz,{label:false});}
+  });}
   h+='<button class="wl-btn wl-btn-cardio wl-full" style="margin-top:10px" data-act="cardio:add">'+I.plus.replace("<svg","<svg width=16 height=16")+'Add Cardio</button></div>';
 
   h+=actCatCardHTML("rest","Recovery",d);
@@ -11437,10 +11450,17 @@ function whoopZonesForSession(s){
     var m=whoopMatchWorkout(end-mins*60000,end,s.date);
     if(m&&m.zones)return m.zones;
   }
-  /* no usable window (an old record, or a quick log): accept a lone workout
-     on that day rather than guessing between several */
-  var same=(state.whoopWorkouts||[]).filter(function(w){return w.date===s.date&&w.zones;});
-  return same.length===1?same[0].zones:null;
+  var day=(state.whoopWorkouts||[]).filter(function(w){return w.date===s.date&&w.zones;});
+  /* Name match: a session called "Spin" on a day WHOOP recorded a spin is the
+     same session. This recovers sessions whose whoopId was stripped — an edit
+     on builds before .516 dropped it — and needs no migration. */
+  var ty=String(s.type||"").toLowerCase().trim();
+  if(ty){
+    var named=day.filter(function(w){return String(w.sport||"").toLowerCase().trim()===ty;});
+    if(named.length===1)return named[0].zones;
+  }
+  /* otherwise accept a lone workout on the day rather than guessing between several */
+  return day.length===1?day[0].zones:null;
 }
 
 /* ---- importing WHOOP workouts as cardio -------------------------------------
