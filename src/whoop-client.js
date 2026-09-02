@@ -92,6 +92,8 @@ function whoopSync(cb){
   whoopFetch("/whoop/sync?from="+w.from+"&to="+w.to,null,function(r){
     if(!r||!r.ok)return cb(r||{ok:false,error:"no response"});
     state.whoopWorkouts=(r.workouts||[]).slice(-120);   /* enough to match recent sessions */
+    /* remember that WHOOP still owes us a score, so the next foreground retries */
+    state.whoopPending=(num(r.pendingScore)||0)>0;
     var n=whoopApply(r);
     /* "always import" brings deliberate WHOOP workouts across without a tap.
        Lifting is never auto-imported — that record belongs to the routine. */
@@ -325,12 +327,22 @@ function whoopChartsHTML(){
    every single time you open the app is noise. Failures are silent too (the
    tailnet may simply be unreachable); the Settings screen is where you go to
    find out what happened. */
-var WHOOP_AUTO_MIN=20;
+/* Short, because WHOOP publishes a workout the moment it ends and finishes
+   SCORING it up to a minute later. A sync landing in that window sees an
+   unscored workout and correctly drops it — and a long cooldown then locked the
+   retry out for twenty minutes. That is exactly how a spin logged at 23:37:42
+   went missing. WHOOP allows 100 requests a minute; a sync per app-foreground
+   is nothing. */
+var WHOOP_AUTO_MIN=3;
+/* If WHOOP had a workout it had not finished scoring, come back for it soon
+   rather than waiting out the normal gap. */
+var WHOOP_PENDING_MIN=1;
 function whoopAutoSync(){
   if(!whoopOn()||state.whoopSyncing)return;
   if(typeof navigator!=="undefined"&&navigator.onLine===false)return;
   var last=num(state.settings.whoopLast)||0;
-  if(Date.now()-last < WHOOP_AUTO_MIN*60000)return;
+  var gap=state.whoopPending?WHOOP_PENDING_MIN:WHOOP_AUTO_MIN;
+  if(Date.now()-last < gap*60000)return;
   state.whoopSyncing=true;
   whoopSync(function(r){
     state.whoopSyncing=false;
@@ -485,17 +497,22 @@ function whoopZonesForSession(s){
    Anything overlapping a logged lift session is skipped on the same principle,
    whatever WHOOP called it. */
 
-var WHOOP_SPORT_MAP={
-  running:"Outdoor run", walking:"Walking", hiking:"Hiking", cycling:"Bike",
-  rowing:"Rowing", elliptical:"Elliptical", swimming:"Swimming", stairmaster:"Stairmaster",
-  "functional fitness":"Functional fitness", "jump rope":"Jump rope"
-};
+/* WHOOP's OWN name for the activity is what carries through — it is what the
+   athlete chose on the strap, and renaming "running" to "Outdoor run" or
+   "cycling" to "Bike" (which this used to do) substitutes our vocabulary for
+   theirs. Only the casing is touched, since WHOOP sends these lower-case. */
+var WHOOP_SPORT_CASE={hiit:"HIIT",mma:"MMA",hiking:"Hiking"};
 function whoopIsLifting(w){return /weight|lifting|powerlift|strength/i.test(w.sport||"");}
 function whoopCardioType(w){
-  var n=(w.sport||"").toLowerCase().trim();
-  if(WHOOP_SPORT_MAP[n])return WHOOP_SPORT_MAP[n];
-  if(!n)return "Cardio";
-  return n.charAt(0).toUpperCase()+n.slice(1);
+  var n=(w.sport||"").trim();
+  if(!n)return "Activity";
+  var low=n.toLowerCase();
+  if(WHOOP_SPORT_CASE[low])return WHOOP_SPORT_CASE[low];
+  /* title-case each word, leaving anything already capitalised alone */
+  return low.split(/\s+/).map(function(word){
+    if(WHOOP_SPORT_CASE[word])return WHOOP_SPORT_CASE[word];
+    return word.charAt(0).toUpperCase()+word.slice(1);
+  }).join(" ");
 }
 function whoopWoMins(w){var a=Date.parse(w.start),b=Date.parse(w.end);
   return (a>0&&b>a)?Math.max(1,Math.round((b-a)/60000)):null;}
@@ -538,7 +555,8 @@ function whoopImportWorkout(w){
   var sess={id:"c-"+Date.now()+"-"+Math.random().toString(36).slice(2,6),kind:"cardio",
     type:whoopCardioType(w),mins:mins,zone:zone,rpe:null,cal:(w.cal!=null?w.cal:null),
     hr:hr,hrMax:(w.maxHr!=null?w.maxHr:null),notes:"",ts:Date.parse(w.end)||Date.now(),
-    whoopId:w.id,whoopZones:w.zones||null,whoopStrain:(w.strain!=null?w.strain:null)};
+    whoopId:w.id,whoopZones:w.zones||null,whoopStrain:(w.strain!=null?w.strain:null),
+    whoopSport:w.sport||null};   /* WHOOP's raw name, kept even if the type is later edited */
   state.training=state.training||{};state.training.sessions=state.training.sessions||{};
   var list=(state.training.sessions[w.date]||[]).slice();
   list.push(sess);state.training.sessions[w.date]=list;
