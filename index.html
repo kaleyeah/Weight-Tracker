@@ -166,6 +166,13 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 .wl-ss-head em{font-style:normal;font-size:11px;font-weight:600;color:var(--faint);letter-spacing:0;text-transform:none;margin-left:auto;text-align:right;}
 .wl-sschip{display:inline-flex;align-items:center;justify-content:center;min-width:19px;height:19px;padding:0 5px;border-radius:6px;background:rgba(124,147,245,.16);border:1px solid rgba(124,147,245,.55);color:var(--reg);font-family:var(--mono);font-size:10.5px;font-weight:800;line-height:1;flex:none;}
 /* ---- WHOOP ---- */
+.wl-wimp{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid var(--line);}
+.wl-wimp:first-of-type{border-top:none;}
+.wl-wimp-l{min-width:0;}
+.wl-wimp-l b{display:block;font-size:14.5px;}
+.wl-wimp-l span{display:block;font-size:11.5px;color:var(--muted);font-family:var(--mono);margin-top:2px;}
+.wl-wimp-b{display:flex;gap:6px;flex:none;}
+.wl-wimp-b .wl-btn{padding:7px 13px;font-size:13px;}
 .wl-zbar-wrap{margin:10px 0 2px;}
 .wl-zbar-h{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;font-size:10px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);}
 .wl-zbar-h span:last-child{font-family:var(--mono);letter-spacing:0;color:var(--muted);}
@@ -1119,7 +1126,7 @@ input[type=range][data-pfadj]{width:100%;accent-color:var(--accent);min-height:2
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-09-01.509-zones-everywhere";
+var APP_BUILD="2026-09-02.510-whoop-cardio-import";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -3538,6 +3545,7 @@ function view_overview(){
   /* WHOOP's read on the day — recovery is a decision input for training, so
      it sits high. Follows selDate, so browsing back shows that day's figures. */
   if(typeof whoopDayCardHTML==="function")h+=whoopDayCardHTML(state.selDate);
+  if(typeof whoopImportCardHTML==="function")h+=whoopImportCardHTML();
   h+=todayChecklistHTML(state.selDate);
   if(!_atTop)h+=_recapUnit;
   h+=activitySummaryHTML(state.selDate);
@@ -6010,18 +6018,22 @@ function srCardioHTML(inp){
    standalone file with its own CSS, so this draws with inline styles rather
    than reaching for the app's classes. */
 var SRZC=["#5A6474","#7C93F5","#5CD6A0","#F5B544","#F2874B","#F26D5B"];
+/* WHOOP's zones are 1-5 on heart-rate reserve; the API's sixth bucket is time
+   BELOW zone 1 — un-zoned, i.e. rest between sets. Named, not numbered. */
+var SRZL=["Rest","Z1","Z2","Z3","Z4","Z5"];
 function srZonesHTML(z){
   if(!z||!z.length)return "";
   var tot=0;for(var i=0;i<z.length;i++)tot+=(z[i]||0);
   if(!tot)return "";
   /* uses the report's OWN css variables — hardcoding light-theme colours here
      rendered the minute figures near-invisible against the dark report card */
-  var h='<div style="margin:9px 0 4px"><div style="font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-bottom:5px">Heart-rate zones &middot; '+srInt(tot)+' min</div>';
+  var work=tot-(z[0]||0);
+  var h='<div style="margin:9px 0 4px"><div style="font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-bottom:5px">Heart-rate zones &middot; '+srInt(work)+' min working of '+srInt(tot)+'</div>';
   h+='<div style="display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--bg2);border:1px solid var(--line)">';
   z.forEach(function(m,i){if(!m)return;h+='<span style="display:block;height:100%;width:'+(m/tot*100).toFixed(2)+'%;background:'+SRZC[i]+'"></span>';});
   h+='</div><div style="display:flex;flex-wrap:wrap;gap:3px 11px;margin-top:7px">';
   z.forEach(function(m,i){if(!m)return;
-    h+='<span style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;color:var(--muted);font-family:var(--mono)"><i style="width:8px;height:8px;border-radius:2px;background:'+SRZC[i]+';display:inline-block"></i>Z'+i+' <b style="color:var(--text)">'+m+'m</b></span>';});
+    h+='<span style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;color:var(--muted);font-family:var(--mono)"><i style="width:8px;height:8px;border-radius:2px;background:'+SRZC[i]+';display:inline-block"></i>'+SRZL[i]+' <b style="color:var(--text)">'+m+'m</b></span>';});
   return h+'</div></div>';
 }
 function srWorkoutsHTML(inp){
@@ -10959,6 +10971,9 @@ function whoopSync(cb){
     if(!r||!r.ok)return cb(r||{ok:false,error:"no response"});
     state.whoopWorkouts=(r.workouts||[]).slice(-120);   /* enough to match recent sessions */
     var n=whoopApply(r);
+    /* "always import" brings deliberate WHOOP workouts across without a tap.
+       Lifting is never auto-imported — that record belongs to the routine. */
+    if(whoopCardioMode()==="auto"){var imp=whoopImportAllPending();if(imp)n.cardio=imp;}
     cb({ok:true,applied:n,fake:!!r.fake});
   });
 }
@@ -11060,6 +11075,11 @@ function whoopSettingsHTML(){
     if(st&&st.ok&&!st.fake&&!st.connected)h+='<button class="wl-btn wl-btn-ghost" style="flex:1" data-act="whoop:connect">Link account</button>';
     else if(st&&st.ok&&st.connected&&!st.fake)h+='<button class="wl-btn wl-btn-ghost" style="flex:1" data-act="whoop:disconnect">Unlink</button>';
     h+='</div>';
+    var _cm=whoopCardioMode();
+    h+='<div class="wl-cf-label" style="margin:14px 0 6px">Cardio WHOOP records</div>'+
+       '<div class="wl-seg2" style="display:grid;grid-template-columns:1fr 1fr 1fr">'+
+       ['off','ask','auto'].map(function(m){return '<button class="wl-seg2btn'+(_cm===m?" on":"")+'" data-act="whoop:cardiomode" data-m="'+m+'">'+(m==="off"?"Ignore":m==="ask"?"Ask me":"Always add")+'</button>';}).join("")+
+       '</div><div class="wl-hint" style="margin-top:6px">Runs, walks and rides you start on WHOOP become cardio sessions here. Weightlifting is never imported — your Compound routine is the record, and WHOOP just supplies its heart rate and zones.</div>';
     h+=whoopRestingOfferHTML();
     h+='<label class="wl-field wl-field-full" style="margin-top:12px"><span>Days to pull each sync</span><input class="wl-num" data-set="whoopDays" type="text" inputmode="numeric" value="'+esc(state.settings.whoopDays!=null?state.settings.whoopDays:"14")+'" placeholder="14"></label>';
     h+='<label class="wl-field wl-field-full" style="margin-top:8px"><span>Service address <em>leave blank for the default</em></span><input data-set="whoopBase" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" value="'+esc(state.settings.whoopBase||"")+'" placeholder="'+esc(WHOOP_DEFAULT_BASE)+'"></label>';
@@ -11270,7 +11290,18 @@ function whoopNoticeHTML(){
    WHOOP reports minutes in each of six zones. Compound already thinks in zones,
    so this is shown as a single stacked bar rather than a table of numbers —
    where the session's time actually went, at a glance. */
+/* WHOOP publishes FIVE zones (1-5) on % of HEART-RATE RESERVE, not max HR:
+   Z1 40-60 recovery, Z2 60-70 aerobic base, Z3 70-80 aerobic, Z4 80-90
+   anaerobic, Z5 90-100 max. The API's sixth bucket, zone_zero, is everything
+   BELOW zone 1 — not a training zone, just un-zoned time, which in a lifting
+   session is the rest between sets. Labelled "Rest" rather than "Z0" so it is
+   never read as a zone.
+   Note this lines up with Compound's own model: with a resting HR set, the app
+   uses Karvonen too, so its Z2-Z5 bounds (60/70/80/90% HRR) are WHOOP's exactly.
+   Compound's Z1 is WHOOP's Z0+Z1 combined. */
 var WH_ZONE_COL=["#5A6474","#7C93F5","#5CD6A0","#F5B544","#F2874B","#F26D5B"];
+var WH_ZONE_NAME=["Below zone 1 — un-zoned / rest","Zone 1 — active recovery (40-60% HRR)","Zone 2 — aerobic base (60-70%)","Zone 3 — aerobic (70-80%)","Zone 4 — anaerobic (80-90%)","Zone 5 — max effort (90-100%)"];
+var WH_ZONE_LBL=["Rest","Z1","Z2","Z3","Z4","Z5"];
 function whoopZoneBarHTML(z,opts){
   if(!z||!z.length)return "";
   opts=opts||{};
@@ -11279,10 +11310,10 @@ function whoopZoneBarHTML(z,opts){
   if(opts.label!==false)h+='<div class="wl-zbar-h"><span>Time in heart-rate zones</span><span>'+fmtDur(tot*60000)+'</span></div>';
   h+='<div class="wl-zbar">';
   z.forEach(function(m,i){if(!m)return;
-    h+='<span class="wl-zseg" style="width:'+(m/tot*100).toFixed(2)+'%;background:'+WH_ZONE_COL[i]+'" title="Zone '+i+': '+m+' min"></span>';});
+    h+='<span class="wl-zseg" style="width:'+(m/tot*100).toFixed(2)+'%;background:'+WH_ZONE_COL[i]+'" title="'+WH_ZONE_NAME[i]+' \u2014 '+m+' min"></span>';});
   h+='</div><div class="wl-zkey">';
   z.forEach(function(m,i){if(!m)return;
-    h+='<span class="wl-zk"><i style="background:'+WH_ZONE_COL[i]+'"></i>Z'+i+' <b>'+m+'m</b></span>';});
+    h+='<span class="wl-zk" title="'+WH_ZONE_NAME[i]+'"><i style="background:'+WH_ZONE_COL[i]+'"></i>'+WH_ZONE_LBL[i]+' <b>'+m+'m</b></span>';});
   return h+'</div></div>';
 }
 
@@ -11303,6 +11334,105 @@ function whoopZonesForSession(s){
      on that day rather than guessing between several */
   var same=(state.whoopWorkouts||[]).filter(function(w){return w.date===s.date&&w.zones;});
   return same.length===1?same[0].zones:null;
+}
+
+/* ---- importing WHOOP workouts as cardio -------------------------------------
+   Starting a workout on the strap is a deliberate act, so a WHOOP workout is a
+   real session — not incidental movement. Bringing them across kills the double
+   entry for cardio.
+
+   LIFTING IS DELIBERATELY EXCLUDED. The routine is logged in Compound, which is
+   the better record; a WHOOP weightlifting workout matches that session for its
+   heart-rate and zone data instead (whoopFillFinish / whoopZonesForSession).
+   Anything overlapping a logged lift session is skipped on the same principle,
+   whatever WHOOP called it. */
+
+var WHOOP_SPORT_MAP={
+  running:"Outdoor run", walking:"Walking", hiking:"Hiking", cycling:"Bike",
+  rowing:"Rowing", elliptical:"Elliptical", swimming:"Swimming", stairmaster:"Stairmaster",
+  "functional fitness":"Functional fitness", "jump rope":"Jump rope"
+};
+function whoopIsLifting(w){return /weight|lifting|powerlift|strength/i.test(w.sport||"");}
+function whoopCardioType(w){
+  var n=(w.sport||"").toLowerCase().trim();
+  if(WHOOP_SPORT_MAP[n])return WHOOP_SPORT_MAP[n];
+  if(!n)return "Cardio";
+  return n.charAt(0).toUpperCase()+n.slice(1);
+}
+function whoopWoMins(w){var a=Date.parse(w.start),b=Date.parse(w.end);
+  return (a>0&&b>a)?Math.max(1,Math.round((b-a)/60000)):null;}
+
+/* does anything already logged cover this workout? */
+function whoopAlreadyLogged(w){
+  var s=Date.parse(w.start),e=Date.parse(w.end);
+  var day=(((state.training||{}).sessions||{})[w.date]||[]);
+  for(var i=0;i<day.length;i++){
+    var c=day[i];if(c.kind!=="cardio")continue;
+    if(c.whoopId===w.id)return true;
+    /* a manually logged session covering the same clock time is the same thing */
+    var ct=num(c.ts),cm=num(c.mins);
+    if(ct&&cm){var cs=ct-cm*60000;if(Math.min(e,ct)-Math.max(s,cs)>300000)return true;}
+  }
+  /* a lift session over the same window is the routine, not cardio */
+  var lifts=(((state.training||{}).liftSessions||{})[w.date]||[]);
+  for(var j=0;j<lifts.length;j++){
+    var L=lifts[j],lt=num(L.ts),lm=num(L.mins);
+    if(lt&&lm){var ls=lt-lm*60000;if(Math.min(e,lt)-Math.max(s,ls)>300000)return true;}
+  }
+  return false;
+}
+function whoopPendingImports(){
+  if(!whoopOn())return [];
+  var skip=state.settings.whoopSkipIds||{};
+  return (state.whoopWorkouts||[]).filter(function(w){
+    if(!w.id||!w.date||whoopIsLifting(w))return false;
+    if(skip[w.id])return false;
+    if(!whoopWoMins(w))return false;
+    return !whoopAlreadyLogged(w);
+  });
+}
+/* Build the cardio session. Same shape cardio:save writes, plus the WHOOP id so
+   it can never be imported twice, and the zone split for the report. */
+function whoopImportWorkout(w){
+  var mins=whoopWoMins(w);if(!mins)return false;
+  var hr=w.avgHr!=null?w.avgHr:null;
+  var zone=(typeof zoneForHR==="function"&&hr!=null)?zoneForHR(hr):null;
+  var sess={id:"c-"+Date.now()+"-"+Math.random().toString(36).slice(2,6),kind:"cardio",
+    type:whoopCardioType(w),mins:mins,zone:zone,rpe:null,cal:(w.cal!=null?w.cal:null),
+    hr:hr,hrMax:(w.maxHr!=null?w.maxHr:null),notes:"",ts:Date.parse(w.end)||Date.now(),
+    whoopId:w.id,whoopZones:w.zones||null,whoopStrain:(w.strain!=null?w.strain:null)};
+  state.training=state.training||{};state.training.sessions=state.training.sessions||{};
+  var list=(state.training.sessions[w.date]||[]).slice();
+  list.push(sess);state.training.sessions[w.date]=list;
+  if(typeof syncCardioTags==="function")syncCardioTags(w.date);
+  return true;
+}
+function whoopImportAllPending(){
+  var p=whoopPendingImports(),n=0;
+  p.forEach(function(w){if(whoopImportWorkout(w))n++;});
+  if(n){if(typeof saveTraining==="function")saveTraining();save();}
+  return n;
+}
+function whoopCardioMode(){var m=state.settings.whoopCardio;return (m==="auto"||m==="off")?m:"ask";}
+
+/* the offer card — only when there is something to offer */
+function whoopImportCardHTML(){
+  if(!whoopOn()||whoopCardioMode()==="off")return "";
+  var p=whoopPendingImports();if(!p.length)return "";
+  var h='<div class="wl-card"><div class="wl-card-head"><span>'+I.trend.replace("<svg","<svg width=15 height=15")+' From WHOOP</span><span class="wl-count">'+p.length+'</span></div>';
+  h+='<div class="wl-hint" style="margin-top:0">'+(p.length===1?'A workout':'Workouts')+' WHOOP recorded that '+(p.length===1?'isn’t':'aren’t')+' logged here yet.</div>';
+  p.slice(0,6).forEach(function(w){
+    /* three facts, so the line does not wrap under the buttons; strain is on the
+       session itself once added */
+    var bits=[whoopWoMins(w)+" min"];
+    if(w.avgHr!=null)bits.push("HR "+w.avgHr);
+    if(w.cal!=null)bits.push(w.cal+" cal");
+    h+='<div class="wl-wimp"><div class="wl-wimp-l"><b>'+esc(whoopCardioType(w))+'</b><span>'+esc(fmtShort(parseISO(w.date)))+' · '+esc(bits.join(" · "))+'</span></div>'+
+       '<div class="wl-wimp-b"><button class="wl-btn wl-btn-primary" data-act="whoop:import" data-id="'+esc(w.id)+'">Add</button>'+
+       '<button class="wl-btn wl-btn-ghost" data-act="whoop:skipwo" data-id="'+esc(w.id)+'">No</button></div></div>';
+  });
+  if(p.length>1)h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="whoop:importall">Add all '+p.length+'</button>';
+  return h+'</div>';
 }
 /* ==BUILD-END:whoop-client.js== */
 /* ==BUILD:render-events.js== */
@@ -11429,6 +11559,16 @@ document.addEventListener("click",function(e){
   if(a==="opentoday"){state.selDate=todayISO();state.calY=new Date().getFullYear();state.calM=new Date().getMonth();state.cardioForm=null;render();return;}
   if(a==="ai:copy"){copyText(weeklyAIText(),"Copied your week — paste into your AI to generate");return;}
   if(a==="ai:gen"){genSummary();return;}
+  if(a==="whoop:cardiomode"){state.settings.whoopCardio=el.getAttribute("data-m");save();
+    if(state.settings.whoopCardio==="auto"){var n=whoopImportAllPending();if(n)toast("Added "+n+" WHOOP workout"+(n===1?"":"s"));}
+    render();return;}
+  if(a==="whoop:import"){var id=el.getAttribute("data-id");
+    var w=(state.whoopWorkouts||[]).filter(function(x){return x.id===id;})[0];if(!w)return;
+    if(whoopImportWorkout(w)){saveTraining();save();toast(whoopCardioType(w)+" added");}render();return;}
+  if(a==="whoop:skipwo"){var id2=el.getAttribute("data-id");
+    state.settings.whoopSkipIds=state.settings.whoopSkipIds||{};state.settings.whoopSkipIds[id2]=1;save();render();return;}
+  if(a==="whoop:importall"){var n2=whoopImportAllPending();
+    if(n2)toast("Added "+n2+" WHOOP workout"+(n2===1?"":"s"));render();return;}
   if(a==="whoop:useresting"){var v=num(el.getAttribute("data-v"));if(v==null)return;
     state.settings.restingHR=String(v);save();render();toast("Resting heart rate set to "+v);return;}
   if(a==="whoop:undomax"){var v2=num(el.getAttribute("data-v"));if(v2==null)return;
@@ -17117,7 +17257,7 @@ document.addEventListener("click",function(e){
    entry gating alone proves nothing once an await intervenes. Fail closed: if
    the gate state or durable storage is unavailable, nothing mutates. */
 var M10_GATED={};
-["act:addcat","act:del","act:toggle","ai:copy","ai:gen","cal:ignore","cal:overwrite","cal:usecalc","cardio:del","cardio:save","cf:newtype","ci:send","ci:skipyes","ci:unskip","day:clear","day:reopendo","ex:clearall","ex:del","ex:save","ex:seedall","exp:go","exseed:add","fb:done","fb:set","glp:compound","glp:compoundsave","glp:dose:del","glp:dose:open","glp:dose:save","glp:enable","glp:showdue","glp:siterot","glp:skip","glp:sym:del","glp:sym:edit","glp:sym:newsave","glp:sym:open","glp:sym:save","glp:symptoms","glp:titration","hk:import","import","lift:del","lift:save","lift:savedetail","m10cx:server","m10cx:takeover","m10p:apply","m10p:export","m8:cx:local","m8:cx:server","macro:keep","macro:suggest","max:open","night:gen","night:toggle","note:del","note:save","ob:back","ob:recalc","paste:do","pb:adv","pb:pwsave","pbk:import","photo:add","pphoto:add","preset:del","rat:set","reminder:add","reset:ask","reset:do","ri:mv","ri:pick","ri:prog","ri:remove","rt:del","rt:new","rt:save","set:activity","set:sex","set:strategy","set:theme","set:ttype","set:units","set:weekstart","skip:calories","skip:sleep","skip:steps","skip:weight","status:end","status:endnow","status:save","sum:coachreport","sum:exportall","sum:exportweek","sum:toggle","sync:pull","sync:push","sync:test","tdee:apply","tdee:later","weight:add","weight:del","wo:addset","wo:begin","wo:bwsave","wo:delset","wo:discard","wo:discardnow","wo:endnow","wo:endrest","wo:exaddset","wo:exmove","wo:exprog","wo:exremove","wo:finish","wo:finishback","wo:finishlater","wo:log","wo:replacepick","wo:replsave:fwd","wo:resume","wo:savesession","wo:skipset","wo:skipthem","wo:start","wo:startroutine","wu:no","wu:yes","whoop:toggle","whoop:sync","whoop:disconnect","whoop:usesleep","whoop:useresting","whoop:undomax","ri:sslink","ri:ssunlink","wo:sslink","wo:ssunlink"].forEach(function(a){M10_GATED[a]=1;});
+["act:addcat","act:del","act:toggle","ai:copy","ai:gen","cal:ignore","cal:overwrite","cal:usecalc","cardio:del","cardio:save","cf:newtype","ci:send","ci:skipyes","ci:unskip","day:clear","day:reopendo","ex:clearall","ex:del","ex:save","ex:seedall","exp:go","exseed:add","fb:done","fb:set","glp:compound","glp:compoundsave","glp:dose:del","glp:dose:open","glp:dose:save","glp:enable","glp:showdue","glp:siterot","glp:skip","glp:sym:del","glp:sym:edit","glp:sym:newsave","glp:sym:open","glp:sym:save","glp:symptoms","glp:titration","hk:import","import","lift:del","lift:save","lift:savedetail","m10cx:server","m10cx:takeover","m10p:apply","m10p:export","m8:cx:local","m8:cx:server","macro:keep","macro:suggest","max:open","night:gen","night:toggle","note:del","note:save","ob:back","ob:recalc","paste:do","pb:adv","pb:pwsave","pbk:import","photo:add","pphoto:add","preset:del","rat:set","reminder:add","reset:ask","reset:do","ri:mv","ri:pick","ri:prog","ri:remove","rt:del","rt:new","rt:save","set:activity","set:sex","set:strategy","set:theme","set:ttype","set:units","set:weekstart","skip:calories","skip:sleep","skip:steps","skip:weight","status:end","status:endnow","status:save","sum:coachreport","sum:exportall","sum:exportweek","sum:toggle","sync:pull","sync:push","sync:test","tdee:apply","tdee:later","weight:add","weight:del","wo:addset","wo:begin","wo:bwsave","wo:delset","wo:discard","wo:discardnow","wo:endnow","wo:endrest","wo:exaddset","wo:exmove","wo:exprog","wo:exremove","wo:finish","wo:finishback","wo:finishlater","wo:log","wo:replacepick","wo:replsave:fwd","wo:resume","wo:savesession","wo:skipset","wo:skipthem","wo:start","wo:startroutine","wu:no","wu:yes","whoop:toggle","whoop:sync","whoop:disconnect","whoop:usesleep","whoop:useresting","whoop:undomax","whoop:import","whoop:importall","whoop:skipwo","whoop:cardiomode","ri:sslink","ri:ssunlink","wo:sslink","wo:ssunlink"].forEach(function(a){M10_GATED[a]=1;});
 
 /* fresh, complete authority check — account, session generation, holder,
    deadline AND fence identity, plus storage health */

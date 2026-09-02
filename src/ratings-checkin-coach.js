@@ -872,6 +872,7 @@ function view_overview(){
   /* WHOOP's read on the day — recovery is a decision input for training, so
      it sits high. Follows selDate, so browsing back shows that day's figures. */
   if(typeof whoopDayCardHTML==="function")h+=whoopDayCardHTML(state.selDate);
+  if(typeof whoopImportCardHTML==="function")h+=whoopImportCardHTML();
   h+=todayChecklistHTML(state.selDate);
   if(!_atTop)h+=_recapUnit;
   h+=activitySummaryHTML(state.selDate);

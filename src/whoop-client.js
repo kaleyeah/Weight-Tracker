@@ -93,6 +93,9 @@ function whoopSync(cb){
     if(!r||!r.ok)return cb(r||{ok:false,error:"no response"});
     state.whoopWorkouts=(r.workouts||[]).slice(-120);   /* enough to match recent sessions */
     var n=whoopApply(r);
+    /* "always import" brings deliberate WHOOP workouts across without a tap.
+       Lifting is never auto-imported — that record belongs to the routine. */
+    if(whoopCardioMode()==="auto"){var imp=whoopImportAllPending();if(imp)n.cardio=imp;}
     cb({ok:true,applied:n,fake:!!r.fake});
   });
 }
@@ -194,6 +197,11 @@ function whoopSettingsHTML(){
     if(st&&st.ok&&!st.fake&&!st.connected)h+='<button class="wl-btn wl-btn-ghost" style="flex:1" data-act="whoop:connect">Link account</button>';
     else if(st&&st.ok&&st.connected&&!st.fake)h+='<button class="wl-btn wl-btn-ghost" style="flex:1" data-act="whoop:disconnect">Unlink</button>';
     h+='</div>';
+    var _cm=whoopCardioMode();
+    h+='<div class="wl-cf-label" style="margin:14px 0 6px">Cardio WHOOP records</div>'+
+       '<div class="wl-seg2" style="display:grid;grid-template-columns:1fr 1fr 1fr">'+
+       ['off','ask','auto'].map(function(m){return '<button class="wl-seg2btn'+(_cm===m?" on":"")+'" data-act="whoop:cardiomode" data-m="'+m+'">'+(m==="off"?"Ignore":m==="ask"?"Ask me":"Always add")+'</button>';}).join("")+
+       '</div><div class="wl-hint" style="margin-top:6px">Runs, walks and rides you start on WHOOP become cardio sessions here. Weightlifting is never imported — your Compound routine is the record, and WHOOP just supplies its heart rate and zones.</div>';
     h+=whoopRestingOfferHTML();
     h+='<label class="wl-field wl-field-full" style="margin-top:12px"><span>Days to pull each sync</span><input class="wl-num" data-set="whoopDays" type="text" inputmode="numeric" value="'+esc(state.settings.whoopDays!=null?state.settings.whoopDays:"14")+'" placeholder="14"></label>';
     h+='<label class="wl-field wl-field-full" style="margin-top:8px"><span>Service address <em>leave blank for the default</em></span><input data-set="whoopBase" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" value="'+esc(state.settings.whoopBase||"")+'" placeholder="'+esc(WHOOP_DEFAULT_BASE)+'"></label>';
@@ -404,7 +412,18 @@ function whoopNoticeHTML(){
    WHOOP reports minutes in each of six zones. Compound already thinks in zones,
    so this is shown as a single stacked bar rather than a table of numbers —
    where the session's time actually went, at a glance. */
+/* WHOOP publishes FIVE zones (1-5) on % of HEART-RATE RESERVE, not max HR:
+   Z1 40-60 recovery, Z2 60-70 aerobic base, Z3 70-80 aerobic, Z4 80-90
+   anaerobic, Z5 90-100 max. The API's sixth bucket, zone_zero, is everything
+   BELOW zone 1 — not a training zone, just un-zoned time, which in a lifting
+   session is the rest between sets. Labelled "Rest" rather than "Z0" so it is
+   never read as a zone.
+   Note this lines up with Compound's own model: with a resting HR set, the app
+   uses Karvonen too, so its Z2-Z5 bounds (60/70/80/90% HRR) are WHOOP's exactly.
+   Compound's Z1 is WHOOP's Z0+Z1 combined. */
 var WH_ZONE_COL=["#5A6474","#7C93F5","#5CD6A0","#F5B544","#F2874B","#F26D5B"];
+var WH_ZONE_NAME=["Below zone 1 — un-zoned / rest","Zone 1 — active recovery (40-60% HRR)","Zone 2 — aerobic base (60-70%)","Zone 3 — aerobic (70-80%)","Zone 4 — anaerobic (80-90%)","Zone 5 — max effort (90-100%)"];
+var WH_ZONE_LBL=["Rest","Z1","Z2","Z3","Z4","Z5"];
 function whoopZoneBarHTML(z,opts){
   if(!z||!z.length)return "";
   opts=opts||{};
@@ -413,10 +432,10 @@ function whoopZoneBarHTML(z,opts){
   if(opts.label!==false)h+='<div class="wl-zbar-h"><span>Time in heart-rate zones</span><span>'+fmtDur(tot*60000)+'</span></div>';
   h+='<div class="wl-zbar">';
   z.forEach(function(m,i){if(!m)return;
-    h+='<span class="wl-zseg" style="width:'+(m/tot*100).toFixed(2)+'%;background:'+WH_ZONE_COL[i]+'" title="Zone '+i+': '+m+' min"></span>';});
+    h+='<span class="wl-zseg" style="width:'+(m/tot*100).toFixed(2)+'%;background:'+WH_ZONE_COL[i]+'" title="'+WH_ZONE_NAME[i]+' \u2014 '+m+' min"></span>';});
   h+='</div><div class="wl-zkey">';
   z.forEach(function(m,i){if(!m)return;
-    h+='<span class="wl-zk"><i style="background:'+WH_ZONE_COL[i]+'"></i>Z'+i+' <b>'+m+'m</b></span>';});
+    h+='<span class="wl-zk" title="'+WH_ZONE_NAME[i]+'"><i style="background:'+WH_ZONE_COL[i]+'"></i>'+WH_ZONE_LBL[i]+' <b>'+m+'m</b></span>';});
   return h+'</div></div>';
 }
 
@@ -437,4 +456,103 @@ function whoopZonesForSession(s){
      on that day rather than guessing between several */
   var same=(state.whoopWorkouts||[]).filter(function(w){return w.date===s.date&&w.zones;});
   return same.length===1?same[0].zones:null;
+}
+
+/* ---- importing WHOOP workouts as cardio -------------------------------------
+   Starting a workout on the strap is a deliberate act, so a WHOOP workout is a
+   real session — not incidental movement. Bringing them across kills the double
+   entry for cardio.
+
+   LIFTING IS DELIBERATELY EXCLUDED. The routine is logged in Compound, which is
+   the better record; a WHOOP weightlifting workout matches that session for its
+   heart-rate and zone data instead (whoopFillFinish / whoopZonesForSession).
+   Anything overlapping a logged lift session is skipped on the same principle,
+   whatever WHOOP called it. */
+
+var WHOOP_SPORT_MAP={
+  running:"Outdoor run", walking:"Walking", hiking:"Hiking", cycling:"Bike",
+  rowing:"Rowing", elliptical:"Elliptical", swimming:"Swimming", stairmaster:"Stairmaster",
+  "functional fitness":"Functional fitness", "jump rope":"Jump rope"
+};
+function whoopIsLifting(w){return /weight|lifting|powerlift|strength/i.test(w.sport||"");}
+function whoopCardioType(w){
+  var n=(w.sport||"").toLowerCase().trim();
+  if(WHOOP_SPORT_MAP[n])return WHOOP_SPORT_MAP[n];
+  if(!n)return "Cardio";
+  return n.charAt(0).toUpperCase()+n.slice(1);
+}
+function whoopWoMins(w){var a=Date.parse(w.start),b=Date.parse(w.end);
+  return (a>0&&b>a)?Math.max(1,Math.round((b-a)/60000)):null;}
+
+/* does anything already logged cover this workout? */
+function whoopAlreadyLogged(w){
+  var s=Date.parse(w.start),e=Date.parse(w.end);
+  var day=(((state.training||{}).sessions||{})[w.date]||[]);
+  for(var i=0;i<day.length;i++){
+    var c=day[i];if(c.kind!=="cardio")continue;
+    if(c.whoopId===w.id)return true;
+    /* a manually logged session covering the same clock time is the same thing */
+    var ct=num(c.ts),cm=num(c.mins);
+    if(ct&&cm){var cs=ct-cm*60000;if(Math.min(e,ct)-Math.max(s,cs)>300000)return true;}
+  }
+  /* a lift session over the same window is the routine, not cardio */
+  var lifts=(((state.training||{}).liftSessions||{})[w.date]||[]);
+  for(var j=0;j<lifts.length;j++){
+    var L=lifts[j],lt=num(L.ts),lm=num(L.mins);
+    if(lt&&lm){var ls=lt-lm*60000;if(Math.min(e,lt)-Math.max(s,ls)>300000)return true;}
+  }
+  return false;
+}
+function whoopPendingImports(){
+  if(!whoopOn())return [];
+  var skip=state.settings.whoopSkipIds||{};
+  return (state.whoopWorkouts||[]).filter(function(w){
+    if(!w.id||!w.date||whoopIsLifting(w))return false;
+    if(skip[w.id])return false;
+    if(!whoopWoMins(w))return false;
+    return !whoopAlreadyLogged(w);
+  });
+}
+/* Build the cardio session. Same shape cardio:save writes, plus the WHOOP id so
+   it can never be imported twice, and the zone split for the report. */
+function whoopImportWorkout(w){
+  var mins=whoopWoMins(w);if(!mins)return false;
+  var hr=w.avgHr!=null?w.avgHr:null;
+  var zone=(typeof zoneForHR==="function"&&hr!=null)?zoneForHR(hr):null;
+  var sess={id:"c-"+Date.now()+"-"+Math.random().toString(36).slice(2,6),kind:"cardio",
+    type:whoopCardioType(w),mins:mins,zone:zone,rpe:null,cal:(w.cal!=null?w.cal:null),
+    hr:hr,hrMax:(w.maxHr!=null?w.maxHr:null),notes:"",ts:Date.parse(w.end)||Date.now(),
+    whoopId:w.id,whoopZones:w.zones||null,whoopStrain:(w.strain!=null?w.strain:null)};
+  state.training=state.training||{};state.training.sessions=state.training.sessions||{};
+  var list=(state.training.sessions[w.date]||[]).slice();
+  list.push(sess);state.training.sessions[w.date]=list;
+  if(typeof syncCardioTags==="function")syncCardioTags(w.date);
+  return true;
+}
+function whoopImportAllPending(){
+  var p=whoopPendingImports(),n=0;
+  p.forEach(function(w){if(whoopImportWorkout(w))n++;});
+  if(n){if(typeof saveTraining==="function")saveTraining();save();}
+  return n;
+}
+function whoopCardioMode(){var m=state.settings.whoopCardio;return (m==="auto"||m==="off")?m:"ask";}
+
+/* the offer card — only when there is something to offer */
+function whoopImportCardHTML(){
+  if(!whoopOn()||whoopCardioMode()==="off")return "";
+  var p=whoopPendingImports();if(!p.length)return "";
+  var h='<div class="wl-card"><div class="wl-card-head"><span>'+I.trend.replace("<svg","<svg width=15 height=15")+' From WHOOP</span><span class="wl-count">'+p.length+'</span></div>';
+  h+='<div class="wl-hint" style="margin-top:0">'+(p.length===1?'A workout':'Workouts')+' WHOOP recorded that '+(p.length===1?'isn’t':'aren’t')+' logged here yet.</div>';
+  p.slice(0,6).forEach(function(w){
+    /* three facts, so the line does not wrap under the buttons; strain is on the
+       session itself once added */
+    var bits=[whoopWoMins(w)+" min"];
+    if(w.avgHr!=null)bits.push("HR "+w.avgHr);
+    if(w.cal!=null)bits.push(w.cal+" cal");
+    h+='<div class="wl-wimp"><div class="wl-wimp-l"><b>'+esc(whoopCardioType(w))+'</b><span>'+esc(fmtShort(parseISO(w.date)))+' · '+esc(bits.join(" · "))+'</span></div>'+
+       '<div class="wl-wimp-b"><button class="wl-btn wl-btn-primary" data-act="whoop:import" data-id="'+esc(w.id)+'">Add</button>'+
+       '<button class="wl-btn wl-btn-ghost" data-act="whoop:skipwo" data-id="'+esc(w.id)+'">No</button></div></div>';
+  });
+  if(p.length>1)h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="whoop:importall">Add all '+p.length+'</button>';
+  return h+'</div>';
 }

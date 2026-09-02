@@ -287,18 +287,22 @@ function srCardioHTML(inp){
    standalone file with its own CSS, so this draws with inline styles rather
    than reaching for the app's classes. */
 var SRZC=["#5A6474","#7C93F5","#5CD6A0","#F5B544","#F2874B","#F26D5B"];
+/* WHOOP's zones are 1-5 on heart-rate reserve; the API's sixth bucket is time
+   BELOW zone 1 — un-zoned, i.e. rest between sets. Named, not numbered. */
+var SRZL=["Rest","Z1","Z2","Z3","Z4","Z5"];
 function srZonesHTML(z){
   if(!z||!z.length)return "";
   var tot=0;for(var i=0;i<z.length;i++)tot+=(z[i]||0);
   if(!tot)return "";
   /* uses the report's OWN css variables — hardcoding light-theme colours here
      rendered the minute figures near-invisible against the dark report card */
-  var h='<div style="margin:9px 0 4px"><div style="font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-bottom:5px">Heart-rate zones &middot; '+srInt(tot)+' min</div>';
+  var work=tot-(z[0]||0);
+  var h='<div style="margin:9px 0 4px"><div style="font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-bottom:5px">Heart-rate zones &middot; '+srInt(work)+' min working of '+srInt(tot)+'</div>';
   h+='<div style="display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--bg2);border:1px solid var(--line)">';
   z.forEach(function(m,i){if(!m)return;h+='<span style="display:block;height:100%;width:'+(m/tot*100).toFixed(2)+'%;background:'+SRZC[i]+'"></span>';});
   h+='</div><div style="display:flex;flex-wrap:wrap;gap:3px 11px;margin-top:7px">';
   z.forEach(function(m,i){if(!m)return;
-    h+='<span style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;color:var(--muted);font-family:var(--mono)"><i style="width:8px;height:8px;border-radius:2px;background:'+SRZC[i]+';display:inline-block"></i>Z'+i+' <b style="color:var(--text)">'+m+'m</b></span>';});
+    h+='<span style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;color:var(--muted);font-family:var(--mono)"><i style="width:8px;height:8px;border-radius:2px;background:'+SRZC[i]+';display:inline-block"></i>'+SRZL[i]+' <b style="color:var(--text)">'+m+'m</b></span>';});
   return h+'</div></div>';
 }
 function srWorkoutsHTML(inp){

@@ -121,6 +121,16 @@ document.addEventListener("click",function(e){
   if(a==="opentoday"){state.selDate=todayISO();state.calY=new Date().getFullYear();state.calM=new Date().getMonth();state.cardioForm=null;render();return;}
   if(a==="ai:copy"){copyText(weeklyAIText(),"Copied your week — paste into your AI to generate");return;}
   if(a==="ai:gen"){genSummary();return;}
+  if(a==="whoop:cardiomode"){state.settings.whoopCardio=el.getAttribute("data-m");save();
+    if(state.settings.whoopCardio==="auto"){var n=whoopImportAllPending();if(n)toast("Added "+n+" WHOOP workout"+(n===1?"":"s"));}
+    render();return;}
+  if(a==="whoop:import"){var id=el.getAttribute("data-id");
+    var w=(state.whoopWorkouts||[]).filter(function(x){return x.id===id;})[0];if(!w)return;
+    if(whoopImportWorkout(w)){saveTraining();save();toast(whoopCardioType(w)+" added");}render();return;}
+  if(a==="whoop:skipwo"){var id2=el.getAttribute("data-id");
+    state.settings.whoopSkipIds=state.settings.whoopSkipIds||{};state.settings.whoopSkipIds[id2]=1;save();render();return;}
+  if(a==="whoop:importall"){var n2=whoopImportAllPending();
+    if(n2)toast("Added "+n2+" WHOOP workout"+(n2===1?"":"s"));render();return;}
   if(a==="whoop:useresting"){var v=num(el.getAttribute("data-v"));if(v==null)return;
     state.settings.restingHR=String(v);save();render();toast("Resting heart rate set to "+v);return;}
   if(a==="whoop:undomax"){var v2=num(el.getAttribute("data-v"));if(v2==null)return;
