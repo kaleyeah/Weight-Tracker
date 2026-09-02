@@ -325,6 +325,10 @@ function srZoneWeekHTML(inp){
        '<span style="width:54px;text-align:right;font-family:var(--mono);font-size:12px;color:'+(m2?'var(--text)':'var(--faint)')+'">'+srInt(m2)+' min</span></div>';
   }
   if(z[0])h+='<div style="font-size:11px;color:var(--faint);margin-top:8px">Plus '+srInt(z[0])+' min below zone 1 (rest between sets, warm-ups).</div>';
+  /* WHOOP reports time-in-zone per WORKOUT only — its day record carries no zone
+     split at all — so this is recorded-activity time, never the whole day. Said
+     plainly so it is not read as total daily time in zones. */
+  h+='<div style="font-size:11px;color:var(--faint);margin-top:4px">Recorded activities only. Movement WHOOP didn\u2019t log as an activity still counts toward day strain, but has no zone breakdown.</div>';
   return h+'</div>';
 }
 function srWorkoutsHTML(inp){

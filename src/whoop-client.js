@@ -596,6 +596,7 @@ function whoopZoneTotalsHTML(){
   var work=tot-(z[0]||0);
   var mx=Math.max.apply(null,z.slice(1))||1;
   var h='<div class="wl-substat"><div class="wl-substat-h"><span>Minutes in zones</span><span class="v">'+work+' min working</span></div>';
+  /* per-workout only: WHOOP's day record has no zone split */
   for(var k=1;k<=5;k++){
     var m=z[k]||0;
     h+='<div class="wl-zrow"><span class="wl-zrow-k" style="color:'+WH_ZONE_COL[k]+'" title="'+WH_ZONE_NAME[k]+'">Z'+k+'</span>'+
@@ -603,5 +604,6 @@ function whoopZoneTotalsHTML(){
        '<span class="wl-zrow-v'+(m?'':' zero')+'">'+m+'</span></div>';
   }
   if(z[0])h+='<div class="wl-hint" style="margin-top:6px">Plus '+z[0]+' min below zone 1 — rest between sets and warm-ups.</div>';
+  h+='<div class="wl-hint" style="margin-top:4px">Recorded activities only — WHOOP reports time-in-zone per workout, not per day.</div>';
   return h+'</div>';
 }
