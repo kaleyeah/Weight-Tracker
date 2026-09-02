@@ -1126,7 +1126,7 @@ input[type=range][data-pfadj]{width:100%;accent-color:var(--accent);min-height:2
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-09-02.510-whoop-cardio-import";
+var APP_BUILD="2026-09-02.511-zone-align";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -3546,6 +3546,7 @@ function view_overview(){
      it sits high. Follows selDate, so browsing back shows that day's figures. */
   if(typeof whoopDayCardHTML==="function")h+=whoopDayCardHTML(state.selDate);
   if(typeof whoopImportCardHTML==="function")h+=whoopImportCardHTML();
+  if(typeof whoopZonesMisaligned==="function"&&whoopZonesMisaligned())h+='<div class="wl-card">'+whoopRestingOfferHTML()+'</div>';
   h+=todayChecklistHTML(state.selDate);
   if(!_atTop)h+=_recapUnit;
   h+=activitySummaryHTML(state.selDate);
@@ -6020,7 +6021,7 @@ function srCardioHTML(inp){
 var SRZC=["#5A6474","#7C93F5","#5CD6A0","#F5B544","#F2874B","#F26D5B"];
 /* WHOOP's zones are 1-5 on heart-rate reserve; the API's sixth bucket is time
    BELOW zone 1 — un-zoned, i.e. rest between sets. Named, not numbered. */
-var SRZL=["Rest","Z1","Z2","Z3","Z4","Z5"];
+var SRZL=["Z0","Z1","Z2","Z3","Z4","Z5"];   /* WHOOP labels the lowest "Zone 0 (Resting)" */
 function srZonesHTML(z){
   if(!z||!z.length)return "";
   var tot=0;for(var i=0;i<z.length;i++)tot+=(z[i]||0);
@@ -11267,11 +11268,24 @@ function whoopRestingAvg(days){
   var m=v.length%2?v[(v.length-1)/2]:Math.round((v[v.length/2-1]+v[v.length/2])/2);
   return {median:m,n:v.length,lo:v[0],hi:v[v.length-1]};
 }
+/* Without a resting HR, Compound falls back to plain % of max and its zones
+   disagree with WHOOP by as much as 27 bpm — a 140 bpm effort reads Zone 3 here
+   and Zone 2 there. With one set, both use Karvonen and the bounds are
+   identical. That is worth saying loudly rather than leaving as a preference. */
+function whoopZonesMisaligned(){
+  return whoopOn()&&num(state.settings.restingHR)==null&&!!whoopRestingAvg(30);
+}
 function whoopRestingOfferHTML(){
   if(!whoopOn())return "";
   var a=whoopRestingAvg(30);if(!a)return "";
   var cur=num(state.settings.restingHR);
   if(cur!=null&&Math.abs(cur-a.median)<=1)return "";
+  if(cur==null){
+    return '<div class="wl-whoopfill" style="margin-top:10px">'+I.alert.replace("<svg","<svg width=14 height=14")+
+      '<span>Your heart-rate zones don\u2019t match WHOOP\u2019s. WHOOP builds zones from your resting heart rate; without one here, Compound falls back to a plain percentage of max and reads up to <b>27 bpm</b> off. '+
+      'WHOOP\u2019s median over '+a.n+' nights is <b>'+a.median+' bpm</b>. '+
+      '<button class="wl-link" data-act="whoop:useresting" data-v="'+a.median+'" style="display:inline">Use it and match WHOOP</button></span></div>';
+  }
   return '<div class="wl-whoopfill" style="margin-top:8px">'+I.trend.replace("<svg","<svg width=14 height=14")+
     '<span>WHOOP’s resting heart rate over '+a.n+' nights: <b>'+a.median+' bpm</b> (median, '+a.lo+'–'+a.hi+')'+
     (cur!=null?'. Yours says '+cur+'.':'.')+
@@ -11300,8 +11314,10 @@ function whoopNoticeHTML(){
    uses Karvonen too, so its Z2-Z5 bounds (60/70/80/90% HRR) are WHOOP's exactly.
    Compound's Z1 is WHOOP's Z0+Z1 combined. */
 var WH_ZONE_COL=["#5A6474","#7C93F5","#5CD6A0","#F5B544","#F2874B","#F26D5B"];
-var WH_ZONE_NAME=["Below zone 1 — un-zoned / rest","Zone 1 — active recovery (40-60% HRR)","Zone 2 — aerobic base (60-70%)","Zone 3 — aerobic (70-80%)","Zone 4 — anaerobic (80-90%)","Zone 5 — max effort (90-100%)"];
-var WH_ZONE_LBL=["Rest","Z1","Z2","Z3","Z4","Z5"];
+var WH_ZONE_NAME=["Zone 0 — resting, below 40% HRR","Zone 1 — very light / active recovery (40-60% HRR)","Zone 2 — light, aerobic base (60-70%)","Zone 3 — moderate (70-80%)","Zone 4 — hard (80-90%)","Zone 5 — max effort (90-100%)"];
+/* WHOOP's own app labels the lowest bucket "Zone 0 (Resting)", so it is named
+   the way the athlete sees it there, not invented afresh. */
+var WH_ZONE_LBL=["Z0","Z1","Z2","Z3","Z4","Z5"];
 function whoopZoneBarHTML(z,opts){
   if(!z||!z.length)return "";
   opts=opts||{};

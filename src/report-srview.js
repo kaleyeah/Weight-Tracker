@@ -289,7 +289,7 @@ function srCardioHTML(inp){
 var SRZC=["#5A6474","#7C93F5","#5CD6A0","#F5B544","#F2874B","#F26D5B"];
 /* WHOOP's zones are 1-5 on heart-rate reserve; the API's sixth bucket is time
    BELOW zone 1 — un-zoned, i.e. rest between sets. Named, not numbered. */
-var SRZL=["Rest","Z1","Z2","Z3","Z4","Z5"];
+var SRZL=["Z0","Z1","Z2","Z3","Z4","Z5"];   /* WHOOP labels the lowest "Zone 0 (Resting)" */
 function srZonesHTML(z){
   if(!z||!z.length)return "";
   var tot=0;for(var i=0;i<z.length;i++)tot+=(z[i]||0);

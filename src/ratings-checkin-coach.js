@@ -873,6 +873,7 @@ function view_overview(){
      it sits high. Follows selDate, so browsing back shows that day's figures. */
   if(typeof whoopDayCardHTML==="function")h+=whoopDayCardHTML(state.selDate);
   if(typeof whoopImportCardHTML==="function")h+=whoopImportCardHTML();
+  if(typeof whoopZonesMisaligned==="function"&&whoopZonesMisaligned())h+='<div class="wl-card">'+whoopRestingOfferHTML()+'</div>';
   h+=todayChecklistHTML(state.selDate);
   if(!_atTop)h+=_recapUnit;
   h+=activitySummaryHTML(state.selDate);
