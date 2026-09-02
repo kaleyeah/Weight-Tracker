@@ -388,7 +388,8 @@ function dayRow(d){var iso=toISO(d);var w=null;for(var i=0;i<state.weights.lengt
    Parts with no logged value are omitted rather than left blank. Multiple sessions in a
    day are joined with " | ". Cardio is filtered to ZONE 2+ to match the app's weekly
    cardio-goal rule (weekTrainingStats), where an unset zone also counts. */
-function csvIsZ2(s){var z=num(s.zone);return z==null||z>=2;}
+/* an unknown zone is unknown, not zone 2 — matches weekTrainingStats */
+function csvIsZ2(s){var z=num(s.zone);return z!=null&&z>=2;}
 function csvSessLine(name,s){var p=[name];
   var m=num(s.mins);if(m!=null)p.push("Duration: "+Math.round(m)+" mins");
   var z=num(s.zone);if(z!=null)p.push("Zone: "+z);

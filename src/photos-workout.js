@@ -820,6 +820,12 @@ function effMaxHR(){var m=num(state.settings.maxHR);return m!=null?m:estMaxHR();
    answer for anyone who has not entered one. The fractions are the same in
    every method, so nobody's zones shift until they add resting HR themselves. */
 var ZONE_FRACTIONS=[0.60,0.70,0.80,0.90];   /* lower bound of zones 2,3,4,5 */
+/* WHOOP's zone 1 starts at 40% of heart-rate reserve; below that it reports
+   zone 0 — not a training zone, just movement. Compound used to fold that into
+   zone 1, so a 96 bpm stroll and genuine easy aerobic work read the same.
+   Only meaningful when the bounds are computed (hrr/pctmax); a hand-entered
+   zone table has no zone-1 floor to infer. */
+var ZONE1_FRACTION=0.40;
 function restHR(){var r=num(state.settings.restingHR);return (r!=null&&r>0)?r:null;}
 function manualZoneBounds(){var out=[],i,v;
   for(i=2;i<=5;i++){v=num(state.settings["zoneB"+i]);if(v==null||v<=0)return null;out.push(Math.round(v));}
@@ -834,23 +840,36 @@ function zoneModel(){
      some athletes, which would silently change what counts as zone 2. */
   if(rest!=null&&rest<mx){var res=mx-rest;
     return {method:"hrr",max:mx,rest:rest,reserve:res,incomplete:wantManual,
+      z1:rest+ZONE1_FRACTION*res,
       bounds:ZONE_FRACTIONS.map(function(f){return rest+f*res;})};}
   return {method:"pctmax",max:mx,rest:rest,incomplete:wantManual,
+    z1:ZONE1_FRACTION*mx,
     bounds:ZONE_FRACTIONS.map(function(f){return f*mx;})};}
 function zoneForHR(hr){var h=num(hr);if(h==null)return null;var m=zoneModel();if(!m)return null;
-  var z=1;for(var i=0;i<m.bounds.length;i++){if(h>=m.bounds[i])z=i+2;}return z;}
+  var z=1;for(var i=0;i<m.bounds.length;i++){if(h>=m.bounds[i])z=i+2;}
+  if(z===1&&m.z1!=null&&h<m.z1)z=0;      /* below zone 1 = WHOOP's zone 0 */
+  return z;}
 function zoneBasisText(hr,m){
   if(m.method==="manual")return "your own zone table";
   if(m.method==="hrr")return Math.max(0,Math.round((hr-m.rest)/m.reserve*100))+"% of heart-rate reserve";
   return Math.round(hr/m.max*100)+"% of max "+Math.round(m.max)+" bpm";}
 function zoneTableHTML(){var m=zoneModel();
   if(!m)return "Add your age or max heart rate to place the zones.";
-  var b=m.bounds.map(function(x){return Math.round(x);});
+  /* CEILING, not rounding: a bound of 162.4 means 162 is still zone 3, so the
+     table must say zone 4 starts at 163. Rounding displayed 162 and disagreed
+     with zoneForHR by a beat wherever the fraction fell below .5. As a bonus
+     this reproduces WHOOP's published table exactly. */
+  var b=m.bounds.map(function(x){return Math.ceil(x);});
   var basis=m.method==="manual"?"Your own zone table."
     :m.method==="hrr"?("Karvonen — heart-rate reserve of "+Math.round(m.reserve)+" bpm ("+Math.round(m.max)+" max − "+Math.round(m.rest)+" resting).")
     :("Percent of max heart rate ("+Math.round(m.max)+" bpm). Add a resting heart rate above and these move to heart-rate reserve.");
-  var rows=[["Zone 1","under "+b[0]],["Zone 2",b[0]+"–"+(b[1]-1)],["Zone 3",b[1]+"–"+(b[2]-1)],
-            ["Zone 4",b[2]+"–"+(b[3]-1)],["Zone 5",b[3]+"+"]];
+  /* Zone 0 exists only where the bounds were computed — a hand-entered zone
+     table has no zone-1 floor to derive one from. */
+  var z1=(m.z1!=null)?Math.ceil(m.z1):null;
+  var rows=(z1!=null&&z1<b[0])?[["Zone 0","under "+z1],["Zone 1",z1+"–"+(b[0]-1)]]
+                              :[["Zone 1","under "+b[0]]];
+  rows=rows.concat([["Zone 2",b[0]+"–"+(b[1]-1)],["Zone 3",b[1]+"–"+(b[2]-1)],
+            ["Zone 4",b[2]+"–"+(b[3]-1)],["Zone 5",b[3]+"+"]]);
   var h=(m.incomplete?'<b>Manual is on but the table is incomplete</b> — the four numbers must ascend. Showing the automatic zones until they do.<br>':'')+basis;
   h+='<div style="display:grid;grid-template-columns:auto 1fr;gap:3px 14px;margin-top:8px">';
   rows.forEach(function(r){h+='<span>'+r[0]+'</span><span style="font-family:'+"var(--mono)"+';color:var(--text)">'+r[1]+' bpm</span>';});
@@ -861,7 +880,13 @@ function zoneAreaHTML(cf,pfx){pfx=pfx||"cf";var m=zoneModel();var hr=num(cf.hr);
   return '<div class="wl-cf-label">'+label+'</div><div class="wl-seg wl-seg-wide">'+[1,2,3,4,5].map(function(z){return '<button class="'+(cf.zone===z?"on":"")+'" data-act="'+pfx+':zone" data-zone="'+z+'">'+z+'</button>';}).join("")+'</div>';}
 function weekTrainingStats(ws){var out={cardioSessions:0,cardioZ2Sessions:0,cardioMins:0,cardioZ2Mins:0,liftSessions:0,liftMins:0,totalMins:0};
   for(var i=0;i<7;i++){var iso=toISO(addDays(ws,i));
-    ((state.training.sessions||{})[iso]||[]).forEach(function(x){if(x.kind==="cardio"){out.cardioSessions++;var m=(num(x.mins)||0);out.cardioMins+=m;var z=num(x.zone);if(z==null||z>=2){out.cardioZ2Mins+=m;out.cardioZ2Sessions++;}}});
+    ((state.training.sessions||{})[iso]||[]).forEach(function(x){if(x.kind==="cardio"){out.cardioSessions++;var m=(num(x.mins)||0);out.cardioMins+=m;var z=num(x.zone);
+      /* The goal counts every cardio minute. Zone 2+ is reported alongside as a
+         quality figure — it used to BE the goal, with an unknown zone counting
+         in full, which meant wearing the strap and proving a session was easy
+         scored zero while the same session logged blind scored everything.
+         Measuring should never cost you credit. */
+      if(z!=null&&z>=2){out.cardioZ2Mins+=m;out.cardioZ2Sessions++;}}});
     ((state.training.liftSessions||{})[iso]||[]).forEach(function(x){out.liftSessions++;out.liftMins+=(num(x.mins)||0);});}
   out.totalMins=out.cardioMins+out.liftMins;return out;}
 function goalBarHTML(label,val,goal,unit,soon){var pct=goal>0?Math.min(100,Math.round(val/goal*100)):0;var done=goal>0&&val>=goal;
@@ -871,7 +896,10 @@ function trainingGoalsHTML(ws){var st=weekTrainingStats(ws);var f=state.settings
   if(cmGoal==null&&liftGoal==null&&stG==null)return '<div class="wl-hint">Set weekly goals in Settings → Goals to track them here.</div>';
   var h='';
   if(liftGoal!=null)h+=goalBarHTML("Lifting Sessions",st.liftSessions,liftGoal,"",false);
-  if(cmGoal!=null)h+=goalBarHTML("Cardio Minutes (Zone 2+)",st.cardioZ2Mins,cmGoal,"min",false);
+  /* every cardio minute counts toward the goal; zone 2+ rides alongside as the
+     quality figure so both the volume and the intensity are visible */
+  if(cmGoal!=null){h+=goalBarHTML("Cardio Minutes",st.cardioMins,cmGoal,"min",false);
+    if(st.cardioMins)h+='<div class="wl-hint" style="margin:-4px 0 10px">of which <b>'+st.cardioZ2Mins+' min</b> at zone 2 or above'+(st.cardioZ2Mins?'':' \u2014 all easy work this week')+'.</div>';}
   if(stG!=null){var _stw=0;for(var _i=0;_i<7;_i++){var _iso=toISO(addDays(ws,_i));var _v=num(state.steps[_iso]);if(_v!=null)_stw+=_v;}h+=goalBarHTML("Steps",_stw,stG*7,"",false);}
   return h;}
 var MUSCLES=[["chest","Chest","#d926b8"],["back","Back","#3aa0c9"],["shoulders","Shoulders","#a855f7"],["biceps","Biceps","#f59e0b"],["triceps","Triceps","#ec4899"],["quads","Quads","#22c55e"],["hamstrings","Hamstrings","#10b981"],["glutes","Glutes","#14b8a6"],["calves","Calves","#84cc16"],["core","Core","#eab308"],["forearms","Forearms","#f97316"],["other","Other","#9ca3af"]];
