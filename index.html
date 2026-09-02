@@ -173,6 +173,12 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 .wl-wimp-l span{display:block;font-size:11.5px;color:var(--muted);font-family:var(--mono);margin-top:2px;}
 .wl-wimp-b{display:flex;gap:6px;flex:none;}
 .wl-wimp-b .wl-btn{padding:7px 13px;font-size:13px;}
+.wl-zrow{display:flex;align-items:center;gap:9px;margin-top:7px;}
+.wl-zrow-k{width:20px;flex:none;font-family:var(--mono);font-size:11px;font-weight:800;}
+.wl-zrow-bar{flex:1;height:8px;border-radius:4px;background:var(--bg2);border:1px solid var(--line);overflow:hidden;}
+.wl-zrow-bar i{display:block;height:100%;}
+.wl-zrow-v{width:44px;text-align:right;font-family:var(--mono);font-size:12px;color:var(--text);font-variant-numeric:tabular-nums;}
+.wl-zrow-v.zero{color:var(--faint);}
 .wl-zbar-wrap{margin:10px 0 2px;}
 .wl-zbar-h{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;font-size:10px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);}
 .wl-zbar-h span:last-child{font-family:var(--mono);letter-spacing:0;color:var(--muted);}
@@ -1126,7 +1132,7 @@ input[type=range][data-pfadj]{width:100%;accent-color:var(--accent);min-height:2
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-09-02.511-zone-align";
+var APP_BUILD="2026-09-02.512-zone-minutes";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -6037,8 +6043,31 @@ function srZonesHTML(z){
     h+='<span style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;color:var(--muted);font-family:var(--mono)"><i style="width:8px;height:8px;border-radius:2px;background:'+SRZC[i]+';display:inline-block"></i>'+SRZL[i]+' <b style="color:var(--text)">'+m+'m</b></span>';});
   return h+'</div></div>';
 }
+/* the week's zone minutes, lifting and cardio combined */
+function srZoneWeekHTML(inp){
+  var z=inp.zoneWeek;if(!z)return "";
+  var tot=0;for(var i=0;i<z.length;i++)tot+=(z[i]||0);
+  if(!tot)return "";
+  var work=tot-(z[0]||0);
+  var mx=Math.max.apply(null,z.slice(1));
+  var h='<div class="wl-card"><div class="wl-card-head"><span>Week in heart-rate zones</span><span class="wl-count">'+srInt(work)+' min working</span></div>';
+  h+='<div style="display:flex;height:14px;border-radius:7px;overflow:hidden;background:var(--bg2);border:1px solid var(--line);margin-bottom:12px">';
+  z.forEach(function(m,i){if(!m)return;h+='<span style="display:block;height:100%;width:'+(m/tot*100).toFixed(2)+'%;background:'+SRZC[i]+'"></span>';});
+  h+='</div>';
+  /* a row per zone 1-5, because the coach wants the shape of the week, not one bar */
+  for(var i2=1;i2<=5;i2++){
+    var m2=z[i2]||0;
+    h+='<div style="display:flex;align-items:center;gap:9px;margin-bottom:6px">'+
+       '<span style="width:20px;font-family:var(--mono);font-size:11px;font-weight:800;color:'+SRZC[i2]+'">Z'+i2+'</span>'+
+       '<span style="flex:1;height:8px;border-radius:4px;background:var(--bg2);overflow:hidden;display:block"><span style="display:block;height:100%;width:'+(mx?Math.round(m2/mx*100):0)+'%;background:'+SRZC[i2]+'"></span></span>'+
+       '<span style="width:54px;text-align:right;font-family:var(--mono);font-size:12px;color:'+(m2?'var(--text)':'var(--faint)')+'">'+srInt(m2)+' min</span></div>';
+  }
+  if(z[0])h+='<div style="font-size:11px;color:var(--faint);margin-top:8px">Plus '+srInt(z[0])+' min below zone 1 (rest between sets, warm-ups).</div>';
+  return h+'</div>';
+}
 function srWorkoutsHTML(inp){
   var h='<div class="secLbl">This week&rsquo;s workouts</div>';
+  h+=srZoneWeekHTML(inp);
   h+=srCardioHTML(inp);
   h+='<div class="secLbl" style="margin-top:16px">Weightlifting</div>';
   if(!(inp.sessions||[]).length)return h+'<div class="wl-card"><div class="wl-hint" style="margin-top:0">No lifting sessions logged this week.</div></div>';
@@ -6326,7 +6355,17 @@ function srInput(offset){
     bodycomp:srBodyCompInput(offset),
     lbm:srLbmInput(offset),
     cardio:srCardioInput(offset),
+    zoneWeek:srZoneWeek(sessions,srCardioInput(offset)),
     sessions:sessions,assumed:!!M.anyAssumed};}
+/* Every minute the week spent in each heart-rate zone, lifting and cardio
+   together — the one figure that says how much work the week actually held,
+   rather than how many sessions it contained. */
+function srZoneWeek(sessions,cardio){
+  var tot=[0,0,0,0,0,0],any=false;
+  function add(z){if(!z||!z.length)return;any=true;for(var i=0;i<6&&i<z.length;i++)tot[i]+=(z[i]||0);}
+  (sessions||[]).forEach(function(s){add(s.zones);});
+  (cardio||[]).forEach(function(c){add(c.zones);});
+  return any?tot:null;}
 /* Latest body-composition readings for the week, with the move since the
    previous reading. Falls back to the most recent reading ever, flagged stale,
    so a coach still sees where the athlete stands. */
@@ -11170,6 +11209,7 @@ function whoopChartsHTML(){
       if(a==null&&!bk.some(function(b){return b.value!=null;}))return "";
       return whoopStatBlock(title,bk,(a!=null?"avg "+fmtAvg(a):"—"),whoopChartSVG(bk,opts));
     }
+    h+=whoopZoneTotalsHTML();
     h+=blk("Recovery","recovery",
       {kind:"bar",min:0,max:100,colorFor:whoopRecColor,fmt:function(v){return Math.round(v)+"%";},
        bands:[{from:67,to:100,color:WH_GOOD},{from:34,to:67,color:WH_MID},{from:0,to:34,color:WH_LOW}]},
@@ -11448,6 +11488,39 @@ function whoopImportCardHTML(){
        '<button class="wl-btn wl-btn-ghost" data-act="whoop:skipwo" data-id="'+esc(w.id)+'">No</button></div></div>';
   });
   if(p.length>1)h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="whoop:importall">Add all '+p.length+'</button>';
+  return h+'</div>';
+}
+
+/* ---- zone minutes for the selected period ------------------------------------
+   Sums every activity's zone split across whatever window the Progress screen is
+   showing — lifting and cardio together. This is the figure that says how much
+   work a week actually held, which session counts never do. */
+function whoopZoneTotals(fromISO,toISO){
+  var tot=[0,0,0,0,0,0],any=false;
+  function add(z){if(!z||!z.length)return;any=true;for(var i=0;i<6&&i<z.length;i++)tot[i]+=(z[i]||0);}
+  var ls=((state.training||{}).liftSessions)||{},cs=((state.training||{}).sessions)||{};
+  Object.keys(ls).forEach(function(d){if(d<fromISO||d>toISO)return;
+    (ls[d]||[]).forEach(function(x){add(whoopZonesForSession(x));});});
+  Object.keys(cs).forEach(function(d){if(d<fromISO||d>toISO)return;
+    (cs[d]||[]).forEach(function(x){if(x.kind!=="cardio")return;
+      add(x.whoopZones||whoopZonesForSession({date:d,ts:num(x.ts),mins:num(x.mins)}));});});
+  return any?tot:null;
+}
+function whoopZoneTotalsHTML(){
+  if(!whoopOn())return "";
+  var ctx=(typeof trendCtx==="function")?trendCtx():null;if(!ctx)return "";
+  var z=whoopZoneTotals(toISO(ctx.start),toISO(ctx.end));if(!z)return "";
+  var tot=0;for(var i=0;i<z.length;i++)tot+=(z[i]||0);if(!tot)return "";
+  var work=tot-(z[0]||0);
+  var mx=Math.max.apply(null,z.slice(1))||1;
+  var h='<div class="wl-substat"><div class="wl-substat-h"><span>Minutes in zones</span><span class="v">'+work+' min working</span></div>';
+  for(var k=1;k<=5;k++){
+    var m=z[k]||0;
+    h+='<div class="wl-zrow"><span class="wl-zrow-k" style="color:'+WH_ZONE_COL[k]+'" title="'+WH_ZONE_NAME[k]+'">Z'+k+'</span>'+
+       '<span class="wl-zrow-bar"><i style="width:'+Math.round(m/mx*100)+'%;background:'+WH_ZONE_COL[k]+'"></i></span>'+
+       '<span class="wl-zrow-v'+(m?'':' zero')+'">'+m+'</span></div>';
+  }
+  if(z[0])h+='<div class="wl-hint" style="margin-top:6px">Plus '+z[0]+' min below zone 1 — rest between sets and warm-ups.</div>';
   return h+'</div>';
 }
 /* ==BUILD-END:whoop-client.js== */

@@ -291,6 +291,7 @@ function whoopChartsHTML(){
       if(a==null&&!bk.some(function(b){return b.value!=null;}))return "";
       return whoopStatBlock(title,bk,(a!=null?"avg "+fmtAvg(a):"—"),whoopChartSVG(bk,opts));
     }
+    h+=whoopZoneTotalsHTML();
     h+=blk("Recovery","recovery",
       {kind:"bar",min:0,max:100,colorFor:whoopRecColor,fmt:function(v){return Math.round(v)+"%";},
        bands:[{from:67,to:100,color:WH_GOOD},{from:34,to:67,color:WH_MID},{from:0,to:34,color:WH_LOW}]},
@@ -569,5 +570,38 @@ function whoopImportCardHTML(){
        '<button class="wl-btn wl-btn-ghost" data-act="whoop:skipwo" data-id="'+esc(w.id)+'">No</button></div></div>';
   });
   if(p.length>1)h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:10px" data-act="whoop:importall">Add all '+p.length+'</button>';
+  return h+'</div>';
+}
+
+/* ---- zone minutes for the selected period ------------------------------------
+   Sums every activity's zone split across whatever window the Progress screen is
+   showing — lifting and cardio together. This is the figure that says how much
+   work a week actually held, which session counts never do. */
+function whoopZoneTotals(fromISO,toISO){
+  var tot=[0,0,0,0,0,0],any=false;
+  function add(z){if(!z||!z.length)return;any=true;for(var i=0;i<6&&i<z.length;i++)tot[i]+=(z[i]||0);}
+  var ls=((state.training||{}).liftSessions)||{},cs=((state.training||{}).sessions)||{};
+  Object.keys(ls).forEach(function(d){if(d<fromISO||d>toISO)return;
+    (ls[d]||[]).forEach(function(x){add(whoopZonesForSession(x));});});
+  Object.keys(cs).forEach(function(d){if(d<fromISO||d>toISO)return;
+    (cs[d]||[]).forEach(function(x){if(x.kind!=="cardio")return;
+      add(x.whoopZones||whoopZonesForSession({date:d,ts:num(x.ts),mins:num(x.mins)}));});});
+  return any?tot:null;
+}
+function whoopZoneTotalsHTML(){
+  if(!whoopOn())return "";
+  var ctx=(typeof trendCtx==="function")?trendCtx():null;if(!ctx)return "";
+  var z=whoopZoneTotals(toISO(ctx.start),toISO(ctx.end));if(!z)return "";
+  var tot=0;for(var i=0;i<z.length;i++)tot+=(z[i]||0);if(!tot)return "";
+  var work=tot-(z[0]||0);
+  var mx=Math.max.apply(null,z.slice(1))||1;
+  var h='<div class="wl-substat"><div class="wl-substat-h"><span>Minutes in zones</span><span class="v">'+work+' min working</span></div>';
+  for(var k=1;k<=5;k++){
+    var m=z[k]||0;
+    h+='<div class="wl-zrow"><span class="wl-zrow-k" style="color:'+WH_ZONE_COL[k]+'" title="'+WH_ZONE_NAME[k]+'">Z'+k+'</span>'+
+       '<span class="wl-zrow-bar"><i style="width:'+Math.round(m/mx*100)+'%;background:'+WH_ZONE_COL[k]+'"></i></span>'+
+       '<span class="wl-zrow-v'+(m?'':' zero')+'">'+m+'</span></div>';
+  }
+  if(z[0])h+='<div class="wl-hint" style="margin-top:6px">Plus '+z[0]+' min below zone 1 — rest between sets and warm-ups.</div>';
   return h+'</div>';
 }

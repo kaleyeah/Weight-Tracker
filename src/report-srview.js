@@ -305,8 +305,31 @@ function srZonesHTML(z){
     h+='<span style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;color:var(--muted);font-family:var(--mono)"><i style="width:8px;height:8px;border-radius:2px;background:'+SRZC[i]+';display:inline-block"></i>'+SRZL[i]+' <b style="color:var(--text)">'+m+'m</b></span>';});
   return h+'</div></div>';
 }
+/* the week's zone minutes, lifting and cardio combined */
+function srZoneWeekHTML(inp){
+  var z=inp.zoneWeek;if(!z)return "";
+  var tot=0;for(var i=0;i<z.length;i++)tot+=(z[i]||0);
+  if(!tot)return "";
+  var work=tot-(z[0]||0);
+  var mx=Math.max.apply(null,z.slice(1));
+  var h='<div class="wl-card"><div class="wl-card-head"><span>Week in heart-rate zones</span><span class="wl-count">'+srInt(work)+' min working</span></div>';
+  h+='<div style="display:flex;height:14px;border-radius:7px;overflow:hidden;background:var(--bg2);border:1px solid var(--line);margin-bottom:12px">';
+  z.forEach(function(m,i){if(!m)return;h+='<span style="display:block;height:100%;width:'+(m/tot*100).toFixed(2)+'%;background:'+SRZC[i]+'"></span>';});
+  h+='</div>';
+  /* a row per zone 1-5, because the coach wants the shape of the week, not one bar */
+  for(var i2=1;i2<=5;i2++){
+    var m2=z[i2]||0;
+    h+='<div style="display:flex;align-items:center;gap:9px;margin-bottom:6px">'+
+       '<span style="width:20px;font-family:var(--mono);font-size:11px;font-weight:800;color:'+SRZC[i2]+'">Z'+i2+'</span>'+
+       '<span style="flex:1;height:8px;border-radius:4px;background:var(--bg2);overflow:hidden;display:block"><span style="display:block;height:100%;width:'+(mx?Math.round(m2/mx*100):0)+'%;background:'+SRZC[i2]+'"></span></span>'+
+       '<span style="width:54px;text-align:right;font-family:var(--mono);font-size:12px;color:'+(m2?'var(--text)':'var(--faint)')+'">'+srInt(m2)+' min</span></div>';
+  }
+  if(z[0])h+='<div style="font-size:11px;color:var(--faint);margin-top:8px">Plus '+srInt(z[0])+' min below zone 1 (rest between sets, warm-ups).</div>';
+  return h+'</div>';
+}
 function srWorkoutsHTML(inp){
   var h='<div class="secLbl">This week&rsquo;s workouts</div>';
+  h+=srZoneWeekHTML(inp);
   h+=srCardioHTML(inp);
   h+='<div class="secLbl" style="margin-top:16px">Weightlifting</div>';
   if(!(inp.sessions||[]).length)return h+'<div class="wl-card"><div class="wl-hint" style="margin-top:0">No lifting sessions logged this week.</div></div>';

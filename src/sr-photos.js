@@ -104,7 +104,17 @@ function srInput(offset){
     bodycomp:srBodyCompInput(offset),
     lbm:srLbmInput(offset),
     cardio:srCardioInput(offset),
+    zoneWeek:srZoneWeek(sessions,srCardioInput(offset)),
     sessions:sessions,assumed:!!M.anyAssumed};}
+/* Every minute the week spent in each heart-rate zone, lifting and cardio
+   together — the one figure that says how much work the week actually held,
+   rather than how many sessions it contained. */
+function srZoneWeek(sessions,cardio){
+  var tot=[0,0,0,0,0,0],any=false;
+  function add(z){if(!z||!z.length)return;any=true;for(var i=0;i<6&&i<z.length;i++)tot[i]+=(z[i]||0);}
+  (sessions||[]).forEach(function(s){add(s.zones);});
+  (cardio||[]).forEach(function(c){add(c.zones);});
+  return any?tot:null;}
 /* Latest body-composition readings for the week, with the move since the
    previous reading. Falls back to the most recent reading ever, flagged stale,
    so a coach still sees where the athlete stands. */
