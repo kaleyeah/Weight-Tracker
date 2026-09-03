@@ -613,9 +613,10 @@ function whoopImportCardHTML(){
 function whoopZoneTotals(fromISO,toISO){
   var tot=[0,0,0,0,0,0],any=false;
   function add(z){if(!z||!z.length)return;any=true;for(var i=0;i<6&&i<z.length;i++)tot[i]+=(z[i]||0);}
-  var ls=((state.training||{}).liftSessions)||{},cs=((state.training||{}).sessions)||{};
-  Object.keys(ls).forEach(function(d){if(d<fromISO||d>toISO)return;
-    (ls[d]||[]).forEach(function(x){add(whoopZonesForSession(x));});});
+  /* CARDIO ONLY (Owner, 2026-09-03) — a lift's zone time is largely rest between
+     sets, so counting it here would inflate what reads as cardiovascular work.
+     Lifting sessions keep their own split on their own cards. */
+  var cs=((state.training||{}).sessions)||{};
   Object.keys(cs).forEach(function(d){if(d<fromISO||d>toISO)return;
     (cs[d]||[]).forEach(function(x){if(x.kind!=="cardio")return;
       add(x.whoopZones||whoopZonesForSession({date:d,ts:num(x.ts),mins:num(x.mins)}));});});
@@ -628,7 +629,7 @@ function whoopZoneTotalsHTML(){
   var tot=0;for(var i=0;i<z.length;i++)tot+=(z[i]||0);if(!tot)return "";
   var work=tot-(z[0]||0);
   var mx=Math.max.apply(null,z.slice(1))||1;
-  var h='<div class="wl-substat"><div class="wl-substat-h"><span>Minutes in zones</span><span class="v">'+work+' min working</span></div>';
+  var h='<div class="wl-substat"><div class="wl-substat-h"><span>Cardio minutes in zones</span><span class="v">'+work+' min working</span></div>';
   /* per-workout only: WHOOP's day record has no zone split */
   for(var k=1;k<=5;k++){
     var m=z[k]||0;

@@ -312,7 +312,7 @@ function srZoneWeekHTML(inp){
   if(!tot)return "";
   var work=tot-(z[0]||0);
   var mx=Math.max.apply(null,z.slice(1));
-  var h='<div class="wl-card"><div class="wl-card-head"><span>Week in heart-rate zones</span><span class="wl-count">'+srInt(work)+' min working</span></div>';
+  var h='<div class="wl-card"><div class="wl-card-head"><span>Cardio in heart-rate zones</span><span class="wl-count">'+srInt(work)+' min working</span></div>';
   h+='<div style="display:flex;height:14px;border-radius:7px;overflow:hidden;background:var(--bg2);border:1px solid var(--line);margin-bottom:12px">';
   z.forEach(function(m,i){if(!m)return;h+='<span style="display:block;height:100%;width:'+(m/tot*100).toFixed(2)+'%;background:'+SRZC[i]+'"></span>';});
   h+='</div>';
@@ -328,7 +328,7 @@ function srZoneWeekHTML(inp){
   /* WHOOP reports time-in-zone per WORKOUT only — its day record carries no zone
      split at all — so this is recorded-activity time, never the whole day. Said
      plainly so it is not read as total daily time in zones. */
-  h+='<div style="font-size:11px;color:var(--faint);margin-top:4px">Recorded activities only. Movement WHOOP didn\u2019t log as an activity still counts toward day strain, but has no zone breakdown.</div>';
+  h+='<div style="font-size:11px;color:var(--faint);margin-top:4px">Cardio sessions only \u2014 lifting has its own split on each session below. Movement WHOOP didn\u2019t log as an activity has no zone breakdown at all.</div>';
   return h+'</div>';
 }
 function srWorkoutsHTML(inp){
