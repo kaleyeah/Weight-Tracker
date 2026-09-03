@@ -354,7 +354,15 @@ function whoopAutoSync(){
 document.addEventListener("visibilitychange",function(){if(!document.hidden)whoopAutoSync();});
 window.addEventListener("pageshow",whoopAutoSync);
 window.addEventListener("focus",whoopAutoSync);
-setTimeout(whoopAutoSync,2500);   /* and once shortly after boot */
+/* On a COLD start the settings may not be hydrated yet — local storage, then a
+   PocketBase pull that can replace them. A single attempt shortly after boot
+   therefore fired before whoopOn() was even true and nothing ever retried, so
+   opening the app fresh never synced while merely foregrounding it did. Several
+   attempts instead; each is cooldown-guarded and idempotent, so at most one
+   does any work. */
+[1200,3000,7000,15000,30000].forEach(function(ms){setTimeout(whoopAutoSync,ms);});
+/* and a slow heartbeat, so an app left open all day still keeps up */
+setInterval(function(){if(!document.hidden)whoopAutoSync();},10*60*1000);
 
 /* ---- what WHOOP has for a day's sleep ---------------------------------------
    Shown beside the sleep fields. When the entry is blank this is just

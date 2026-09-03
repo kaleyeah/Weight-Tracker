@@ -1139,7 +1139,7 @@ input[type=range][data-pfadj]{width:100%;accent-color:var(--accent);min-height:2
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-09-02.517-zone-recover";
+var APP_BUILD="2026-09-03.518-autosync-boot";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -11324,7 +11324,15 @@ function whoopAutoSync(){
 document.addEventListener("visibilitychange",function(){if(!document.hidden)whoopAutoSync();});
 window.addEventListener("pageshow",whoopAutoSync);
 window.addEventListener("focus",whoopAutoSync);
-setTimeout(whoopAutoSync,2500);   /* and once shortly after boot */
+/* On a COLD start the settings may not be hydrated yet — local storage, then a
+   PocketBase pull that can replace them. A single attempt shortly after boot
+   therefore fired before whoopOn() was even true and nothing ever retried, so
+   opening the app fresh never synced while merely foregrounding it did. Several
+   attempts instead; each is cooldown-guarded and idempotent, so at most one
+   does any work. */
+[1200,3000,7000,15000,30000].forEach(function(ms){setTimeout(whoopAutoSync,ms);});
+/* and a slow heartbeat, so an app left open all day still keeps up */
+setInterval(function(){if(!document.hidden)whoopAutoSync();},10*60*1000);
 
 /* ---- what WHOOP has for a day's sleep ---------------------------------------
    Shown beside the sleep fields. When the entry is blank this is just
