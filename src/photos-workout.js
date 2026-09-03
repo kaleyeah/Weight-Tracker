@@ -912,10 +912,13 @@ function trainingGoalsHTML(ws){var st=weekTrainingStats(ws);var f=state.settings
   if(cmGoal==null&&liftGoal==null&&stG==null)return '<div class="wl-hint">Set weekly goals in Settings → Goals to track them here.</div>';
   var h='';
   if(liftGoal!=null)h+=goalBarHTML("Lifting Sessions",st.liftSessions,liftGoal,"",false);
-  /* every cardio minute counts toward the goal; zone 2+ rides alongside as the
-     quality figure so both the volume and the intensity are visible */
-  if(cmGoal!=null){h+=goalBarHTML("Cardio Minutes",st.cardioMins,cmGoal,"min",false);
-    if(st.cardioMins)h+='<div class="wl-hint" style="margin:-4px 0 10px">of which <b>'+st.cardioZ2Mins+' min</b> at zone 2 or above'+(st.cardioZ2Mins?'':' \u2014 all easy work this week')+'.</div>';}
+  /* The goal IS a zone 2+ goal — that is what it was set as, so that is what the
+     bar tracks. Total cardio rides alongside as context. (The bug worth keeping
+     fixed is the old one underneath: an UNKNOWN zone used to count as if it
+     qualified, so logging blind scored full credit while wearing the strap and
+     proving a session easy scored zero. Only a measured zone 2+ counts now.) */
+  if(cmGoal!=null){h+=goalBarHTML("Cardio Minutes (Zone 2+)",st.cardioZ2Mins,cmGoal,"min",false);
+    if(st.cardioMins)h+='<div class="wl-hint" style="margin:-4px 0 10px"><b>'+st.cardioMins+' min</b> of cardio in total'+(st.cardioMins>st.cardioZ2Mins?', the rest below zone 2':'')+'.</div>';}
   if(stG!=null){var _stw=0;for(var _i=0;_i<7;_i++){var _iso=toISO(addDays(ws,_i));var _v=num(state.steps[_iso]);if(_v!=null)_stw+=_v;}h+=goalBarHTML("Steps",_stw,stG*7,"",false);}
   return h;}
 var MUSCLES=[["chest","Chest","#d926b8"],["back","Back","#3aa0c9"],["shoulders","Shoulders","#a855f7"],["biceps","Biceps","#f59e0b"],["triceps","Triceps","#ec4899"],["quads","Quads","#22c55e"],["hamstrings","Hamstrings","#10b981"],["glutes","Glutes","#14b8a6"],["calves","Calves","#84cc16"],["core","Core","#eab308"],["forearms","Forearms","#f97316"],["other","Other","#9ca3af"]];
