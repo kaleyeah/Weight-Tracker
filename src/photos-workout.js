@@ -831,21 +831,37 @@ function manualZoneBounds(){var out=[],i,v;
   for(i=2;i<=5;i++){v=num(state.settings["zoneB"+i]);if(v==null||v<=0)return null;out.push(Math.round(v));}
   for(i=1;i<out.length;i++){if(out[i]<=out[i-1])return null;}   /* must ascend, or it is not a table */
   return out;}
-function zoneModel(){
+/* WHOOP rebuilds the zone boundaries every day from that day's resting heart
+   rate, so its bands move — over three weeks the Owner's ranged 61-75, which
+   walks the zone-2 floor between 136 and 142. A single profile figure can only
+   match on the days it happens to equal. When WHOOP has a resting HR for the
+   day being classified, use it; otherwise fall back to the profile value, which
+   is all there is for days before WHOOP.
+   Note WHOOP itself revises a day's recovery hours later (a nap, an edited
+   sleep), and each sync overwrites the whole day row, so this follows suit. */
+function whoopRestingFor(iso){
+  if(!iso||typeof whoopOn!=="function"||!whoopOn())return null;
+  var d=(state.whoop||{})[iso];
+  var r=d&&num(d.restingHr);
+  return (r!=null&&r>0)?r:null;
+}
+function zoneModel(iso){
   var wantManual=state.settings.zoneMethod==="manual";
   if(wantManual){var mb=manualZoneBounds();if(mb)return {method:"manual",bounds:mb,max:effMaxHR(),rest:restHR()};}
   var mx=effMaxHR();if(mx==null)return null;
-  var rest=restHR();
+  var rest=whoopRestingFor(iso);
+  var fromWhoop=(rest!=null);
+  if(rest==null)rest=restHR();
   /* Bounds stay unrounded: rounding them would move zone edges by a beat for
      some athletes, which would silently change what counts as zone 2. */
   if(rest!=null&&rest<mx){var res=mx-rest;
-    return {method:"hrr",max:mx,rest:rest,reserve:res,incomplete:wantManual,
+    return {method:"hrr",max:mx,rest:rest,reserve:res,incomplete:wantManual,whoopRest:fromWhoop,
       z1:rest+ZONE1_FRACTION*res,
       bounds:ZONE_FRACTIONS.map(function(f){return rest+f*res;})};}
   return {method:"pctmax",max:mx,rest:rest,incomplete:wantManual,
     z1:ZONE1_FRACTION*mx,
     bounds:ZONE_FRACTIONS.map(function(f){return f*mx;})};}
-function zoneForHR(hr){var h=num(hr);if(h==null)return null;var m=zoneModel();if(!m)return null;
+function zoneForHR(hr,iso){var h=num(hr);if(h==null)return null;var m=zoneModel(iso);if(!m)return null;
   var z=1;for(var i=0;i<m.bounds.length;i++){if(h>=m.bounds[i])z=i+2;}
   if(z===1&&m.z1!=null&&h<m.z1)z=0;      /* below zone 1 = WHOOP's zone 0 */
   return z;}
@@ -874,8 +890,8 @@ function zoneTableHTML(){var m=zoneModel();
   h+='<div style="display:grid;grid-template-columns:auto 1fr;gap:3px 14px;margin-top:8px">';
   rows.forEach(function(r){h+='<span>'+r[0]+'</span><span style="font-family:'+"var(--mono)"+';color:var(--text)">'+r[1]+' bpm</span>';});
   return h+'</div>';}
-function zoneAreaHTML(cf,pfx){pfx=pfx||"cf";var m=zoneModel();var hr=num(cf.hr);
-  if(m&&hr!=null){var z=zoneForHR(hr);return '<div class="wl-cf-label">Zone</div><div class="wl-hint">From your avg HR: <b>Zone '+z+'</b> ('+zoneBasisText(hr,m)+') — set automatically.</div>';}
+function zoneAreaHTML(cf,pfx){pfx=pfx||"cf";var m=zoneModel(state.selDate);var hr=num(cf.hr);
+  if(m&&hr!=null){var z=zoneForHR(hr,state.selDate);return '<div class="wl-cf-label">Zone</div><div class="wl-hint">From your avg HR: <b>Zone '+z+'</b> ('+zoneBasisText(hr,m)+') — set automatically.</div>';}
   var label=m?'Zone <em>enter avg HR above to auto-detect</em>':'Zone';
   return '<div class="wl-cf-label">'+label+'</div><div class="wl-seg wl-seg-wide">'+[1,2,3,4,5].map(function(z){return '<button class="'+(cf.zone===z?"on":"")+'" data-act="'+pfx+':zone" data-zone="'+z+'">'+z+'</button>';}).join("")+'</div>';}
 function weekTrainingStats(ws){var out={cardioSessions:0,cardioZ2Sessions:0,cardioMins:0,cardioZ2Mins:0,liftSessions:0,liftMins:0,totalMins:0};

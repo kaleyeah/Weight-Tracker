@@ -566,7 +566,7 @@ function whoopPendingImports(){
 function whoopImportWorkout(w){
   var mins=whoopWoMins(w);if(!mins)return false;
   var hr=w.avgHr!=null?w.avgHr:null;
-  var zone=(typeof zoneForHR==="function"&&hr!=null)?zoneForHR(hr):null;
+  var zone=(typeof zoneForHR==="function"&&hr!=null)?zoneForHR(hr,w.date):null;
   var sess={id:"c-"+Date.now()+"-"+Math.random().toString(36).slice(2,6),kind:"cardio",
     type:whoopCardioType(w),mins:mins,zone:zone,rpe:null,cal:(w.cal!=null?w.cal:null),
     hr:hr,hrMax:(w.maxHr!=null?w.maxHr:null),notes:"",ts:Date.parse(w.end)||Date.now(),
