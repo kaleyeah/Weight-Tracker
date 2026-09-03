@@ -897,12 +897,19 @@ function zoneAreaHTML(cf,pfx){pfx=pfx||"cf";var m=zoneModel(state.selDate);var h
 function weekTrainingStats(ws){var out={cardioSessions:0,cardioZ2Sessions:0,cardioMins:0,cardioZ2Mins:0,liftSessions:0,liftMins:0,totalMins:0};
   for(var i=0;i<7;i++){var iso=toISO(addDays(ws,i));
     ((state.training.sessions||{})[iso]||[]).forEach(function(x){if(x.kind==="cardio"){out.cardioSessions++;var m=(num(x.mins)||0);out.cardioMins+=m;var z=num(x.zone);
-      /* The goal counts every cardio minute. Zone 2+ is reported alongside as a
-         quality figure — it used to BE the goal, with an unknown zone counting
-         in full, which meant wearing the strap and proving a session was easy
-         scored zero while the same session logged blind scored everything.
-         Measuring should never cost you credit. */
-      if(z!=null&&z>=2){out.cardioZ2Mins+=m;out.cardioZ2Sessions++;}}});
+      /* Zone 2+ minutes come from the ACTUAL per-minute split when WHOOP
+         recorded one, not from the session's average. A spin whose average lands
+         in zone 2 still spent some of itself below it — counting the whole
+         session credited 21 minutes where 19 were earned, and disagreed with the
+         zone bar shown right beside it.
+         Without a split there is only the average to go on: a session whose
+         average is zone 2+ counts in full, and an UNKNOWN zone counts nothing
+         (it used to count in full, so logging blind beat wearing the strap). */
+      var _zs=(typeof whoopZonesForSession==="function")?whoopZonesForSession(x):null;
+      if(_zs&&_zs.length>=6){
+        var _q=(_zs[2]||0)+(_zs[3]||0)+(_zs[4]||0)+(_zs[5]||0);
+        if(_q>0){out.cardioZ2Mins+=_q;out.cardioZ2Sessions++;}
+      }else if(z!=null&&z>=2){out.cardioZ2Mins+=m;out.cardioZ2Sessions++;}}});
     ((state.training.liftSessions||{})[iso]||[]).forEach(function(x){out.liftSessions++;out.liftMins+=(num(x.mins)||0);});}
   out.totalMins=out.cardioMins+out.liftMins;return out;}
 function goalBarHTML(label,val,goal,unit,soon){var pct=goal>0?Math.min(100,Math.round(val/goal*100)):0;var done=goal>0&&val>=goal;

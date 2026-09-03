@@ -1139,7 +1139,7 @@ input[type=range][data-pfadj]{width:100%;accent-color:var(--accent);min-height:2
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-09-03.521-goal-z2";
+var APP_BUILD="2026-09-03.522-z2-from-split";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -9548,12 +9548,19 @@ function zoneAreaHTML(cf,pfx){pfx=pfx||"cf";var m=zoneModel(state.selDate);var h
 function weekTrainingStats(ws){var out={cardioSessions:0,cardioZ2Sessions:0,cardioMins:0,cardioZ2Mins:0,liftSessions:0,liftMins:0,totalMins:0};
   for(var i=0;i<7;i++){var iso=toISO(addDays(ws,i));
     ((state.training.sessions||{})[iso]||[]).forEach(function(x){if(x.kind==="cardio"){out.cardioSessions++;var m=(num(x.mins)||0);out.cardioMins+=m;var z=num(x.zone);
-      /* The goal counts every cardio minute. Zone 2+ is reported alongside as a
-         quality figure — it used to BE the goal, with an unknown zone counting
-         in full, which meant wearing the strap and proving a session was easy
-         scored zero while the same session logged blind scored everything.
-         Measuring should never cost you credit. */
-      if(z!=null&&z>=2){out.cardioZ2Mins+=m;out.cardioZ2Sessions++;}}});
+      /* Zone 2+ minutes come from the ACTUAL per-minute split when WHOOP
+         recorded one, not from the session's average. A spin whose average lands
+         in zone 2 still spent some of itself below it — counting the whole
+         session credited 21 minutes where 19 were earned, and disagreed with the
+         zone bar shown right beside it.
+         Without a split there is only the average to go on: a session whose
+         average is zone 2+ counts in full, and an UNKNOWN zone counts nothing
+         (it used to count in full, so logging blind beat wearing the strap). */
+      var _zs=(typeof whoopZonesForSession==="function")?whoopZonesForSession(x):null;
+      if(_zs&&_zs.length>=6){
+        var _q=(_zs[2]||0)+(_zs[3]||0)+(_zs[4]||0)+(_zs[5]||0);
+        if(_q>0){out.cardioZ2Mins+=_q;out.cardioZ2Sessions++;}
+      }else if(z!=null&&z>=2){out.cardioZ2Mins+=m;out.cardioZ2Sessions++;}}});
     ((state.training.liftSessions||{})[iso]||[]).forEach(function(x){out.liftSessions++;out.liftMins+=(num(x.mins)||0);});}
   out.totalMins=out.cardioMins+out.liftMins;return out;}
 function goalBarHTML(label,val,goal,unit,soon){var pct=goal>0?Math.min(100,Math.round(val/goal*100)):0;var done=goal>0&&val>=goal;
