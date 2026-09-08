@@ -184,15 +184,20 @@ var LOGOUT_JOURNAL_KEY="wl_logout_journal",LOGOUT_JOURNAL_V=1;
    finish destroying data they may not have exported. */
 var logoutRecovery=null;   /* null, or {phase, journal} while a wipe is unresolved */
 function logoutRecoveryPending(){return !!logoutRecovery;}
-function logoutTargets(){
-  /* The coach-report cache survived logout, so the next account could read the
-     previous one's reports. Both the per-account key and the legacy shared key
-     go, and any other account's cached reports are cleared too — this device is
-     being handed over, not switched between. */
-  var out=[KEY,TKEY,WOKEY,DIRTY_KEY,LAST_KEY,LASTOWNER_KEY,TRECOVERY_KEY,"wl_coach_reports"];
-  try{for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);
-    if(k&&k.indexOf("wl_coach_reports")===0&&out.indexOf(k)<0)out.push(k);}}catch(e){}
-  return out;}
+/* MUST BE STATIC. validLogoutJournal() checks a journal's key set against this
+   list, so anything data-dependent here breaks recovery: I briefly scanned
+   localStorage for per-account cache keys, which meant (a) journals written by
+   an earlier build failed the length check, and (b) a journal invalidated
+   ITSELF the moment logout removed one of the scanned keys. An interrupted
+   logout then lost its recovery choices. The journal contract is a fixed
+   inventory; caches that are merely stale are cleared outside it. */
+function logoutTargets(){return [KEY,TKEY,WOKEY,DIRTY_KEY,LAST_KEY,LASTOWNER_KEY,TRECOVERY_KEY];}
+/* Not journalled: losing a cached coach report is not a recoverable-data event,
+   it is a privacy one. Cleared best-effort after the journalled wipe. */
+function clearCoachCaches(){
+  try{var kill=[];for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);
+    if(k&&k.indexOf("wl_coach_reports")===0)kill.push(k);}
+    for(var j=0;j<kill.length;j++)localStorage.removeItem(kill[j]);}catch(e){}}
 var LOGOUT_PHASES=["prepared","wiping","data-cleared","committed"];
 
 function readSessionPair(){
@@ -307,6 +312,10 @@ function logoutRecoveryFinish(){
     var still=null;
     try{still=localStorage.getItem(ks[i]);}catch(e){toast("Couldn't verify this device was cleared");return false;}
     if(still!==null){toast("Couldn't finish clearing this device");return false;}}
+  /* the journalled inventory is verified gone; now clear the non-journalled
+     caches (coach reports), which are a privacy concern rather than a
+     recoverable-data one */
+  clearCoachCaches();
   try{pbClearSession(false);}catch(e){}
   try{sessionStorage.removeItem(PB_KEY);}catch(e){}
   /* Same postcondition as an ordinary logout: pbClearSession legitimately keeps

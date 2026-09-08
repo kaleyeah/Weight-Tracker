@@ -1642,9 +1642,19 @@ function applySuggestions(entries,routineId){entries.forEach(function(en){if(!en
        the suggestion neither overwrites today's default load nor advertises the
        old number as sugW. Rep suggestions still apply. */
     if(g.w!=null&&!en.bodyweight)st.weight=String(g.w);
-    if(g.r!=null)st.reps=String(g.r);
-    if(g.tgtLo!=null){st.tgtLo=g.tgtLo;st.tgtHi=g.tgtHi;st.sugR=null;st.sugW=null;st.sugE=null;}
-    else{st.sugR=g.r;if(g.w!=null&&!en.bodyweight)st.sugW=g.w;if(en.bodyweight)st.sugW=null;if(g.e!=null)st.sugE=g.e;st.tgtLo=null;st.tgtHi=null;}});
+    if(g.tgtLo!=null){
+      /* RPT: the per-set range IS the instruction, and it has a low AND a high.
+         Writing the low end into the reps field printed "10" as though it were
+         a logged result, so the 10-12 placeholder never showed and the athlete
+         could not tell a target from something he had done. Leave reps EMPTY and
+         let setRowHTML render the range as the placeholder. The weight is still
+         suggested — that is a real prescription; the rep count is his to record. */
+      st.tgtLo=g.tgtLo;st.tgtHi=g.tgtHi;st.sugR=null;st.sugW=null;st.sugE=null;
+      st.reps="";
+    }
+    else{
+      if(g.r!=null)st.reps=String(g.r);
+      st.sugR=g.r;if(g.w!=null&&!en.bodyweight)st.sugW=g.w;if(en.bodyweight)st.sugW=null;if(g.e!=null)st.sugE=g.e;st.tgtLo=null;st.tgtHi=null;}});
   if(any)en.sug=true;
   if(sg.bump)en.bump=sg.bump;});}
 function startWorkout(rt){var bw=currentBW();var _ents=buildWorkoutEntries(rt,bw);applySuggestions(_ents,rt.id);
@@ -1807,7 +1817,7 @@ function restBarHTML(){
     var _setLbl=esc(_lastEn.name||"that set")+' \u00b7 set '+((num(w.lastSi)||0)+1);
     if(state.setNoteOpen){
       h+='<div class="wl-rb-note"><div class="wl-rb-notel">Note on '+_setLbl+'</div>'+
-         '<textarea id="wl-setnote" class="wl-rb-notein" rows="2" placeholder="How did it feel? Form, pain, the weight\u2026">'+esc(_sn)+'</textarea>'+
+         '<textarea id="wl-setnote" class="wl-rb-notein" rows="2" placeholder="How did it feel? Form, pain, the weight\u2026">'+esc(state.setNoteDraft!=null?state.setNoteDraft:_sn)+'</textarea>'+
          '<div class="wl-rb-noteb"><button class="wl-btn wl-btn-primary" data-act="set:notesave">Save note</button>'+
          '<button class="wl-btn wl-btn-ghost" data-act="set:noteopen">Cancel</button></div></div>';
     }else{
@@ -2012,8 +2022,12 @@ function view_liftview(){var s=getLiftSession();var u=state.settings.units;var m
   if(s.mode==="full"&&s.entries){s.entries.forEach(function(en,ei){h+='<div class="wl-card"><div style="margin-bottom:6px">'+muscleTagHTML(en.muscle||"other")+'</div><div class="wl-exrow-name">'+esc(en.name)+'</div>';
     h+='<div class="wl-setgrid wl-sethead" style="grid-template-columns:1fr 1fr 46px 60px;margin-top:8px"><span>WEIGHT</span><span>REPS</span><span>RIR '+infoBtn("rir")+'</span><span></span></div>';
     en.sets.forEach(function(st,si){var stat=st.status==="skipped"?"skipped":st.status==="done"?"✓":"";
+      /* a note written during the rest after this set — it was saved and then
+         never shown again once the session was filed */
+      var _svn=st.note?'<div class="wl-setnote">'+I.info.replace("<svg","<svg width=12 height=12")+'<span>'+esc(st.note)+'</span></div>':'';
       if(editing)h+='<div class="wl-setgrid wl-setrow" style="grid-template-columns:1fr 1fr 46px 60px"><input class="wl-sv-set wl-set-input" data-ei="'+ei+'" data-si="'+si+'" data-field="weight" type="text" inputmode="decimal" value="'+esc(st.weight!=null?String(st.weight):"")+'"><input class="wl-sv-set wl-set-input" data-ei="'+ei+'" data-si="'+si+'" data-field="reps" type="text" inputmode="numeric" value="'+esc(st.reps!=null?String(st.reps):"")+'"><input class="wl-sv-set wl-set-input wl-set-rir" data-ei="'+ei+'" data-si="'+si+'" data-field="rir" type="text" inputmode="numeric" placeholder="–" value="'+esc(st.rir!=null?String(st.rir):"")+'"><span class="wl-exrow-sub" style="text-align:center">'+stat+'</span></div>';
-      else h+='<div class="wl-setgrid" style="grid-template-columns:1fr 1fr 46px 60px;padding:7px 0;border-top:1px solid var(--line)"><span style="text-align:center;font-size:15px">'+(st.weight!=null?st.weight:"–")+'</span><span style="text-align:center;font-size:15px">'+(st.reps!=null?st.reps:"–")+'</span><span style="text-align:center;color:var(--faint)">'+(st.rir!=null?st.rir:"–")+'</span><span class="wl-exrow-sub" style="text-align:center;display:inline-flex;align-items:center;justify-content:center;gap:6px">'+(st.status==="done"?setTargetIcon(st,en):"")+stat+'</span></div>';});
+      else h+='<div class="wl-setgrid" style="grid-template-columns:1fr 1fr 46px 60px;padding:7px 0;border-top:1px solid var(--line)"><span style="text-align:center;font-size:15px">'+(st.weight!=null?st.weight:"–")+'</span><span style="text-align:center;font-size:15px">'+(st.reps!=null?st.reps:"–")+'</span><span style="text-align:center;color:var(--faint)">'+(st.rir!=null?st.rir:"–")+'</span><span class="wl-exrow-sub" style="text-align:center;display:inline-flex;align-items:center;justify-content:center;gap:6px">'+(st.status==="done"?setTargetIcon(st,en):"")+stat+'</span></div>';
+      h+=_svn;});
     h+='</div>';});}
   if(editing){h+='<button class="wl-btn wl-btn-primary wl-full" data-act="lift:tofinish">Finish → edit summary</button>';h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="lift:editcancel">Cancel edits</button>';}
   else{h+='<button class="wl-btn wl-btn-primary wl-full" data-act="lift:back">Done</button>';h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="lift:edit">Edit workout</button>';h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="lift:del" data-id="'+s.id+'">Delete session</button>';}

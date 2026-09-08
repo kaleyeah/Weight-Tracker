@@ -224,9 +224,17 @@ document.addEventListener("click",function(e){
   if(a==="set:notesave"){var w=state.workout;if(!w)return;
     var el=document.getElementById("wl-setnote");var txt=el?String(el.value||"").trim():"";
     var en=w.entries[w.lastEi];var st=en&&(en.sets||[])[w.lastSi];
-    if(st){if(txt)st.note=txt;else delete st.note;}
-    state.setNoteOpen=false;saveWorkout();render();
-    if(txt)toast("Note saved to that set");return;}
+    if(!st)return;
+    var prev=st.note;
+    if(txt)st.note=txt;else delete st.note;
+    /* saveWorkout reports failure; ignoring it produced the storage warning
+       followed immediately by "Note saved to that set". Keep the editor open
+       with the text intact so the note is not lost behind a false success. */
+    var ok=saveWorkout();
+    if(ok){state.setNoteOpen=false;render();if(txt)toast("Note saved to that set");}
+    else{if(prev===undefined)delete st.note;else st.note=prev;
+      state.setNoteDraft=txt;render();}
+    return;}
   if(a==="wo:pause"){var w=state.workout;if(!w||w.tState!=="working")return;w.pausedRest=true;woTransition("resting");if(typeof startWoTick==="function")startWoTick();render();return;}
   if(a==="wo:resumeset"){var w=state.workout;if(!w)return;woTransition("working");if(typeof startWoTick==="function")startWoTick();render();if(typeof woScrollCurrent==="function")setTimeout(woScrollCurrent,40);return;}
   if(a==="wo:log"){var w=state.workout;if(!w)return;if(w.tState==="ready"){toast("Tap Start to begin your warmup first");return;}if(w.tState==="warmup"){toast("Finish your warmup — tap End warmup to start the routine");return;}var ei=+el.getAttribute("data-ei"),si=+el.getAttribute("data-si");var stt=w.entries[ei].sets[si];
@@ -475,7 +483,7 @@ document.addEventListener("click",function(e){
   if(a==="cardio:repick"){if(state.cardioForm)state.cardioForm.picking=true;render();return;}
   if(a==="cardio:cancel"){state.cardioForm=null;state.view="train";render();return;}
   if(a==="cf:type"){if(state.cardioForm)state.cardioForm.type=el.getAttribute("data-type");render();return;}
-  if(a==="cf:zone"){if(state.cardioForm)state.cardioForm.zone=+el.getAttribute("data-zone");render();return;}
+  if(a==="cf:zone"){if(state.cardioForm){state.cardioForm.zone=+el.getAttribute("data-zone");state.cardioForm.zoneTouched=true;}render();return;}
   if(a==="cf:newtype-toggle"){if(state.cardioForm)state.cardioForm.newOpen=!state.cardioForm.newOpen;render();return;}
   if(a==="cf:newtype"){var ni=document.getElementById("wl-newcardio");var nv=((ni&&ni.value)||"").trim();if(!nv)return;var prc=normPresets();if(!prc.some(function(p){return p.name.toLowerCase()===nv.toLowerCase()&&p.cat==="cardio";})){prc.push({name:nv,cat:"cardio"});state.presets=prc;save();}if(state.cardioForm){state.cardioForm.type=nv;state.cardioForm.newOpen=false;state.cardioForm.picking=false;}render();return;}
   if(a==="act:addopen"){state.actAddCat=el.getAttribute("data-cat");render();var _ai=document.getElementById("wl-addact-"+state.actAddCat);if(_ai)_ai.focus();return;}
@@ -488,7 +496,11 @@ document.addEventListener("click",function(e){
        session changing. Recompute only when the heart rate actually moved. */
     var hrv=num(cf.hr);
     var zone;
-    if(cf.id&&num(cf.hrAtLoad)===hrv&&cf.zoneAtLoad!==undefined){zone=cf.zoneAtLoad;}
+    /* Freeze the stored classification on an incidental edit (a note), but never
+       over the athlete: picking a zone by hand is an explicit instruction, and
+       the first version of this froze that away too. */
+    var zoneTouched=(cf.zoneTouched===true)||(cf.id&&cf.zoneAtLoad!==undefined&&cf.zone!==cf.zoneAtLoad);
+    if(cf.id&&!zoneTouched&&num(cf.hrAtLoad)===hrv&&cf.zoneAtLoad!==undefined){zone=cf.zoneAtLoad;}
     else{zone=zoneForHR(hrv,state.selDate);if(zone==null)zone=(cf.zone!=null?cf.zone:null);}
     var sess={id:cf.id||("c-"+Date.now()+"-"+Math.random().toString(36).slice(2,6)),kind:"cardio",type:cf.type,mins:Math.round(mins),zone:zone,rpe:num(cf.rpe),cal:num(cf.cal),hr:num(cf.hr),hrMax:num(cf.hrMax),notes:(cf.notes||"").trim(),
       ts:(cf.id&&num(cf.ts)!=null)?num(cf.ts):Date.now(),   /* an edit keeps when it happened */

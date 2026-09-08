@@ -1151,7 +1151,7 @@ input[type=range][data-pfadj]{width:100%;accent-color:var(--accent);min-height:2
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-09-08.527-rest-minimum";
+var APP_BUILD="2026-09-08.528-rpt-range";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -6539,7 +6539,7 @@ function srCardioInput(offset){
         /* cardio has no saved zone split, so match WHOOP by the day when that
            day holds exactly one workout — never guess between several */
         zones:(function(){if(typeof whoopZonesForSession!=="function")return null;
-          return whoopZonesForSession({date:iso,ts:num(c.ts),mins:num(c.mins),whoopZones:c.whoopZones||null});})()});});});
+          return whoopZonesForSession({kind:"cardio",type:c.type,date:iso,ts:num(c.ts),mins:num(c.mins),whoopZones:c.whoopZones||null});})()});});});
   return out;}
 /* ---- progress photos for the report: prefetch, cache, never block the tap ----
    iOS requires transient user activation for navigator.share — awaiting slow
@@ -10314,9 +10314,19 @@ function applySuggestions(entries,routineId){entries.forEach(function(en){if(!en
        the suggestion neither overwrites today's default load nor advertises the
        old number as sugW. Rep suggestions still apply. */
     if(g.w!=null&&!en.bodyweight)st.weight=String(g.w);
-    if(g.r!=null)st.reps=String(g.r);
-    if(g.tgtLo!=null){st.tgtLo=g.tgtLo;st.tgtHi=g.tgtHi;st.sugR=null;st.sugW=null;st.sugE=null;}
-    else{st.sugR=g.r;if(g.w!=null&&!en.bodyweight)st.sugW=g.w;if(en.bodyweight)st.sugW=null;if(g.e!=null)st.sugE=g.e;st.tgtLo=null;st.tgtHi=null;}});
+    if(g.tgtLo!=null){
+      /* RPT: the per-set range IS the instruction, and it has a low AND a high.
+         Writing the low end into the reps field printed "10" as though it were
+         a logged result, so the 10-12 placeholder never showed and the athlete
+         could not tell a target from something he had done. Leave reps EMPTY and
+         let setRowHTML render the range as the placeholder. The weight is still
+         suggested — that is a real prescription; the rep count is his to record. */
+      st.tgtLo=g.tgtLo;st.tgtHi=g.tgtHi;st.sugR=null;st.sugW=null;st.sugE=null;
+      st.reps="";
+    }
+    else{
+      if(g.r!=null)st.reps=String(g.r);
+      st.sugR=g.r;if(g.w!=null&&!en.bodyweight)st.sugW=g.w;if(en.bodyweight)st.sugW=null;if(g.e!=null)st.sugE=g.e;st.tgtLo=null;st.tgtHi=null;}});
   if(any)en.sug=true;
   if(sg.bump)en.bump=sg.bump;});}
 function startWorkout(rt){var bw=currentBW();var _ents=buildWorkoutEntries(rt,bw);applySuggestions(_ents,rt.id);
@@ -10479,7 +10489,7 @@ function restBarHTML(){
     var _setLbl=esc(_lastEn.name||"that set")+' \u00b7 set '+((num(w.lastSi)||0)+1);
     if(state.setNoteOpen){
       h+='<div class="wl-rb-note"><div class="wl-rb-notel">Note on '+_setLbl+'</div>'+
-         '<textarea id="wl-setnote" class="wl-rb-notein" rows="2" placeholder="How did it feel? Form, pain, the weight\u2026">'+esc(_sn)+'</textarea>'+
+         '<textarea id="wl-setnote" class="wl-rb-notein" rows="2" placeholder="How did it feel? Form, pain, the weight\u2026">'+esc(state.setNoteDraft!=null?state.setNoteDraft:_sn)+'</textarea>'+
          '<div class="wl-rb-noteb"><button class="wl-btn wl-btn-primary" data-act="set:notesave">Save note</button>'+
          '<button class="wl-btn wl-btn-ghost" data-act="set:noteopen">Cancel</button></div></div>';
     }else{
@@ -10684,8 +10694,12 @@ function view_liftview(){var s=getLiftSession();var u=state.settings.units;var m
   if(s.mode==="full"&&s.entries){s.entries.forEach(function(en,ei){h+='<div class="wl-card"><div style="margin-bottom:6px">'+muscleTagHTML(en.muscle||"other")+'</div><div class="wl-exrow-name">'+esc(en.name)+'</div>';
     h+='<div class="wl-setgrid wl-sethead" style="grid-template-columns:1fr 1fr 46px 60px;margin-top:8px"><span>WEIGHT</span><span>REPS</span><span>RIR '+infoBtn("rir")+'</span><span></span></div>';
     en.sets.forEach(function(st,si){var stat=st.status==="skipped"?"skipped":st.status==="done"?"✓":"";
+      /* a note written during the rest after this set — it was saved and then
+         never shown again once the session was filed */
+      var _svn=st.note?'<div class="wl-setnote">'+I.info.replace("<svg","<svg width=12 height=12")+'<span>'+esc(st.note)+'</span></div>':'';
       if(editing)h+='<div class="wl-setgrid wl-setrow" style="grid-template-columns:1fr 1fr 46px 60px"><input class="wl-sv-set wl-set-input" data-ei="'+ei+'" data-si="'+si+'" data-field="weight" type="text" inputmode="decimal" value="'+esc(st.weight!=null?String(st.weight):"")+'"><input class="wl-sv-set wl-set-input" data-ei="'+ei+'" data-si="'+si+'" data-field="reps" type="text" inputmode="numeric" value="'+esc(st.reps!=null?String(st.reps):"")+'"><input class="wl-sv-set wl-set-input wl-set-rir" data-ei="'+ei+'" data-si="'+si+'" data-field="rir" type="text" inputmode="numeric" placeholder="–" value="'+esc(st.rir!=null?String(st.rir):"")+'"><span class="wl-exrow-sub" style="text-align:center">'+stat+'</span></div>';
-      else h+='<div class="wl-setgrid" style="grid-template-columns:1fr 1fr 46px 60px;padding:7px 0;border-top:1px solid var(--line)"><span style="text-align:center;font-size:15px">'+(st.weight!=null?st.weight:"–")+'</span><span style="text-align:center;font-size:15px">'+(st.reps!=null?st.reps:"–")+'</span><span style="text-align:center;color:var(--faint)">'+(st.rir!=null?st.rir:"–")+'</span><span class="wl-exrow-sub" style="text-align:center;display:inline-flex;align-items:center;justify-content:center;gap:6px">'+(st.status==="done"?setTargetIcon(st,en):"")+stat+'</span></div>';});
+      else h+='<div class="wl-setgrid" style="grid-template-columns:1fr 1fr 46px 60px;padding:7px 0;border-top:1px solid var(--line)"><span style="text-align:center;font-size:15px">'+(st.weight!=null?st.weight:"–")+'</span><span style="text-align:center;font-size:15px">'+(st.reps!=null?st.reps:"–")+'</span><span style="text-align:center;color:var(--faint)">'+(st.rir!=null?st.rir:"–")+'</span><span class="wl-exrow-sub" style="text-align:center;display:inline-flex;align-items:center;justify-content:center;gap:6px">'+(st.status==="done"?setTargetIcon(st,en):"")+stat+'</span></div>';
+      h+=_svn;});
     h+='</div>';});}
   if(editing){h+='<button class="wl-btn wl-btn-primary wl-full" data-act="lift:tofinish">Finish → edit summary</button>';h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="lift:editcancel">Cancel edits</button>';}
   else{h+='<button class="wl-btn wl-btn-primary wl-full" data-act="lift:back">Done</button>';h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px" data-act="lift:edit">Edit workout</button>';h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="lift:del" data-id="'+s.id+'">Delete session</button>';}
@@ -11174,7 +11188,11 @@ function whoopSync(cb){
     if(!r||!r.ok)return cb(r||{ok:false,error:"no response"});
     var uid1=(typeof pbUid==="function")?pbUid():null;
     var stillValid=(typeof m10StillValid==="function")?m10StillValid(cap):true;
-    if(!whoopOn()||uid1!==uid0||(cap&&!stillValid))
+    /* A NULL capture used to sail through, because the test was `cap && !valid`.
+       If the authority mechanism exists at all, a reply must carry a capture
+       that is still valid — no capture is not permission. */
+    var haveMech=(typeof m10Capture==="function");
+    if(!whoopOn()||uid1!==uid0||(haveMech&&(!cap||!stillValid)))
       return cb({ok:false,error:"discarded — the account or session changed while WHOOP was replying"});
     state.whoopWorkouts=(r.workouts||[]).slice(-120);   /* enough to match recent sessions */
     /* remember that WHOOP still owes us a score, so the next foreground retries */
@@ -11716,7 +11734,7 @@ function whoopZoneTotals(fromISO,toISO){
   var cs=((state.training||{}).sessions)||{};
   Object.keys(cs).forEach(function(d){if(d<fromISO||d>toISO)return;
     (cs[d]||[]).forEach(function(x){if(x.kind!=="cardio")return;
-      add(x.whoopZones||whoopZonesForSession({date:d,ts:num(x.ts),mins:num(x.mins)}));});});
+      add(x.whoopZones||whoopZonesForSession({kind:"cardio",type:x.type,date:d,ts:num(x.ts),mins:num(x.mins)}));});});
   return any?tot:null;
 }
 function whoopZoneTotalsHTML(){
@@ -11966,9 +11984,17 @@ document.addEventListener("click",function(e){
   if(a==="set:notesave"){var w=state.workout;if(!w)return;
     var el=document.getElementById("wl-setnote");var txt=el?String(el.value||"").trim():"";
     var en=w.entries[w.lastEi];var st=en&&(en.sets||[])[w.lastSi];
-    if(st){if(txt)st.note=txt;else delete st.note;}
-    state.setNoteOpen=false;saveWorkout();render();
-    if(txt)toast("Note saved to that set");return;}
+    if(!st)return;
+    var prev=st.note;
+    if(txt)st.note=txt;else delete st.note;
+    /* saveWorkout reports failure; ignoring it produced the storage warning
+       followed immediately by "Note saved to that set". Keep the editor open
+       with the text intact so the note is not lost behind a false success. */
+    var ok=saveWorkout();
+    if(ok){state.setNoteOpen=false;render();if(txt)toast("Note saved to that set");}
+    else{if(prev===undefined)delete st.note;else st.note=prev;
+      state.setNoteDraft=txt;render();}
+    return;}
   if(a==="wo:pause"){var w=state.workout;if(!w||w.tState!=="working")return;w.pausedRest=true;woTransition("resting");if(typeof startWoTick==="function")startWoTick();render();return;}
   if(a==="wo:resumeset"){var w=state.workout;if(!w)return;woTransition("working");if(typeof startWoTick==="function")startWoTick();render();if(typeof woScrollCurrent==="function")setTimeout(woScrollCurrent,40);return;}
   if(a==="wo:log"){var w=state.workout;if(!w)return;if(w.tState==="ready"){toast("Tap Start to begin your warmup first");return;}if(w.tState==="warmup"){toast("Finish your warmup — tap End warmup to start the routine");return;}var ei=+el.getAttribute("data-ei"),si=+el.getAttribute("data-si");var stt=w.entries[ei].sets[si];
@@ -12217,7 +12243,7 @@ document.addEventListener("click",function(e){
   if(a==="cardio:repick"){if(state.cardioForm)state.cardioForm.picking=true;render();return;}
   if(a==="cardio:cancel"){state.cardioForm=null;state.view="train";render();return;}
   if(a==="cf:type"){if(state.cardioForm)state.cardioForm.type=el.getAttribute("data-type");render();return;}
-  if(a==="cf:zone"){if(state.cardioForm)state.cardioForm.zone=+el.getAttribute("data-zone");render();return;}
+  if(a==="cf:zone"){if(state.cardioForm){state.cardioForm.zone=+el.getAttribute("data-zone");state.cardioForm.zoneTouched=true;}render();return;}
   if(a==="cf:newtype-toggle"){if(state.cardioForm)state.cardioForm.newOpen=!state.cardioForm.newOpen;render();return;}
   if(a==="cf:newtype"){var ni=document.getElementById("wl-newcardio");var nv=((ni&&ni.value)||"").trim();if(!nv)return;var prc=normPresets();if(!prc.some(function(p){return p.name.toLowerCase()===nv.toLowerCase()&&p.cat==="cardio";})){prc.push({name:nv,cat:"cardio"});state.presets=prc;save();}if(state.cardioForm){state.cardioForm.type=nv;state.cardioForm.newOpen=false;state.cardioForm.picking=false;}render();return;}
   if(a==="act:addopen"){state.actAddCat=el.getAttribute("data-cat");render();var _ai=document.getElementById("wl-addact-"+state.actAddCat);if(_ai)_ai.focus();return;}
@@ -12230,7 +12256,11 @@ document.addEventListener("click",function(e){
        session changing. Recompute only when the heart rate actually moved. */
     var hrv=num(cf.hr);
     var zone;
-    if(cf.id&&num(cf.hrAtLoad)===hrv&&cf.zoneAtLoad!==undefined){zone=cf.zoneAtLoad;}
+    /* Freeze the stored classification on an incidental edit (a note), but never
+       over the athlete: picking a zone by hand is an explicit instruction, and
+       the first version of this froze that away too. */
+    var zoneTouched=(cf.zoneTouched===true)||(cf.id&&cf.zoneAtLoad!==undefined&&cf.zone!==cf.zoneAtLoad);
+    if(cf.id&&!zoneTouched&&num(cf.hrAtLoad)===hrv&&cf.zoneAtLoad!==undefined){zone=cf.zoneAtLoad;}
     else{zone=zoneForHR(hrv,state.selDate);if(zone==null)zone=(cf.zone!=null?cf.zone:null);}
     var sess={id:cf.id||("c-"+Date.now()+"-"+Math.random().toString(36).slice(2,6)),kind:"cardio",type:cf.type,mins:Math.round(mins),zone:zone,rpe:num(cf.rpe),cal:num(cf.cal),hr:num(cf.hr),hrMax:num(cf.hrMax),notes:(cf.notes||"").trim(),
       ts:(cf.id&&num(cf.ts)!=null)?num(cf.ts):Date.now(),   /* an edit keeps when it happened */
@@ -13594,15 +13624,20 @@ var LOGOUT_JOURNAL_KEY="wl_logout_journal",LOGOUT_JOURNAL_V=1;
    finish destroying data they may not have exported. */
 var logoutRecovery=null;   /* null, or {phase, journal} while a wipe is unresolved */
 function logoutRecoveryPending(){return !!logoutRecovery;}
-function logoutTargets(){
-  /* The coach-report cache survived logout, so the next account could read the
-     previous one's reports. Both the per-account key and the legacy shared key
-     go, and any other account's cached reports are cleared too — this device is
-     being handed over, not switched between. */
-  var out=[KEY,TKEY,WOKEY,DIRTY_KEY,LAST_KEY,LASTOWNER_KEY,TRECOVERY_KEY,"wl_coach_reports"];
-  try{for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);
-    if(k&&k.indexOf("wl_coach_reports")===0&&out.indexOf(k)<0)out.push(k);}}catch(e){}
-  return out;}
+/* MUST BE STATIC. validLogoutJournal() checks a journal's key set against this
+   list, so anything data-dependent here breaks recovery: I briefly scanned
+   localStorage for per-account cache keys, which meant (a) journals written by
+   an earlier build failed the length check, and (b) a journal invalidated
+   ITSELF the moment logout removed one of the scanned keys. An interrupted
+   logout then lost its recovery choices. The journal contract is a fixed
+   inventory; caches that are merely stale are cleared outside it. */
+function logoutTargets(){return [KEY,TKEY,WOKEY,DIRTY_KEY,LAST_KEY,LASTOWNER_KEY,TRECOVERY_KEY];}
+/* Not journalled: losing a cached coach report is not a recoverable-data event,
+   it is a privacy one. Cleared best-effort after the journalled wipe. */
+function clearCoachCaches(){
+  try{var kill=[];for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);
+    if(k&&k.indexOf("wl_coach_reports")===0)kill.push(k);}
+    for(var j=0;j<kill.length;j++)localStorage.removeItem(kill[j]);}catch(e){}}
 var LOGOUT_PHASES=["prepared","wiping","data-cleared","committed"];
 
 function readSessionPair(){
@@ -13717,6 +13752,10 @@ function logoutRecoveryFinish(){
     var still=null;
     try{still=localStorage.getItem(ks[i]);}catch(e){toast("Couldn't verify this device was cleared");return false;}
     if(still!==null){toast("Couldn't finish clearing this device");return false;}}
+  /* the journalled inventory is verified gone; now clear the non-journalled
+     caches (coach reports), which are a privacy concern rather than a
+     recoverable-data one */
+  clearCoachCaches();
   try{pbClearSession(false);}catch(e){}
   try{sessionStorage.removeItem(PB_KEY);}catch(e){}
   /* Same postcondition as an ordinary logout: pbClearSession legitimately keeps

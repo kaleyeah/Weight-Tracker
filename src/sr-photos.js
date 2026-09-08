@@ -255,7 +255,7 @@ function srCardioInput(offset){
         /* cardio has no saved zone split, so match WHOOP by the day when that
            day holds exactly one workout — never guess between several */
         zones:(function(){if(typeof whoopZonesForSession!=="function")return null;
-          return whoopZonesForSession({date:iso,ts:num(c.ts),mins:num(c.mins),whoopZones:c.whoopZones||null});})()});});});
+          return whoopZonesForSession({kind:"cardio",type:c.type,date:iso,ts:num(c.ts),mins:num(c.mins),whoopZones:c.whoopZones||null});})()});});});
   return out;}
 /* ---- progress photos for the report: prefetch, cache, never block the tap ----
    iOS requires transient user activation for navigator.share — awaiting slow

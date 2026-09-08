@@ -103,7 +103,11 @@ function whoopSync(cb){
     if(!r||!r.ok)return cb(r||{ok:false,error:"no response"});
     var uid1=(typeof pbUid==="function")?pbUid():null;
     var stillValid=(typeof m10StillValid==="function")?m10StillValid(cap):true;
-    if(!whoopOn()||uid1!==uid0||(cap&&!stillValid))
+    /* A NULL capture used to sail through, because the test was `cap && !valid`.
+       If the authority mechanism exists at all, a reply must carry a capture
+       that is still valid — no capture is not permission. */
+    var haveMech=(typeof m10Capture==="function");
+    if(!whoopOn()||uid1!==uid0||(haveMech&&(!cap||!stillValid)))
       return cb({ok:false,error:"discarded — the account or session changed while WHOOP was replying"});
     state.whoopWorkouts=(r.workouts||[]).slice(-120);   /* enough to match recent sessions */
     /* remember that WHOOP still owes us a score, so the next foreground retries */
@@ -645,7 +649,7 @@ function whoopZoneTotals(fromISO,toISO){
   var cs=((state.training||{}).sessions)||{};
   Object.keys(cs).forEach(function(d){if(d<fromISO||d>toISO)return;
     (cs[d]||[]).forEach(function(x){if(x.kind!=="cardio")return;
-      add(x.whoopZones||whoopZonesForSession({date:d,ts:num(x.ts),mins:num(x.mins)}));});});
+      add(x.whoopZones||whoopZonesForSession({kind:"cardio",type:x.type,date:d,ts:num(x.ts),mins:num(x.mins)}));});});
   return any?tot:null;
 }
 function whoopZoneTotalsHTML(){
