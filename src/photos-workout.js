@@ -1653,8 +1653,14 @@ function applySuggestions(entries,routineId){entries.forEach(function(en){if(!en
       st.reps="";
     }
     else{
-      if(g.r!=null)st.reps=String(g.r);
-      st.sugR=g.r;if(g.w!=null&&!en.bodyweight)st.sugW=g.w;if(en.bodyweight)st.sugW=null;if(g.e!=null)st.sugE=g.e;st.tgtLo=null;st.tgtHi=null;}});
+      /* Owner, 2026-09-08: "po and RPT should both show suggested range." So PO
+         no longer pre-fills a single rep count either. sugR stays as the
+         immutable prediction anchor; sugLo/sugHi are what the athlete is shown. */
+      st.reps="";
+      st.sugR=g.r;if(g.w!=null&&!en.bodyweight)st.sugW=g.w;if(en.bodyweight)st.sugW=null;if(g.e!=null)st.sugE=g.e;st.tgtLo=null;st.tgtHi=null;
+      var _clo=num(en.repLow),_chi=num(en.repHigh);
+      if(_clo==null)_clo=8;if(_chi==null)_chi=12;
+      st.sugLo=_clo;st.sugHi=_chi;st.baseLo=_clo;st.baseHi=_chi;}});
   if(any)en.sug=true;
   if(sg.bump)en.bump=sg.bump;});}
 function startWorkout(rt){var bw=currentBW();var _ents=buildWorkoutEntries(rt,bw);applySuggestions(_ents,rt.id);
@@ -1772,6 +1778,7 @@ function setRowHTML(en,ei,st,si){var done=st.status==="done",sk=st.status==="ski
 if(!done&&!sk&&!(st.reps!=null&&st.reps!=="")){
   var _lo=null,_hi=null;
   if((en.progression||"double")==="rpt"&&en.setRanges&&en.setRanges[si]){_lo=num(en.setRanges[si].lo);_hi=num(en.setRanges[si].hi);}
+  else if(num(st.sugLo)!=null&&num(st.sugHi)!=null){_lo=num(st.sugLo);_hi=num(st.sugHi);}
   else{_lo=num(en.repLow);_hi=num(en.repHigh);}
   if(_lo!=null&&_hi!=null)_rp=_lo+"–"+_hi;else if(_lo!=null)_rp=String(_lo);else if(_hi!=null)_rp=String(_hi);
   /* the capacity hint rides BESIDE the range, never instead of it (Owner #1) */
@@ -2408,4 +2415,29 @@ function view_settings(){
   h+='<div style="text-align:center;margin-top:6px"><button class="wl-btn wl-btn-ghost" style="display:inline-block;width:auto;padding:9px 18px" data-act="ob:start">Replay first-time setup</button></div>';
   h+='<div style="text-align:center;padding:26px 0 8px">'+'<div style="display:inline-flex;align-items:center;gap:9px">'+BRANDMARK.replace("width=\"18\" height=\"18\"","width=\"26\" height=\"26\"")+'<span class="wl-brandword">COMPOUND</span></div>'+'<div style="color:var(--faint);font-size:10px;margin-top:9px;letter-spacing:.22em;text-transform:uppercase">Strength · in reps · over years</div>'+'<div style="color:var(--faint);font-size:11px;margin-top:5px;letter-spacing:.02em;font-family:var(--mono)">v'+APP_BUILD+'</div></div>';
   return h+'</div>';
+}
+
+/* The suggested rep range for a PO set at a given load. Double progression says
+   a heavier bar buys fewer reps, so the range travels with the weight (Owner,
+   2026-09-08) — but it travels as a RANGE the athlete is SHOWN, never as a
+   number written into what he lifted. The shift is measured from the immutable
+   (sugW, sugR) anchor, so it cannot drift as the weight field is typed. */
+function poShiftRange(st,en,newW){
+  /* The base is the CONFIGURED range, never the currently displayed one. Reading
+     sugLo/sugHi here — which this function's own caller overwrites — reproduced
+     exactly the bug it was written to fix: typing 160 one digit at a time
+     compounded 8-12 into 43-47. A shifted value must never become the next
+     shift's input. */
+  var lo=num(en&&en.repLow),hi=num(en&&en.repHigh);
+  if(lo==null)lo=num(st&&st.baseLo);
+  if(hi==null)hi=num(st&&st.baseHi);
+  if(lo==null||hi==null)return null;
+  var w0=num(st&&st.sugW),r0=num(st&&st.sugR),w=num(newW);
+  if(w0==null||r0==null||w==null||w<=0)return {lo:lo,hi:hi};
+  var pred=(typeof sugPredictAt==="function")?sugPredictAt(w0,r0,w):null;
+  if(pred==null)return {lo:lo,hi:hi};
+  var shift=pred-r0;
+  var nlo=Math.max(1,Math.round(lo+shift));
+  var nhi=Math.max(nlo,Math.round(hi+shift));
+  return {lo:nlo,hi:nhi};
 }

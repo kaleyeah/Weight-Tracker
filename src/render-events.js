@@ -887,15 +887,19 @@ addEventListener("input",function(e){
         st[_f]=(v===""?null:num(v));saveTraining();}}}return;}
   if(el.classList&&el.classList.contains("wl-set-input")){var w=state.workout;if(w){var en=w.entries[+el.getAttribute("data-ei")];if(en){var st=en.sets[+el.getAttribute("data-si")];if(st){var _fld=el.getAttribute("data-wo");st[_fld]=el.value;
         if(_fld==="reps")st.repsTouched=true;
-        if(_fld==="weight"&&!en.bodyweight&&num(st.sugE)!=null&&!st.repsTouched){var _nw=num(el.value);var _nr=(num(st.sugW)!=null&&num(st.sugR)!=null)?sugPredictAt(st.sugW,st.sugR,_nw):sugInvertReps(st.sugE,_nw);if(_nr!=null){st.reps=String(_nr);
-          /* The reference MUST NOT move. It used to be rewritten from the
-             prediction on every input event, so each keystroke predicted from
-             the previous rounded, clamped prediction rather than from the
-             suggested set. Typing "110" one character at a time fired three
-             events and collapsed to 1 rep, where pasting "110" gave 11; and
-             100 -> 120 -> 100 returned 18 instead of the original 12. The
-             answer depended on HOW the number was typed, which is the reported
-             "drops to something like 3". sugW/sugR stay as the anchor. */var _ri=document.querySelector('input[data-wo="reps"][data-ei="'+el.getAttribute("data-ei")+'"][data-si="'+el.getAttribute("data-si")+'"]');if(_ri)_ri.value=String(_nr);}}
+        if(_fld==="weight"&&!en.bodyweight&&num(st.sugE)!=null){
+          /* Owner 2026-09-08: a heavier bar buys fewer reps, so the SUGGESTED
+             RANGE moves with the load. It is shown as the placeholder; the reps
+             field stays whatever the athlete typed, because a prediction must
+             never be recorded as a result. The anchor (sugW/sugR) is immutable —
+             rewriting it made every keystroke predict from the last prediction. */
+          var _nw=num(el.value);
+          if(_nw!=null&&_nw>0&&typeof poShiftRange==="function"){
+            var _rg=poShiftRange(st,en,_nw);
+            if(_rg){st.sugLo=_rg.lo;st.sugHi=_rg.hi;
+              var _ri=document.querySelector('input[data-wo="reps"][data-ei="'+el.getAttribute("data-ei")+'"][data-si="'+el.getAttribute("data-si")+'"]');
+              if(_ri&&!(_ri.value||"").length)_ri.placeholder=_rg.lo+"\u2013"+_rg.hi;}}
+        }
         saveWorkout();}}}if(state.logWarn){state.logWarn=null;var _rw=document.querySelector(".wl-rirwarn");if(_rw)_rw.remove();}return;}
   if(el.classList&&el.classList.contains("wl-wof-input")){var w=state.workout;if(w){w.finishForm=w.finishForm||{};w.finishForm[el.getAttribute("data-wof")]=el.value;if(el.getAttribute("data-wof")==="hr"){var za=document.getElementById("wl-zonearea");if(za)za.innerHTML=zoneAreaHTML({hr:el.value,zone:(w.finishForm.zone!=null?w.finishForm.zone:null)},"wof");}}return;}
   if(el.classList&&el.classList.contains("wl-ci-input")){var _cr=ciDraft(el.getAttribute("data-week"));_cr.answers[el.getAttribute("data-ci")]=el.value;save();return;}
