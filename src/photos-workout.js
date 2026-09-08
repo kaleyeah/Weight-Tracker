@@ -1706,7 +1706,13 @@ var woTimer=null;
 /* Paint the timer displays from the CURRENT clock. Time is stored as
    stateStartTs (a timestamp), so this is always correct no matter how long the
    app was backgrounded/suspended — it recomputes from Date.now(). */
-function woTickPaint(){if(!state.workout||state.view!=="workout")return;var w=state.workout;var b=woBuckets();var t=document.getElementById("wl-tb-total");if(t)t.textContent=fmtDur(b.total);var s=document.getElementById("wl-tb-seg");if(s)s.textContent=(w.tState==="ready"?"Ready":w.tState==="warmup"?"Warmup":w.tState==="working"?"Working":(w.pausedRest?"Paused":"Resting"))+((w.tState==="ready"||w.tState==="resting")?"":" · "+fmtDur(b.segMs));var rt=document.getElementById("wl-rest-time");if(rt&&w.tState==="resting")rt.textContent=fmtDur(b.segMs);var rtot=document.getElementById("wl-rb-total-t");if(rtot)rtot.textContent=fmtDur(b.total);}
+function woTickPaint(){if(!state.workout||state.view!=="workout")return;var w=state.workout;var b=woBuckets();var t=document.getElementById("wl-tb-total");if(t)t.textContent=fmtDur(b.total);var s=document.getElementById("wl-tb-seg");if(s)s.textContent=(w.tState==="ready"?"Ready":w.tState==="warmup"?"Warmup":w.tState==="working"?"Working":(w.pausedRest?"Paused":"Resting"))+((w.tState==="ready"||w.tState==="resting")?"":" · "+fmtDur(b.segMs));var rt=document.getElementById("wl-rest-time");if(rt&&w.tState==="resting")rt.textContent=fmtDur(b.segMs);
+  var rm=document.getElementById("wl-rest-min");
+  if(rm&&w.tState==="resting"&&!w.pausedRest&&typeof restSecondsFor==="function"){
+    var _t=restSecondsFor(_restNextEntry());
+    if(_t!=null){var _m=b.segMs>=_t*1000;
+      rm.textContent=_m?("Minimum "+fmtDur(_t*1000)+" met"):("Minimum "+fmtDur(_t*1000));
+      if(_m)rm.classList.add("met");else rm.classList.remove("met");}}var rtot=document.getElementById("wl-rb-total-t");if(rtot)rtot.textContent=fmtDur(b.total);}
 function startWoTick(){if(woTimer)clearInterval(woTimer);woTimer=setInterval(woTickPaint,1000);}
 /* iOS suspends setInterval while the PWA is backgrounded/locked. On return,
    restart the tick and immediately snap the display to the true elapsed time so
@@ -1779,7 +1785,16 @@ function restBarHTML(){
   h+='<div class="wl-rb-total"><span class="wl-rb-totall">Total</span><b id="wl-rb-total-t">'+fmtDur(b.total)+'</b></div>';
   h+='<div class="wl-rb-icons">'+(pz?'':'<button class="wl-icon-btn'+(state.restInfoOpen?" on":"")+'" data-act="rest:info" aria-label="Rest info">'+I.info.replace("<svg","<svg width=18 height=18")+'</button>')+
      '<button class="wl-icon-btn" data-act="rest:settings" aria-label="Rest settings" style="font-size:18px;line-height:1">⚙</button></div>';
-  h+='<div class="wl-rb-timer"><div class="wl-rb-label">'+(pz?'Paused':'Rest')+'</div><div class="wl-rb-time" id="wl-rest-time">'+fmtDur(b.segMs)+'</div></div>';
+  /* Show the rest this exercise is SET to, and say it is a minimum. The alarm
+     firing at 2:30 read as a fault when nothing on screen said 2:30 was the
+     plan — and rest is a floor, not a deadline, so "minimum" is the honest word.
+     Once it is met the line says so, which is the reassurance the buzz alone
+     could not give. */
+  var _tgt=(!pz&&typeof restSecondsFor==="function")?restSecondsFor(_restNextEntry()):null;
+  var _met=(_tgt!=null)&&(b.segMs>=_tgt*1000);
+  h+='<div class="wl-rb-timer"><div class="wl-rb-label">'+(pz?'Paused':'Rest')+'</div><div class="wl-rb-time" id="wl-rest-time">'+fmtDur(b.segMs)+'</div>';
+  if(_tgt!=null)h+='<div class="wl-rb-min'+(_met?' met':'')+'" id="wl-rest-min">'+(_met?'Minimum '+fmtDur(_tgt*1000)+' met':'Minimum '+fmtDur(_tgt*1000))+'</div>';
+  h+='</div>';
   h+=pz?'<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="wo:resumeset">Resume set</button>'
        :'<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="wo:endrest">Begin next set</button>';
   /* A note about the set just completed, taken while it is still fresh. It is
