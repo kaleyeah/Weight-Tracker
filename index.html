@@ -1139,7 +1139,7 @@ input[type=range][data-pfadj]{width:100%;accent-color:var(--accent);min-height:2
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-09-08.523-restore-fix";
+var APP_BUILD="2026-09-08.524-no-fabricated-zone";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -10473,7 +10473,7 @@ function finishSheetHTML(){var w=state.workout;var b=woBuckets();var ff=w.finish
   }
   h+='<div class="wl-row"><label class="wl-field"><span>Avg HR <em>optional</em></span><input class="wl-wof-input wl-num" data-wof="hr" type="text" inputmode="numeric" placeholder="—" value="'+(ff.hr!=null?esc(String(ff.hr)):"")+'"></label><label class="wl-field"><span>Peak HR <em>optional</em></span><input class="wl-wof-input wl-num" data-wof="hrMax" type="text" inputmode="numeric" placeholder="—" value="'+(ff.hrMax!=null?esc(String(ff.hrMax)):"")+'"></label></div>';
   h+='<div class="wl-row" style="margin-top:12px"><label class="wl-field"><span>Est. calories <em>optional</em></span><input class="wl-wof-input wl-num" data-wof="cal" type="text" inputmode="numeric" placeholder="—" value="'+(ff.cal!=null?esc(String(ff.cal)):"")+'"></label><label class="wl-field"><span>RPE <em>1-10, optional</em></span><input class="wl-wof-input wl-num" data-wof="rpe" type="text" inputmode="numeric" placeholder="—" value="'+(ff.rpe!=null?esc(String(ff.rpe)):"")+'"></label></div>';
-  h+='<div id="wl-zonearea" style="margin-top:12px">'+zoneAreaHTML({hr:ff.hr,zone:ff.zone||2},"wof")+'</div>';
+  h+='<div id="wl-zonearea" style="margin-top:12px">'+zoneAreaHTML({hr:ff.hr,zone:(ff.zone!=null?ff.zone:null)},"wof")+'</div>';
   h+='<label class="wl-field wl-field-full" style="margin-top:12px"><span>Notes <em>optional</em></span><textarea class="wl-wof-input" data-wof="notes" style="width:100%;min-height:60px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:14px;padding:11px 12px;box-sizing:border-box;outline:none;resize:vertical">'+esc(ff.notes||"")+'</textarea></label>';
   h+='<button class="wl-btn wl-btn-primary wl-full" style="margin-top:14px" data-act="wo:savesession">Save workout</button>';
   h+='<button class="wl-btn wl-btn-ghost wl-full" style="margin-top:8px;color:var(--bad);border-color:var(--bad)" data-act="wo:discard">Discard workout</button></div>';
@@ -11059,7 +11059,11 @@ function whoopApply(data){
       var cur=state.sleep&&state.sleep[d];
       var skippedDay=((state.skips||{})[d]||{}).sleep;
       if(skippedDay){skipped++;}
-      else if(cur==null||cur===""||!(num(cur)>0)){state.sleep[d]=row.sleepMin;nsleep++;}
+      /* A typed ZERO is a value, not a blank. `!(num(cur)>0)` treated "0" as
+         empty and overwrote it, which broke the never-overwrite promise for the
+         one entry a person makes deliberately: recording that they did not
+         sleep. Only a genuinely absent number is filled. */
+      else if(num(cur)==null){state.sleep[d]=row.sleepMin;nsleep++;}
     }
   });
   state.settings.whoopLast=Date.now();
@@ -11485,7 +11489,19 @@ function whoopZonesForSession(s){
     var m=whoopMatchWorkout(end-mins*60000,end,s.date);
     if(m&&m.zones)return m.zones;
   }
-  var day=(state.whoopWorkouts||[]).filter(function(w){return w.date===s.date&&w.zones;});
+  /* Candidates must be the same KIND of thing. Filtering by date alone let a
+     cardio session inherit the day's lone LIFTING workout, which silently
+     defeated cardio-only zone totals: iterating cardio records is not enough if
+     a cardio record can be holding a lift's minutes. The strong matches above
+     (a stored split, then a real time overlap) are evidence and stay as they
+     are; only these weaker fallbacks need the guard. */
+  var _isCardio=!!(s&&s.kind==="cardio");
+  var _isLift=!_isCardio&&!!(s&&(s.entries||s.mode));
+  var day=(state.whoopWorkouts||[]).filter(function(w){
+    if(w.date!==s.date||!w.zones)return false;
+    if(_isCardio&&whoopIsLifting(w))return false;
+    if(_isLift&&!whoopIsLifting(w))return false;
+    return true;});
   /* Name match: a session called "Spin" on a day WHOOP recorded a spin is the
      same session. This recovers sessions whose whoopId was stripped — an edit
      on builds before .516 dropped it — and needs no migration. */
@@ -11909,9 +11925,9 @@ document.addEventListener("click",function(e){
   if(a==="wo:bwcancel"){state.bwEdit=false;render();return;}
   if(a==="wo:finish"){if(typeof restNotifyCancel==="function")restNotifyCancel();var w=state.workout;if(!w)return;var pending=0;w.entries.forEach(function(en){en.sets.forEach(function(s){if(s.status==="pending")pending++;});});
     if(pending>0){state.woPrompt=true;render();return;}
-    w.finishing=true;w.finishForm=w.finishForm||{hr:"",hrMax:"",cal:"",rpe:"",zone:2,notes:""};if(typeof whoopFillFinish==="function")whoopFillFinish(w);saveWorkout();render();return;}
+    w.finishing=true;w.finishForm=w.finishForm||{hr:"",hrMax:"",cal:"",rpe:"",zone:null,notes:""};if(typeof whoopFillFinish==="function")whoopFillFinish(w);saveWorkout();render();return;}
   if(a==="wo:completethem"){state.woPrompt=false;var w=state.workout;var tid=null;if(w){for(var ei=0;ei<w.entries.length&&tid==null;ei++){for(var si=0;si<w.entries[ei].sets.length;si++){if(w.entries[ei].sets[si].status==="pending"){tid="wo-ex-"+ei;break;}}}}render();if(tid){var elx=document.getElementById(tid);if(elx)elx.scrollIntoView({behavior:"smooth",block:"start"});}return;}
-  if(a==="wo:skipthem"){var w=state.workout;if(w)w.entries.forEach(function(en){en.sets.forEach(function(s){if(s.status==="pending")s.status="skipped";});});state.woPrompt=false;w.finishing=true;w.finishForm=w.finishForm||{hr:"",hrMax:"",cal:"",rpe:"",zone:2,notes:""};if(typeof whoopFillFinish==="function")whoopFillFinish(w);saveWorkout();render();return;}
+  if(a==="wo:skipthem"){var w=state.workout;if(w)w.entries.forEach(function(en){en.sets.forEach(function(s){if(s.status==="pending")s.status="skipped";});});state.woPrompt=false;w.finishing=true;w.finishForm=w.finishForm||{hr:"",hrMax:"",cal:"",rpe:"",zone:null,notes:""};if(typeof whoopFillFinish==="function")whoopFillFinish(w);saveWorkout();render();return;}
   if(a==="wo:promptcancel"){state.woPrompt=false;render();return;}
   if(a==="wo:finishback"){var w=state.workout;if(w)w.finishing=false;saveWorkout();render();return;}
   if(a==="wof:zone"){var w=state.workout;if(w&&w.finishForm)w.finishForm.zone=+el.getAttribute("data-zone");render();return;}
@@ -12022,9 +12038,9 @@ document.addEventListener("click",function(e){
   if(a==="wo:resumecancel"){state.woResume=false;render();return;}
   if(a==="wo:resume"){state.woResume=false;var w=state.workout;if(w&&w.paused){w.paused=false;w.tState="working";w.stateStartTs=Date.now();if(w.startTs==null)w.startTs=Date.now();saveWorkout();}state.view="workout";render();startWoTick();return;}
   if(a==="wo:finishlater"){pauseWorkout();state.woPrompt=false;state.woResume=false;state.view="train";toast("Saved to finish later");render();return;}
-  if(a==="wo:endnow"){if(typeof restNotifyCancel==="function")restNotifyCancel();state.woResume=false;state.view="workout";var w=state.workout;if(w){var pending=0;w.entries.forEach(function(en){en.sets.forEach(function(s){if(s.status==="pending")pending++;});});if(pending>0){state.woPrompt=true;}else{w.finishing=true;w.finishForm=w.finishForm||{hr:"",hrMax:"",cal:"",rpe:"",zone:2,notes:""};if(typeof whoopFillFinish==="function")whoopFillFinish(w);}saveWorkout();}render();return;}
+  if(a==="wo:endnow"){if(typeof restNotifyCancel==="function")restNotifyCancel();state.woResume=false;state.view="workout";var w=state.workout;if(w){var pending=0;w.entries.forEach(function(en){en.sets.forEach(function(s){if(s.status==="pending")pending++;});});if(pending>0){state.woPrompt=true;}else{w.finishing=true;w.finishForm=w.finishForm||{hr:"",hrMax:"",cal:"",rpe:"",zone:null,notes:""};if(typeof whoopFillFinish==="function")whoopFillFinish(w);}saveWorkout();}render();return;}
   if(a==="wo:discardnow"){if(typeof restNotifyCancel==="function")restNotifyCancel();state.woResume=false;askConfirm("Discard this workout? Nothing will be saved.",function(){state.workout=null;saveWorkout();if(woTimer)clearInterval(woTimer);state.view="train";},{label:"Discard"});return;}
-  if(a==="wo:quick"){var rid=el.getAttribute("data-id");state.liftForm={routineId:rid,id:null,date:state.selDate||todayISO(),mins:"",hr:"",hrMax:"",cal:"",zone:2,rpe:"",notes:""};state.view="quicklog";render();return;}
+  if(a==="wo:quick"){var rid=el.getAttribute("data-id");state.liftForm={routineId:rid,id:null,date:state.selDate||todayISO(),mins:"",hr:"",hrMax:"",cal:"",zone:null,rpe:"",notes:""};state.view="quicklog";render();return;}
   if(a==="lf:zone"){if(state.liftForm)state.liftForm.zone=+el.getAttribute("data-zone");render();return;}
   if(a==="lift:cancel"){state.liftForm=null;state.view="rlaunch";render();return;}
   if(a==="lift:save"){var lf=state.liftForm;if(!lf)return;var mins=num(lf.mins);if(mins==null||mins<=0){toast("Enter a duration in minutes");return;}
@@ -12097,8 +12113,8 @@ document.addEventListener("click",function(e){
     else{if(list.some(function(e){return e.name.toLowerCase()===nm.toLowerCase();})){toast("That exercise already exists");return;}list.push({id:"x-"+Date.now()+"-"+Math.random().toString(36).slice(2,6),name:nm,muscle:xf.muscle||"other",equipment:(xf.equipment||"").trim(),bodyweight:!!xf.bodyweight,movement:xf.movement||guessMovement(xf.muscle),notes:[]});}
     state.training.exercises=list;saveTraining();state.exForm=null;toast("Saved");render();return;}
   if(a==="ex:del"){var did=el.getAttribute("data-id");var dex=(state.training.exercises||[]).filter(function(e){return e.id===did;})[0];if(!dex)return;askConfirm("Remove \""+dex.name+"\" from your library? This can\u2019t be undone.",function(){state.training.exercises=(state.training.exercises||[]).filter(function(e){return e.id!==did;});saveTraining();if(state.exForm&&state.exForm.id===did)state.exForm=null;});return;}
-  if(a==="cardio:add"){state.cardioForm={kind:"cardio",id:null,picking:true,type:"",mins:"",zone:2,rpe:"",cal:"",hr:"",hrMax:"",notes:"",newOpen:false};state.view="cardioadd";render();return;}
-  if(a==="cardio:edit"){var eid=el.getAttribute("data-id");var es=((state.training.sessions[state.selDate])||[]).filter(function(s){return s.id===eid;})[0];if(es)state.cardioForm={kind:"cardio",id:es.id,type:es.type,mins:es.mins,zone:es.zone||2,rpe:es.rpe!=null?es.rpe:"",cal:es.cal!=null?es.cal:"",hr:es.hr!=null?es.hr:"",hrMax:es.hrMax!=null?es.hrMax:"",notes:es.notes!=null?es.notes:"",
+  if(a==="cardio:add"){state.cardioForm={kind:"cardio",id:null,picking:true,type:"",mins:"",zone:null,rpe:"",cal:"",hr:"",hrMax:"",notes:"",newOpen:false};state.view="cardioadd";render();return;}
+  if(a==="cardio:edit"){var eid=el.getAttribute("data-id");var es=((state.training.sessions[state.selDate])||[]).filter(function(s){return s.id===eid;})[0];if(es)state.cardioForm={kind:"cardio",id:es.id,type:es.type,mins:es.mins,zone:(es.zone!=null?es.zone:null),rpe:es.rpe!=null?es.rpe:"",cal:es.cal!=null?es.cal:"",hr:es.hr!=null?es.hr:"",hrMax:es.hrMax!=null?es.hrMax:"",notes:es.notes!=null?es.notes:"",
     /* carry the WHOOP provenance through an edit: without it, saving would drop
        the id (so the workout would be offered for import again as a duplicate),
        lose the zone split, and stamp a fresh ts that breaks the time match */
@@ -12484,7 +12500,7 @@ addEventListener("input",function(e){
         if(_fld==="reps")st.repsTouched=true;
         if(_fld==="weight"&&!en.bodyweight&&num(st.sugE)!=null&&!st.repsTouched){var _nw=num(el.value);var _nr=(num(st.sugW)!=null&&num(st.sugR)!=null)?sugPredictAt(st.sugW,st.sugR,_nw):sugInvertReps(st.sugE,_nw);if(_nr!=null){st.reps=String(_nr);st.sugR=_nr;st.sugW=_nw;var _ri=document.querySelector('input[data-wo="reps"][data-ei="'+el.getAttribute("data-ei")+'"][data-si="'+el.getAttribute("data-si")+'"]');if(_ri)_ri.value=String(_nr);}}
         saveWorkout();}}}if(state.logWarn){state.logWarn=null;var _rw=document.querySelector(".wl-rirwarn");if(_rw)_rw.remove();}return;}
-  if(el.classList&&el.classList.contains("wl-wof-input")){var w=state.workout;if(w){w.finishForm=w.finishForm||{};w.finishForm[el.getAttribute("data-wof")]=el.value;if(el.getAttribute("data-wof")==="hr"){var za=document.getElementById("wl-zonearea");if(za)za.innerHTML=zoneAreaHTML({hr:el.value,zone:w.finishForm.zone||2},"wof");}}return;}
+  if(el.classList&&el.classList.contains("wl-wof-input")){var w=state.workout;if(w){w.finishForm=w.finishForm||{};w.finishForm[el.getAttribute("data-wof")]=el.value;if(el.getAttribute("data-wof")==="hr"){var za=document.getElementById("wl-zonearea");if(za)za.innerHTML=zoneAreaHTML({hr:el.value,zone:(w.finishForm.zone!=null?w.finishForm.zone:null)},"wof");}}return;}
   if(el.classList&&el.classList.contains("wl-ci-input")){var _cr=ciDraft(el.getAttribute("data-week"));_cr.answers[el.getAttribute("data-ci")]=el.value;save();return;}
   if(el.classList&&el.classList.contains("wl-lf-input")){if(state.liftForm)state.liftForm[el.getAttribute("data-lf")]=el.value;if(el.getAttribute("data-lf")==="hr"){var za=document.getElementById("wl-zonearea");if(za&&state.liftForm)za.innerHTML=zoneAreaHTML(state.liftForm,"lf");}return;}
   if(el.classList&&el.classList.contains("wl-rt-name")){var rt=getRoutine(state.routineId);if(rt){rt.name=el.value;saveTraining();}return;}

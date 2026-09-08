@@ -62,7 +62,11 @@ function whoopApply(data){
       var cur=state.sleep&&state.sleep[d];
       var skippedDay=((state.skips||{})[d]||{}).sleep;
       if(skippedDay){skipped++;}
-      else if(cur==null||cur===""||!(num(cur)>0)){state.sleep[d]=row.sleepMin;nsleep++;}
+      /* A typed ZERO is a value, not a blank. `!(num(cur)>0)` treated "0" as
+         empty and overwrote it, which broke the never-overwrite promise for the
+         one entry a person makes deliberately: recording that they did not
+         sleep. Only a genuinely absent number is filled. */
+      else if(num(cur)==null){state.sleep[d]=row.sleepMin;nsleep++;}
     }
   });
   state.settings.whoopLast=Date.now();
@@ -488,7 +492,19 @@ function whoopZonesForSession(s){
     var m=whoopMatchWorkout(end-mins*60000,end,s.date);
     if(m&&m.zones)return m.zones;
   }
-  var day=(state.whoopWorkouts||[]).filter(function(w){return w.date===s.date&&w.zones;});
+  /* Candidates must be the same KIND of thing. Filtering by date alone let a
+     cardio session inherit the day's lone LIFTING workout, which silently
+     defeated cardio-only zone totals: iterating cardio records is not enough if
+     a cardio record can be holding a lift's minutes. The strong matches above
+     (a stored split, then a real time overlap) are evidence and stay as they
+     are; only these weaker fallbacks need the guard. */
+  var _isCardio=!!(s&&s.kind==="cardio");
+  var _isLift=!_isCardio&&!!(s&&(s.entries||s.mode));
+  var day=(state.whoopWorkouts||[]).filter(function(w){
+    if(w.date!==s.date||!w.zones)return false;
+    if(_isCardio&&whoopIsLifting(w))return false;
+    if(_isLift&&!whoopIsLifting(w))return false;
+    return true;});
   /* Name match: a session called "Spin" on a day WHOOP recorded a spin is the
      same session. This recovers sessions whose whoopId was stripped — an edit
      on builds before .516 dropped it — and needs no migration. */
