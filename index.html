@@ -1151,7 +1151,7 @@ input[type=range][data-pfadj]{width:100%;accent-color:var(--accent);min-height:2
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-09-08.528-rpt-range";
+var APP_BUILD="2026-09-08.529-stable-anchor";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -12647,7 +12647,15 @@ addEventListener("input",function(e){
         st[_f]=(v===""?null:num(v));saveTraining();}}}return;}
   if(el.classList&&el.classList.contains("wl-set-input")){var w=state.workout;if(w){var en=w.entries[+el.getAttribute("data-ei")];if(en){var st=en.sets[+el.getAttribute("data-si")];if(st){var _fld=el.getAttribute("data-wo");st[_fld]=el.value;
         if(_fld==="reps")st.repsTouched=true;
-        if(_fld==="weight"&&!en.bodyweight&&num(st.sugE)!=null&&!st.repsTouched){var _nw=num(el.value);var _nr=(num(st.sugW)!=null&&num(st.sugR)!=null)?sugPredictAt(st.sugW,st.sugR,_nw):sugInvertReps(st.sugE,_nw);if(_nr!=null){st.reps=String(_nr);st.sugR=_nr;st.sugW=_nw;var _ri=document.querySelector('input[data-wo="reps"][data-ei="'+el.getAttribute("data-ei")+'"][data-si="'+el.getAttribute("data-si")+'"]');if(_ri)_ri.value=String(_nr);}}
+        if(_fld==="weight"&&!en.bodyweight&&num(st.sugE)!=null&&!st.repsTouched){var _nw=num(el.value);var _nr=(num(st.sugW)!=null&&num(st.sugR)!=null)?sugPredictAt(st.sugW,st.sugR,_nw):sugInvertReps(st.sugE,_nw);if(_nr!=null){st.reps=String(_nr);
+          /* The reference MUST NOT move. It used to be rewritten from the
+             prediction on every input event, so each keystroke predicted from
+             the previous rounded, clamped prediction rather than from the
+             suggested set. Typing "110" one character at a time fired three
+             events and collapsed to 1 rep, where pasting "110" gave 11; and
+             100 -> 120 -> 100 returned 18 instead of the original 12. The
+             answer depended on HOW the number was typed, which is the reported
+             "drops to something like 3". sugW/sugR stay as the anchor. */var _ri=document.querySelector('input[data-wo="reps"][data-ei="'+el.getAttribute("data-ei")+'"][data-si="'+el.getAttribute("data-si")+'"]');if(_ri)_ri.value=String(_nr);}}
         saveWorkout();}}}if(state.logWarn){state.logWarn=null;var _rw=document.querySelector(".wl-rirwarn");if(_rw)_rw.remove();}return;}
   if(el.classList&&el.classList.contains("wl-wof-input")){var w=state.workout;if(w){w.finishForm=w.finishForm||{};w.finishForm[el.getAttribute("data-wof")]=el.value;if(el.getAttribute("data-wof")==="hr"){var za=document.getElementById("wl-zonearea");if(za)za.innerHTML=zoneAreaHTML({hr:el.value,zone:(w.finishForm.zone!=null?w.finishForm.zone:null)},"wof");}}return;}
   if(el.classList&&el.classList.contains("wl-ci-input")){var _cr=ciDraft(el.getAttribute("data-week"));_cr.answers[el.getAttribute("data-ci")]=el.value;save();return;}
