@@ -173,6 +173,16 @@ button{-webkit-user-select:none;user-select:none;font-family:var(--sans);cursor:
 .wl-wimp-l span{display:block;font-size:11.5px;color:var(--muted);font-family:var(--mono);margin-top:2px;}
 .wl-wimp-b{display:flex;gap:6px;flex:none;}
 .wl-wimp-b .wl-btn{padding:7px 13px;font-size:13px;}
+.wl-rb-noteadd{display:flex;align-items:center;gap:7px;width:100%;margin-top:10px;padding:9px 11px;background:var(--bg2);border:1px dashed var(--line2);border-radius:10px;color:var(--muted);font:inherit;font-size:12.5px;text-align:left;cursor:pointer;}
+.wl-rb-noteadd svg{flex:none;}
+.wl-rb-noteadd span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.wl-rb-note{margin-top:10px;}
+.wl-rb-notel{font-size:10px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);margin-bottom:6px;}
+.wl-rb-notein{width:100%;background:var(--bg2);border:1px solid var(--line2);border-radius:10px;padding:9px 11px;color:var(--text);font:inherit;font-size:14px;resize:vertical;box-sizing:border-box;}
+.wl-rb-noteb{display:flex;gap:8px;margin-top:8px;}
+.wl-rb-noteb .wl-btn{flex:1;padding:9px;}
+.wl-setnote{display:flex;gap:6px;align-items:flex-start;margin:2px 0 8px;padding:7px 10px;background:rgba(245,181,68,.08);border-left:2px solid var(--accent);border-radius:0 8px 8px 0;font-size:12.5px;color:var(--muted);line-height:1.45;}
+.wl-setnote svg{flex:none;margin-top:2px;color:var(--accent);}
 .wl-zrow{display:flex;align-items:center;gap:9px;margin-top:7px;}
 .wl-zrow-k{width:20px;flex:none;font-family:var(--mono);font-size:11px;font-weight:800;}
 .wl-zrow-bar{flex:1;height:8px;border-radius:4px;background:var(--bg2);border:1px solid var(--line);overflow:hidden;}
@@ -1139,7 +1149,7 @@ input[type=range][data-pfadj]{width:100%;accent-color:var(--accent);min-height:2
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-09-08.525-review-repairs";
+var APP_BUILD="2026-09-08.526-set-notes";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -5596,7 +5606,7 @@ function lrModel(offset){
           var e=e1rm(w,r);
           if(e!=null&&(bestE==null||e>bestE)){bestE=e;bestEi=k;}}
         if(rir!=null){ses.rirSum+=rir;ses.rirN++;}
-        rows.push({i:k+1,w:w,r:r,rir:rir,lo:(g?g.lo:null),hi:(g?g.hi:null),
+        rows.push({i:k+1,w:w,r:r,rir:rir,note:(st.note||null),lo:(g?g.lo:null),hi:(g?g.hi:null),
           t:(g?lrRangePos(r,g.lo,g.hi):null),out:out,pr:null});});
       var pr=(workN?prByName[en.name]:null)||null;
       if(pr){
@@ -5810,7 +5820,9 @@ function srExerciseHTML(x,first){
       '<span class="set-wr">'+wr+'</span>'+
       '<span class="set-tgt">'+((st.lo!=null&&st.hi!=null)?srRangeTxt({lo:st.lo,hi:st.hi}):SRDASH)+'</span>'+
       '<span class="set-rng">'+srSetIconHTML(st.r,st.lo,st.hi)+'</span>'+
-      '<span class="set-rir">'+(st.rir!=null?srInt(st.rir):SRDASH)+'</span></div>';});
+      '<span class="set-rir">'+(st.rir!=null?srInt(st.rir):SRDASH)+'</span></div>';
+    /* the athlete's own note about that set, written during the rest after it */
+    if(st.note)h+='<div class="set-note">'+srEsc(st.note)+'</div>';});
   return h+'</div>';}
 /* the silhouette drawn in a photo slot whose pose was not taken this week */
 var SR_SILH='<svg viewBox="0 0 100 150" aria-hidden="true"><g fill="#2E3949"><circle cx="52" cy="18" r="12"/><path d="M44 34 C50 31 58 32 60 36 L62 66 C63 76 61 84 60 88 L63 138 L51 138 L50 100 L47 138 L37 138 L42 88 C40 80 40 70 42 60 Z"/></g></svg>';
@@ -6225,7 +6237,8 @@ var SRCSS=[
 ".ptag{display:inline-flex;align-items:center;font-size:9.5px;line-height:1;font-weight:800;letter-spacing:.04em;padding:4px 7px;border-radius:6px;color:var(--muted);border:1px solid var(--line);margin-right:7px;vertical-align:1px}",
 ".ptag.rpt{color:var(--accent);border-color:var(--accent)}",
 ".pr{display:inline-block;font-family:var(--sans);font-size:9px;font-weight:800;letter-spacing:.1em;background:rgba(92,214,160,.16);color:var(--good);padding:1px 6px;border-radius:5px;margin-left:6px;vertical-align:1px}",
-".dag{color:var(--faint);margin-left:4px}",
+".set-note{margin:1px 0 9px 0;padding:6px 10px;border-left:2px solid var(--accent);background:var(--bg2);border-radius:0 7px 7px 0;font-size:12px;color:var(--muted);line-height:1.45}",
+    ".dag{color:var(--faint);margin-left:4px}",
 ".sess-note{font-size:13px;color:var(--muted);padding-top:10px;margin-top:12px;border-top:1px solid var(--line)}",
 ".sess-note em{font-style:normal;font-size:9.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-right:7px}",
 ".secLbl{font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);padding:8px 2px 0}",
@@ -6357,7 +6370,7 @@ function srInput(offset){
   var sessions=M.sessions.map(function(sn){return {name:sn.name,dateLabel:sn.dateLabel,mins:sn.mins,rpe:sn.rpe,ton:sn.ton,note:sn.notes,
     hr:sn.hr,hrMax:sn.hrMax,cal:sn.cal,zone:sn.zone,zones:sn.zones||null,
     ex:sn.ex.map(function(e){return {name:e.name,mode:e.rxMode,assumed:e.assumed,ranges:e.ranges||[],
-      sets:e.rows.map(function(r){return {n:r.i,skipped:!!r.skipped,w:r.w,r:r.r,rir:r.rir,lo:r.lo,hi:r.hi,pr:r.pr};})};})};});
+      sets:e.rows.map(function(r){return {n:r.i,skipped:!!r.skipped,w:r.w,r:r.r,rir:r.rir,note:r.note||null,lo:r.lo,hi:r.hi,pr:r.pr};})};})};});
   return {
     who:M.who,plan:M.plan,units:M.units,
     weekTitle:"Week of "+M.ws.toLocaleDateString(undefined,{month:"long",day:"numeric"}),
@@ -10421,8 +10434,9 @@ if(sk)h+='<span class="wl-set-skip">skipped</span>';else h+='<input class="wl-se
   h+='<input class="wl-set-input wl-set-rir" data-wo="rir" data-ei="'+ei+'" data-si="'+si+'" type="text" inputmode="numeric" placeholder="–" value="'+esc(st.rir||"")+'"'+((sk||done)?" disabled":"")+'>';
   h+='<span class="wl-set-tgt">'+(done&&!sk?setTargetIcon(st,en):"")+'</span>';
   h+='<button class="wl-set-log'+(done&&!wu?" done":"")+(sk?" skipped":"")+(wu?" warmup":"")+'" data-act="wo:log" data-ei="'+ei+'" data-si="'+si+'">'+(wu?"W":done?"✓":sk?"–":"")+'</button>';
+  var _stn=st.note?'<div class="wl-setnote">'+I.info.replace("<svg","<svg width=12 height=12")+'<span>'+esc(st.note)+'</span></div>':'';
   var _rw=(state.logWarn&&state.logWarn.ei===ei&&state.logWarn.si===si)?'<div class="wl-rirwarn"><span class="wl-rirwarn-ic">!</span><span>'+esc(state.logWarn.msg)+'</span></div>':'';
-  return h+'</div>'+_rw;}
+  return h+'</div>'+_stn+_rw;}
 /* The rest bar (Owner-approved redesign 2026-09-01): during rest, a compact bar
    at the top — big timer + Begin next set + Up next + a ⓘ that expands the "rest
    long enough to" guidance + the ⚙ rest settings. The workout list below stays
@@ -10438,6 +10452,25 @@ function restBarHTML(){
   h+='<div class="wl-rb-timer"><div class="wl-rb-label">'+(pz?'Paused':'Rest')+'</div><div class="wl-rb-time" id="wl-rest-time">'+fmtDur(b.segMs)+'</div></div>';
   h+=pz?'<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="wo:resumeset">Resume set</button>'
        :'<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="wo:endrest">Begin next set</button>';
+  /* A note about the set just completed, taken while it is still fresh. It is
+     attached to the SET, not the session, so history and the coach can say
+     which set it was about. */
+  var _lastEn=w.entries&&w.entries[w.lastEi];
+  var _lastSt=_lastEn&&(_lastEn.sets||[])[w.lastSi];
+  if(_lastSt&&!pz){
+    var _sn=_lastSt.note||"";
+    var _setLbl=esc(_lastEn.name||"that set")+' \u00b7 set '+((num(w.lastSi)||0)+1);
+    if(state.setNoteOpen){
+      h+='<div class="wl-rb-note"><div class="wl-rb-notel">Note on '+_setLbl+'</div>'+
+         '<textarea id="wl-setnote" class="wl-rb-notein" rows="2" placeholder="How did it feel? Form, pain, the weight\u2026">'+esc(_sn)+'</textarea>'+
+         '<div class="wl-rb-noteb"><button class="wl-btn wl-btn-primary" data-act="set:notesave">Save note</button>'+
+         '<button class="wl-btn wl-btn-ghost" data-act="set:noteopen">Cancel</button></div></div>';
+    }else{
+      h+='<button class="wl-rb-noteadd" data-act="set:noteopen">'+
+         (_sn?I.check.replace("<svg","<svg width=13 height=13")+'<span>'+esc(_sn.length>42?_sn.slice(0,42)+"\u2026":_sn)+'</span>'
+             :I.plus.replace("<svg","<svg width=13 height=13")+'<span>Note on '+_setLbl+'</span>')+'</button>';
+    }
+  }
   if(un){var bits=['Set '+un.setNo+' of '+un.setTotal];if(un.reps)bits.push(un.reps+' reps');if(un.weight)bits.push(esc(un.weight)+' '+u);
     h+='<div class="wl-rb-upnext"><span class="wl-rb-upl">'+(pz?'Back to':'Up next')+(un.ss?' <span class="wl-rb-ss">'+I.link.replace("<svg","<svg width=11 height=11")+'superset '+esc(un.ssLetter)+'</span>':'')+'</span><b>'+esc(un.name)+'</b><div class="wl-rb-upmeta">'+bits.join(' · ')+'</div></div>';}
   if(!pz&&state.restInfoOpen){
@@ -11910,6 +11943,15 @@ document.addEventListener("click",function(e){
   if(a==="wo:begin"){var w=state.workout;if(!w)return;w.tState="warmup";w.startTs=Date.now();w.stateStartTs=Date.now();saveWorkout();render();startWoTick();return;}
   if(a==="wo:startroutine"){woTransition("working");render();return;}
   if(a==="wo:endrest"){woTransition("working");render();if(typeof woScrollCurrent==="function")setTimeout(woScrollCurrent,40);return;}
+  if(a==="set:noteopen"){var w=state.workout;if(!w)return;state.setNoteOpen=!state.setNoteOpen;render();
+    if(state.setNoteOpen)setTimeout(function(){var el=document.getElementById("wl-setnote");if(el)el.focus();},60);
+    return;}
+  if(a==="set:notesave"){var w=state.workout;if(!w)return;
+    var el=document.getElementById("wl-setnote");var txt=el?String(el.value||"").trim():"";
+    var en=w.entries[w.lastEi];var st=en&&(en.sets||[])[w.lastSi];
+    if(st){if(txt)st.note=txt;else delete st.note;}
+    state.setNoteOpen=false;saveWorkout();render();
+    if(txt)toast("Note saved to that set");return;}
   if(a==="wo:pause"){var w=state.workout;if(!w||w.tState!=="working")return;w.pausedRest=true;woTransition("resting");if(typeof startWoTick==="function")startWoTick();render();return;}
   if(a==="wo:resumeset"){var w=state.workout;if(!w)return;woTransition("working");if(typeof startWoTick==="function")startWoTick();render();if(typeof woScrollCurrent==="function")setTimeout(woScrollCurrent,40);return;}
   if(a==="wo:log"){var w=state.workout;if(!w)return;if(w.tState==="ready"){toast("Tap Start to begin your warmup first");return;}if(w.tState==="warmup"){toast("Finish your warmup — tap End warmup to start the routine");return;}var ei=+el.getAttribute("data-ei"),si=+el.getAttribute("data-si");var stt=w.entries[ei].sets[si];
@@ -11919,7 +11961,7 @@ document.addEventListener("click",function(e){
     if(vr==null||vr<=0)need.push("reps above 0");
     if(vi==null||vi<0)need.push("RIR");
     if(need.length){state.logWarn={ei:ei,si:si,msg:"Enter "+need.join(", ")+" before you can log this set"};render();return;}
-    stt.status="done";w.lastEi=ei;if(si===rptTopIndex(en))rptAfterSet1(en);rptRetarget(en,si);state.logWarn=null;
+    stt.status="done";w.lastEi=ei;w.lastSi=si;   /* the rest bar attaches its note to this set */if(si===rptTopIndex(en))rptAfterSet1(en);rptRetarget(en,si);state.logWarn=null;
   var _wu=warmupCandidate(en,si);
   if(_wu&&!en.warmupAsked){en.warmupAsked=true;state.warmupAsk={ei:ei,si:si};}
   /* SUPERSET: mid-round, walk straight into the paired exercise with no rest
@@ -12030,7 +12072,7 @@ document.addEventListener("click",function(e){
     var _srt=getRoutine(w.routineId);
     var entries=w.entries.map(function(en){
       var prog=en.progression||(_srt&&_srt.progression)||"double";
-      var o={exerciseId:en.exerciseId,name:en.name,muscle:en.muscle,groupId:en.groupId||null,fb:en.fb||null,progression:prog,repLow:en.repLow,repHigh:en.repHigh,sets:en.sets.map(function(s){return {weight:num(s.weight),reps:num(s.reps),rir:num(s.rir),status:s.status,sugR:num(s.sugR),sugW:num(s.sugW),tgtLo:num(s.tgtLo),tgtHi:num(s.tgtHi)};})};
+      var o={exerciseId:en.exerciseId,name:en.name,muscle:en.muscle,groupId:en.groupId||null,fb:en.fb||null,progression:prog,repLow:en.repLow,repHigh:en.repHigh,sets:en.sets.map(function(s){return {weight:num(s.weight),reps:num(s.reps),rir:num(s.rir),status:s.status,note:(s.note||null),sugR:num(s.sugR),sugW:num(s.sugW),tgtLo:num(s.tgtLo),tgtHi:num(s.tgtHi)};})};
       if(prog==="rpt")o.setRanges=rptRangesFor({movement:en.movement,setRanges:en.setRanges},Math.max(1,en.sets.length));
       return o;});
     var sess={id:"l-"+Date.now()+"-"+Math.random().toString(36).slice(2,6),routineId:w.routineId,name:w.name,mode:"full",date:w.date,mins:Math.round(b.total/60000),warmupSec:Math.round(b.warmup/1000),workSec:Math.round(b.work/1000),restSec:Math.round(b.rest/1000),mfb:w.mfb||null,hr:num(ff.hr),hrMax:num(ff.hrMax),zone:zone,whoopZones:(w.whoopZones||null),cal:num(ff.cal),rpe:num(ff.rpe),notes:(ff.notes||"").trim(),bw:w.bw,entries:entries,ts:Date.now()};
@@ -17614,7 +17656,7 @@ document.addEventListener("click",function(e){
    entry gating alone proves nothing once an await intervenes. Fail closed: if
    the gate state or durable storage is unavailable, nothing mutates. */
 var M10_GATED={};
-["act:addcat","act:del","act:toggle","ai:copy","ai:gen","cal:ignore","cal:overwrite","cal:usecalc","cardio:del","cardio:save","cf:newtype","ci:send","ci:skipyes","ci:unskip","day:clear","day:reopendo","ex:clearall","ex:del","ex:save","ex:seedall","exp:go","exseed:add","fb:done","fb:set","glp:compound","glp:compoundsave","glp:dose:del","glp:dose:open","glp:dose:save","glp:enable","glp:showdue","glp:siterot","glp:skip","glp:sym:del","glp:sym:edit","glp:sym:newsave","glp:sym:open","glp:sym:save","glp:symptoms","glp:titration","hk:import","import","lift:del","lift:save","lift:savedetail","m10cx:server","m10cx:takeover","m10p:apply","m10p:export","m8:cx:local","m8:cx:server","macro:keep","macro:suggest","max:open","night:gen","night:toggle","note:del","note:save","ob:back","ob:recalc","paste:do","pb:adv","pb:pwsave","pbk:import","photo:add","pphoto:add","preset:del","rat:set","reminder:add","reset:ask","reset:do","ri:mv","ri:pick","ri:prog","ri:remove","rt:del","rt:new","rt:save","set:activity","set:sex","set:strategy","set:theme","set:ttype","set:units","set:weekstart","skip:calories","skip:sleep","skip:steps","skip:weight","status:end","status:endnow","status:save","sum:coachreport","sum:exportall","sum:exportweek","sum:toggle","sync:pull","sync:push","sync:test","tdee:apply","tdee:later","weight:add","weight:del","wo:addset","wo:begin","wo:bwsave","wo:delset","wo:discard","wo:discardnow","wo:endnow","wo:endrest","wo:exaddset","wo:exmove","wo:exprog","wo:exremove","wo:finish","wo:finishback","wo:finishlater","wo:log","wo:replacepick","wo:replsave:fwd","wo:resume","wo:savesession","wo:skipset","wo:skipthem","wo:start","wo:startroutine","wu:no","wu:yes","whoop:toggle","whoop:sync","whoop:disconnect","whoop:usesleep","whoop:useresting","whoop:undomax","whoop:import","whoop:importall","whoop:skipwo","whoop:cardiomode","ri:sslink","ri:ssunlink","wo:sslink","wo:ssunlink"].forEach(function(a){M10_GATED[a]=1;});
+["act:addcat","act:del","act:toggle","ai:copy","ai:gen","cal:ignore","cal:overwrite","cal:usecalc","cardio:del","cardio:save","cf:newtype","ci:send","ci:skipyes","ci:unskip","day:clear","day:reopendo","ex:clearall","ex:del","ex:save","ex:seedall","exp:go","exseed:add","fb:done","fb:set","glp:compound","glp:compoundsave","glp:dose:del","glp:dose:open","glp:dose:save","glp:enable","glp:showdue","glp:siterot","glp:skip","glp:sym:del","glp:sym:edit","glp:sym:newsave","glp:sym:open","glp:sym:save","glp:symptoms","glp:titration","hk:import","import","lift:del","lift:save","lift:savedetail","m10cx:server","m10cx:takeover","m10p:apply","m10p:export","m8:cx:local","m8:cx:server","macro:keep","macro:suggest","max:open","night:gen","night:toggle","note:del","note:save","ob:back","ob:recalc","paste:do","pb:adv","pb:pwsave","pbk:import","photo:add","pphoto:add","preset:del","rat:set","reminder:add","reset:ask","reset:do","ri:mv","ri:pick","ri:prog","ri:remove","rt:del","rt:new","rt:save","set:activity","set:sex","set:strategy","set:theme","set:ttype","set:units","set:weekstart","skip:calories","skip:sleep","skip:steps","skip:weight","status:end","status:endnow","status:save","sum:coachreport","sum:exportall","sum:exportweek","sum:toggle","sync:pull","sync:push","sync:test","tdee:apply","tdee:later","weight:add","weight:del","wo:addset","wo:begin","wo:bwsave","wo:delset","wo:discard","wo:discardnow","wo:endnow","wo:endrest","wo:exaddset","wo:exmove","wo:exprog","wo:exremove","wo:finish","wo:finishback","wo:finishlater","wo:log","wo:replacepick","wo:replsave:fwd","wo:resume","wo:savesession","wo:skipset","wo:skipthem","wo:start","wo:startroutine","wu:no","wu:yes","whoop:toggle","whoop:sync","whoop:disconnect","whoop:usesleep","whoop:useresting","whoop:undomax","set:notesave","whoop:import","whoop:importall","whoop:skipwo","whoop:cardiomode","ri:sslink","ri:ssunlink","wo:sslink","wo:ssunlink"].forEach(function(a){M10_GATED[a]=1;});
 
 /* fresh, complete authority check — account, session generation, holder,
    deadline AND fence identity, plus storage health */

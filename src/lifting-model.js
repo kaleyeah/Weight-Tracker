@@ -194,7 +194,7 @@ function lrModel(offset){
           var e=e1rm(w,r);
           if(e!=null&&(bestE==null||e>bestE)){bestE=e;bestEi=k;}}
         if(rir!=null){ses.rirSum+=rir;ses.rirN++;}
-        rows.push({i:k+1,w:w,r:r,rir:rir,lo:(g?g.lo:null),hi:(g?g.hi:null),
+        rows.push({i:k+1,w:w,r:r,rir:rir,note:(st.note||null),lo:(g?g.lo:null),hi:(g?g.hi:null),
           t:(g?lrRangePos(r,g.lo,g.hi):null),out:out,pr:null});});
       var pr=(workN?prByName[en.name]:null)||null;
       if(pr){

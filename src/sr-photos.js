@@ -88,7 +88,7 @@ function srInput(offset){
   var sessions=M.sessions.map(function(sn){return {name:sn.name,dateLabel:sn.dateLabel,mins:sn.mins,rpe:sn.rpe,ton:sn.ton,note:sn.notes,
     hr:sn.hr,hrMax:sn.hrMax,cal:sn.cal,zone:sn.zone,zones:sn.zones||null,
     ex:sn.ex.map(function(e){return {name:e.name,mode:e.rxMode,assumed:e.assumed,ranges:e.ranges||[],
-      sets:e.rows.map(function(r){return {n:r.i,skipped:!!r.skipped,w:r.w,r:r.r,rir:r.rir,lo:r.lo,hi:r.hi,pr:r.pr};})};})};});
+      sets:e.rows.map(function(r){return {n:r.i,skipped:!!r.skipped,w:r.w,r:r.r,rir:r.rir,note:r.note||null,lo:r.lo,hi:r.hi,pr:r.pr};})};})};});
   return {
     who:M.who,plan:M.plan,units:M.units,
     weekTitle:"Week of "+M.ws.toLocaleDateString(undefined,{month:"long",day:"numeric"}),

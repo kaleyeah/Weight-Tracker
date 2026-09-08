@@ -58,7 +58,9 @@ function srExerciseHTML(x,first){
       '<span class="set-wr">'+wr+'</span>'+
       '<span class="set-tgt">'+((st.lo!=null&&st.hi!=null)?srRangeTxt({lo:st.lo,hi:st.hi}):SRDASH)+'</span>'+
       '<span class="set-rng">'+srSetIconHTML(st.r,st.lo,st.hi)+'</span>'+
-      '<span class="set-rir">'+(st.rir!=null?srInt(st.rir):SRDASH)+'</span></div>';});
+      '<span class="set-rir">'+(st.rir!=null?srInt(st.rir):SRDASH)+'</span></div>';
+    /* the athlete's own note about that set, written during the rest after it */
+    if(st.note)h+='<div class="set-note">'+srEsc(st.note)+'</div>';});
   return h+'</div>';}
 /* the silhouette drawn in a photo slot whose pose was not taken this week */
 var SR_SILH='<svg viewBox="0 0 100 150" aria-hidden="true"><g fill="#2E3949"><circle cx="52" cy="18" r="12"/><path d="M44 34 C50 31 58 32 60 36 L62 66 C63 76 61 84 60 88 L63 138 L51 138 L50 100 L47 138 L37 138 L42 88 C40 80 40 70 42 60 Z"/></g></svg>';
@@ -473,7 +475,8 @@ var SRCSS=[
 ".ptag{display:inline-flex;align-items:center;font-size:9.5px;line-height:1;font-weight:800;letter-spacing:.04em;padding:4px 7px;border-radius:6px;color:var(--muted);border:1px solid var(--line);margin-right:7px;vertical-align:1px}",
 ".ptag.rpt{color:var(--accent);border-color:var(--accent)}",
 ".pr{display:inline-block;font-family:var(--sans);font-size:9px;font-weight:800;letter-spacing:.1em;background:rgba(92,214,160,.16);color:var(--good);padding:1px 6px;border-radius:5px;margin-left:6px;vertical-align:1px}",
-".dag{color:var(--faint);margin-left:4px}",
+".set-note{margin:1px 0 9px 0;padding:6px 10px;border-left:2px solid var(--accent);background:var(--bg2);border-radius:0 7px 7px 0;font-size:12px;color:var(--muted);line-height:1.45}",
+    ".dag{color:var(--faint);margin-left:4px}",
 ".sess-note{font-size:13px;color:var(--muted);padding-top:10px;margin-top:12px;border-top:1px solid var(--line)}",
 ".sess-note em{font-style:normal;font-size:9.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-right:7px}",
 ".secLbl{font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);padding:8px 2px 0}",

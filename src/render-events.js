@@ -218,6 +218,15 @@ document.addEventListener("click",function(e){
   if(a==="wo:begin"){var w=state.workout;if(!w)return;w.tState="warmup";w.startTs=Date.now();w.stateStartTs=Date.now();saveWorkout();render();startWoTick();return;}
   if(a==="wo:startroutine"){woTransition("working");render();return;}
   if(a==="wo:endrest"){woTransition("working");render();if(typeof woScrollCurrent==="function")setTimeout(woScrollCurrent,40);return;}
+  if(a==="set:noteopen"){var w=state.workout;if(!w)return;state.setNoteOpen=!state.setNoteOpen;render();
+    if(state.setNoteOpen)setTimeout(function(){var el=document.getElementById("wl-setnote");if(el)el.focus();},60);
+    return;}
+  if(a==="set:notesave"){var w=state.workout;if(!w)return;
+    var el=document.getElementById("wl-setnote");var txt=el?String(el.value||"").trim():"";
+    var en=w.entries[w.lastEi];var st=en&&(en.sets||[])[w.lastSi];
+    if(st){if(txt)st.note=txt;else delete st.note;}
+    state.setNoteOpen=false;saveWorkout();render();
+    if(txt)toast("Note saved to that set");return;}
   if(a==="wo:pause"){var w=state.workout;if(!w||w.tState!=="working")return;w.pausedRest=true;woTransition("resting");if(typeof startWoTick==="function")startWoTick();render();return;}
   if(a==="wo:resumeset"){var w=state.workout;if(!w)return;woTransition("working");if(typeof startWoTick==="function")startWoTick();render();if(typeof woScrollCurrent==="function")setTimeout(woScrollCurrent,40);return;}
   if(a==="wo:log"){var w=state.workout;if(!w)return;if(w.tState==="ready"){toast("Tap Start to begin your warmup first");return;}if(w.tState==="warmup"){toast("Finish your warmup — tap End warmup to start the routine");return;}var ei=+el.getAttribute("data-ei"),si=+el.getAttribute("data-si");var stt=w.entries[ei].sets[si];
@@ -227,7 +236,7 @@ document.addEventListener("click",function(e){
     if(vr==null||vr<=0)need.push("reps above 0");
     if(vi==null||vi<0)need.push("RIR");
     if(need.length){state.logWarn={ei:ei,si:si,msg:"Enter "+need.join(", ")+" before you can log this set"};render();return;}
-    stt.status="done";w.lastEi=ei;if(si===rptTopIndex(en))rptAfterSet1(en);rptRetarget(en,si);state.logWarn=null;
+    stt.status="done";w.lastEi=ei;w.lastSi=si;   /* the rest bar attaches its note to this set */if(si===rptTopIndex(en))rptAfterSet1(en);rptRetarget(en,si);state.logWarn=null;
   var _wu=warmupCandidate(en,si);
   if(_wu&&!en.warmupAsked){en.warmupAsked=true;state.warmupAsk={ei:ei,si:si};}
   /* SUPERSET: mid-round, walk straight into the paired exercise with no rest
@@ -338,7 +347,7 @@ document.addEventListener("click",function(e){
     var _srt=getRoutine(w.routineId);
     var entries=w.entries.map(function(en){
       var prog=en.progression||(_srt&&_srt.progression)||"double";
-      var o={exerciseId:en.exerciseId,name:en.name,muscle:en.muscle,groupId:en.groupId||null,fb:en.fb||null,progression:prog,repLow:en.repLow,repHigh:en.repHigh,sets:en.sets.map(function(s){return {weight:num(s.weight),reps:num(s.reps),rir:num(s.rir),status:s.status,sugR:num(s.sugR),sugW:num(s.sugW),tgtLo:num(s.tgtLo),tgtHi:num(s.tgtHi)};})};
+      var o={exerciseId:en.exerciseId,name:en.name,muscle:en.muscle,groupId:en.groupId||null,fb:en.fb||null,progression:prog,repLow:en.repLow,repHigh:en.repHigh,sets:en.sets.map(function(s){return {weight:num(s.weight),reps:num(s.reps),rir:num(s.rir),status:s.status,note:(s.note||null),sugR:num(s.sugR),sugW:num(s.sugW),tgtLo:num(s.tgtLo),tgtHi:num(s.tgtHi)};})};
       if(prog==="rpt")o.setRanges=rptRangesFor({movement:en.movement,setRanges:en.setRanges},Math.max(1,en.sets.length));
       return o;});
     var sess={id:"l-"+Date.now()+"-"+Math.random().toString(36).slice(2,6),routineId:w.routineId,name:w.name,mode:"full",date:w.date,mins:Math.round(b.total/60000),warmupSec:Math.round(b.warmup/1000),workSec:Math.round(b.work/1000),restSec:Math.round(b.rest/1000),mfb:w.mfb||null,hr:num(ff.hr),hrMax:num(ff.hrMax),zone:zone,whoopZones:(w.whoopZones||null),cal:num(ff.cal),rpe:num(ff.rpe),notes:(ff.notes||"").trim(),bw:w.bw,entries:entries,ts:Date.now()};

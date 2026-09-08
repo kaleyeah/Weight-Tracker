@@ -1764,8 +1764,9 @@ if(sk)h+='<span class="wl-set-skip">skipped</span>';else h+='<input class="wl-se
   h+='<input class="wl-set-input wl-set-rir" data-wo="rir" data-ei="'+ei+'" data-si="'+si+'" type="text" inputmode="numeric" placeholder="–" value="'+esc(st.rir||"")+'"'+((sk||done)?" disabled":"")+'>';
   h+='<span class="wl-set-tgt">'+(done&&!sk?setTargetIcon(st,en):"")+'</span>';
   h+='<button class="wl-set-log'+(done&&!wu?" done":"")+(sk?" skipped":"")+(wu?" warmup":"")+'" data-act="wo:log" data-ei="'+ei+'" data-si="'+si+'">'+(wu?"W":done?"✓":sk?"–":"")+'</button>';
+  var _stn=st.note?'<div class="wl-setnote">'+I.info.replace("<svg","<svg width=12 height=12")+'<span>'+esc(st.note)+'</span></div>':'';
   var _rw=(state.logWarn&&state.logWarn.ei===ei&&state.logWarn.si===si)?'<div class="wl-rirwarn"><span class="wl-rirwarn-ic">!</span><span>'+esc(state.logWarn.msg)+'</span></div>':'';
-  return h+'</div>'+_rw;}
+  return h+'</div>'+_stn+_rw;}
 /* The rest bar (Owner-approved redesign 2026-09-01): during rest, a compact bar
    at the top — big timer + Begin next set + Up next + a ⓘ that expands the "rest
    long enough to" guidance + the ⚙ rest settings. The workout list below stays
@@ -1781,6 +1782,25 @@ function restBarHTML(){
   h+='<div class="wl-rb-timer"><div class="wl-rb-label">'+(pz?'Paused':'Rest')+'</div><div class="wl-rb-time" id="wl-rest-time">'+fmtDur(b.segMs)+'</div></div>';
   h+=pz?'<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="wo:resumeset">Resume set</button>'
        :'<button class="wl-btn wl-btn-primary wl-full" style="margin-top:12px" data-act="wo:endrest">Begin next set</button>';
+  /* A note about the set just completed, taken while it is still fresh. It is
+     attached to the SET, not the session, so history and the coach can say
+     which set it was about. */
+  var _lastEn=w.entries&&w.entries[w.lastEi];
+  var _lastSt=_lastEn&&(_lastEn.sets||[])[w.lastSi];
+  if(_lastSt&&!pz){
+    var _sn=_lastSt.note||"";
+    var _setLbl=esc(_lastEn.name||"that set")+' \u00b7 set '+((num(w.lastSi)||0)+1);
+    if(state.setNoteOpen){
+      h+='<div class="wl-rb-note"><div class="wl-rb-notel">Note on '+_setLbl+'</div>'+
+         '<textarea id="wl-setnote" class="wl-rb-notein" rows="2" placeholder="How did it feel? Form, pain, the weight\u2026">'+esc(_sn)+'</textarea>'+
+         '<div class="wl-rb-noteb"><button class="wl-btn wl-btn-primary" data-act="set:notesave">Save note</button>'+
+         '<button class="wl-btn wl-btn-ghost" data-act="set:noteopen">Cancel</button></div></div>';
+    }else{
+      h+='<button class="wl-rb-noteadd" data-act="set:noteopen">'+
+         (_sn?I.check.replace("<svg","<svg width=13 height=13")+'<span>'+esc(_sn.length>42?_sn.slice(0,42)+"\u2026":_sn)+'</span>'
+             :I.plus.replace("<svg","<svg width=13 height=13")+'<span>Note on '+_setLbl+'</span>')+'</button>';
+    }
+  }
   if(un){var bits=['Set '+un.setNo+' of '+un.setTotal];if(un.reps)bits.push(un.reps+' reps');if(un.weight)bits.push(esc(un.weight)+' '+u);
     h+='<div class="wl-rb-upnext"><span class="wl-rb-upl">'+(pz?'Back to':'Up next')+(un.ss?' <span class="wl-rb-ss">'+I.link.replace("<svg","<svg width=11 height=11")+'superset '+esc(un.ssLetter)+'</span>':'')+'</span><b>'+esc(un.name)+'</b><div class="wl-rb-upmeta">'+bits.join(' · ')+'</div></div>';}
   if(!pz&&state.restInfoOpen){
