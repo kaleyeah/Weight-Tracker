@@ -1139,7 +1139,7 @@ input[type=range][data-pfadj]{width:100%;accent-color:var(--accent);min-height:2
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-09-03.522-z2-from-split";
+var APP_BUILD="2026-09-08.523-restore-fix";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -13127,12 +13127,68 @@ function applyImport(text){
   if(ownershipAmbiguous()){toast("Restore paused — this device holds data from another account");return;}
   var d;try{d=JSON.parse(text);}catch(err){toast("That isn't valid backup data");return;}
   if(!d||typeof d!=="object"||(!("weights" in d)&&!("settings" in d))){toast("Unrecognized backup format");return;}
-  askConfirm("Replace all data on this device with this backup? Current entries will be overwritten.",function(){
+  /* The file has always carried training history, the active workout, WHOOP,
+     GLP-1, ratings, check-ins and skips. Restore read NONE of them and still
+     said "Data restored", so a restore onto a clean device silently produced a
+     life with weights and no training, and onto a used device produced a hybrid
+     of two histories. Everything the file carries is now restored, and the
+     dialog states what the file actually holds instead of promising "all data".
+
+     A backup can legitimately WITHHOLD training — the exporter refuses to carry
+     it when ownership is ambiguous or the store is damaged. In that case the
+     device's own training is LEFT ALONE rather than wiped, because the backup
+     never claimed to replace it, and the dialog says so. */
+  var meta=d.__backup||{};
+  var hasTraining=Object.prototype.hasOwnProperty.call(d,"trainingHistory")&&d.trainingHistory&&typeof d.trainingHistory==="object";
+  var withheld=!!meta.trainingWithheld;
+  var when=meta.createdAt?(" from "+String(meta.createdAt).slice(0,10)):"";
+  var lines=["Replace this device's data with the backup"+when+"?"];
+  var cnt=[];
+  try{
+    cnt.push((Array.isArray(d.weights)?d.weights.length:0)+" weigh-ins");
+    if(hasTraining){
+      var _ls=d.trainingHistory.liftSessions||{},_cs=d.trainingHistory.sessions||{};
+      cnt.push(Object.keys(_ls).length+" lifting days");
+      cnt.push(Object.keys(_cs).length+" cardio days");
+      cnt.push(((d.trainingHistory.routines||[]).length)+" routines");
+    }
+    if(d.whoop)cnt.push(Object.keys(d.whoop).length+" WHOOP days");
+    if(d.glp&&Array.isArray(d.glp.doses))cnt.push(d.glp.doses.length+" GLP-1 doses");
+  }catch(e){}
+  if(cnt.length)lines.push("It holds "+cnt.join(", ")+".");
+  if(!hasTraining){
+    lines.push(withheld
+      ? "This backup deliberately withheld training history, so your routines and sessions on this device will be LEFT AS THEY ARE."
+      : "This backup carries no training history, so your routines and sessions on this device will be LEFT AS THEY ARE.");
+  }
+  askConfirm(lines.join(" "),function(){
   state.settings=Object.assign({},DEFAULT_SETTINGS,d.settings||{});
   state.weights=Array.isArray(d.weights)?d.weights:[];
-  state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.bodyfat=d.bodyfat||{};state.waist=d.waist||{};state.leanmass=d.leanmass||{};state.statuses=d.statuses||[];state.weeklySummary=d.weeklySummary||null;state.nightlySummary=d.nightlySummary||null;state.nightlyLog=d.nightlyLog||{};state.scriptVer=d.scriptVer||{};coachRptLoad();if(migrateCoachSeen())save();
+  state.food=d.food||{};state.workouts=d.workouts||{};state.steps=d.steps||{};state.notes=d.notes||{};state.sleep=d.sleep||{};state.bodyfat=d.bodyfat||{};state.waist=d.waist||{};state.leanmass=d.leanmass||{};state.statuses=Array.isArray(d.statuses)?d.statuses:[];
+  /* day-keyed stores the old restore dropped on the floor */
+  state.ratings=d.ratings||{};state.checkins=d.checkins||{};state.skips=d.skips||{};state.whoop=d.whoop||{};
+  state.nightlyLog=d.nightlyLog||{};
+  state.weeklySummary=(d.weeklySummary!==undefined)?d.weeklySummary:null;
+  state.nightlySummary=(d.nightlySummary!==undefined)?d.nightlySummary:null;
+  if(d.glp){state.glp=d.glp;if(typeof glpNormalize==="function")try{glpNormalize();}catch(e){}}
   state.presets=(Array.isArray(d.presets)&&d.presets.length)?d.presets:DEFAULT_PRESETS.slice();
-  state.pasteOpen=false;state.view="overview";applyTheme(state.settings.theme||"dark");save();toast("Data restored");
+  /* Training is a separate store with its own key, so it needs its own write. */
+  if(hasTraining){
+    state.training=d.trainingHistory;
+    if(typeof saveTraining==="function")try{saveTraining();}catch(e){}
+    else if(typeof saveTrainingLocal==="function")try{saveTrainingLocal();}catch(e){}
+  }
+  /* The active workout lives in its own localStorage key. A backup that
+     explicitly recorded "no workout in progress" clears it; one that never
+     carried the field leaves whatever is here. */
+  if(Object.prototype.hasOwnProperty.call(d,"activeWorkout")){
+    try{
+      if(d.activeWorkout){localStorage.setItem(WOKEY,JSON.stringify(d.activeWorkout));state.workout=d.activeWorkout;}
+      else{localStorage.removeItem(WOKEY);state.workout=null;}
+    }catch(e){}
+  }
+  state.pasteOpen=false;state.view="overview";applyTheme(state.settings.theme||"dark");save();
+  toast(hasTraining?"Data restored, training included":"Data restored — training left untouched");
   },{label:"Replace",danger:false});
 }
 function exportData(){
