@@ -37,10 +37,15 @@ function pushDataPromise(){
    files each day, and clears the inbox so nothing is applied twice. Covered metrics:
    food macros, steps, sleep, weight, body fat, waist, and lean body mass. */
 function hkNum(v){if(v==null)return null;var s=String(v).replace(/[^0-9.\-]/g,"");if(!s||s==="."||s==="-")return null;var n=parseFloat(s);return isFinite(n)?n:null;}
-function hkDayLines(text){var out={};if(text==null)return out;var lines=String(text).split(/[\r\n]+/);for(var i=0;i<lines.length;i++){var line=lines[i].trim();if(!line)continue;var c=line.indexOf(",");if(c<0)continue;var day=line.slice(0,c).trim();if(!/^\d{4}-\d{2}-\d{2}$/.test(day))continue;var v=hkNum(line.slice(c+1));if(v==null||v<=0)continue;out[day]=(out[day]||0)+v;}return out;}
+/* Repeated dates SUM, which is right for a tally (steps, calories) and wrong
+   for a measurement — two weigh-ins on one day must not make 366 lb. The
+   Shortcut sends one line per day today, so this has never fired, but the
+   parser should not be one payload change away from corrupting a weight.
+   `mode` is "sum" (default, tally) or "last" (measurement). */
+function hkDayLines(text,mode){var out={};if(text==null)return out;var lines=String(text).split(/[\r\n]+/);for(var i=0;i<lines.length;i++){var line=lines[i].trim();if(!line)continue;var c=line.indexOf(",");if(c<0)continue;var day=line.slice(0,c).trim();if(!/^\d{4}-\d{2}-\d{2}$/.test(day))continue;var v=hkNum(line.slice(c+1));if(v==null||v<=0)continue;out[day]=(mode==="last")?v:((out[day]||0)+v);}return out;}
 function hkLabelToField(name){var n=String(name).toLowerCase().replace(/[^a-z]/g,"");if(n.indexOf("lean")>=0||n==="lbm")return "leanmass";if(n.indexOf("bodyfat")>=0)return "bodyfat";if(n.indexOf("protein")>=0)return "protein";if(n.indexOf("fiber")>=0||n.indexOf("fibre")>=0)return "fiber";if(n.indexOf("carb")>=0)return "carbs";if(n.indexOf("fat")>=0)return "fat";if(n.indexOf("calor")>=0||n.indexOf("energy")>=0)return "calories";if(n.indexOf("step")>=0)return "steps";if(n.indexOf("weight")>=0)return "weight";if(n.indexOf("waist")>=0)return "waist";if(n.indexOf("sleep")>=0||n.indexOf("asleep")>=0)return "sleep";return null;}
 function hkParseLabeled(text){var out={};var re=/([^\r\n,:]+?)\s*:\s*(-?[0-9][0-9.,]*)/g;var m;while((m=re.exec(String(text)))!==null){var field=hkLabelToField(m[1]);if(field&&out[field]===undefined)out[field]=m[2];}return out;}
-function hkMetricDays(value,forDay){var byDay=hkDayLines(value);var has=false;for(var k in byDay){has=true;break;}if(has)return byDay;if(forDay){var v=hkNum(value);if(v!=null&&v>0){var o={};o[forDay]=v;return o;}}return {};}
+function hkMetricDays(value,forDay,mode){var byDay=hkDayLines(value,mode);var has=false;for(var k in byDay){has=true;break;}if(has)return byDay;if(forDay){var v=hkNum(value);if(v!=null&&v>0){var o={};o[forDay]=v;return o;}}return {};}
 function hkPlan(payload,fallbackFor){var out={food:{},steps:{},sleep:{},weight:{},bodyfat:{},waist:{},leanmass:{},count:0};var hkR1=function(v){return Math.round(v*10)/10;};if(typeof payload==="string"){try{payload=JSON.parse(payload);}catch(e){payload=hkParseLabeled(payload);}}if(!payload||typeof payload!=="object")return out;
   /* JSON keys go through the same label map as text lines, so the Shortcut may say
      "leanmass" or "Lean Body Mass", "waist" or "Waist Circumference" \u2014 first key wins */
@@ -53,10 +58,10 @@ function hkPlan(payload,fallbackFor){var out={food:{},steps:{},sleep:{},weight:{
     if(touched)out.food[d]=entry;}
   var st=hkMetricDays(payload.steps,forDay);for(var sd in st){out.steps[sd]=Math.round(st[sd]);out.count++;}
   var sl=hkMetricDays(payload.sleep,forDay);for(var ld in sl){out.sleep[ld]=Math.round(sl[ld]);out.count++;}
-  var wt=hkMetricDays(payload.weight,forDay);for(var wd in wt){out.weight[wd]=hkR1(wt[wd]);out.count++;}
-  var bf=hkMetricDays(payload.bodyfat,forDay);for(var bd in bf){var b=bf[bd];if(b<=1)b=b*100;out.bodyfat[bd]=hkR1(b);out.count++;}
-  var wa=hkMetricDays(payload.waist,forDay);for(var ad in wa){out.waist[ad]=hkR1(wa[ad]);out.count++;}
-  var lm=hkMetricDays(payload.leanmass,forDay);for(var md in lm){out.leanmass[md]=hkR1(lm[md]);out.count++;}
+  var wt=hkMetricDays(payload.weight,forDay,"last");for(var wd in wt){out.weight[wd]=hkR1(wt[wd]);out.count++;}
+  var bf=hkMetricDays(payload.bodyfat,forDay,"last");for(var bd in bf){var b=bf[bd];if(b<=1)b=b*100;out.bodyfat[bd]=hkR1(b);out.count++;}
+  var wa=hkMetricDays(payload.waist,forDay,"last");for(var ad in wa){out.waist[ad]=hkR1(wa[ad]);out.count++;}
+  var lm=hkMetricDays(payload.leanmass,forDay,"last");for(var md in lm){out.leanmass[md]=hkR1(lm[md]);out.count++;}
   return out;}
 function hkTryFetch(){
   var w=state.hkWait;if(!w)return;

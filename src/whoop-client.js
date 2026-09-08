@@ -93,8 +93,18 @@ function whoopApply(data){
 
 function whoopSync(cb){
   var w=whoopWindow();
+  /* Capture who we are BEFORE the request. A reply that lands after the account
+     changed, the write lease moved, or WHOOP was switched off must not be
+     written into whatever state now exists — the Apple Health path already
+     guards this way (m10Capture/hkStill) and WHOOP did not. */
+  var cap=(typeof m10Capture==="function")?m10Capture():null;
+  var uid0=(typeof pbUid==="function")?pbUid():null;
   whoopFetch("/whoop/sync?from="+w.from+"&to="+w.to,null,function(r){
     if(!r||!r.ok)return cb(r||{ok:false,error:"no response"});
+    var uid1=(typeof pbUid==="function")?pbUid():null;
+    var stillValid=(typeof m10StillValid==="function")?m10StillValid(cap):true;
+    if(!whoopOn()||uid1!==uid0||(cap&&!stillValid))
+      return cb({ok:false,error:"discarded — the account or session changed while WHOOP was replying"});
     state.whoopWorkouts=(r.workouts||[]).slice(-120);   /* enough to match recent sessions */
     /* remember that WHOOP still owes us a score, so the next foreground retries */
     state.whoopPending=(num(r.pendingScore)||0)>0;

@@ -1215,7 +1215,21 @@ function fbSheetHTML(){
   return h+'</div></div>';}
 /* ---- live workout ---- */
 var WOKEY="wl_workout_v1";
-function saveWorkout(){if(localWritesFrozen())return;try{if(state.workout)localStorage.setItem(WOKEY,JSON.stringify(state.workout));else localStorage.removeItem(WOKEY);}catch(e){}}
+/* A swallowed failure here is the worst kind: the UI goes on to say "Saved to
+   finish later" while the last sets exist only in memory, and a reload loses
+   them. Storage full is the realistic cause. Report it once per session rather
+   than on every set, and never claim a save that did not happen. */
+var _woSaveWarned=false;
+function saveWorkout(){if(localWritesFrozen())return true;
+  try{
+    if(state.workout)localStorage.setItem(WOKEY,JSON.stringify(state.workout));
+    else localStorage.removeItem(WOKEY);
+    _woSaveWarned=false;return true;
+  }catch(e){
+    if(!_woSaveWarned){_woSaveWarned=true;
+      try{toast("Couldn\u2019t save this workout to the device — storage may be full. Finish and save the session rather than leaving it.");}catch(e2){}}
+    return false;
+  }}
 function loadWorkout(){try{var w=JSON.parse(localStorage.getItem(WOKEY));if(w&&w.entries)state.workout=w;}catch(e){}}
 function currentBW(){if(state.weights&&state.weights.length){var s=state.weights.slice().sort(function(a,b){return a.date<b.date?1:-1;});return s[0].weight;}return num(state.settings.startingWeight);}
 function lastFullSetsFor(exId){var ls=state.training.liftSessions||{};var dates=Object.keys(ls).sort().reverse();
@@ -1655,7 +1669,11 @@ function restNotifyEnable(){
         if(!v||!v.key)throw new Error("push not configured");
         return reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:_restU8(v.key)});
       }).then(function(sub){
-        return fetch(REST_PUSH_BASE+"/subscribe",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({subscription:sub})});
+        /* the subscribe response was ignored, so a server error still reported
+           "alerts on" and the athlete waited for a notification that could
+           never arrive */
+        return fetch(REST_PUSH_BASE+"/subscribe",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({subscription:sub})})
+          .then(function(res){if(!res||!res.ok)throw new Error("the push service refused the subscription ("+((res&&res.status)||"no response")+")");return res;});
       });
     }).then(function(){state.settings.restNotify=true;save();render();toast("Rest-timer alerts on 💪");})
     .catch(function(e){toast("Couldn't enable alerts: "+(e&&e.message||e));});

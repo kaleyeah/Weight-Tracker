@@ -460,7 +460,7 @@ document.addEventListener("click",function(e){
     /* carry the WHOOP provenance through an edit: without it, saving would drop
        the id (so the workout would be offered for import again as a duplicate),
        lose the zone split, and stamp a fresh ts that breaks the time match */
-    ts:es.ts,whoopId:es.whoopId||null,whoopZones:es.whoopZones||null,whoopStrain:(es.whoopStrain!=null?es.whoopStrain:null),whoopSport:es.whoopSport||null,
+    ts:es.ts,hrAtLoad:(es.hr!=null?es.hr:null),zoneAtLoad:(es.zone!=null?es.zone:null),whoopId:es.whoopId||null,whoopZones:es.whoopZones||null,whoopStrain:(es.whoopStrain!=null?es.whoopStrain:null),whoopSport:es.whoopSport||null,
     picking:false,newOpen:false};state.view="cardioadd";render();return;}
   if(a==="cardio:pick"){state.cardioTypeEdit=false;if(state.cardioForm){state.cardioForm.type=el.getAttribute("data-type");state.cardioForm.picking=false;}render();return;}
   if(a==="cardio:repick"){if(state.cardioForm)state.cardioForm.picking=true;render();return;}
@@ -474,7 +474,13 @@ document.addEventListener("click",function(e){
   if(a==="cardio:save"){var cf=state.cardioForm;if(!cf)return;var mins=num(cf.mins);
     if(!cf.type){toast("Pick a cardio type");return;}if(mins==null||mins<=0){toast("Enter a duration in minutes");return;}
     var d=state.selDate;var list=((state.training.sessions[d])||[]).slice();
-    var hrv=num(cf.hr);var zone=zoneForHR(hrv,state.selDate);if(zone==null)zone=(cf.zone||null);
+    /* Recomputing on every save meant editing a note re-derived the zone from
+       today's model, so a stored classification could change without the
+       session changing. Recompute only when the heart rate actually moved. */
+    var hrv=num(cf.hr);
+    var zone;
+    if(cf.id&&num(cf.hrAtLoad)===hrv&&cf.zoneAtLoad!==undefined){zone=cf.zoneAtLoad;}
+    else{zone=zoneForHR(hrv,state.selDate);if(zone==null)zone=(cf.zone!=null?cf.zone:null);}
     var sess={id:cf.id||("c-"+Date.now()+"-"+Math.random().toString(36).slice(2,6)),kind:"cardio",type:cf.type,mins:Math.round(mins),zone:zone,rpe:num(cf.rpe),cal:num(cf.cal),hr:num(cf.hr),hrMax:num(cf.hrMax),notes:(cf.notes||"").trim(),
       ts:(cf.id&&num(cf.ts)!=null)?num(cf.ts):Date.now(),   /* an edit keeps when it happened */
       whoopId:cf.whoopId||null,whoopZones:cf.whoopZones||null,
@@ -711,8 +717,14 @@ var lt=getLastSync();toast((syncLabel()||"Sync")+(lt?" \u00b7 "+fmtClock(lt):"")
   if(a==="photo:view"){openLightbox(el.getAttribute("data-id"));return;}
   if(a==="openday"){var od=el.getAttribute("data-date");state.selDate=od;var pd=parseISO(od);state.calY=pd.getFullYear();state.calM=pd.getMonth();state.view="overview";render();return;}
   if(a==="day:clear"){var fdd=state.selDate;
-    askConfirm("Clear ALL entries for this day — weight, steps, sleep, calories, macros, activities, cardio & workout sessions, note, and photos? This can\u2019t be undone.",function(){
+    askConfirm("Clear this day — weight, steps, sleep, calories, macros, activities, cardio and lifting sessions, ratings, check-in, WHOOP figures and the note? Progress photos are kept. This can\u2019t be undone.",function(){
       delete state.food[fdd];delete state.steps[fdd];delete state.sleep[fdd];delete state.workouts[fdd];delete state.notes[fdd];delete state.bodyfat[fdd];delete state.waist[fdd];delete state.leanmass[fdd];
+      /* day-keyed stores the clear used to leave behind */
+      if(state.ratings)delete state.ratings[fdd];
+      if(state.checkins)delete state.checkins[fdd];
+      if(state.skips)delete state.skips[fdd];
+      if(state.whoop)delete state.whoop[fdd];
+      if(state.nightlyLog)delete state.nightlyLog[fdd];
       state.weights=state.weights.filter(function(x){return x.date!==fdd;});
       if(state.training){if(state.training.sessions)delete state.training.sessions[fdd];if(state.training.liftSessions)delete state.training.liftSessions[fdd];saveTraining();}
       save();toast("Day cleared");
@@ -807,7 +819,21 @@ var lt=getLastSync();toast((syncLabel()||"Sync")+(lt?" \u00b7 "+fmtClock(lt):"")
     render();return;}
   if(a==="reset:ask"){state.confirmReset=true;render();return;}
   if(a==="reset:cancel"){state.confirmReset=false;render();return;}
-  if(a==="reset:do"){state.settings=Object.assign({},DEFAULT_SETTINGS);state.weights=[];state.food={};state.workouts={};state.steps={};state.notes={};state.sleep={};state.bodyfat={};state.waist={};state.leanmass={};state.weeklySummary=null;state.nightlySummary=null;state.nightlyLog={};state.presets=DEFAULT_PRESETS.slice();state.confirmReset=false;state.view="overview";idbClearAll();save();render();toast("All data erased");return;}
+  if(a==="reset:do"){
+    /* The button says "Erase all data". It left training history, the active
+       workout, WHOOP, GLP-1, ratings, check-ins, skips, statuses and the coach
+       cache in place — so an erase handed the device on with the previous
+       life's routines and medication log intact. Everything goes now. */
+    state.settings=Object.assign({},DEFAULT_SETTINGS);state.weights=[];state.food={};state.workouts={};state.steps={};state.notes={};state.sleep={};state.bodyfat={};state.waist={};state.leanmass={};state.weeklySummary=null;state.nightlySummary=null;state.nightlyLog={};state.presets=DEFAULT_PRESETS.slice();
+    state.ratings={};state.checkins={};state.skips={};state.whoop={};state.statuses=[];
+    if(typeof glpDefault==="function")state.glp=glpDefault();
+    state.training={cardioTypes:DEFAULT_CARDIO_TYPES.slice(),sessions:{},exercises:[],routines:[],liftSessions:{}};
+    state.workout=null;state.whoopWorkouts=[];state.coachRpt={weekly:null,nightly:{},tdee:null};
+    try{localStorage.removeItem(WOKEY);}catch(e){}
+    try{for(var _ri=localStorage.length-1;_ri>=0;_ri--){var _rk=localStorage.key(_ri);
+      if(_rk&&_rk.indexOf("wl_coach_reports")===0)localStorage.removeItem(_rk);}}catch(e){}
+    if(typeof saveTraining==="function")try{saveTraining();}catch(e){}
+    state.confirmReset=false;state.view="overview";idbClearAll();save();render();toast("All data erased");return;}
 });
 document.addEventListener("focusin",function(e){var el=e.target;
   if(el&&el.classList&&el.classList.contains("wl-set-input")&&!el.disabled&&el.value){

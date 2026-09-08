@@ -1139,7 +1139,7 @@ input[type=range][data-pfadj]{width:100%;accent-color:var(--accent);min-height:2
 "use strict";
 /* ---------------- helpers ---------------- */
 var DAY=86400000;
-var APP_BUILD="2026-09-08.524-no-fabricated-zone";
+var APP_BUILD="2026-09-08.525-review-repairs";
 var PACE_MIN_WEIGHINS=7; /* weigh-ins required before a trend/pace is meaningful; below this a 2-point slope reads as a confident "2 lb/wk" that is pure noise */
 var SHOW_TESTBTN=true; /* test-only: manual recap Complete/Regenerate button under the recap. Set false for release. */
 var BRANDMARK='<svg viewBox="0 0 100 100" width="18" height="18" aria-hidden="true"><rect x="12" y="56" width="22" height="28" rx="8" fill="#7C93F5"/><rect x="39" y="40" width="22" height="44" rx="8" fill="#9FB0C9"/><rect x="66" y="16" width="22" height="68" rx="8" fill="#F5B544"/></svg>';
@@ -3244,10 +3244,16 @@ function skipBtn(sec,on,word){return '<button class="wl-btn wl-btn-ghost wl-full
    payload(), so a report can never be pushed, synced, conflicted or erased
    by this device. Legacy in-record copies remain as a fallback for history
    written before the split. */
-var COACHRPT_KEY="wl_coach_reports";
-function coachRptLoad(){try{state.coachRpt=JSON.parse(localStorage.getItem(COACHRPT_KEY))||{weekly:null,nightly:{},tdee:null};}catch(e){state.coachRpt={weekly:null,nightly:{},tdee:null};}
+/* Per ACCOUNT. One installation-wide key meant a second account loaded the
+   first account's coach reports, and an offline refresh left them on screen.
+   Logout also never wiped it (it is absent from logoutTargets), so the reports
+   outlived the session that produced them. Keying by uid fixes both: a
+   different account cannot read this cache, and a stale one is inert. */
+function coachRptKey(){var u=(typeof pbUid==="function")?pbUid():"";return "wl_coach_reports"+(u?("_"+u):"");}
+var COACHRPT_KEY="wl_coach_reports";   /* legacy shared key, migrated then removed */
+function coachRptLoad(){try{state.coachRpt=JSON.parse(localStorage.getItem(coachRptKey()))||{weekly:null,nightly:{},tdee:null};}catch(e){state.coachRpt={weekly:null,nightly:{},tdee:null};}
   if(state.coachRpt&&!("tdee" in state.coachRpt))state.coachRpt.tdee=null;/* cache written before tdee existed */}
-function coachRptSave(){try{localStorage.setItem(COACHRPT_KEY,JSON.stringify(state.coachRpt||{weekly:null,nightly:{},tdee:null}));}catch(e){}}
+function coachRptSave(){try{localStorage.setItem(coachRptKey(),JSON.stringify(state.coachRpt||{weekly:null,nightly:{},tdee:null}));}catch(e){}}
 function fetchCoachReports(cb){
   if(!syncOn()||ownershipAmbiguous()){cb&&cb(false);return;}
   fetch(pbBase()+"/api/collections/coach_reports/records?perPage=200&sort=-period&t="+Date.now(),{headers:pbHeaders(),cache:"no-store"})
@@ -9866,7 +9872,21 @@ function fbSheetHTML(){
   return h+'</div></div>';}
 /* ---- live workout ---- */
 var WOKEY="wl_workout_v1";
-function saveWorkout(){if(localWritesFrozen())return;try{if(state.workout)localStorage.setItem(WOKEY,JSON.stringify(state.workout));else localStorage.removeItem(WOKEY);}catch(e){}}
+/* A swallowed failure here is the worst kind: the UI goes on to say "Saved to
+   finish later" while the last sets exist only in memory, and a reload loses
+   them. Storage full is the realistic cause. Report it once per session rather
+   than on every set, and never claim a save that did not happen. */
+var _woSaveWarned=false;
+function saveWorkout(){if(localWritesFrozen())return true;
+  try{
+    if(state.workout)localStorage.setItem(WOKEY,JSON.stringify(state.workout));
+    else localStorage.removeItem(WOKEY);
+    _woSaveWarned=false;return true;
+  }catch(e){
+    if(!_woSaveWarned){_woSaveWarned=true;
+      try{toast("Couldn\u2019t save this workout to the device — storage may be full. Finish and save the session rather than leaving it.");}catch(e2){}}
+    return false;
+  }}
 function loadWorkout(){try{var w=JSON.parse(localStorage.getItem(WOKEY));if(w&&w.entries)state.workout=w;}catch(e){}}
 function currentBW(){if(state.weights&&state.weights.length){var s=state.weights.slice().sort(function(a,b){return a.date<b.date?1:-1;});return s[0].weight;}return num(state.settings.startingWeight);}
 function lastFullSetsFor(exId){var ls=state.training.liftSessions||{};var dates=Object.keys(ls).sort().reverse();
@@ -10306,7 +10326,11 @@ function restNotifyEnable(){
         if(!v||!v.key)throw new Error("push not configured");
         return reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:_restU8(v.key)});
       }).then(function(sub){
-        return fetch(REST_PUSH_BASE+"/subscribe",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({subscription:sub})});
+        /* the subscribe response was ignored, so a server error still reported
+           "alerts on" and the athlete waited for a notification that could
+           never arrive */
+        return fetch(REST_PUSH_BASE+"/subscribe",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({subscription:sub})})
+          .then(function(res){if(!res||!res.ok)throw new Error("the push service refused the subscription ("+((res&&res.status)||"no response")+")");return res;});
       });
     }).then(function(){state.settings.restNotify=true;save();render();toast("Rest-timer alerts on 💪");})
     .catch(function(e){toast("Couldn't enable alerts: "+(e&&e.message||e));});
@@ -11090,8 +11114,18 @@ function whoopApply(data){
 
 function whoopSync(cb){
   var w=whoopWindow();
+  /* Capture who we are BEFORE the request. A reply that lands after the account
+     changed, the write lease moved, or WHOOP was switched off must not be
+     written into whatever state now exists — the Apple Health path already
+     guards this way (m10Capture/hkStill) and WHOOP did not. */
+  var cap=(typeof m10Capture==="function")?m10Capture():null;
+  var uid0=(typeof pbUid==="function")?pbUid():null;
   whoopFetch("/whoop/sync?from="+w.from+"&to="+w.to,null,function(r){
     if(!r||!r.ok)return cb(r||{ok:false,error:"no response"});
+    var uid1=(typeof pbUid==="function")?pbUid():null;
+    var stillValid=(typeof m10StillValid==="function")?m10StillValid(cap):true;
+    if(!whoopOn()||uid1!==uid0||(cap&&!stillValid))
+      return cb({ok:false,error:"discarded — the account or session changed while WHOOP was replying"});
     state.whoopWorkouts=(r.workouts||[]).slice(-120);   /* enough to match recent sessions */
     /* remember that WHOOP still owes us a score, so the next foreground retries */
     state.whoopPending=(num(r.pendingScore)||0)>0;
@@ -12118,7 +12152,7 @@ document.addEventListener("click",function(e){
     /* carry the WHOOP provenance through an edit: without it, saving would drop
        the id (so the workout would be offered for import again as a duplicate),
        lose the zone split, and stamp a fresh ts that breaks the time match */
-    ts:es.ts,whoopId:es.whoopId||null,whoopZones:es.whoopZones||null,whoopStrain:(es.whoopStrain!=null?es.whoopStrain:null),whoopSport:es.whoopSport||null,
+    ts:es.ts,hrAtLoad:(es.hr!=null?es.hr:null),zoneAtLoad:(es.zone!=null?es.zone:null),whoopId:es.whoopId||null,whoopZones:es.whoopZones||null,whoopStrain:(es.whoopStrain!=null?es.whoopStrain:null),whoopSport:es.whoopSport||null,
     picking:false,newOpen:false};state.view="cardioadd";render();return;}
   if(a==="cardio:pick"){state.cardioTypeEdit=false;if(state.cardioForm){state.cardioForm.type=el.getAttribute("data-type");state.cardioForm.picking=false;}render();return;}
   if(a==="cardio:repick"){if(state.cardioForm)state.cardioForm.picking=true;render();return;}
@@ -12132,7 +12166,13 @@ document.addEventListener("click",function(e){
   if(a==="cardio:save"){var cf=state.cardioForm;if(!cf)return;var mins=num(cf.mins);
     if(!cf.type){toast("Pick a cardio type");return;}if(mins==null||mins<=0){toast("Enter a duration in minutes");return;}
     var d=state.selDate;var list=((state.training.sessions[d])||[]).slice();
-    var hrv=num(cf.hr);var zone=zoneForHR(hrv,state.selDate);if(zone==null)zone=(cf.zone||null);
+    /* Recomputing on every save meant editing a note re-derived the zone from
+       today's model, so a stored classification could change without the
+       session changing. Recompute only when the heart rate actually moved. */
+    var hrv=num(cf.hr);
+    var zone;
+    if(cf.id&&num(cf.hrAtLoad)===hrv&&cf.zoneAtLoad!==undefined){zone=cf.zoneAtLoad;}
+    else{zone=zoneForHR(hrv,state.selDate);if(zone==null)zone=(cf.zone!=null?cf.zone:null);}
     var sess={id:cf.id||("c-"+Date.now()+"-"+Math.random().toString(36).slice(2,6)),kind:"cardio",type:cf.type,mins:Math.round(mins),zone:zone,rpe:num(cf.rpe),cal:num(cf.cal),hr:num(cf.hr),hrMax:num(cf.hrMax),notes:(cf.notes||"").trim(),
       ts:(cf.id&&num(cf.ts)!=null)?num(cf.ts):Date.now(),   /* an edit keeps when it happened */
       whoopId:cf.whoopId||null,whoopZones:cf.whoopZones||null,
@@ -12369,8 +12409,14 @@ var lt=getLastSync();toast((syncLabel()||"Sync")+(lt?" \u00b7 "+fmtClock(lt):"")
   if(a==="photo:view"){openLightbox(el.getAttribute("data-id"));return;}
   if(a==="openday"){var od=el.getAttribute("data-date");state.selDate=od;var pd=parseISO(od);state.calY=pd.getFullYear();state.calM=pd.getMonth();state.view="overview";render();return;}
   if(a==="day:clear"){var fdd=state.selDate;
-    askConfirm("Clear ALL entries for this day — weight, steps, sleep, calories, macros, activities, cardio & workout sessions, note, and photos? This can\u2019t be undone.",function(){
+    askConfirm("Clear this day — weight, steps, sleep, calories, macros, activities, cardio and lifting sessions, ratings, check-in, WHOOP figures and the note? Progress photos are kept. This can\u2019t be undone.",function(){
       delete state.food[fdd];delete state.steps[fdd];delete state.sleep[fdd];delete state.workouts[fdd];delete state.notes[fdd];delete state.bodyfat[fdd];delete state.waist[fdd];delete state.leanmass[fdd];
+      /* day-keyed stores the clear used to leave behind */
+      if(state.ratings)delete state.ratings[fdd];
+      if(state.checkins)delete state.checkins[fdd];
+      if(state.skips)delete state.skips[fdd];
+      if(state.whoop)delete state.whoop[fdd];
+      if(state.nightlyLog)delete state.nightlyLog[fdd];
       state.weights=state.weights.filter(function(x){return x.date!==fdd;});
       if(state.training){if(state.training.sessions)delete state.training.sessions[fdd];if(state.training.liftSessions)delete state.training.liftSessions[fdd];saveTraining();}
       save();toast("Day cleared");
@@ -12465,7 +12511,21 @@ var lt=getLastSync();toast((syncLabel()||"Sync")+(lt?" \u00b7 "+fmtClock(lt):"")
     render();return;}
   if(a==="reset:ask"){state.confirmReset=true;render();return;}
   if(a==="reset:cancel"){state.confirmReset=false;render();return;}
-  if(a==="reset:do"){state.settings=Object.assign({},DEFAULT_SETTINGS);state.weights=[];state.food={};state.workouts={};state.steps={};state.notes={};state.sleep={};state.bodyfat={};state.waist={};state.leanmass={};state.weeklySummary=null;state.nightlySummary=null;state.nightlyLog={};state.presets=DEFAULT_PRESETS.slice();state.confirmReset=false;state.view="overview";idbClearAll();save();render();toast("All data erased");return;}
+  if(a==="reset:do"){
+    /* The button says "Erase all data". It left training history, the active
+       workout, WHOOP, GLP-1, ratings, check-ins, skips, statuses and the coach
+       cache in place — so an erase handed the device on with the previous
+       life's routines and medication log intact. Everything goes now. */
+    state.settings=Object.assign({},DEFAULT_SETTINGS);state.weights=[];state.food={};state.workouts={};state.steps={};state.notes={};state.sleep={};state.bodyfat={};state.waist={};state.leanmass={};state.weeklySummary=null;state.nightlySummary=null;state.nightlyLog={};state.presets=DEFAULT_PRESETS.slice();
+    state.ratings={};state.checkins={};state.skips={};state.whoop={};state.statuses=[];
+    if(typeof glpDefault==="function")state.glp=glpDefault();
+    state.training={cardioTypes:DEFAULT_CARDIO_TYPES.slice(),sessions:{},exercises:[],routines:[],liftSessions:{}};
+    state.workout=null;state.whoopWorkouts=[];state.coachRpt={weekly:null,nightly:{},tdee:null};
+    try{localStorage.removeItem(WOKEY);}catch(e){}
+    try{for(var _ri=localStorage.length-1;_ri>=0;_ri--){var _rk=localStorage.key(_ri);
+      if(_rk&&_rk.indexOf("wl_coach_reports")===0)localStorage.removeItem(_rk);}}catch(e){}
+    if(typeof saveTraining==="function")try{saveTraining();}catch(e){}
+    state.confirmReset=false;state.view="overview";idbClearAll();save();render();toast("All data erased");return;}
 });
 document.addEventListener("focusin",function(e){var el=e.target;
   if(el&&el.classList&&el.classList.contains("wl-set-input")&&!el.disabled&&el.value){
@@ -13475,7 +13535,15 @@ var LOGOUT_JOURNAL_KEY="wl_logout_journal",LOGOUT_JOURNAL_V=1;
    finish destroying data they may not have exported. */
 var logoutRecovery=null;   /* null, or {phase, journal} while a wipe is unresolved */
 function logoutRecoveryPending(){return !!logoutRecovery;}
-function logoutTargets(){return [KEY,TKEY,WOKEY,DIRTY_KEY,LAST_KEY,LASTOWNER_KEY,TRECOVERY_KEY];}
+function logoutTargets(){
+  /* The coach-report cache survived logout, so the next account could read the
+     previous one's reports. Both the per-account key and the legacy shared key
+     go, and any other account's cached reports are cleared too — this device is
+     being handed over, not switched between. */
+  var out=[KEY,TKEY,WOKEY,DIRTY_KEY,LAST_KEY,LASTOWNER_KEY,TRECOVERY_KEY,"wl_coach_reports"];
+  try{for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);
+    if(k&&k.indexOf("wl_coach_reports")===0&&out.indexOf(k)<0)out.push(k);}}catch(e){}
+  return out;}
 var LOGOUT_PHASES=["prepared","wiping","data-cleared","committed"];
 
 function readSessionPair(){
@@ -17072,10 +17140,15 @@ function pushDataPromise(){
    files each day, and clears the inbox so nothing is applied twice. Covered metrics:
    food macros, steps, sleep, weight, body fat, waist, and lean body mass. */
 function hkNum(v){if(v==null)return null;var s=String(v).replace(/[^0-9.\-]/g,"");if(!s||s==="."||s==="-")return null;var n=parseFloat(s);return isFinite(n)?n:null;}
-function hkDayLines(text){var out={};if(text==null)return out;var lines=String(text).split(/[\r\n]+/);for(var i=0;i<lines.length;i++){var line=lines[i].trim();if(!line)continue;var c=line.indexOf(",");if(c<0)continue;var day=line.slice(0,c).trim();if(!/^\d{4}-\d{2}-\d{2}$/.test(day))continue;var v=hkNum(line.slice(c+1));if(v==null||v<=0)continue;out[day]=(out[day]||0)+v;}return out;}
+/* Repeated dates SUM, which is right for a tally (steps, calories) and wrong
+   for a measurement — two weigh-ins on one day must not make 366 lb. The
+   Shortcut sends one line per day today, so this has never fired, but the
+   parser should not be one payload change away from corrupting a weight.
+   `mode` is "sum" (default, tally) or "last" (measurement). */
+function hkDayLines(text,mode){var out={};if(text==null)return out;var lines=String(text).split(/[\r\n]+/);for(var i=0;i<lines.length;i++){var line=lines[i].trim();if(!line)continue;var c=line.indexOf(",");if(c<0)continue;var day=line.slice(0,c).trim();if(!/^\d{4}-\d{2}-\d{2}$/.test(day))continue;var v=hkNum(line.slice(c+1));if(v==null||v<=0)continue;out[day]=(mode==="last")?v:((out[day]||0)+v);}return out;}
 function hkLabelToField(name){var n=String(name).toLowerCase().replace(/[^a-z]/g,"");if(n.indexOf("lean")>=0||n==="lbm")return "leanmass";if(n.indexOf("bodyfat")>=0)return "bodyfat";if(n.indexOf("protein")>=0)return "protein";if(n.indexOf("fiber")>=0||n.indexOf("fibre")>=0)return "fiber";if(n.indexOf("carb")>=0)return "carbs";if(n.indexOf("fat")>=0)return "fat";if(n.indexOf("calor")>=0||n.indexOf("energy")>=0)return "calories";if(n.indexOf("step")>=0)return "steps";if(n.indexOf("weight")>=0)return "weight";if(n.indexOf("waist")>=0)return "waist";if(n.indexOf("sleep")>=0||n.indexOf("asleep")>=0)return "sleep";return null;}
 function hkParseLabeled(text){var out={};var re=/([^\r\n,:]+?)\s*:\s*(-?[0-9][0-9.,]*)/g;var m;while((m=re.exec(String(text)))!==null){var field=hkLabelToField(m[1]);if(field&&out[field]===undefined)out[field]=m[2];}return out;}
-function hkMetricDays(value,forDay){var byDay=hkDayLines(value);var has=false;for(var k in byDay){has=true;break;}if(has)return byDay;if(forDay){var v=hkNum(value);if(v!=null&&v>0){var o={};o[forDay]=v;return o;}}return {};}
+function hkMetricDays(value,forDay,mode){var byDay=hkDayLines(value,mode);var has=false;for(var k in byDay){has=true;break;}if(has)return byDay;if(forDay){var v=hkNum(value);if(v!=null&&v>0){var o={};o[forDay]=v;return o;}}return {};}
 function hkPlan(payload,fallbackFor){var out={food:{},steps:{},sleep:{},weight:{},bodyfat:{},waist:{},leanmass:{},count:0};var hkR1=function(v){return Math.round(v*10)/10;};if(typeof payload==="string"){try{payload=JSON.parse(payload);}catch(e){payload=hkParseLabeled(payload);}}if(!payload||typeof payload!=="object")return out;
   /* JSON keys go through the same label map as text lines, so the Shortcut may say
      "leanmass" or "Lean Body Mass", "waist" or "Waist Circumference" \u2014 first key wins */
@@ -17088,10 +17161,10 @@ function hkPlan(payload,fallbackFor){var out={food:{},steps:{},sleep:{},weight:{
     if(touched)out.food[d]=entry;}
   var st=hkMetricDays(payload.steps,forDay);for(var sd in st){out.steps[sd]=Math.round(st[sd]);out.count++;}
   var sl=hkMetricDays(payload.sleep,forDay);for(var ld in sl){out.sleep[ld]=Math.round(sl[ld]);out.count++;}
-  var wt=hkMetricDays(payload.weight,forDay);for(var wd in wt){out.weight[wd]=hkR1(wt[wd]);out.count++;}
-  var bf=hkMetricDays(payload.bodyfat,forDay);for(var bd in bf){var b=bf[bd];if(b<=1)b=b*100;out.bodyfat[bd]=hkR1(b);out.count++;}
-  var wa=hkMetricDays(payload.waist,forDay);for(var ad in wa){out.waist[ad]=hkR1(wa[ad]);out.count++;}
-  var lm=hkMetricDays(payload.leanmass,forDay);for(var md in lm){out.leanmass[md]=hkR1(lm[md]);out.count++;}
+  var wt=hkMetricDays(payload.weight,forDay,"last");for(var wd in wt){out.weight[wd]=hkR1(wt[wd]);out.count++;}
+  var bf=hkMetricDays(payload.bodyfat,forDay,"last");for(var bd in bf){var b=bf[bd];if(b<=1)b=b*100;out.bodyfat[bd]=hkR1(b);out.count++;}
+  var wa=hkMetricDays(payload.waist,forDay,"last");for(var ad in wa){out.waist[ad]=hkR1(wa[ad]);out.count++;}
+  var lm=hkMetricDays(payload.leanmass,forDay,"last");for(var md in lm){out.leanmass[md]=hkR1(lm[md]);out.count++;}
   return out;}
 function hkTryFetch(){
   var w=state.hkWait;if(!w)return;

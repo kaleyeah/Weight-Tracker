@@ -558,10 +558,16 @@ function skipBtn(sec,on,word){return '<button class="wl-btn wl-btn-ghost wl-full
    payload(), so a report can never be pushed, synced, conflicted or erased
    by this device. Legacy in-record copies remain as a fallback for history
    written before the split. */
-var COACHRPT_KEY="wl_coach_reports";
-function coachRptLoad(){try{state.coachRpt=JSON.parse(localStorage.getItem(COACHRPT_KEY))||{weekly:null,nightly:{},tdee:null};}catch(e){state.coachRpt={weekly:null,nightly:{},tdee:null};}
+/* Per ACCOUNT. One installation-wide key meant a second account loaded the
+   first account's coach reports, and an offline refresh left them on screen.
+   Logout also never wiped it (it is absent from logoutTargets), so the reports
+   outlived the session that produced them. Keying by uid fixes both: a
+   different account cannot read this cache, and a stale one is inert. */
+function coachRptKey(){var u=(typeof pbUid==="function")?pbUid():"";return "wl_coach_reports"+(u?("_"+u):"");}
+var COACHRPT_KEY="wl_coach_reports";   /* legacy shared key, migrated then removed */
+function coachRptLoad(){try{state.coachRpt=JSON.parse(localStorage.getItem(coachRptKey()))||{weekly:null,nightly:{},tdee:null};}catch(e){state.coachRpt={weekly:null,nightly:{},tdee:null};}
   if(state.coachRpt&&!("tdee" in state.coachRpt))state.coachRpt.tdee=null;/* cache written before tdee existed */}
-function coachRptSave(){try{localStorage.setItem(COACHRPT_KEY,JSON.stringify(state.coachRpt||{weekly:null,nightly:{},tdee:null}));}catch(e){}}
+function coachRptSave(){try{localStorage.setItem(coachRptKey(),JSON.stringify(state.coachRpt||{weekly:null,nightly:{},tdee:null}));}catch(e){}}
 function fetchCoachReports(cb){
   if(!syncOn()||ownershipAmbiguous()){cb&&cb(false);return;}
   fetch(pbBase()+"/api/collections/coach_reports/records?perPage=200&sort=-period&t="+Date.now(),{headers:pbHeaders(),cache:"no-store"})

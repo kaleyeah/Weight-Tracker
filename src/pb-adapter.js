@@ -184,7 +184,15 @@ var LOGOUT_JOURNAL_KEY="wl_logout_journal",LOGOUT_JOURNAL_V=1;
    finish destroying data they may not have exported. */
 var logoutRecovery=null;   /* null, or {phase, journal} while a wipe is unresolved */
 function logoutRecoveryPending(){return !!logoutRecovery;}
-function logoutTargets(){return [KEY,TKEY,WOKEY,DIRTY_KEY,LAST_KEY,LASTOWNER_KEY,TRECOVERY_KEY];}
+function logoutTargets(){
+  /* The coach-report cache survived logout, so the next account could read the
+     previous one's reports. Both the per-account key and the legacy shared key
+     go, and any other account's cached reports are cleared too — this device is
+     being handed over, not switched between. */
+  var out=[KEY,TKEY,WOKEY,DIRTY_KEY,LAST_KEY,LASTOWNER_KEY,TRECOVERY_KEY,"wl_coach_reports"];
+  try{for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);
+    if(k&&k.indexOf("wl_coach_reports")===0&&out.indexOf(k)<0)out.push(k);}}catch(e){}
+  return out;}
 var LOGOUT_PHASES=["prepared","wiping","data-cleared","committed"];
 
 function readSessionPair(){
